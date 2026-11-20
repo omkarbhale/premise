@@ -1,6 +1,6 @@
 # How premise is being made
 
-Why and how premise is being made, as far as the conversation of 2026-11-20 shows it.
+Why and how premise is being made, as far as the conversation of 2026-11-20 shows it, with the working arrangement settled on 2026-11-21 at the end.
 Sources: [the conversation](record/conversation-2026-11-20.md), [the shaping notes](record/shaping-notes-2026-11-20.md), [the prior-art ask](prior-art/ask.md) and [report](prior-art/report.md).
 "Owner" is the person premise is being made for; "Assistant" is the LLM agent the owner shaped it with. Decisions themselves are in [decisions.md](decisions.md).
 
@@ -59,6 +59,15 @@ Sources: [the conversation](record/conversation-2026-11-20.md), [the shaping not
 - The owner's choice: "Fast, I merge".
 - Every change goes straight to a pull request with no automated review-and-test run, and the assistant merges it. As offered: "Fastest, least checked."
 - The other options and why they were not chosen are in [decisions.md](decisions.md), entry 40.
+- Reconfirmed on 2026-11-21 (entry 52).
+
+## Building without the owner (from 2026-11-21)
+
+- The owner asked to settle every call that needs the owner first, so that premise can be built without the owner (entry 42). The calls and follow-ups are entries 43–64.
+- Nothing is built until the owner says to start; the whole plan is committed first (entry 61, [plan.md](plan.md)).
+- Once building starts, the builders decide the rest of the design and record each choice with its reason and the alternative rejected, as the plan does.
+- Work stops for the owner only on destructive, security-sensitive, public-facing or money-spending actions (entry 53).
+- One short report per finished milestone; an immediate message only when something needs the owner (entry 54).
 
 ## The prior-art research and what was done with it
 
