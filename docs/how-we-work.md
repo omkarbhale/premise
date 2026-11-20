@@ -2,7 +2,7 @@
 
 Why and how premise is being made, as far as the conversation of 2026-11-20 shows it, with the working arrangement settled on 2026-11-21 at the end.
 Sources: [the conversation](record/conversation-2026-11-20.md), [the shaping notes](record/shaping-notes-2026-11-20.md), [the prior-art ask](prior-art/ask.md) and [report](prior-art/report.md).
-"Owner" is the person premise is being made for; "Assistant" is the LLM agent the owner shaped it with. Decisions themselves are in [decisions.md](decisions.md).
+"Owner" is the person premise is being made for; "Assistant" is the LLM agent the owner shaped it with. Decisions themselves are in the [decision records](decisions/README.md); the old entry numbers are kept as record numbers.
 
 ## Why premise is being made
 
@@ -58,16 +58,16 @@ Sources: [the conversation](record/conversation-2026-11-20.md), [the shaping not
 
 - The owner's choice: "Fast, I merge".
 - Every change goes straight to a pull request with no automated review-and-test run, and the assistant merges it. As offered: "Fastest, least checked."
-- The other options and why they were not chosen are in [decisions.md](decisions.md), entry 40.
-- Reconfirmed on 2026-11-21 (entry 52).
+- The other options and why they were not chosen are in record [0040](decisions/0040-fast-i-merge.md).
+- Reconfirmed on 2026-11-21 ([0052](decisions/0052-fast-i-merge-reconfirmed.md)).
 
 ## Building without the owner (from 2026-11-21)
 
-- The owner asked to settle every call that needs the owner first, so that premise can be built without the owner (entry 42). The calls and follow-ups are entries 43–64.
-- Nothing is built until the owner says to start; the whole plan is committed first (entry 61, [plan.md](plan.md)).
-- Once building starts, the builders decide the rest of the design and record each choice with its reason and the alternative rejected, as the plan does.
-- Work stops for the owner only on destructive, security-sensitive, public-facing or money-spending actions (entry 53).
-- One short report per finished milestone; an immediate message only when something needs the owner (entry 54).
+- The owner asked to settle every call that needs the owner first, so that premise can be built without the owner ([0042](decisions/0042-plan-top-down-settle-owner-calls-first.md)). The calls and follow-ups are records 0043–0060; the decisions after them are 0061–0066.
+- Nothing is built until the owner says to start; the whole plan is committed first ([0061](decisions/0061-nothing-built-until-the-owner-says.md)). The plan is now carried by the [architecture](architecture/overview.md), the [roadmap](product/roadmap.md) and the [decision records](decisions/README.md) ([0066](decisions/0066-documents-follow-the-aras-insight-layout.md)).
+- Once building starts, the builders decide the rest of the design and record each choice with its reason and the alternative rejected, as a new [decision record](decisions/README.md).
+- Work stops for the owner only on destructive, security-sensitive, public-facing or money-spending actions ([0053](decisions/0053-when-work-stops-for-the-owner.md)).
+- One short report per finished milestone; an immediate message only when something needs the owner ([0054](decisions/0054-reports-to-the-owner.md)).
 
 ## The prior-art research and what was done with it
 
@@ -97,12 +97,12 @@ Sources: [the conversation](record/conversation-2026-11-20.md), [the shaping not
 
 ### What was done with it
 - The assistant pointed to sections 2 (closest entries side by side), 5 (failure modes) and 6 (open questions) of the report as the ones worth reading first.
-- Reading only. The owner declined all three research follow-ups, including the hands-on trial the assistant recommended (decisions entry 24).
+- Reading only. The owner declined all three research follow-ups, including the hands-on trial the assistant recommended ([0024](decisions/0024-no-other-tools-unless-they-match-the-vision.md)).
 - The research raised four points, each settled with the owner:
-  - the record is kept by the product (decisions entries 25 and 26);
-  - people's attention is spent least (entries 27–29);
-  - the check is out of the builder's reach (entry 30);
-  - reusable product or a setup bonded to each software (entry 31).
+  - the record is kept by the product ([0025](decisions/0025-two-kinds-of-record.md), [0026](decisions/0026-no-maintained-description-of-what-exists.md));
+  - people's attention is spent least ([0027](decisions/0027-spend-least-of-peoples-attention.md)–[0029](decisions/0029-lists-over-long-paragraphs.md));
+  - the check is out of the builder's reach ([0030](decisions/0030-independent-check.md));
+  - reusable product or a setup bonded to each software ([0031](decisions/0031-the-product-is-general.md)).
 - A fifth point, security defaults for an operator who can't judge them, was put with the parked floor.
-- It showed "software factory" "carries fifty years of baggage", one reason the assistant gave for avoiding "factory" in the name (entry 37).
-- Looking at what already exists became a step of premise's own line (entry 23): "similar to how we are doing prior work, this should also be in product I think."
+- It showed "software factory" "carries fifty years of baggage", one reason the assistant gave for avoiding "factory" in the name ([0037](decisions/0037-name-premise.md)).
+- Looking at what already exists became a step of premise's own line ([0023](decisions/0023-looking-at-what-exists.md)): "similar to how we are doing prior work, this should also be in product I think."
