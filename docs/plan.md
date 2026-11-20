@@ -21,7 +21,7 @@ Settled before this plan:
 - One browser page: a chat, plus views of the record and of reports (entry 44).
 - premise is written in TypeScript (entry 47).
 - It runs on the owner's machine first; hosting comes later, with other people setting it up (entry 43).
-- A link per person; no accounts until other people set it up (entry 45).
+- One session where everything is open, designed as if one person does everything; roles are labels on what is asked; no per-person links (entry 65). No accounts until other people set it up (entry 45).
 - Any kind of software; no first kind (entries 49, 57).
 - Each software in its own repository on the owner's GitHub; visibility per software or whatever GitHub says; premise enforces none (entries 51, 59).
 - The check is a different agent from the builder, out of its reach, judging the running result against the intent (entry 30).
@@ -39,16 +39,16 @@ Settled before this plan:
 ### Parts
 1. **The server.** One Node.js process on the owner's machine. Its modules:
    - **Page server:** serves the page and its API.
-   - **Line engine:** knows where each software is on the line, picks the next step, asks people.
+   - **Line engine:** knows where each software is on the line, picks the next step, asks in the session, labelling each ask with its role.
    - **Record keeper:** the only writer of each software's lasting record; checks its format and its trace links.
    - **Work queue:** jobs (draft, research, plan, build, check, run, report, triage, reading), stored so that a restart resumes them.
    - **Agent runner:** starts, watches and stops agent sessions; gives each its own working copy, confinement and limits.
-   - **Gate:** every action on the floor passes here; it asks the named person or lets the action through.
+   - **Gate:** every action on the floor passes here; it asks in the session, under the role whose call it is, or lets the action through.
    - **Runner:** starts the built software from a clean copy and keeps it up while premise runs.
    - **Intake:** takes items in from every source and routes them.
    - **Reporter:** writes reports from recorded facts.
 2. **Agents.** Claude Code sessions run headless, one child process each. Each has a role (drafter, researcher, planner, builder, checker, triager, reporter), instructions that ship with premise, and only the tools its role needs.
-3. **The page.** One browser page: chat, record view, report view, and "needed from you".
+3. **The page.** One browser page holding one session where everything is open: chat, every stage, record view, report view, and "needed", grouped by role (entry 65).
 4. **Storage.** premise's own database and data folder on the owner's machine; each software's repository on GitHub.
 5. **Tools underneath** (entry 63): Claude Code, git, the GitHub CLI and usage-ledger, driven by the server. People never have to use them alongside premise.
 
@@ -91,7 +91,7 @@ Settled before this plan:
 
 ## 2. Where it runs and how people reach it
 
-- premise runs on the owner's machine (entry 43). One command starts it and prints the owner's link.
+- premise runs on the owner's machine (entry 43). One command starts it and prints the session's link.
 - Installed once and checked at every start; premise names whatever is missing:
   - Node.js LTS and git;
   - Claude Code, logged in once with the owner's subscription in premise's own configuration folder (P10);
@@ -105,17 +105,18 @@ Settled before this plan:
   - Why: no new secret to create or store, and agents never hold it.
   - Rejected: a personal access token stored by premise.
 
-### Links (entry 45)
-- **P12. Each person's link carries a long random token. Every request needs one, the owner's included. The server also checks the Host and Origin headers.**
-  - Why: with no accounts, the token is the only lock; without it, any web page open in the same browser could drive premise on localhost.
-  - Rejected: no token for requests from the owner's own machine.
-- The operator makes a link on the page, naming the person and their role. A link can be withdrawn at any time.
+### One session (entry 65)
+- Everything is open in one session on the page: every stage, the record, reports, and what each role needs or is being asked. All of it is visible and answerable there, designed as if one person does everything.
+- Roles are labels on what is asked. Every question, proposal and approval says which role it is for, in that role's terms; whoever is in the session answers it.
+- **P12. The session's link carries a long random token. Every request needs it. The server also checks the Host and Origin headers.**
+  - Why: without it, any other web page open in the same browser could drive premise on localhost.
+  - Rejected: no token for requests from the owner's own machine; a link per person (entry 65).
 
 ### Reach
 - **P13. premise listens on localhost only.**
   - Why: anything reachable from outside the machine is security-sensitive (entries 53, 56).
   - Rejected: listening on every network interface by default.
-- Other people need premise reachable from their machines. premise prepares that (a local-network address or a tunnel) and the operator decides it, because it is security-sensitive. Until then, other people can only use premise at the owner's machine.
+- Being reached from other machines is a later decision for the owner, because it is security-sensitive (entries 53, 56). Until then, premise is used only at the owner's machine.
 - Built software runs on the same machine (section 5).
 - Hosting premise itself comes with milestone 5. Accounts are decided then (entry 45).
 
@@ -125,7 +126,7 @@ Settled before this plan:
 - **P14. Each software's lasting record lives in its own repository, in a `premise/` folder at the root.**
   - Why: it is versioned with the code; a change and its record land in one commit, so the record cannot fall behind (entry 25). It outlives premise; the prior art found records lost when the tool holding them shut down.
   - Rejected: keeping the record in premise's database.
-- **P15. Nothing about real people goes into a software's repository.** Names, links, contacts and conversations stay in premise's data folder. The record names roles, not people.
+- **P15. Nothing about real people goes into a software's repository.** Conversations, and anything said in them about people, stay in premise's data folder. The record names roles, not people.
   - Why: visibility is not premise's to enforce (entry 59), so the repository must be safe to make public.
   - Rejected: conversation transcripts in the repository.
 - Working records (transcripts, plans, job logs, check evidence) stay in premise's data folder. They are kept, not maintained (entry 25). Deleting them is losing data, so only a person does it.
@@ -160,10 +161,10 @@ Settled before this plan:
   - A conflicting change must name the item it replaces; two live items never disagree.
   - Replacing an item about purpose (`Y`, `U`, a must `W`) or a foundation decision goes to the say-back.
 - **P18. Who has the last word, taken from the scope page draft:**
-  - anything that follows from the record and is cheap to undo: premise decides and records why; nobody is asked unless they claimed the area;
+  - anything that follows from the record and is cheap to undo: premise decides and records why; nothing is asked unless the area is claimed;
   - purpose, users, priorities: premise drafts and suggests; the operator decides;
-  - an area someone claimed for their taste: premise proposes; that person decides;
-  - what an LLM cannot reliably know or do (an intent nobody stated, real-world acts, accountability): premise gives its best attempt with its reasons; a named person decides or acts;
+  - an area claimed for taste: premise proposes; it is decided under the role that claimed it;
+  - what an LLM cannot reliably know or do (an intent nobody stated, real-world acts, accountability): premise gives its best attempt with its reasons; it is asked under the role that decides or acts;
   - the floor: the gate asks (section 6).
   - Why: it spends people's attention only where being wrong is costly (entry 27).
   - Rejected: asking people about every record change.
@@ -172,7 +173,7 @@ Settled before this plan:
 
 Rules for every stage:
 - premise drafts first and people correct (entry 27). A question is asked only when being wrong is costly.
-- Each question goes to the person named for that step, in their terms.
+- Each question is labelled with the role it is for, in that role's terms, and asked in the one session.
 - Every output is a short list. Each item can be struck, kept or edited on the page, one at a time.
 - A software moves on when the stage's exit condition holds. The operator can send it back to any stage.
 - **P19. Each stage has an effort budget sized to the software; a small software gets short stages.**
@@ -185,8 +186,8 @@ Rules for every stage:
    - Exit: the operator has seen the list and nothing struck is left open. Writes `why.md`.
 2. **Who.**
    - premise drafts plausible kinds of user, and the roles the software needs: people with taste in a part, people who decide or do what an LLM cannot.
-   - The operator corrects, and names a person for each role or keeps it.
-   - Writes `who.md`. The named people stay in premise's database (P15).
+   - The operator corrects the list.
+   - The roles become the labels on what premise asks from then on (entry 65). Writes `who.md`.
 3. **What exists.**
    - The researcher agent searches the web and reads sources, within its budget (P19).
    - It lists what exists, with sources, and recommends one outcome: do not build, build on something, or build something different. It reads the motive from Why: saving effort, or finding a gap (entry 23).
@@ -213,7 +214,7 @@ Rules for every stage:
 
 ### Existing software (milestone 6)
 - An agent drafts the record from the code, its documentation, its history and its issues. Every item is marked `recovered`.
-- Parts that conflict, or cannot be inferred, become questions to named people (entry 19).
+- Parts that conflict, or cannot be inferred, become questions, each labelled with the role it is for (entry 19).
 - The say-back covers the whole recovered record. Recovered items stay unconfirmed until it passes; the prior art found that recovered intent misses 44–65% of user goals.
 - "What exists" also asks whether something has appeared that makes part of the software unnecessary (entry 23).
 - From then on every commit traces to items. Old code gets best-guess links, marked as guesses.
@@ -260,7 +261,7 @@ Rules for every stage:
   - every must item met and no floor finding: the change passes;
   - a must item not met, or a floor finding: back to the builder as a new task, with the evidence;
   - should or could items not met, and small defects: accepted and reported when fixing costs more than it is worth (entry 6); the operator can reopen them;
-  - the same item failing three rounds: work on it stops, and the report names who is needed and for what.
+  - the same item failing three rounds: work on it stops, and the report names which role is needed and for what.
 - **P25. The checker uses the same provider, in a fresh session, with different instructions, at the strongest model tier.**
   - Why: Claude through the owner's subscription is the only provider for now (entry 46).
   - Rejected: a second provider (another subscription or an API key, which spends money).
@@ -285,13 +286,13 @@ Rules for every stage:
   - desktop apps: the page shows the built program and how to start it on the owner's machine.
 - It restarts a crashed software a few times, then reports. It keeps the software's logs; errors in them become intake.
 - Release notes for each change that reaches running are drafted from the record items it served.
-- When a software needs what an LLM cannot provide (an account with an outside service, a licensed system to run against, a payment), premise names the person and exactly what is needed, and runs what it can meanwhile.
+- When a software needs what an LLM cannot provide (an account with an outside service, a licensed system to run against, a payment), premise names the role and exactly what is needed, and runs what it can meanwhile.
 - Keeping software live for its real users is milestone 7.
 
 ## 6. Intake and reporting
 
 ### Intake sources
-- People, through their links: something said in chat that is not an answer to a current question becomes an intake item, and premise says so in one line ("Taken as I-14").
+- Whoever is in the session: something said in chat that is not an answer to a current question becomes an intake item, and premise says so in one line ("Taken as I-14").
 - The software's users: a feedback page per software. premise gives its link to the operator; giving it to users is the operator's act.
 - The software's GitHub issues, read by the server on a timer.
 - premise itself: check failures, errors in a running software's logs, dependency advisories, budget warnings from usage-ledger.
@@ -302,7 +303,7 @@ Rules for every stage:
   - Rejected: people sorting intake by hand.
 - Routes (entry 62: intake goes in normally; only what needs holding is held):
   - **In normally, the default:** bugs and wishes that fit the record become changes on the line: plan, build, check, run. A say-back only if the change touches purpose or is costly to undo.
-  - **Asked at once:** an item that touches purpose, an area someone claimed, or the floor goes to the named person.
+  - **Asked at once:** an item that touches purpose, a claimed area, or the floor is asked in the session, under the role whose call it is.
   - **Held:** only the items that need holding (P29).
   - **Merged or closed:** duplicates join their item; noise is closed with its reason. Both are counted in reports.
 - **P29. Held means only items that mean little one at a time and something together:**
@@ -318,7 +319,7 @@ Rules for every stage:
 - A reading ends in a short list for the operator: what people seem to want, what keeps coming up, and whether the software's purpose or users should change.
   - The operator decides any change of purpose.
   - When people do not want the software, premise goes back to Why with the operator (entry 36).
-- Senders are told where their item stands (taken, held, done, closed) on the page, for people with links. A comment on a GitHub issue is public and in the owner's name, so it goes through the gate (P35).
+- Senders are told where their item stands (taken, held, done, closed): in the session, for items said there. A comment on a GitHub issue is public and in the owner's name, so it goes through the gate (P35).
 
 ### Reporting
 - **P31. Reports are built from recorded facts only: check verdicts, job outcomes, gate decisions, usage-ledger figures. Every line links to its evidence. No agent's account of its own work is a source.**
@@ -327,13 +328,13 @@ Rules for every stage:
 - The report view, always current, for each software (entry 12):
   - **Decided:** record items and decisions since the last report.
   - **Running:** what runs, which commit, and where to open it.
-  - **Needed:** what is needed and from whom, each with exactly what to do.
+  - **Needed:** what is needed and from which role, each with exactly what to do.
   - **Failed or not checked:** every item not met or not checked.
   - **Cost:** from usage-ledger, once it is usable (section 7).
 - **P32. A short report each time a change reaches running; an immediate notice only when someone is needed.**
   - Why: it is the rhythm the owner chose for premise's own building (entry 54).
   - Rejected: a report per task (noise); reports only when asked.
-- **P33. Notices: each person's "needed from you" list on their page, a count in the browser tab, and browser notifications while the page is open.**
+- **P33. Notices: the "needed" list in the session, grouped by role, a count in the browser tab, and browser notifications while the page is open.**
   - Why: it needs no outside account and sends nothing in anyone's name.
   - Rejected for now: email or chat messages (an outside account, and messages sent outside premise).
 - More detail when asked, in chat ("more on W-7"), answered from the record, the evidence and the working records.
@@ -348,15 +349,15 @@ Rules for every stage:
   - Why: these are the owner's floor (entry 56), made concrete enough for the gate to recognise.
   - Rejected: leaving it to each agent to judge what is risky.
 - Agents cannot take a floor action. They hold no credentials and run confined (P21), and can only request one through their tool. Instructions are not access control; the prior art's destructive incidents all had credentials within reach.
-- **P35. The gate asks the named person, saying exactly what will happen and why. Only the work that depends on the answer waits.**
-  - A person can approve one action, or a named kind of action for one software, such as status comments on its issues. Approvals are recorded and can be withdrawn.
+- **P35. The gate asks in the session, under the role whose call it is, saying exactly what will happen and why. Only the work that depends on the answer waits.**
+  - The session can approve one action, or a named kind of action for one software, such as status comments on its issues. Approvals are recorded and can be withdrawn.
   - Deleting data and spending money are always asked one at a time.
   - Why: the floor is slow on purpose; everything else proceeds and is reported. Entry 53 holds the same rule for building premise.
   - Rejected: asking for every action; approvals that cover every software.
 
 ### Taste (entry 22)
-- A person claims an area on the page, in their own words ("the look of the main screen", "the API's naming").
-- **P36. Before a claimed area is built, its person sees a proposal: a screenshot of a quick prototype, or a short list. They decide; other tasks go on.**
+- An area is claimed in the session under a role, in its own words ("the look of the main screen", "the API's naming").
+- **P36. Before a claimed area is built, a proposal is shown in the session under the claiming role: a screenshot of a quick prototype, or a short list. It is decided there; other tasks go on.**
   - Why: something to look at is the cheapest way to catch a mismatch (entry 13). Review points exist only where someone claimed an area (entry 22).
   - Rejected: a written description to approve; review of every area by default (entry 22).
 - What they say becomes `T` items. Those that can be checked go into the checker's scenarios.
@@ -432,7 +433,7 @@ Thinnest means: one software at a time; only the operator; no taste claims; inta
 
 **Step 2 onward: the line.**
 - Built:
-  - the server; the page (chat, record view, report view, "needed from you"); the owner's link; the database; the work queue that survives a restart; the gate;
+  - the server; the page (one session: chat, record view, report view, "needed"); the session's link and token; the database; the work queue that survives a restart; the gate;
   - stages Why to Plan in their thinnest form: one draft per stage, corrections in chat, a strike-out say-back, a short look at what exists;
   - the record keeper writing `premise/` files with IDs into a new repository per software; trace trailers enforced;
   - one builder and one checker, confined; the checker's scenarios out of the builder's reach; verdicts with evidence;
@@ -453,13 +454,13 @@ Thinnest means: one software at a time; only the operator; no taste claims; inta
 - Shown running: milestone 1's demos run again, with usage per stage and per item in their reports; a deliberately small budget overrun that pauses the software and tells the operator.
 - Reported: as for every milestone, plus what milestone 1's demos cost.
 
-### Milestone 3: everyone at their step
-- Built: links for other people, with their roles; questions routed to the named person in their terms; taste claims and proposals before building; the gate asking the right person; approvals for a kind of action; each person's "needed from you" list.
-- Shown running: a scripted run with three people, each answering only their own questions through their own link:
-  - an operator;
-  - someone who claimed the look of the main screen;
-  - someone who must do a real-world act, such as creating an account with an outside service.
-- Reported: as for every milestone, plus how many questions each person was asked.
+### Milestone 3: every role, in one session
+- Built: roles as labels on every ask; questions in each role's terms; taste claims and proposals before building; the gate asking under the right role; approvals for a kind of action; the "needed" list grouped by role. All in the one session (entry 65).
+- Shown running: a scripted run in one session that answers the asks of three roles, each ask labelled with its role:
+  - the operator;
+  - a role that claimed the look of the main screen;
+  - a role that must do a real-world act, such as creating an account with an outside service.
+- Reported: as for every milestone, plus how many questions each role was asked.
 
 ### Milestone 4: intake, automatic and held
 - Built: intake from every source; triage; the in-normally, asked, held, and merged-or-closed routes; readings; the way back to Why; telling senders where their item stands.
@@ -477,9 +478,9 @@ Sooner than the other later items (entry 33, item 7; entry 43).
   - one install command, and a setup check that names what is missing;
   - each person's own model access (P37); other providers if needed (P41);
   - setup instructions, written as part of what users read;
-  - premise hosted in a container on a host its operator chooses, reachable through links;
+  - premise hosted in a container on a host its operator chooses;
   - accounts, decided at this milestone (entry 45).
-- Every step that exposes premise beyond one machine waits for the person running it; for the owner's own setup, the owner (entry 53).
+- Being reached from other machines is security-sensitive (entries 53, 65). This milestone prepares it and does not decide it: every step that exposes premise beyond one machine waits for the person running it; for the owner's own setup, the owner.
 - Shown running: a clean machine (a fresh virtual machine) set up from the instructions alone, then milestone 1's demos run on it. Using an API key for this spends money, so it waits for the owner.
 - Reported: as for every milestone, plus every point where setup needed a person.
 
