@@ -8,26 +8,104 @@ One product that takes software from an idea to running software, and keeps taki
 
 The full statement is in [VISION.md](VISION.md).
 
-## Status
+> **Status: specification stage.** Nothing is built yet. This repository holds the vision, the records of the conversation that shaped premise (2026-11-20), every decision since with who made it, the architecture, a specification per module, and the prompts and skills its agents will run on. Building starts only when the owner says so ([0061](docs/decisions/0061-nothing-built-until-the-owner-says.md)). The owner's read of vision draft 3 is still open.
 
-- Nothing is built yet. premise has a vision statement, the records of the conversation that shaped it (2026-11-20), the decisions made since, and a build plan.
-- Building starts only when the owner says so ([decisions](docs/decisions.md), entry 61). The owner's read of vision draft 3 is still open.
+## The problem
 
-## Files
+- **The line from an idea to running software is held together by hand.** Before premise, the owner's loop from intent to a deployed change existed, as the assistant described it, "in pieces held together by hand", and broke at the hand-carried joins ([how we work](docs/how-we-work.md#why-premise-is-being-made)).
+- **Nothing covers the whole line.** The prior-art research found tools crowded around building, spec checkpoints and code review, and thin or absent where premise cares most: deciding what to build, bringing in several people at their own steps, reporting, cost against value, and keeping rejected alternatives ([report](docs/prior-art/report.md)).
+- **The big mistake is building the wrong thing.** Intent mismatch is the top reported failure: agents guess rather than ask.
+- **People's attention is the bottleneck,** not build speed. Every question and report costs the scarcest thing.
+- **Checks and reports are only as good as their independence.** Agents game checks they can reach, and self-reports have been false.
 
-Kept current:
-- [VISION.md](VISION.md): what premise is, who it is for, its principles, the line, the record, and what is not yet worked out.
-- [docs/decisions.md](docs/decisions.md): every decision made, with its reason, who gave it, and the alternatives rejected; the build order agreed so far; what is open or parked.
-- [docs/how-we-work.md](docs/how-we-work.md): why and how premise is being made: the working rules, the method, how changes ship, and the prior-art research.
-- README.md: this file.
-- [LICENSE](LICENSE): all rights reserved.
+## Key capabilities
 
-Working record, not kept current after use:
-- [docs/plan.md](docs/plan.md): the build plan: the parts of premise, where it runs, the record, how each stage of the line works, and the milestones in order.
+- **The whole line in one product.** Why, Who, What exists, What, Say back, Plan, Build, Check, Run, Report, Intake. No step where a person carries work to an LLM by hand ([the line](docs/architecture/the-line.md)).
+- **Drafts first, people correct.** premise drafts each stage as a short list and shows its assumptions; it asks only where being wrong is costly ([0027](docs/decisions/0027-spend-least-of-peoples-attention.md)).
+- **Looks at what exists before building,** and may recommend not building at all ([0023](docs/decisions/0023-looking-at-what-exists.md)).
+- **Says back what it understood** as at most ten items to strike out ([0028](docs/decisions/0028-say-back-as-assumptions-to-strike.md)).
+- **Makes the technical decisions itself,** each recorded with its reason and the alternative rejected; foundation choices get a second agent's review.
+- **Builds unattended, checks independently.** The checker never sees the builder's account and keeps its scenarios out of the builder's reach ([build, check and run](docs/architecture/build-check-run.md)).
+- **Ends at running software** people can open: a link, a command and its output, or a built program ([0017](docs/decisions/0017-the-line-ends-at-running-software.md)).
+- **A lasting record in each software's repository,** one item per line, every commit traced to the items it serves ([the record](docs/architecture/the-record.md)).
+- **Every role in one session,** each ask labelled with the role it is for and phrased in that role's terms ([0065](docs/decisions/0065-one-open-session.md)).
+- **Intake that goes in normally,** with only what needs holding held and read together ([intake and reporting](docs/architecture/intake-and-reporting.md)).
+- **Honest reports** from recorded facts only, every line linked to its evidence ([0097](docs/decisions/0097-reports-from-recorded-facts.md)).
+- **A floor never traded for speed,** enforced by confinement and a gate, not by instructions ([the floor and the gate](docs/architecture/the-floor-and-the-gate.md)).
+- **Cost per piece of work** through usage-ledger ([models and cost](docs/architecture/models-and-cost.md)).
 
-Raw history, never edited:
+## How it works
+
+```mermaid
+flowchart LR
+    P[Operator and every role<br/>one session] --> PG[Page]
+    PG --> SV[Server on the owner's machine<br/>line engine, record keeper,<br/>work queue, gate, runner,<br/>intake, reporter]
+    SV --> AG[Agents: Claude Code, headless,<br/>confined, one per job]
+    AG -->|tools only| SV
+    SV --> REPO[(Each software's repository<br/>code + premise/ record)]
+    SV --> RUN[Running software]
+    RUN -->|logs, feedback, issues| SV
+    SV --> UL[usage-ledger]
+```
+
+Simplified view; see the [architecture overview](docs/architecture/overview.md) for every part.
+
+- People use premise through one browser page holding one session where everything is open.
+- The server, one process on the owner's machine, moves each software along the line, asks in the session, and runs agents for the work: drafting, research, review, planning, building, checking, triage, readings and reports.
+- Agents hold no credentials. They reach premise only through the tools their role gets, cannot write the record or push, and run confined. The server keeps the record, pushes, runs the software and passes every floor action through the gate.
+- The checked software runs from a clean copy; what comes back from it and from people is intake, judged against the record.
+
+## Scope summary
+
+| Category | Examples |
+| --- | --- |
+| In the product | The whole line; every role a software needs; taste claims; the lasting record and traces; honest reports; intake, automatic and held; existing software; cost per piece of work; what the software's users read; several softwares at once; other people setting premise up; any kind of software |
+| First milestone | Proof of unattended LLM work on the owner's subscription; then the thinnest line, end to end, for a small command-line utility and a small web app |
+| Not the product's job | Acting in the real world (opening accounts, paying, signing); selling or supporting the software; finding out on its own whether real people want the software |
+
+Details: [scope](docs/product/scope.md); order: [roadmap](docs/product/roadmap.md).
+
+## Documentation map
+
+**Start here**
+- [VISION.md](VISION.md): what premise is, who it is for, its principles, the line, the record, and what is not yet worked out. Stays at the root ([0111](docs/decisions/0111-vision-stays-at-the-root.md)).
+- [Executive summary](docs/executive-summary.md): premise in two pages.
+- [Glossary](docs/glossary.md): the words the documents use.
+- [Open questions](docs/open-questions.md): what is still open, and with whom.
+
+**Product**
+- [Scope](docs/product/scope.md): what is in, what is not the product's job, what is not yet worked out.
+- [Roles and use cases](docs/product/roles-and-use-cases.md): premise's roles and what each is asked.
+- [Roadmap](docs/product/roadmap.md): the build order agreed with the owner, and the seven milestones.
+
+**Architecture and decisions**
+- [Architecture overview](docs/architecture/overview.md): the parts, how they talk, the risks.
+- [Where premise runs and how people reach it](docs/architecture/where-it-runs.md)
+- [The record](docs/architecture/the-record.md)
+- [The line, stage by stage](docs/architecture/the-line.md)
+- [Build, independent check and run](docs/architecture/build-check-run.md)
+- [Intake, reporting and taste](docs/architecture/intake-and-reporting.md)
+- [The floor and the gate](docs/architecture/the-floor-and-the-gate.md)
+- [Models and cost](docs/architecture/models-and-cost.md)
+- [Decision records](docs/decisions/README.md): every decision, one per file, grouped by theme, each saying who decided.
+
+**Module specifications** ([index](docs/specs/README.md))
+- [Page server](docs/specs/page-server.md), [page](docs/specs/page.md), [line engine](docs/specs/line-engine.md), [record keeper](docs/specs/record-keeper.md), [work queue](docs/specs/work-queue.md), [agent runner](docs/specs/agent-runner.md), [agent tools](docs/specs/agent-tools.md), [gate](docs/specs/gate.md), [runner](docs/specs/runner.md), [intake](docs/specs/intake.md), [reporter](docs/specs/reporter.md), [storage](docs/specs/storage.md).
+
+**Prompts and skills**
+- [Prompts](docs/prompts/README.md): the full text of every agent role's prompt and the fixed wording premise shows without a model.
+- [Skills](docs/skills/README.md): the shared guidance every agent role loads.
+
+**How premise is being made**
+- [How we work](docs/how-we-work.md): why and how premise is being made, the working rules, the method, how changes ship, and the prior-art research.
+
+**Raw history, never edited**
 - [docs/record/conversation-2026-11-20.md](docs/record/conversation-2026-11-20.md): the whole conversation in order, both sides.
 - [docs/record/shaping-notes-2026-11-20.md](docs/record/shaping-notes-2026-11-20.md): the assistant's running notes during the conversation.
 - [docs/record/scope-page-draft-0.1.html](docs/record/scope-page-draft-0.1.html): a review page drafted mid-conversation and later dropped in favour of the vision statement.
 - [docs/prior-art/report.md](docs/prior-art/report.md): the prior-art research report.
 - [docs/prior-art/ask.md](docs/prior-art/ask.md): what that research was asked to do.
+
+## Licence
+
+All rights reserved ([LICENSE](LICENSE), [0055](docs/decisions/0055-all-rights-reserved.md)).
