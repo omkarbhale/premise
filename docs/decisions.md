@@ -1,11 +1,11 @@
 # Decisions
 
-Every decision made in the conversation of 2026-11-20 that shaped premise, one entry each.
-Sources: [the conversation](record/conversation-2026-11-20.md), [the shaping notes](record/shaping-notes-2026-11-20.md), [the scope page draft](record/scope-page-draft-0.1.html).
-"Owner" is the person premise is being made for; "Assistant" is the LLM agent the owner shaped it with.
+Every decision that shaped premise, one entry each: entries 1–40 from the conversation of 2026-11-20, entries 41 onward from the conversations after it.
+Sources for entries 1–40: [the conversation](record/conversation-2026-11-20.md), [the shaping notes](record/shaping-notes-2026-11-20.md), [the scope page draft](record/scope-page-draft-0.1.html). Entries 41 onward quote the owner's words from the assistant's notes of the later conversations, which are not kept in this repository.
+"Owner" is the person premise is being made for; "Assistant" is the LLM agent the owner shaped it with; "builders" are the agents that build premise.
 Quotes are the speakers' own words. Where no reason was given, the entry says so.
 
-All entries are dated 2026-11-20.
+Entries 1–41 are dated 2026-11-20. Entries 42 onward are dated 2026-11-21.
 
 ## What premise is
 
@@ -81,10 +81,12 @@ All entries are dated 2026-11-20.
 - **Decision:** a floor of things never traded for speed is accepted in principle; how it works is decided when the whole plan is made.
 - **Why (Assistant):** "Some mistakes can't be bought back: lost data, a security hole, money spent, something sent out in the operator's name. I'd let the factory move fast on everything reversible and slow down only for those."
 - **Owner:** "Maybe, yes, but when we make the whole plan of the software factory, we'll think how exactly that could happen or works."
+- **Changed later:** what is on the floor is settled (entry 56); how premise slows down for it is in [plan.md](plan.md).
 
 ### 16. Coarse cost tracking is in
 - **Decision:** the product knows what each piece of work costs.
 - **Why (Assistant):** "If return on effort decides things, the factory has to measure cost. Otherwise the rule is a guess." Owner: "I agree."
+- **Changed later:** premise gets cost tracking and its spending limit from usage-ledger, a separate project, and builds none of its own (entry 64).
 
 ### 17. The line ends at running software
 - **Decision:** "properly built" ends at running software, not merged code.
@@ -180,7 +182,7 @@ Owner agreed to 1, 3, 4, 5, 6, 8, 9 and 10, changed 7, and questioned 2.
 5. **Selling and supporting the software** (marketing, pricing, customer support): out. Agreed.
 6. **Looking after several softwares at once:** later. Agreed.
 7. **Other people setting the product up themselves:** the assistant proposed later, "designed for that from the start but proven on your work first". Owner: "I agree, but sooner than fully deferred." Recorded as sooner than the other later items.
-8. **Any kind of software:** in. The first version proves itself on one kind the owner chooses. Agreed.
+8. **Any kind of software:** in. The first version proves itself on one kind the owner chooses. Agreed. Changed later: there is no first kind (entry 49).
 9. **Taste:** see entry 22. Agreed.
 10. **First proof:** see entry 34. Agreed.
 
@@ -214,6 +216,7 @@ No reasons were recorded for 1, 3, 4, 5, 6 and 8 beyond the assumption text itse
 ### 38. premise stands alone
 - **Decision:** Owner: "premise will do all the work entail does (if needed), and nobody has to use both." The vision: "It stands alone. It does everything it needs itself, and nobody has to use another tool alongside it."
 - **Why:** No reason was recorded.
+- **Changed later:** the owner corrected this: nobody has to use another tool alongside premise, but premise may depend on other tools underneath (entry 63).
 
 ### 39. The repository: public, on the owner's GitHub
 - **Decision:** register the project as a public repository on the owner's GitHub account (omkarbhale), and write down "raw everything that should be persisted. Including why and how we are doing things, as well as for the decisions made, why they were made." (Owner)
@@ -225,25 +228,166 @@ No reasons were recorded for 1, 3, 4, 5, 6 and 8 beyond the assumption text itse
 - **Rejected:**
   - "Checked, I merge (recommended)": product changes go through the full automated review-and-test run before a pull request; internal-only changes go straight to a pull request; the assistant merges anything that passes and is in scope; destructive or security-sensitive merges still go to the owner.
   - "Checked, you merge": the same checks, with every pull request waiting for the owner's approval ("This is the standard default; it costs your attention on each change").
+- **Reconfirmed:** entry 52.
+
+## After the first records
+
+Entries from the conversations after the first records landed in this repository.
+
+### 41. Intake can be held
+- **Decision:** much of what comes in through intake need not be acted on item by item. It can be held and analysed together from time to time.
+- **Why (Owner):** "I think that when lot of intake comes, (and we haven't decided "exactly" how that will work), but in any case, I think a lot of intake can be put on hold and later analyzed time to time to infer what people want, should vision of software and other things change, etc."
+- **Assistant's opinions given with it:** some intake still needs acting on at once; held is not ignored, so the sender is told; each reading ends in a short list for the operator, who decides any change of purpose; what triggers a reading and what skips the hold belong to the parked question of how automatic intake works.
+- **Changed later:** the owner corrected this: intake goes in normally, and only what needs holding is held (entry 62).
+
+### 42. Plan top-down, and first settle what needs the owner
+- **Decision:** go over the plan high level first and decide things along the way. Before that, clear up everything that needs the owner or the owner's decisions recorded, so that premise can be built without the owner.
+- **Why (Owner):** "That's too high level. I think we go over the plan, high level first and decide things along the way, thoughts?" Then: "I want to clear up anything that would need me or my decisions recorded, then premise can be built without me as well."
+- **Outcome:** the assistant asked fourteen numbered calls (entries 43–56) and four follow-ups (entries 57–60). With their answers, every call needing the owner was settled. The rest of the design is decided by the builders and recorded with reasons in [plan.md](plan.md). Work stops for the owner only as entry 53 says.
+- **Changed later:** building does not start until the owner says so (entry 61).
+
+### The fourteen calls
+
+The assistant asked each call with a recommendation. The owner's whole answer: "1, 2, 3, I agree / 4, 5, 6, I agree. My susbcription can be used. Spending limit: maybe we build usage-ledger and depend on it to make it easier. / 7: no, because premise is agnostic to what we are building completely. Could be webapps, servers, desktop apps, utilities, or even Aras customizations, anything that's not dependent on setup too much. / 8, 9, I agree. Public or private. / 10, 11, 12, I agree. / 13, License all rights reserved. / 14, I agree."
+The reasons the assistant gave with its recommendations were not kept, so the entries the owner agreed to say "No reason was recorded."
+
+### 43. premise runs on the owner's machine first
+- **Decision:** premise runs on the owner's machine first. Hosting comes later, together with other people setting premise up.
+- **Why:** No reason was recorded. Owner: "1, 2, 3, I agree".
+- **Related:** entry 33, item 7: other people setting premise up comes sooner than the other later items.
+
+### 44. One browser page
+- **Decision:** people use premise through one browser page: a chat for the conversation, plus views of the record and of reports.
+- **Why:** No reason was recorded. Owner: "1, 2, 3, I agree".
+
+### 45. A link per person, no accounts
+- **Decision:** other roles come in through the same page, each person through their own link. No accounts until other people set premise up.
+- **Why:** No reason was recorded. Owner: "1, 2, 3, I agree".
+
+### 46. Claude through the owner's subscription first
+- **Decision:** premise uses Claude through the owner's subscription first. Other model providers come later.
+- **Why:** No reason was recorded. Owner: "4, 5, 6, I agree. My susbcription can be used."
+
+### 47. premise is written in TypeScript
+- **Decision:** premise itself is written in TypeScript.
+- **Why:** No reason was recorded. Owner: "4, 5, 6, I agree."
+
+### 48. A spending limit
+- **Decision:** premise has a spending limit. The owner agreed and suggested how: "Spending limit: maybe we build usage-ledger and depend on it to make it easier."
+- **Why:** No reason was recorded beyond the owner's "to make it easier". The recommendation's own text was not kept.
+- **Changed later:** entry 58, then entry 64: premise uses usage-ledger for its spending limit.
+
+### 49. Any kind of software; no first kind
+- **Decision:** premise is not built around one first kind of software. It is agnostic to the kind.
+- **Why (Owner):** "7: no, because premise is agnostic to what we are building completely. Could be webapps, servers, desktop apps, utilities, or even Aras customizations, anything that's not dependent on setup too much."
+- **Rejected:** proving the first version on one kind of software first (entry 33, item 8).
+- **Changed later:** "not dependent on setup too much" stays out of the vision (entry 57).
+
+### 50. The first software is the owner's pick
+- **Decision:** the first software to prove the line on is the owner's pick: small, ideally something the owner would use. Not yet named.
+- **Why:** No reason was recorded. Owner: "8, 9, I agree."
+- **Changed later:** building premise does not wait for the pick (entry 60).
+
+### 51. Each software in its own repository
+- **Decision:** each software premise builds gets its own repository on the owner's GitHub account, public or private.
+- **Why:** No reason was recorded. Owner: "8, 9, I agree. Public or private."
+- **Left open then:** who chooses the visibility, and the default. Settled in entry 59.
+
+### 52. How changes to premise ship, reconfirmed
+- **Decision:** changes to premise go as direct pull requests, merged by the assistant. This repeats entry 40.
+- **Why:** No reason was recorded. Owner: "10, 11, 12, I agree."
+
+### 53. When work stops for the owner
+- **Decision:** work stops for the owner only on destructive, security-sensitive, public-facing (making something public, publishing, sending messages as the owner) or money-spending actions. Everything else proceeds and is reported.
+- **Why:** No reason was recorded. Owner: "10, 11, 12, I agree."
+
+### 54. Reports to the owner
+- **Decision:** one short report per finished milestone. An immediate message only when something needs the owner.
+- **Why:** No reason was recorded. Owner: "10, 11, 12, I agree."
+- **Related:** entry 12: reporting has a product default.
+
+### 55. Licence: all rights reserved
+- **Decision:** premise's licence is all rights reserved. The repository's `LICENSE` file says so.
+- **Why:** No reason was recorded. Owner: "13, License all rights reserved."
+- **Related:** the repository is public (entry 39).
+
+### 56. What is never traded for speed
+- **Decision:** the floor (entry 15) is: losing data, security holes, spending money, acting publicly in someone's name, and false reports.
+- **Why:** No reason was recorded. Owner: "14, I agree."
+- **Left to the plan:** how premise slows down for each; see [plan.md](plan.md).
+
+### The four follow-ups
+
+The assistant asked four follow-ups on the calls. The owner's whole answer: "On 7, the exception doesn't go in the vision, because vision doesn't separate mvp-1 from built product, or from simply just the plan. / A: your recommendation. / B: Yes, or whatever is on gh. No enforcement from premise. / C: I'll decide. Premise doesn't need to need me to pick one anyway, it should work for any that I pick."
+
+### 57. The vision stays "any software"
+- **Decision:** the vision keeps "any software". The owner's "not dependent on setup too much" is not written into it.
+- **Why (Owner):** "On 7, the exception doesn't go in the vision, because vision doesn't separate mvp-1 from built product, or from simply just the plan."
+
+### 58. Cost tracking inside premise
+- **Decision:** cost tracking is built inside premise. usage-ledger is not a dependency; if it is still wanted, it is a separate thing, later.
+- **Why:** No reason was recorded. Owner: "A: your recommendation."
+- **Rejected:** building usage-ledger and depending on it (the owner's suggestion in entry 48).
+- **Changed later:** reopened by entry 63 and settled the other way in entry 64.
+
+### 59. Visibility of each software's repository
+- **Decision:** the visibility of each software's repository is chosen per software, or is whatever it is on GitHub. premise enforces nothing.
+- **Why (Owner):** "B: Yes, or whatever is on gh. No enforcement from premise." No further reason was recorded.
+
+### 60. The first software does not hold up building premise
+- **Decision:** the owner picks the first software when the owner wants. premise is built to work for whichever is picked, so building premise does not wait for the pick.
+- **Why (Owner):** "C: I'll decide. Premise doesn't need to need me to pick one anyway, it should work for any that I pick."
+
+### 61. The whole plan is committed; nothing is built until the owner says to start
+- **Decision:** the whole plan is written down and committed ([plan.md](plan.md)). Building premise does not start until the owner says so.
+- **Why:** No reason was recorded. Owner: "Hold off on build, commit the entire plan and wait for me."
+- **Changes:** entry 42. Building still needs no further calls from the owner, but it starts only when the owner says.
+
+### 62. Intake goes in normally; only what needs holding is held
+- **Decision:** most intake is not held. It goes into the line as first intended. Only the items that need holding are held and read together later.
+- **Why (Owner, correcting entry 41):** "For intake: I intended to say that we don't hold most tickets, but only those that need to. Rest of the things can go in normally as we originally thought."
+- **Left to the plan:** which items need holding; see [plan.md](plan.md).
+
+### 63. Nobody has to use another tool alongside premise; premise may depend on other tools
+- **Decision:** a person must not need to use premise and another tool side by side. premise itself may be built on other tools underneath, entail and usage-ledger included.
+- **Why (Owner, correcting entry 38):** "On other tools, I said we shouldn't need to use both at the same time. Not our product needn't depend on anything. Same for entail and for usage-ledger".
+- **Vision changed:** the bullet "It stands alone. It does everything it needs itself, and nobody has to use another tool alongside it." now reads "Nobody has to use another tool alongside it. It may be built on other tools underneath."
+- **Reopened:** entry 58, cost tracking inside premise. Settled in entry 64.
+
+### 64. Cost tracking and the spending limit come from usage-ledger
+- **Decision:** usage-ledger ([github.com/omkarbhale/usage-ledger](https://github.com/omkarbhale/usage-ledger)) is built as its own project, outside premise. premise only uses it, for cost tracking and the spending limit, and builds none of its own.
+- **Why:** No reason was recorded. Owner: "Usage ledger built and we only use it."
+- **Changes:** entry 58. The owner's first suggestion (entry 48) stands.
+- **In the plan:** usage-ledger being usable is a prerequisite of premise's cost and spending-limit milestone; building usage-ledger is not premise work ([plan.md](plan.md)).
 
 ## Build order agreed so far
 
-Kept out of the vision, from the shaping notes and the conversation:
-- First proof: one small brand-new software, end to end, of one kind the owner chooses.
-- Existing software after the line works.
-- Other people setting the product up comes sooner than the other later items.
-- Later: keeping software live for real users; several softwares at once. (The shaping notes' build order also lists finding out whether real people want the software as later; it is now out of the vision, with an active version at most a later idea: entry 36.)
-- Next step, per the conversation: "the plan: the order to build in, and what the first proof is."
+Kept out of the vision. The full order is in [plan.md](plan.md).
+- Nothing is built until the owner says to start (entry 61).
+- First proof: the thinnest line, end to end, for any small software (entries 34, 49). Its first step proves that premise can drive LLM work unattended through the owner's subscription; if that cannot be proven, work stops for the owner there.
+- The first software is the owner's pick, made when the owner wants; building premise does not wait for it (entry 60).
+- Cost tracking and the spending limit come when usage-ledger is usable (entry 64).
+- Existing software after the line works (entry 34).
+- Other people setting premise up comes sooner than the other later items (entry 33, item 7; entry 43).
+- Later: keeping software live for real users; several softwares at once; model providers other than Claude (entry 46). Finding out whether real people want the software is out of the vision, with an active version at most a later idea (entry 36).
 
 ## Open or parked
 
-- **The floor:** what exactly is never traded for speed, and how the product slows down for it. Parked for the whole plan.
-- **Security defaults** for an operator who cannot judge them: the assistant placed this with the floor.
-- **How automatic intake works.** Parked for the whole plan (owner: "a big question of itself").
-- **What taking on existing software requires.** Parked for the whole plan.
-- **What is set per software and what stays with the product.** To be decided.
+Open with the owner:
+- **When building starts.** The owner says (entry 61).
 - **The owner's read of vision draft 3.** Open.
-- **Which kind of software the first proof is on.** The owner chooses; not yet chosen.
-- **Whether finding out if real people want the software is "out" or "later".** Written as out, with no answer to the assistant's question (entry 36).
-- **The other Premise project** in an adjacent space. Keel is the assistant's fallback if it has grown.
-- **Raised on the scope page and never discussed** (the page was dropped): four risks (the conversation turns into paperwork; a say-back that confirms the wrong thing; existing software swallows the effort; the whole line is a lot) and a table of who has the last word for each kind of decision. See [the scope page draft](record/scope-page-draft-0.1.html).
+- **Whether finding out if real people want the software is "out" or "later".** Written as out, with no answer to the assistant's question (entry 36). Nothing in the plan depends on it.
+- **The other Premise project** in an adjacent space. Keel is the assistant's fallback if it has grown. Nothing in the plan depends on it.
+
+Handed to the builders and answered in [plan.md](plan.md):
+- **The floor:** what is on it is settled (entry 56); how premise slows down for it.
+- **Security defaults** for an operator who cannot judge them.
+- **How automatic intake works**, including which items are held (entries 41, 62).
+- **What taking on existing software requires.**
+- **What is set per software and what stays with the product.**
+- **The four risks and the table of who has the last word** raised on the scope page and never discussed. See [the scope page draft](record/scope-page-draft-0.1.html).
+
+Settled since the first records:
+- **Which kind of software the first proof is on:** none; premise works for any kind (entry 49).
+- **The spending limit and cost tracking:** from usage-ledger (entry 64).
+- **Visibility of each software's repository:** per software, or whatever GitHub says (entry 59).

@@ -10,8 +10,8 @@ The full statement is in [VISION.md](VISION.md).
 
 ## Status
 
-- Nothing is built yet. premise has a vision statement and the records of the conversation that shaped it (2026-11-20).
-- Next step, according to that conversation: the plan, "the order to build in, and what the first proof is". The owner's read of vision draft 3 is still open.
+- Nothing is built yet. premise has a vision statement, the records of the conversation that shaped it (2026-11-20), the decisions made since, and a build plan.
+- Building starts only when the owner says so ([decisions](docs/decisions.md), entry 61). The owner's read of vision draft 3 is still open.
 
 ## Files
 
@@ -20,6 +20,10 @@ Kept current:
 - [docs/decisions.md](docs/decisions.md): every decision made, with its reason, who gave it, and the alternatives rejected; the build order agreed so far; what is open or parked.
 - [docs/how-we-work.md](docs/how-we-work.md): why and how premise is being made: the working rules, the method, how changes ship, and the prior-art research.
 - README.md: this file.
+- [LICENSE](LICENSE): all rights reserved.
+
+Working record, not kept current after use:
+- [docs/plan.md](docs/plan.md): the build plan: the parts of premise, where it runs, the record, how each stage of the line works, and the milestones in order.
 
 Raw history, never edited:
 - [docs/record/conversation-2026-11-20.md](docs/record/conversation-2026-11-20.md): the whole conversation in order, both sides.

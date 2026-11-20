@@ -63,7 +63,7 @@ Existing software enters the same line: the product rebuilds the record a from-s
 - It writes what the software's users read: help text, guides, release notes.
 - It looks after several softwares at once.
 - Other people can set it up and run it themselves.
-- It stands alone. It does everything it needs itself, and nobody has to use another tool alongside it.
+- Nobody has to use another tool alongside it. It may be built on other tools underneath.
 
 ## What the product does not do
 
