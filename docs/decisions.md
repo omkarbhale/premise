@@ -263,6 +263,7 @@ The reasons the assistant gave with its recommendations were not kept, so the en
 ### 45. A link per person, no accounts
 - **Decision:** other roles come in through the same page, each person through their own link. No accounts until other people set premise up.
 - **Why:** No reason was recorded. Owner: "1, 2, 3, I agree".
+- **Changed later:** there are no per-person links; everything is open in one session (entry 65). No accounts still stands.
 
 ### 46. Claude through the owner's subscription first
 - **Decision:** premise uses Claude through the owner's subscription first. Other model providers come later.
@@ -360,6 +361,14 @@ The assistant asked four follow-ups on the calls. The owner's whole answer: "On 
 - **Changes:** entry 58. The owner's first suggestion (entry 48) stands.
 - **In the plan:** usage-ledger being usable is a prerequisite of premise's cost and spending-limit milestone; building usage-ledger is not premise work ([plan.md](plan.md)).
 
+### 65. One session where everything is open, as if one person does everything
+- **Decision:** there are no per-person links. Everything is open and answerable in one session on the web page: every stage, the record, reports, and what each role needs or is being asked. It is designed as if one person does everything. Roles stay as labels on what is asked, so every ask still says which role it is for.
+- **Why:** No reason was recorded. Owner: "Have it be all open and accessible on a single session in web UI. See what each role needs and all that stuff in there, similar to assuming one single person will be doing everything"
+- **How it got here:** the owner asked where people converse on premise, was told the web page with a link per person, and answered with the words above.
+- **Changes:** the "a link per person" part of entry 45. No accounts still stands.
+- **Related:** entry 9: every role is still a user of the product; each role's asks are still in its own terms.
+- **In the plan:** premise still listens on the owner's machine only, and the session still needs a token, so other web pages in the same browser cannot drive it. Being reached from other machines stays a later, security-sensitive decision for the owner ([plan.md](plan.md)).
+
 ## Build order agreed so far
 
 Kept out of the vision. The full order is in [plan.md](plan.md).
@@ -391,3 +400,4 @@ Settled since the first records:
 - **Which kind of software the first proof is on:** none; premise works for any kind (entry 49).
 - **The spending limit and cost tracking:** from usage-ledger (entry 64).
 - **Visibility of each software's repository:** per software, or whatever GitHub says (entry 59).
+- **Where people converse:** one session on the web page where everything is open; no per-person links (entry 65).
