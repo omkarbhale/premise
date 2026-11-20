@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="en" data-theme="luxury">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The software factory: first draft of the whole line</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@5.5.19/daisyui.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@5.5.19/themes.css">
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.2.4/dist/index.global.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  html { background: var(--color-base-100); color: var(--color-base-content); }
+  :where(p, h1, h2, h3, li, td, th, .badge) { overflow-wrap: anywhere; }
+  .items { display: grid; gap: .75rem; }
+  .item { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 15rem); gap: 1rem; align-items: start;
+          padding: 1rem 1.1rem; border-radius: var(--radius-box, 1rem); background: var(--color-base-200); border: 1px solid color-mix(in oklab, var(--color-base-content) 10%, transparent); }
+  .item > * { min-width: 0; }
+  @media (max-width: 720px) { .item { grid-template-columns: minmax(0, 1fr); } }
+  .item:has(input[value="out"]:checked) { opacity: .6; }
+  .item:has(input[value="later"]:checked) { border-style: dashed; }
+  .principles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr)); gap: .75rem; }
+  .principles > div { min-width: 0; padding: 1rem; border-radius: var(--radius-box, 1rem); background: var(--color-base-200); }
+  svg text { font-family: inherit; text-anchor: middle; fill: var(--color-base-content); }
+  svg .t { font-size: 17px; font-weight: 700; } svg .t2 { font-size: 14px; font-weight: 600; } svg .s { font-size: 12.5px; opacity: .75; }
+  svg .stage rect { fill: var(--color-base-200); stroke: color-mix(in oklab, var(--color-base-content) 35%, transparent); stroke-width: 1.5; }
+  svg .stage.person rect { stroke: var(--color-primary); stroke-width: 2.5; }
+  svg .dot { fill: var(--color-primary); }
+  svg .record rect { fill: color-mix(in oklab, var(--color-primary) 16%, var(--color-base-100)); stroke: var(--color-primary); stroke-width: 1.5; stroke-dasharray: 6 4; }
+  svg .entry rect { fill: none; stroke: color-mix(in oklab, var(--color-base-content) 55%, transparent); stroke-width: 1.5; }
+  svg .edge { fill: none; stroke: color-mix(in oklab, var(--color-base-content) 70%, transparent); stroke-width: 2; }
+  svg .ahp { fill: color-mix(in oklab, var(--color-base-content) 70%, transparent); }
+  .legend-dot { display:inline-block; width:.75rem; height:.75rem; border-radius:999px; background: var(--color-primary); vertical-align: middle; }
+  .sticky-bar { position: sticky; bottom: .75rem; z-index: 5; }
+</style>
+</head>
+<body>
+<main class="mx-auto max-w-5xl p-5 lg:p-10">
+
+<header class="mb-8">
+  <p class="uppercase tracking-widest text-sm opacity-60">Draft 0.1 · 2026-11-20 · for marking, nothing is designed yet</p>
+  <h1 class="text-4xl lg:text-5xl font-bold mt-2">The software factory</h1>
+  <p class="text-xl mt-3 opacity-85">The whole line, from the first conversation to running software and back round, with every part open to be marked in, later or out.</p>
+  <p class="mt-3 opacity-70"><b>Words used here:</b> the <b>product</b> is the factory being made. The <b>software</b> is what the product builds.</p>
+</header>
+
+<section id="principles" class="mb-10">
+  <h2 class="text-2xl font-bold mb-1">What it is</h2>
+  <p class="opacity-70 mb-4">Taken from what has been said so far. Annotate any card that is wrong.</p>
+  <div class="principles">
+    <div id="p1"><h3 class="font-semibold">The whole line is the product</h3><p class="opacity-85 mt-1">From ideas and decisions to running software, and intake back in. No join where a person carries work to an LLM by hand.</p></div>
+    <div id="p2"><h3 class="font-semibold">If an LLM can do it, an LLM does it</h3><p class="opacity-85 mt-1">Return on effort decides, not perfection. Small defects are acceptable when the speed gain is considerable.</p></div>
+    <div id="p3"><h3 class="font-semibold">If an LLM cannot reliably do it, it does not decide it</h3><p class="opacity-85 mt-1">It still reasons and gives its best attempt. A person with the right role decides.</p></div>
+    <div id="p4"><h3 class="font-semibold">The mistake that matters is a mismatch of intent</h3><p class="opacity-85 mt-1">What was wanted against what was understood. So the product says back what it understood, traces every built piece to an intent, and shows running software early.</p></div>
+    <div id="p5"><h3 class="font-semibold">The product has opinions</h3><p class="opacity-85 mt-1">It decides where the conversation starts, where it goes next, and how what is said is split up and kept.</p></div>
+    <div id="p6"><h3 class="font-semibold">Everyone needed is a user of the product</h3><p class="opacity-85 mt-1">The operator, who may be more than one person, and every other role. Each has a way in at their step.</p></div>
+    <div id="p7"><h3 class="font-semibold">It reports honestly</h3><p class="opacity-85 mt-1">At a default level set by the product, deeper on request. A false report, a wrong early foundation and a silent contradiction are guarded against.</p></div>
+    <div id="p8"><h3 class="font-semibold">It needs someone who knows the purpose</h3><p class="opacity-85 mt-1">That is the design target. The operator may be technical, and may have their own taste, but the product does not depend on it.</p></div>
+  </div>
+</section>
+
+<section id="line" class="mb-10">
+  <h2 class="text-2xl font-bold mb-1">The line</h2>
+  <p class="opacity-70 mb-4">How work moves. The top row is the conversation, the bottom row runs on its own, and the record in the middle is what both rows answer to.</p>
+  <div class="rounded-box p-3 lg:p-5" style="background: var(--color-base-200)">
+  <svg id="line-diagram" viewBox="0 0 1080 400" role="img" aria-label="The line: from why to running software and back round through intake" style="width:100%;height:auto">
+<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ahp" d="M0,0 L10,5 L0,10 z"/></marker></defs>
+<g id="entry-new" class="entry"><title>A new idea enters at Why</title><rect x="8" y="36" width="112" height="52" rx="26"/><text class="t2" x="64" y="67">New idea</text></g>
+<g id="entry-existing" class="entry"><title>L12: existing software enters by rebuilding the record, with people</title><rect x="8" y="170" width="112" height="52" rx="26"/><text class="t2" x="64" y="192">Existing</text><text class="t2" x="64" y="210">software</text></g>
+<g id="record" class="record"><title>A1: the record of intent that everything traces to</title><rect x="160" y="160" width="870" height="72" rx="12"/><text class="t" x="595" y="191">The record of intent</text><text class="s" x="595" y="213">why · who · what · decisions — every built piece traces back here</text></g>
+<g id="stage-L1" class="stage person"><title>L1 Why: clears the problem first</title>
+<rect x="160" y="30" width="150" height="64" rx="10"/><circle class="dot" cx="296" cy="44" r="6"/>
+<text class="t" x="235" y="59">Why</text><text class="s" x="235" y="79">the problem</text></g>
+<g id="stage-L2" class="stage person"><title>L2 Who: names who the software is for</title>
+<rect x="340" y="30" width="150" height="64" rx="10"/><circle class="dot" cx="476" cy="44" r="6"/>
+<text class="t" x="415" y="59">Who</text><text class="s" x="415" y="79">its users</text></g>
+<g id="stage-L3" class="stage person"><title>L3 What: what it must do and what matters more</title>
+<rect x="520" y="30" width="150" height="64" rx="10"/><circle class="dot" cx="656" cy="44" r="6"/>
+<text class="t" x="595" y="59">What</text><text class="s" x="595" y="79">must do, priorities</text></g>
+<g id="stage-L4" class="stage person"><title>L4 Say back: plays back what it understood</title>
+<rect x="700" y="30" width="150" height="64" rx="10"/><circle class="dot" cx="836" cy="44" r="6"/>
+<text class="t" x="775" y="59">Say back</text><text class="s" x="775" y="79">confirm intent</text></g>
+<g id="stage-L5" class="stage"><title>L5 Plan: makes the technical decisions itself</title>
+<rect x="880" y="30" width="150" height="64" rx="10"/>
+<text class="t" x="955" y="59">Plan</text><text class="s" x="955" y="79">own decisions</text></g>
+<g id="stage-L6" class="stage"><title>L6 Build: nobody carries the work</title>
+<rect x="880" y="300" width="150" height="64" rx="10"/>
+<text class="t" x="955" y="329">Build</text><text class="s" x="955" y="349">unattended</text></g>
+<g id="stage-L7" class="stage"><title>L7 Check: proves the build against the record</title>
+<rect x="700" y="300" width="150" height="64" rx="10"/>
+<text class="t" x="775" y="329">Check</text><text class="s" x="775" y="349">against the record</text></g>
+<g id="stage-L8" class="stage"><title>L8 Run: running software</title>
+<rect x="520" y="300" width="150" height="64" rx="10"/>
+<text class="t" x="595" y="329">Run</text><text class="s" x="595" y="349">people can open it</text></g>
+<g id="stage-L9" class="stage"><title>L9 Report: shows and reports</title>
+<rect x="340" y="300" width="150" height="64" rx="10"/>
+<text class="t" x="415" y="329">Report</text><text class="s" x="415" y="349">honest, by default</text></g>
+<g id="stage-L10" class="stage person"><title>L10 and L11 Intake: from people and picked up automatically</title>
+<rect x="160" y="300" width="150" height="64" rx="10"/><circle class="dot" cx="296" cy="314" r="6"/>
+<text class="t" x="235" y="329">Intake</text><text class="s" x="235" y="349">ideas and problems</text></g>
+<path id="edge-new-why" class="edge" d="M120,62 H157" marker-end="url(#ah)"/>
+<path id="edge-existing-record" class="edge" d="M120,196 H157" marker-end="url(#ah)"/>
+<path id="edge-why-who" class="edge" d="M310,62 H337" marker-end="url(#ah)"/>
+<path id="edge-who-what" class="edge" d="M490,62 H517" marker-end="url(#ah)"/>
+<path id="edge-what-sayback" class="edge" d="M670,62 H697" marker-end="url(#ah)"/>
+<path id="edge-sayback-plan" class="edge" d="M850,62 H877" marker-end="url(#ah)"/>
+<path id="edge-plan-build" class="edge" d="M1030,62 H1056 V332 H1033" marker-end="url(#ah)"/>
+<path id="edge-build-check" class="edge" d="M880,332 H853" marker-end="url(#ah)"/>
+<path id="edge-check-run" class="edge" d="M700,332 H673" marker-end="url(#ah)"/>
+<path id="edge-run-report" class="edge" d="M520,332 H493" marker-end="url(#ah)"/>
+<path id="edge-report-intake" class="edge" d="M340,332 H313" marker-end="url(#ah)"/>
+<path id="edge-intake-record" class="edge" d="M235,300 V235" marker-end="url(#ah)"/>
+<path id="edge-record-what" class="edge" d="M595,160 V97" marker-end="url(#ah)"/>
+</svg>
+  </div>
+  <p class="mt-3 opacity-80"><span class="legend-dot"></span> A person is asked or decides at this step. Everywhere else the product proceeds without anyone carrying the work. A person can still claim any step for their own taste.</p>
+</section>
+
+<section id="who-decides" class="mb-10">
+  <h2 class="text-2xl font-bold mb-1">Who decides what</h2>
+  <p class="opacity-70 mb-4">My proposal for where the line between LLM and person falls. An LLM always does the work of drafting; the question is only who has the last word.</p>
+  <div class="overflow-x-auto rounded-box border border-base-content/10">
+  <table class="table">
+    <thead><tr><th>Kind of decision</th><th>LLM</th><th>Person</th></tr></thead>
+    <tbody>
+      <tr id="d1"><td>Anything that follows from the record and can be undone cheaply</td><td>Decides and records why</td><td>Nobody, unless they claimed the area</td></tr>
+      <tr id="d2"><td>Purpose, users, priorities</td><td>Drafts, suggests, asks</td><td>The operator decides</td></tr>
+      <tr id="d3"><td>An area someone has claimed for their taste</td><td>Proposes</td><td>That person decides</td></tr>
+      <tr id="d4"><td>What an LLM cannot reliably know or do: an intent nobody stated, real-world acts, accountability, whether real users want it</td><td>Best attempt, with its reasoning</td><td>A named person decides or acts</td></tr>
+      <tr id="d5"><td>Anything on the floor of things never traded for speed</td><td>Slows down</td><td>Worked out in the whole plan</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="marks" class="mb-10">
+  <h2 class="text-2xl font-bold mb-1">Mark what is in</h2>
+  <p class="opacity-80 mb-1"><b>In</b>: part of the product. <b>Later</b>: part of the product, but not its first version. <b>Out</b>: not the product's job.</p>
+  <p class="opacity-70 mb-2">Each item starts on how I read you (<span class="badge badge-soft badge-success badge-sm">your word</span>) or on my own suggestion where you have not said (<span class="badge badge-soft badge-warning badge-sm">my suggestion</span>). Change only what is wrong, then queue once at the bottom.</p>
+  <form id="marks-form" data-lavish-question="scope-marks">
+    <h3 class="text-xl font-bold mt-8">Along the line</h3><p class="opacity-70 mb-3">The steps in the picture above.</p><div class="items">
+<div class="item" id="item-L1" data-item="L1" data-label="Clears the problem first">
+  <div class="item-main">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="badge badge-neutral font-mono">L1</span>
+      <h3 class="font-semibold text-lg">Clears the problem first</h3>
+      <span class="badge badge-soft badge-success badge-sm">your word</span>
+    </div>
+    <p class="mt-1 opacity-85">Before anything else the product gets the reason for the software stated: what problem, and why build this. If it is missing, the product drafts it and the operator corrects it.</p>
+  </div>
+  <div class="item-mark">
+    <div class="join"><input class="join-item btn btn-sm" type="radio" name="L1" value="in" aria-label="In" checked><input class="join-item btn btn-sm" type="radio" name="L1" value="later" aria-label="Later"><input class="join-item btn btn-sm" type="radio" name="L1" value="out" aria-label="Out"></div>
+    <input type="text" class="input input-sm w-full mt-2" name="L1-note" placeholder="Note or change (optional)" aria-label="Note for L1">
+  </div>
+</div>
+<div class="item" id="item-L2" data-item="L2" data-label="Names who the software is for">
+  <div class="item-main">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="badge badge-neutral font-mono">L2</span>
+      <h3 class="font-semibold text-lg">Names who the software is for</h3>
+      <span class="badge badge-soft badge-success badge-sm">your word</span>
+    </div>
+    <p class="mt-1 opacity-85">If the software&#x27;s users are not defined, the product writes plausible ones with the operator&#x27;s help.</p>
+  </div>
+  <div class="item-mark">
+    <div class="join"><input class="join-item btn btn-sm" type="radio" name="L2" value="in" aria-label="In" checked><input class="join-item btn btn-sm" type="radio" name="L2" value="later" aria-label="Later"><input class="join-item btn btn-sm" type="radio" name="L2" value="out" aria-label="Out"></div>
+    <input type="text" class="input input-sm w-full mt-2" name="L2-note" placeholder="Note or change (optional)" aria-label="Note for L2">
+  </div>
+</div>
+<div class="item" id="item-L3" data-item="L3" data-label="What it must do, and what matters more">
+  <div class="item-main">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="badge badge-neutral font-mono">L3</span>
+      <h3 class="font-semibold text-lg">What it must do, and what matters more</h3>
+      <span class="badge badge-soft badge-success badge-sm">your word</span>
+    </div>
+    <p class="mt-1 opacity-85">Outcomes in purpose terms and the priorities between them. Here the product takes ideas, offers its own, and asks questions.</p>
+  </div>
+  <div class="item-mark">
+    <div class="join"><input class="join-item btn btn-sm" type="radio" name="L3" value="in" aria-label="In" checked><input class="join-item btn btn-sm" type="radio" name="L3" value="later" aria-label="Later"><input class="join-item btn btn-sm" type="radio" name="L3" value="out" aria-label="Out"></div>
+    <input type="text" class="input input-sm w-full mt-2" name="L3-note" placeholder="Note or change (optional)" aria-label="Note for L3">
+  </div>
+</div>
+<div class="item" id="item-L4" data-item="L4" data-label="Says back what it understood">
+  <div class="item-main">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="badge badge-neutral font-mono">L4</span>
+      <h3 class="font-semibold text-lg">Says back what it understood</h3>
+      <span class="badge badge-soft badge-success badge-sm">your word</span>
+    </div>
+    <p class="mt-1 opacity-85">Always at the start of new software and when taking on existing software. For later changes, only when the change touches the purpose or would be costly to undo.</p>
+  </div>
+  <div class="item-mark">
+    <div class="join"><input class="join-item btn btn-sm" type="radio" name="L4" value="in" aria-label="In" checked><input class="join-item btn btn-sm" type="radio" name="L4" value="later" aria-label="Later"><input class="join-item btn btn-sm" type="radio" name="L4" value="out" aria-label="Out"></div>
+    <input type="text" class="input input-sm w-full mt-2" name="L4-note" placeholder="Note or change (optional)" aria-label="Note for L4">
+  </div>
+</div>
+<div class="item" id="item-L5" data-item="L5" data-label="Makes the technical decisions itself">
+  <div class="item-main">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="badge badge-neutral font-mono">L5</span>
+      <h3 class="font-semibold text-lg">Makes the technical decisions itself</h3>
+      <span class="badge badge-soft badge-success badge-sm">your word</span>
+    </div>
+    <p class="mt-1 opacity-85">Each decision is recorded with its reason. Early foundation choices get more care, because a wrong one makes everything after it expensive.</p>
+  </div>
+  <div class="item-mark">
+    <div class="join"><input class="join-item btn btn-sm" type="radio" name="L5" value="in" aria-label="In" checked><input class="join-item btn btn-sm" type="radio" name="L5" value="later" aria-label="Later"><input class="join-item btn btn-sm" type="radio" name="L5" value="out" aria-label="Out"></div>
+    <input type="text" class="input input-sm w-full mt-2" name="L5-note" placeholder="Note or change (optional)" aria-label="Note for L5">
+  </div>
+</div>
+<div class="item" id="item-L6" data-item="L6" data-label="Builds without anyone carrying the work">
+  <div class="item-main">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="badge badge-neutral font-mono">L6</span>
+      <h3 class="font-semibold text-lg">Builds without anyone carrying the work</h3>
+      <span class="badge badge-soft badge-success badge-sm">your word</span>
+    </div>
+    <p class="mt-1 opacity-85">Nobody goes to a chat window to ask for code. Running work in parallel, landing it, and keeping pieces from colliding are the product&#x27;s job.</p>
+  </div>
+  <div class="item-mark">
+    <div class="join"><input class="join-item btn btn-sm" type="radio" name="L6" value="in" aria-label="In" checked><input class="join-item btn btn-sm" type="radio" name="L6" value="later" aria-label="Later"><input class="join-item btn btn-sm" type="radio" name="L6" value="out" aria-label="Out"></div>
+    <input type="text" class="input input-sm w-full mt-2" name="L6-note" placeholder="Note or change (optional)" aria-label="Note for L6">
+  </div>
+</div>
+<div class="item" id="item-L7" data-item="L7" data-label="Proves the build against the record">
+  <div class="item-main">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="badge badge-neutral font-mono">L7</span>
+      <h3 class="font-semibold text-lg">Proves the build against the record</h3>
+      <span class="badge badge-soft badge-success badge-sm">your word</span>
+    </div>
+    <p class="mt-1 opacity-85">Checks the running thing against what was wanted and says truthfully what passed, what failed and what it could not check. A false “it works” is one of the worst failures.</p>
+  </div>
+  <div class="item-mark">
+    <div class="join"><input class="join-item btn btn-sm" type="radio" name="L7" value="in" aria-label="In" checked><input class="join-item btn btn-sm" type="radio" name="L7" value="later" aria-label="Later"><input class="join-item btn btn-sm" type="radio" name="L7" value="out" aria-label="Out"></div>
+    <input type="text" class="input input-sm w-full mt-2" name="L7-note" placeholder="Note or change (optional)" aria-label="Note for L7">
+  </div>
+</div>
+<div class="item" id="item-L8" data-item="L8" data-label="Gets it running where people can open it">
+  <div class="item-main">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="badge badge-neutral font-mono">L8</span>
+      <h3 class="font-semibold text-lg">Gets it running where people can open it</h3>
+      <span class="badge badge-soft badge-success badge-sm">your word</span>
+    </div>
+    <p class="mt-1 opacity-85">The line ends at running software, not at merged code.</p>
+  </div>
+  <div class="item-mark">
+    <div class="join"><input class="join-item btn btn-sm" type="radio" name="L8" value="in" aria-label="In" checked><input class="join-item btn btn-sm" type="radio" name="L8" value="later" aria-label="Later"><input class="join-item btn btn-sm" type="radio" name="L8" value="out" aria-label="Out"></div>
+    <input type="text" class="input input-sm w-full mt-2" name="L8-note" placeholder="Note or change (optional)" aria-label="Note for L8">
+  </div>
+</div>
+<div class="item" id="item-L9" data-item="L9" data-label="Shows and reports">
+  <div class="item-main">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="badge badge-neutral font-mono">L9</span>
+      <h3 class="font-semibold text-lg">Shows and reports</h3>
+      <span class="badge badge-soft badge-success badge-sm">your word</span>
+    </div>
+    <p class="mt-1 opacity-85">Product default: what was decided, what is running, what it needs and from whom. More detail when someone asks for it.</p>
+  </div>
+  <div class="item-mark">
+    <div class="join"><input class="join-item btn btn-sm" type="radio" name="L9" value="in" aria-label="In" checked><input class="join-item btn btn-sm" type="radio" name="L9" value="later" aria-label="Later"><input class="join-item btn btn-sm" type="radio" name="L9" value="out" aria-label="Out"></div>
+    <input type="text" class="input input-sm w-full mt-2" name="L9-note" placeholder="Note or change (optional)" aria-label="Note for L9">
+  </div>
+</div>
+<div class="item" id="item-L10" data-item="L10" data-label="Takes ideas and problems back in">
+  <div class="item-main">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="badge badge-neutral font-mono">L10</span>
+      <h3 class="font-semibold text-lg">Takes ideas and problems back in</h3>
+      <span class="badge badge-soft badge-success badge-sm">your word</span>
+    </div>
+    <p class="mt-1 opacity-85">From the operator, from other people, and the product&#x27;s own ideas. Small wishes arrive as tickets. Each one is judged against the record, then goes back to What, or to Why if it changes the purpose.</p>
+  </div>
+  <div class="item-mark">
+    <div class="join"><input class="join-item btn btn-sm" type="radio" name="L10" value="in" aria-label="In" checked><input class="join-item btn btn-sm" type="radio" name="L10" value="later" aria-label="Later"><input class="join-item btn btn-sm" type="radio" name="L10" value="out" aria-label="Out"></div>
+    <input type="text" class="input input-sm w-full mt-2" name="L10-note" placeholder="Note or change (optional)" aria-label="Note for L10">
+  </div>
+</div>
+<div class="item" id="item-L11" data-item="L11" data-label="Picks up work without being told">
+  <div class="item-main">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="badge badge-neutral font-mono">L11</span>
+      <h3 class="font-semibold text-lg">Picks up work without being told</h3>
+      <span class="badge badge-soft badge-success badge-sm">your word</span>
+    </div>
+    <p class="mt-1 opacity-85">From the running software and from wherever work shows up: issue trackers, error reports, user feedback. How this works is parked for the whole plan.</p>
+  </div>
+  <div class="item-mark">
+    <div class="join"><input class="join-item btn btn-sm" type="radio" name="L11" value="in" aria-label="In" checked><input class="join-item btn btn-sm" type="radio" name="L11" value="later" aria-label="Later"><input class="join-item btn btn-sm" type="radio" name="L11" value="out" aria-label="Out"></div>
+    <input type="text" class="input input-sm w-full mt-2" name="L11-note" placeholder="Note or change (optional)" aria-label="Note for L11">
+  </div>
+</div>
+<div class="item" id="item-L12" data-item="L12" data-label="Takes on software that already exists">
+  <div class="item-main">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="badge badge-neutral font-mono">L12</span>
+      <h3 class="font-semibold text-lg">Takes on software that already exists</h3>
+      <span class="badge badge-soft badge-success badge-sm">your word</span>
+    </div>
+    <p class="mt-1 opacity-85">Rebuilds the same record a from-scratch conversation would have produced, with people wherever parts conflict or cannot be inferred. What this needs is parked for the whole plan.</p><p class="text-sm opacity-70 mt-1 italic">My opinion on order: after new software works end to end.</p>
+  </div>
+  <div class="item-mark">
+    <div class="join"><input class="join-item btn btn-sm" type="radio" name="L12" value="in" aria-label="In" checked><input class="join-item btn btn-sm" type="radio" name="L12" value="later" aria-label="Later"><input class="join-item btn btn-sm" type="radio" name="L12" value="out" aria-label="Out"></div>
+    <input type="text" class="input input-sm w-full mt-2" name="L12-note" placeholder="Note or change (optional)" aria-label="Note for L12">
+  </div>
+</div></div>
+    <h3 class="text-xl font-bold mt-8">Across the whole line</h3><p class="opacity-70 mb-3">Things every step depends on.</p><div class="items">
+<div class="item" id="item-A1" data-item="A1" data-label="One record that everything traces to">
+  <div class="item-main">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="badge badge-neutral font-mono">A1</span>
+      <h3 class="font-semibold text-lg">One record that everything traces to</h3>
+      <span class="badge badge-soft badge-success badge-sm">your word</span>
+    </div>
+    <p class="mt-1 opacity-85">Why, who, what and every decision, with each built piece linked to the intent behind it. A mismatch can be located, and a later decision is checked against earlier ones so nothing is silently undone.</p>
+  </div>
+  <div class="item-mark">
+    <div class="join"><input class="join-item btn btn-sm" type="radio" name="A1" value="in" aria-label="In" checked><input class="join-item btn btn-sm" type="radio" name="A1" value="later" aria-label="Later"><input class="join-item btn btn-sm" type="radio" name="A1" value="out" aria-label="Out"></div>
+    <input type="text" class="input input-sm w-full mt-2" name="A1-note" placeholder="Note or change (optional)" aria-label="Note for A1">
+  </div>
+</div>
+<div class="item" id="item-A2" data-item="A2" data-label="Everyone needed is a user of the product">
+  <div class="item-main">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="badge badge-neutral font-mono">A2</span>
+      <h3 class="font-semibold text-lg">Everyone needed is a user of the product</h3>
+      <span class="badge badge-soft badge-success badge-sm">your word</span>
+    </div>
+    <p class="mt-1 opacity-85">The operator or operators, anyone with taste in an area, and people named for what an LLM cannot reliably do. One person or many. Each gets a way in at their step and is asked in their own terms.</p>
+  </div>
+  <div class="item-mark">
+    <div class="join"><input class="join-item btn btn-sm" type="radio" name="A2" value="in" aria-label="In" checked><input class="join-item btn btn-sm" type="radio" name="A2" value="later" aria-label="Later"><input class="join-item btn btn-sm" type="radio" name="A2" value="out" aria-label="Out"></div>
+    <input type="text" class="input input-sm w-full mt-2" name="A2-note" placeholder="Note or change (optional)" aria-label="Note for A2">
+  </div>
+</div>
+<div class="item" id="item-A3" data-item="A3" data-label="Best attempt where it cannot decide">
+  <div class="item-main">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="badge badge-neutral font-mono">A3</span>
+      <h3 class="font-semibold text-lg">Best attempt where it cannot decide</h3>
+      <span class="badge badge-soft badge-success badge-sm">your word</span>
+    </div>
+    <p class="mt-1 opacity-85">Where an LLM cannot reliably decide, it still reasons, gives its best attempt and proposes. A person decides.</p>
+  </div>
+  <div class="item-mark">
+    <div class="join"><input class="join-item btn btn-sm" type="radio" name="A3" value="in" aria-label="In" checked><input class="join-item btn btn-sm" type="radio" name="A3" value="later" aria-label="Later"><input class="join-item btn btn-sm" type="radio" name="A3" value="out" aria-label="Out"></div>
+    <input type="text" class="input input-sm w-full mt-2" name="A3-note" placeholder="Note or change (optional)" aria-label="Note for A3">
+  </div>
+</div>
+<div class="item" id="item-A4" data-item="A4" data-label="People can put their own taste in">
+  <div class="item-main">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="badge badge-neutral font-mono">A4</span>
+      <h3 class="font-semibold text-lg">People can put their own taste in</h3>
+      <span class="badge badge-soft badge-success badge-sm">your word</span>
+    </div>
+    <p class="mt-1 opacity-85">User experience, technical choices, minor features. Minor wishes come in as tickets; review before building can be chosen for the areas someone cares about.</p><p class="text-sm opacity-70 mt-1 italic">Shape left open on purpose. See question 1 below.</p>
+  </div>
+  <div class="item-mark">
+    <div class="join"><input class="join-item btn btn-sm" type="radio" name="A4" value="in" aria-label="In" checked><input class="join-item btn btn-sm" type="radio" name="A4" value="later" aria-label="Later"><input class="join-item btn btn-sm" type="radio" name="A4" value="out" aria-label="Out"></div>
+    <input type="text" class="input input-sm w-full mt-2" name="A4-note" placeholder="Note or change (optional)" aria-label="Note for A4">
+  </div>
+</div>
+<div class="item" id="item-A5" data-item="A5" data-label="Knows what things cost">
+  <div class="item-main">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="badge badge-neutral font-mono">A5</span>
+      <h3 class="font-semibold text-lg">Knows what things cost</h3>
+      <span class="badge badge-soft badge-success badge-sm">your word</span>
+    </div>
+    <p class="mt-1 opacity-85">Coarse cost per piece of work, so return on effort is measured and not guessed.</p>
+  </div>
+  <div class="item-mark">
+    <div class="join"><input class="join-item btn btn-sm" type="radio" name="A5" value="in" aria-label="In" checked><input class="join-item btn btn-sm" type="radio" name="A5" value="later" aria-label="Later"><input class="join-item btn btn-sm" type="radio" name="A5" value="out" aria-label="Out"></div>
+    <input type="text" class="input input-sm w-full mt-2" name="A5-note" placeholder="Note or change (optional)" aria-label="Note for A5">
+  </div>
+</div>
+<div class="item" id="item-A6" data-item="A6" data-label="Things never traded for speed">
+  <div class="item-main">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="badge badge-neutral font-mono">A6</span>
+      <h3 class="font-semibold text-lg">Things never traded for speed</h3>
+      <span class="badge badge-soft badge-success badge-sm">your word</span>
+    </div>
+    <p class="mt-1 opacity-85">Lost data, a security hole, money spent, something sent in a person&#x27;s name, a false report. Agreed in principle; how it works is parked for the whole plan.</p>
+  </div>
+  <div class="item-mark">
+    <div class="join"><input class="join-item btn btn-sm" type="radio" name="A6" value="in" aria-label="In" checked><input class="join-item btn btn-sm" type="radio" name="A6" value="later" aria-label="Later"><input class="join-item btn btn-sm" type="radio" name="A6" value="out" aria-label="Out"></div>
+    <input type="text" class="input input-sm w-full mt-2" name="A6-note" placeholder="Note or change (optional)" aria-label="Note for A6">
+  </div>
+</div></div>
+    <h3 class="text-xl font-bold mt-8">At the edges</h3><p class="opacity-70 mb-3">You have not spoken to these. Each is a real choice about where the product stops.</p><div class="items">
+<div class="item" id="item-E1" data-item="E1" data-label="Keeps the software live for its real users">
+  <div class="item-main">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="badge badge-neutral font-mono">E1</span>
+      <h3 class="font-semibold text-lg">Keeps the software live for its real users</h3>
+      <span class="badge badge-soft badge-warning badge-sm">my suggestion</span>
+    </div>
+    <p class="mt-1 opacity-85">Hosting, staying up, incidents, updates reaching users. The alternative for a first version: “running” means a place the people working with the product can open and try.</p>
+  </div>
+  <div class="item-mark">
+    <div class="join"><input class="join-item btn btn-sm" type="radio" name="E1" value="in" aria-label="In"><input class="join-item btn btn-sm" type="radio" name="E1" value="later" aria-label="Later" checked><input class="join-item btn btn-sm" type="radio" name="E1" value="out" aria-label="Out"></div>
+    <input type="text" class="input input-sm w-full mt-2" name="E1-note" placeholder="Note or change (optional)" aria-label="Note for E1">
+  </div>
+</div>
+<div class="item" id="item-E2" data-item="E2" data-label="Finds out whether real users want it">
+  <div class="item-main">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="badge badge-neutral font-mono">E2</span>
+      <h3 class="font-semibold text-lg">Finds out whether real users want it</h3>
+      <span class="badge badge-soft badge-warning badge-sm">my suggestion</span>
+    </div>
+    <p class="mt-1 opacity-85">The product can suggest and reason, but only real users can answer. Needs people outside the product.</p>
+  </div>
+  <div class="item-mark">
+    <div class="join"><input class="join-item btn btn-sm" type="radio" name="E2" value="in" aria-label="In"><input class="join-item btn btn-sm" type="radio" name="E2" value="later" aria-label="Later" checked><input class="join-item btn btn-sm" type="radio" name="E2" value="out" aria-label="Out"></div>
+    <input type="text" class="input input-sm w-full mt-2" name="E2-note" placeholder="Note or change (optional)" aria-label="Note for E2">
+  </div>
+</div>
+<div class="item" id="item-E3" data-item="E3" data-label="Acts in the real world">
+  <div class="item-main">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="badge badge-neutral font-mono">E3</span>
+      <h3 class="font-semibold text-lg">Acts in the real world</h3>
+      <span class="badge badge-soft badge-warning badge-sm">my suggestion</span>
+    </div>
+    <p class="mt-1 opacity-85">Opening accounts, paying, licences, signatures. The product names the person and tells them exactly what is needed.</p>
+  </div>
+  <div class="item-mark">
+    <div class="join"><input class="join-item btn btn-sm" type="radio" name="E3" value="in" aria-label="In"><input class="join-item btn btn-sm" type="radio" name="E3" value="later" aria-label="Later"><input class="join-item btn btn-sm" type="radio" name="E3" value="out" aria-label="Out" checked></div>
+    <input type="text" class="input input-sm w-full mt-2" name="E3-note" placeholder="Note or change (optional)" aria-label="Note for E3">
+  </div>
+</div>
+<div class="item" id="item-E4" data-item="E4" data-label="Writes what the software&#x27;s users read">
+  <div class="item-main">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="badge badge-neutral font-mono">E4</span>
+      <h3 class="font-semibold text-lg">Writes what the software&#x27;s users read</h3>
+      <span class="badge badge-soft badge-warning badge-sm">my suggestion</span>
+    </div>
+    <p class="mt-1 opacity-85">Help text, a user guide, release notes.</p>
+  </div>
+  <div class="item-mark">
+    <div class="join"><input class="join-item btn btn-sm" type="radio" name="E4" value="in" aria-label="In" checked><input class="join-item btn btn-sm" type="radio" name="E4" value="later" aria-label="Later"><input class="join-item btn btn-sm" type="radio" name="E4" value="out" aria-label="Out"></div>
+    <input type="text" class="input input-sm w-full mt-2" name="E4-note" placeholder="Note or change (optional)" aria-label="Note for E4">
+  </div>
+</div>
+<div class="item" id="item-E5" data-item="E5" data-label="Sells and supports the software">
+  <div class="item-main">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="badge badge-neutral font-mono">E5</span>
+      <h3 class="font-semibold text-lg">Sells and supports the software</h3>
+      <span class="badge badge-soft badge-warning badge-sm">my suggestion</span>
+    </div>
+    <p class="mt-1 opacity-85">Marketing, pricing, customer support.</p>
+  </div>
+  <div class="item-mark">
+    <div class="join"><input class="join-item btn btn-sm" type="radio" name="E5" value="in" aria-label="In"><input class="join-item btn btn-sm" type="radio" name="E5" value="later" aria-label="Later"><input class="join-item btn btn-sm" type="radio" name="E5" value="out" aria-label="Out" checked></div>
+    <input type="text" class="input input-sm w-full mt-2" name="E5-note" placeholder="Note or change (optional)" aria-label="Note for E5">
+  </div>
+</div>
+<div class="item" id="item-E6" data-item="E6" data-label="Runs several softwares at once">
+  <div class="item-main">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="badge badge-neutral font-mono">E6</span>
+      <h3 class="font-semibold text-lg">Runs several softwares at once</h3>
+      <span class="badge badge-soft badge-warning badge-sm">my suggestion</span>
+    </div>
+    <p class="mt-1 opacity-85">One copy of the product looking after more than one software.</p>
+  </div>
+  <div class="item-mark">
+    <div class="join"><input class="join-item btn btn-sm" type="radio" name="E6" value="in" aria-label="In"><input class="join-item btn btn-sm" type="radio" name="E6" value="later" aria-label="Later" checked><input class="join-item btn btn-sm" type="radio" name="E6" value="out" aria-label="Out"></div>
+    <input type="text" class="input input-sm w-full mt-2" name="E6-note" placeholder="Note or change (optional)" aria-label="Note for E6">
+  </div>
+</div>
+<div class="item" id="item-E7" data-item="E7" data-label="Other people can set the product up">
+  <div class="item-main">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="badge badge-neutral font-mono">E7</span>
+      <h3 class="font-semibold text-lg">Other people can set the product up</h3>
+      <span class="badge badge-soft badge-warning badge-sm">my suggestion</span>
+    </div>
+    <p class="mt-1 opacity-85">Someone other than you installing and running it on their own machine. Designed for from the start, proven on your work first.</p>
+  </div>
+  <div class="item-mark">
+    <div class="join"><input class="join-item btn btn-sm" type="radio" name="E7" value="in" aria-label="In"><input class="join-item btn btn-sm" type="radio" name="E7" value="later" aria-label="Later" checked><input class="join-item btn btn-sm" type="radio" name="E7" value="out" aria-label="Out"></div>
+    <input type="text" class="input input-sm w-full mt-2" name="E7-note" placeholder="Note or change (optional)" aria-label="Note for E7">
+  </div>
+</div>
+<div class="item" id="item-E8" data-item="E8" data-label="Builds any kind of software">
+  <div class="item-main">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="badge badge-neutral font-mono">E8</span>
+      <h3 class="font-semibold text-lg">Builds any kind of software</h3>
+      <span class="badge badge-soft badge-warning badge-sm">my suggestion</span>
+    </div>
+    <p class="mt-1 opacity-85">Web, desktop, mobile, add-ons to platforms. Not restricted in principle; the first version proves itself on one or two kinds you choose.</p>
+  </div>
+  <div class="item-mark">
+    <div class="join"><input class="join-item btn btn-sm" type="radio" name="E8" value="in" aria-label="In"><input class="join-item btn btn-sm" type="radio" name="E8" value="later" aria-label="Later" checked><input class="join-item btn btn-sm" type="radio" name="E8" value="out" aria-label="Out"></div>
+    <input type="text" class="input input-sm w-full mt-2" name="E8-note" placeholder="Note or change (optional)" aria-label="Note for E8">
+  </div>
+</div></div>
+    <div class="sticky-bar mt-6">
+      <div class="rounded-box p-4 flex flex-wrap items-center gap-3 shadow-lg" style="background: var(--color-base-300)">
+        <button type="submit" class="btn btn-primary">Queue my marks</button>
+        <span id="marks-status" role="status" aria-live="polite" class="opacity-80">Nothing queued yet.</span>
+      </div>
+    </div>
+  </form>
+</section>
+
+<section id="questions" class="mb-10">
+  <h2 class="text-2xl font-bold mb-1">Two calls</h2>
+  <p class="opacity-70 mb-4">Each queues separately.</p>
+
+  <form class="item mb-3" style="grid-template-columns:minmax(0,1fr)" data-lavish-question="taste-default" id="q-taste">
+    <div>
+      <h3 class="font-semibold text-lg">1. Taste: who has the last word by default?</h3>
+      <p class="opacity-80 mt-1">You want people to be able to put their own taste into parts of the software, without designing this too early. The one thing worth fixing now is the default.</p>
+      <label class="flex gap-3 items-start mt-3"><input type="radio" class="radio radio-primary mt-1" name="taste" value="The product decides; a person claims the areas they want to see before they are built" checked><span><b>The product decides; a person claims the areas they want to see first.</b> <span class="badge badge-soft badge-warning badge-sm">my suggestion</span><br><span class="opacity-75">Follows the return-on-effort rule: every review point costs speed, so they exist only where someone asked for one.</span></span></label>
+      <label class="flex gap-3 items-start mt-3"><input type="radio" class="radio radio-primary mt-1" name="taste" value="A person reviews by default and releases the areas they do not care about"><span><b>A person reviews by default and releases the areas they do not care about.</b><br><span class="opacity-75">Safer against surprises, slower, and leans on the person knowing what to look for.</span></span></label>
+      <input type="text" class="input input-sm w-full mt-3" name="taste-note" placeholder="Something else, or a note (optional)" aria-label="Note on taste default">
+      <div class="mt-3 flex flex-wrap items-center gap-3"><button type="submit" class="btn btn-primary btn-sm">Queue this answer</button><span class="q-status opacity-80" role="status" aria-live="polite"></span></div>
+    </div>
+  </form>
+
+  <form class="item" style="grid-template-columns:minmax(0,1fr)" data-lavish-question="first-proof" id="q-first">
+    <div>
+      <h3 class="font-semibold text-lg">2. What should the first version prove itself on?</h3>
+      <p class="opacity-80 mt-1">Scope says what the product is. This says where it starts.</p>
+      <label class="flex gap-3 items-start mt-3"><input type="radio" class="radio radio-primary mt-1" name="first" value="A small brand-new software, from the first conversation to running" checked><span><b>A small brand-new software, from the first conversation to running.</b> <span class="badge badge-soft badge-warning badge-sm">my suggestion</span><br><span class="opacity-75">Exercises the whole line once with nothing inherited. Existing software follows when the line works.</span></span></label>
+      <label class="flex gap-3 items-start mt-3"><input type="radio" class="radio radio-primary mt-1" name="first" value="An existing software of yours, taken on"><span><b>An existing software of yours, taken on.</b><br><span class="opacity-75">Useful sooner, but starts with the hardest part: rebuilding the record from what is already there.</span></span></label>
+      <label class="flex gap-3 items-start mt-3"><input type="radio" class="radio radio-primary mt-1" name="first" value="Both at once"><span><b>Both at once.</b><br><span class="opacity-75">Finds out earliest what the two have in common, at the cost of two moving targets.</span></span></label>
+      <input type="text" class="input input-sm w-full mt-3" name="first-note" placeholder="Which software, or a note (optional)" aria-label="Note on first proof">
+      <div class="mt-3 flex flex-wrap items-center gap-3"><button type="submit" class="btn btn-primary btn-sm">Queue this answer</button><span class="q-status opacity-80" role="status" aria-live="polite"></span></div>
+    </div>
+  </form>
+</section>
+
+<section id="parked" class="mb-10">
+  <h2 class="text-2xl font-bold mb-1">Parked for the whole plan</h2>
+  <p class="opacity-70 mb-3">Agreed to matter, deliberately not worked out yet.</p>
+  <ul class="list rounded-box" style="background: var(--color-base-200)">
+    <li class="list-row" id="park-floor"><div><b>How the floor works.</b> What is on the list of things never traded for speed, and how the product slows down for them.</div></li>
+    <li class="list-row" id="park-intake"><div><b>How automatic intake works.</b> Where work is picked up from and how it is told apart from noise.</div></li>
+    <li class="list-row" id="park-existing"><div><b>What existing software needs.</b> How the record is rebuilt, and how people are brought in where parts conflict.</div></li>
+  </ul>
+</section>
+
+<section id="risks" class="mb-16">
+  <h2 class="text-2xl font-bold mb-1">Where I think this can go wrong</h2>
+  <p class="opacity-70 mb-3">My own view, for you to argue with.</p>
+  <div class="principles">
+    <div id="r1"><h3 class="font-semibold">The conversation turns into paperwork</h3><p class="opacity-85 mt-1">Too many questions up front lose the speed the product exists for. The product should draft and let people correct, not interview.</p></div>
+    <div id="r2"><h3 class="font-semibold">A say-back that confirms the wrong thing</h3><p class="opacity-85 mt-1">People agree with plausible text without reading it closely. Running software shown early is the real check; the say-back is only the cheap first one.</p></div>
+    <div id="r3"><h3 class="font-semibold">Existing software swallows the effort</h3><p class="opacity-85 mt-1">Taking on what already exists is a larger problem than building new. If it comes first, the line may never be proven end to end.</p></div>
+    <div id="r4"><h3 class="font-semibold">The whole line is a lot</h3><p class="opacity-85 mt-1">Every part being in the product does not mean every part is built at once. After scope, the next decision is the order.</p></div>
+  </div>
+</section>
+
+</main>
+<script>
+(function () {
+  const hasLavish = () => window.lavish && typeof window.lavish.queuePrompt === 'function';
+  const form = document.getElementById('marks-form');
+  const status = document.getElementById('marks-status');
+  let queued = false;
+  form.addEventListener('input', () => { status.textContent = queued ? 'Changed since you queued. Queue again to replace it.' : 'Nothing queued yet.'; });
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const items = [...form.querySelectorAll('[data-item]')].map((el) => {
+      const id = el.dataset.item;
+      const picked = el.querySelector('input[type=radio]:checked');
+      const note = el.querySelector('input[type=text]').value.trim();
+      const entry = { id, label: el.dataset.label, disposition: picked ? picked.value : 'unmarked' };
+      if (note) entry.note = note;
+      return entry;
+    });
+    const count = (d) => items.filter((i) => i.disposition === d).length;
+    const summary = count('in') + ' in, ' + count('later') + ' later, ' + count('out') + ' out';
+    if (!hasLavish()) { status.textContent = 'This page is not connected for review; tell me the marks in chat instead (' + summary + ').'; return; }
+    window.lavish.queuePrompt('Scope marks for the software factory, draft 0.1. Record every item with its mark and note, and account for every submitted ID before reporting completion.', {
+      tag: 'tracked-batch', text: 'Scope marks: ' + summary, element: form, queueKey: 'scope-marks', data: { items } });
+    queued = true;
+    status.textContent = 'Queued: ' + summary + '. Press Send to Agent when you are done with the page.';
+  });
+  for (const q of document.querySelectorAll('#q-taste, #q-first')) {
+    const st = q.querySelector('.q-status');
+    q.addEventListener('input', () => { if (st.dataset.queued) st.textContent = 'Changed since you queued. Queue again to replace it.'; });
+    q.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const data = new FormData(q);
+      const key = q.dataset.lavishQuestion;
+      const name = key === 'taste-default' ? 'taste' : 'first';
+      const answer = data.get(name);
+      const note = (data.get(name + '-note') || '').trim();
+      if (!hasLavish()) { st.textContent = 'This page is not connected for review; tell me in chat instead.'; return; }
+      window.lavish.queuePrompt('Answer to "' + q.querySelector('h3').textContent.trim() + '": ' + answer + (note ? ' Note: ' + note : ''), {
+        tag: 'choice', text: answer, element: q, queueKey: key, data: { question: key, answer, note } });
+      st.dataset.queued = '1';
+      st.textContent = 'Queued. Press Send to Agent when you are done with the page.';
+    });
+  }
+})();
+</script>
+</body>
+</html>
