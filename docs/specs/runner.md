@@ -111,6 +111,7 @@ The settings are listed in the [configuration reference](../reference/configurat
 |---|---|---|---|
 | `run.md` does not start the software | Start fails | No run | Back to the builder as a task, with the log (the checker should have caught it first) |
 | The software keeps crashing | Restart limit | Stopped | Reported; the errors are intake items |
+| Another program takes the chosen port | Software says the port is in use | Not counted as a crash | The next free port is tried; if the range runs out the run fails and names `runner.port_range` |
 | Merge conflict | Merge fails | Change not merged | Back to the builder; checked again |
 | Push rejected | GitHub error | Not pushed | Reported under "Needed" for the operator with the error; never forced |
 | Missing secret | Start fails on a named key | No run | A `needed` ask names the role, the file and the key |
