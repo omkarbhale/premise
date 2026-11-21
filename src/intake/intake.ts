@@ -1114,17 +1114,19 @@ export class Intake implements IntakeHooks {
     }
     if (!this.line)
       throw new ServiceError("INVALID", "premise is not ready to go back to Why yet.");
+    const ask = reading.askId ? getAsk(this.db, reading.askId) : null;
+    if (reading.askId && ask?.status !== "open") {
+      throw new ServiceError("INVALID", "This reading was already answered or sent back to Why.");
+    }
     transaction(this.db, () => {
-      if (reading.askId) {
-        const ask = getAsk(this.db, reading.askId);
-        if (ask?.status === "open")
-          closeAsk(
-            this.db,
-            ask.id,
-            "withdrawn",
-            null,
-            "You chose to go back to Why on the Intake tab.",
-          );
+      if (ask) {
+        closeAsk(
+          this.db,
+          ask.id,
+          "withdrawn",
+          null,
+          "You chose to go back to Why on the Intake tab.",
+        );
       }
     });
     this.startBackToWhy(reading.softwareId);
@@ -1138,7 +1140,17 @@ export class Intake implements IntakeHooks {
       text: "Going back to Why with you, as you chose after the reading of held items.",
     });
     const line = this.line;
-    if (line) queueMicrotask(() => void line.backToWhy(softwareId).catch(() => {}));
+    if (!line) return;
+    queueMicrotask(
+      () =>
+        void line.backToWhy(softwareId).catch((err: unknown) => {
+          addChatMessage(this.db, {
+            softwareId,
+            author: "premise",
+            text: `Going back to Why did not start (${err instanceof Error ? err.message : String(err)}). Ask again from the Intake tab.`,
+          });
+        }),
+    );
   }
 
   private readingEnded(job: Job): void {
