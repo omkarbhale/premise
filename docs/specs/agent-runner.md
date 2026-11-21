@@ -51,7 +51,7 @@ Not responsible for:
    - planner, drafter, reviewer: a read-only clone at the default branch, where the job needs one;
    - researcher, triager, reader, reporter: none, or an empty scratch folder;
    - any role, when the software has no repository yet: an empty scratch folder.
-   - A job whose last session was cut off (usage limit, pause, premise stopped) keeps its working copy and carries that session on with `--resume` ([0151](../decisions/0151-session-ids-chosen-by-premise-and-cut-off-sessions-carried-on.md)).
+   - A job whose last session was cut off (usage limit, pause, premise stopped) keeps its working copy and carries that session on with `--resume`, but only if its id was confirmed by the session's first event; a session cut off before that starts afresh ([0151](../decisions/0151-session-ids-chosen-by-premise-and-cut-off-sessions-carried-on.md)).
 2. Assemble the instructions: the role's prompt from premise's repository, then every skill the role lists, in full, then the task brief with its placeholders filled ([0114](../decisions/0114-prompts-and-skills-as-files.md)).
 3. Create the session's tool token and MCP configuration ([agent tools](agent-tools.md)).
 4. Start Claude Code headless (`claude -p` with streamed JSON output) as a child process ([0071](../decisions/0071-headless-claude-code-agents.md)):
@@ -107,7 +107,7 @@ Every agent runs confined: Claude Code's sandbox for shell commands, plus permis
 
 ### 5.6 The usage limit
 
-- When the subscription's usage limit is reached, Claude Code reports it as a `rate_limit_event` with status `rejected` and the reset time. The runner stops the session and tells the work queue, which pauses all agent work until the reset, and the report says so ([work queue](work-queue.md)). A status of `allowed_warning` is shown as progress. After the reset, the cut-off session is carried on.
+- When the subscription's usage limit is reached, Claude Code reports it as a `rate_limit_event` with status `rejected` and the reset time. The runner stops the session and tells the work queue, which pauses all agent work until the reset, and the report says so ([work queue](work-queue.md)). A status of `allowed_warning` is shown as progress. After the reset, the cut-off session is carried on if its id was confirmed, and starts afresh if not.
 - premise never turns on paid extra usage. Paid extra usage on a subscription is spending money, on the floor ([0100](../decisions/0100-floor-actions.md)).
 
 ### 5.7 Watching

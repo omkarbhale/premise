@@ -14,20 +14,21 @@
 
 ## Decision
 
-- premise gives each new session an id of its own choosing (`--session-id`) and records it at once. The id in the session's first event is still the one that counts: if it differs, the record is corrected when the session ends.
-- A job whose last session was cut off rather than finished (the usage limit, a pause, or premise stopping) carries that session on with `--resume`, in the same working copy, which is kept for that reason. Its first message says it was cut off and should carry on.
+- premise gives each new session an id of its own choosing (`--session-id`) and records the session at once, with no runtime id. The id is written to the record when the session's first event confirms it.
+- A job whose last session was cut off rather than finished (the usage limit, a pause, or premise stopping) carries that session on with `--resume` only if its id was confirmed, in the same working copy, which is kept for that reason. Its first message says it was cut off and should carry on.
+- A session cut off before its id was confirmed was never known to Claude Code, so it is not resumed: the job starts afresh.
 - A job whose session failed starts a new session, in a fresh working copy, told what failed.
 
 ## Reason
 
-- The id is known before the first event, so the session record never lacks one.
+- The session record exists from the start, but an id Claude Code has not confirmed is never resumed, which would fail with "no conversation found".
 - Carrying a session on keeps the work done before the usage limit, instead of paying for it twice.
 
 ## Alternatives considered
 
 | Alternative | Why rejected |
 | --- | --- |
-| Record the session only after its first event | The record would be missing for sessions that fail before speaking. |
+| Record the id at once and resume it whatever happens | A session cut off before its first event would be resumed under an id Claude Code never saw. |
 | Always start afresh after a pause | Repeats work already paid for. |
 
 ## Consequences
