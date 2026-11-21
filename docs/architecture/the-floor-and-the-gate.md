@@ -37,7 +37,7 @@ The owner accepted a floor in principle and left how it works to the plan ([0015
   - Reads denied for premise's data folder, the checker's scenarios, and credential files (SSH keys, the GitHub login, Claude Code's login).
   - Network only to the package registries the plan names.
   - Why: an unattended agent with the owner's files and logins within reach is how the prior art's worst incidents happened. Claude Code's sandbox covers shell commands only, so file tools are limited by permission rules as well.
-  - Rejected: no confinement. A container per agent (stronger, but it makes Docker a prerequisite); it is the fallback if milestone 1 shows the sandbox leaks.
+  - Rejected: no confinement. A container per agent (stronger, but it makes Docker a prerequisite); the milestone 1 test showed the sandbox holds, so there is no fallback ([0125](../decisions/0125-the-claude-code-sandbox-is-the-confinement.md)).
 - Built software runs confined like an agent ([build, check and run](build-check-run.md#run)).
 - premise itself: the session token and header checks ([0078](../decisions/0078-session-token-and-header-checks.md)); localhost only ([0079](../decisions/0079-localhost-only.md)). See [where it runs](where-it-runs.md).
 

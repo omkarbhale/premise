@@ -70,7 +70,7 @@ Every agent runs confined: Claude Code's sandbox for shell commands, plus permis
 - Network only to the package registries the plan names; the researcher alone gets web search and web fetch; the checker also reaches the software it started on localhost.
 - The builder holds no credentials. It commits; the server pushes ([0077](../decisions/0077-github-through-existing-cli-login.md)).
 - On Linux and WSL2, Claude Code's sandbox needs bubblewrap and socat ([page server](page-server.md)).
-- If milestone 1 shows the sandbox leaks, agents run in a container per session instead. That makes Docker a prerequisite. If Docker is not available, work stops for the owner, because running agents unconfined is security-sensitive ([0053](../decisions/0053-when-work-stops-for-the-owner.md)).
+- The sandbox held in the milestone 1 step 1 test, so no container is used and Docker is not a prerequisite ([0125](../decisions/0125-the-claude-code-sandbox-is-the-confinement.md)). If bubblewrap or socat is missing, no agent starts and work stops for the owner, because running agents unconfined is security-sensitive ([0053](../decisions/0053-when-work-stops-for-the-owner.md)).
 
 ### 5.3 Limits
 
@@ -122,7 +122,7 @@ Every agent runs confined: Claude Code's sandbox for shell commands, plus permis
 | `agents.max_turns.other` | 60 | Turn limit for other sessions, unless a stage budget is lower |
 | `agents.max_minutes.other` | 20 | Time limit for other sessions |
 | `agents.allowed_registries` | the main registries the plan names | Network allowed to builders and checkers |
-| `agents.confinement` | `sandbox` | `sandbox`, or `container` after a failed milestone 1 point 3 or 4 |
+| `agents.confinement` | `sandbox` | `sandbox` is the only value in use ([0125](../decisions/0125-the-claude-code-sandbox-is-the-confinement.md)) |
 
 ## 7. Limits
 
@@ -164,9 +164,9 @@ Milestone 1, step 1: a small TypeScript program, the start of the agent runner, 
 5. each session's id is recorded against the task it did;
 6. the usage limit is handled: rate-limit events pause the work, and it resumes after the reset; if the limit cannot be reached safely, the pause is shown with a simulated event;
 7. the server, not an agent, creates a private repository on the owner's GitHub and pushes to it ([runner](runner.md));
-8. the use stays within [0103](../decisions/0103-subscription-only-for-the-owner.md).
+8. the use stays within [0103](../decisions/0103-subscription-only-for-the-owner.md), settled by [0124](../decisions/0124-unattended-claude-code-on-the-subscription-is-allowed.md).
 
-If point 1, 2, 7 or 8 cannot be proven, work stops for the owner there; the report says what failed and what the options are, for example an API key, which spends money. Nothing else in milestone 1 starts. If point 3 or 4 fails, agents run in a container per session (5.2).
+If point 1, 2, 7 or 8 cannot be proven, work stops for the owner there; the report says what failed and what the options are, for example an API key, which spends money. Nothing else in milestone 1 starts. Points 3 and 4 held with the sandbox, so there is no container fallback ([0125](../decisions/0125-the-claude-code-sandbox-is-the-confinement.md)).
 
 Later milestones:
 

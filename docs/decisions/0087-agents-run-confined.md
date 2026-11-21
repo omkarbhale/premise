@@ -1,6 +1,6 @@
 # 0087. Every agent runs confined
 
-- Status: Accepted
+- Status: Partly superseded by [0125](0125-the-claude-code-sandbox-is-the-confinement.md): the container fallback
 - Scope: The plan
 - Date: 2026-11-21
 - Decided by: The builders, in the plan of 2026-11-21. The owner did not make this choice.
