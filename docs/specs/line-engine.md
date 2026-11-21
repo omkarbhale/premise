@@ -40,7 +40,7 @@ Not responsible for:
 | Send back | Page server (operator) | Software, stage | The software reopens that stage; later stages are marked to repeat | `NO_SUCH_STAGE` |
 | Claim area | Page server | Software, role label, the area in its own words | Claim id | none |
 | Set size class | Page server (operator) | Software, small, medium or large | New stage budgets | none |
-| Set a piece's size | Page server (operator) | Work item, small, medium or large | New stage budgets for that piece; recorded as the operator's | `NOT_FOUND` |
+| Set a piece's size | Page server (operator) | Work item, small, medium or large | New stage budgets for that piece; recorded as the operator's | `NOT_FOUND`, `INVALID` |
 | Set a piece's stages | Page server (operator) | Work item, the stages it should go through | Its stages; what is always needed stays, and the answer says so | `INVALID` (finished, or nothing changed) |
 | Undo a split | Page server (operator) | Work item | Its parts withdrawn; it goes through the line whole | `INVALID` (not split, or a part is built) |
 | Set priority | Page server (operator) | Software, priority | The work queue orders by it | none |

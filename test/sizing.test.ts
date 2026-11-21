@@ -366,6 +366,10 @@ describe("sizing a piece of work", () => {
     const again = await app.call("POST", `/api/work-items/${root!.id}/undo-split`);
     expect(again.status).toBe(422);
     expect(again.body.error).toContain("not split");
+    const part = items.find((i) => i.depth === 1)!;
+    const resize = await app.call("POST", `/api/work-items/${part.id}/size`, { size: "large" });
+    expect(resize.status).toBe(422);
+    expect((await work(app, id)).find((i) => i.id === part.id)!.sizeClass).toBe(part.sizeClass);
   });
 
   it("makes each confirmed milestone a part of the software, with its wait, edited as before", async () => {
