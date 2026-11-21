@@ -962,7 +962,7 @@ export class Learning implements LessonSource {
         lessonId: lessonOf.get(c.id) ?? null,
         created: c.created,
       })),
-      ended,
+      ended: endedViews,
     };
   }
 }
