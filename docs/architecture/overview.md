@@ -107,7 +107,7 @@ The first four risks were raised on the [scope page draft](../record/scope-page-
 
 - **The conversation turns into paperwork:** drafts instead of interviews; stage budgets ([0085](../decisions/0085-stage-effort-budgets.md)); a say-back of at most ten items.
 - **A say-back that confirms the wrong thing:** the smallest running version first; the checker judging against the record ([0089](../decisions/0089-checker-in-a-fresh-session.md), [0090](../decisions/0090-scenarios-out-of-the-builders-reach.md)).
-- **Existing software swallows the effort:** it comes after the line works (milestone 6).
+- **Existing software swallows the effort:** it comes early, in a thin form, after thin intake, and its fuller form later (milestone 6; [0171](../decisions/0171-existing-software-much-earlier-in-a-thin-form.md)).
 - **The whole line is a lot:** the thinnest line first, one milestone at a time.
 - **Agents gaming their checks:** scenarios out of the builder's reach ([0090](../decisions/0090-scenarios-out-of-the-builders-reach.md)); a checker that never sees the builder's claims ([0089](../decisions/0089-checker-in-a-fresh-session.md)).
 - **Destructive actions:** no credentials for agents, confinement ([0087](../decisions/0087-agents-run-confined.md)), the gate ([0101](../decisions/0101-the-gate-asks-in-the-session.md)).

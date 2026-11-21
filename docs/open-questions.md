@@ -21,8 +21,18 @@ The owner asked the assistant to choose an answer to every question that was ope
 
 ## Still open with the owner
 
-- **The owner's read of the vision.** Open since 2026-11-20; the vision is draft 4 ([VISION.md](../VISION.md)). The vision is the owner's statement, so the assistant does not choose it.
+- **The owner's read of the vision.** Open since 2026-11-20; the vision is draft 5, which adds the owner's two decisions on scale and on adapting to each software ([VISION.md](../VISION.md), [0166](decisions/0166-any-software-of-any-scale.md), [0167](decisions/0167-premise-adapts-at-runtime-to-the-software.md)). The vision is the owner's statement, so the assistant does not choose it.
 - **Where a rebuild could still come from.** The conversation itself (eleven fixed stages may feel like paperwork; the record's shape may not suit), which only use can settle, and the record's format, which is costly to undo ([0126](decisions/0126-what-is-being-built-confirmed.md)). Use settles it, not a choice.
+
+## Builders' choices on the new order, open to the owner's correction
+
+The owner's decisions of 2026-11-21 on scale, direction and order are records [0166](decisions/0166-any-software-of-any-scale.md)–[0178](decisions/0178-hosting-for-others-accounts-and-public-deployment-pushed-later.md). Where the owner did not say how to write them down, the builders chose, and the choice is open to the owner's correction ([0179](decisions/0179-the-roadmap-is-reordered.md)):
+- **Milestone numbers stay as they were.** The new order is stated at the top of the roadmap; the two new steps are milestones 8 (measures and learning from corrections) and 9 (real use).
+- **Intake and existing software are each built in two parts:** the thin form early, the rest with roles and cost.
+- **Use starts as soon as milestone 1 runs,** not at its place in the list ([0175](decisions/0175-premise-is-used-for-real-as-soon-as-milestone-1-runs.md)).
+- **Which stages sit in which of the three phases** (Understand: Why to Say back; Build: Plan, Build, Check; Running: Run, Report, Intake), since the owner gave the names and not the split ([0174](decisions/0174-the-page-shows-three-phases.md)).
+- **Where learned taste is kept:** the operator's list in premise's own data, never in a software's repository ([0173](decisions/0173-premise-learns-from-corrections.md), [0081](decisions/0081-nothing-about-people-in-the-repository.md)).
+- **No several agents per stage by default, and each split recorded with its reason** ([0170](decisions/0170-what-may-be-split-is-decided-by-strong-prompting.md)).
 
 ## The owner's calls that come later, named in the plan
 
@@ -30,7 +40,8 @@ These are not open now; the plan says they wait for the owner when they arrive.
 
 - **Real agent work on the owner's Claude login.** Used only when strictly necessary, on Haiku at low effort, very sparingly ([0134](decisions/0134-the-owners-claude-login-only-when-strictly-necessary.md)); running usage-ledger through premise with real agents waits for the owner's word ([0137](decisions/0137-first-software-is-usage-ledger.md)).
 - **The real GitHub step.** Creating a repository on the owner's GitHub runs once, on the owner's word ([0141](decisions/0141-github-repositories-in-tests-and-behind-the-gate.md)).
-- **Accounts.** Decided at milestone 5, when other people set premise up ([0045](decisions/0045-a-link-per-person-no-accounts.md)).
+- **Accounts, hosting for other people and public deployment.** Decided at milestones 5 and 7, which come last, after two real softwares have run through premise ([0045](decisions/0045-a-link-per-person-no-accounts.md), [0178](decisions/0178-hosting-for-others-accounts-and-public-deployment-pushed-later.md)).
+- **The checker on a different model, and tolerating commits made outside premise.** Put on later by the owner, one GitHub issue each ([issue 62](https://github.com/omkarbhale/premise/issues/62), [issue 63](https://github.com/omkarbhale/premise/issues/63)).
 
 ## Noted by the builders
 
