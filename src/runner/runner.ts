@@ -18,6 +18,7 @@ import type { Job } from "../queue/work-queue.js";
 import type { RunState, RunView } from "../shared/api-types.js";
 import { type Database, now, recordEvent } from "../storage/database.js";
 import { confine } from "./confinement.js";
+import { secretsFile } from "./secrets.js";
 import { type RunInstructions, parseRunInstructions } from "./run-instructions.js";
 
 /**
@@ -428,7 +429,7 @@ export class Runner {
 
   /** The software's secrets file, written by a person in premise's data folder, goes in the copy. */
   private placeSecrets(softwareId: string, copy: string): void {
-    const secrets = join(this.deps.config.data.folder, "secrets", `${softwareId}.env`);
+    const secrets = secretsFile(this.deps.config.data.folder, softwareId);
     if (!existsSync(secrets)) return;
     const target = join(copy, ".env");
     copyFileSync(secrets, target);

@@ -20,7 +20,7 @@ const PROGRESS: Record<AgentTaskKind, string> = {
   review: "Reviewing the plan's costly choices (scripted)",
   plan: "Planning the work, smallest running version first (scripted)",
   build: "Writing a placeholder program (scripted: no real code is written)",
-  prototype: "Making a quick prototype (scripted)",
+  prototype: "Writing a proposal for a claimed area (scripted)",
   check: "Checking the build against the record (scripted: it only starts the program)",
   triage: "Reading new items (scripted)",
   reading: "Reading held items together (scripted)",
@@ -44,6 +44,28 @@ function submit(call: Call, stage: string, items: ({ text: string } & Record<str
   const fresh = items.filter((i) => !struck.some((line) => line.includes(i.text)));
   call("draft_submit", { stage, items: fresh.length ? fresh : items });
 }
+
+/**
+ * The scripted proposal for a claimed area: two fixed options in the area's own words, holding every
+ * task. No AI writes them; they only show where a real proposal appears and how it is answered.
+ */
+const propose: ScriptBehaviour = (request, call) => {
+  const claim = (request.context?.claim ?? {}) as { area?: string };
+  const area = claim.area ?? "the claimed area";
+  call("proposal_submit", {
+    options: [
+      {
+        title: "Plain and quiet",
+        description: `${area}, kept plain: light background, one column, the main action first (scripted).`,
+      },
+      {
+        title: "Bold",
+        description: `${area}, with stronger colours and larger type (scripted).`,
+      },
+    ],
+    note: "Scripted: a fixed pair of options, so the proposal can be tried without AI.",
+  });
+};
 
 /** The scripted drafter: fixed templates filled with the operator's own words. No AI writes them. */
 const draftWhy: ScriptBehaviour = (request, call) => {
@@ -433,6 +455,7 @@ export function standInScript(stepSeconds: number): AgentScript {
       rule("triage", { when: { purpose: "learn" }, behave: learn }),
       rule("triage", { behave: triage }),
       rule("reading", { behave: reading }),
+      rule("prototype", { behave: propose }),
       rule("build", { behave: trialBuild }),
       rule("check", { when: { purpose: "scenarios" }, behave: trialScenarios }),
       rule("check", { when: { purpose: "check" }, behave: trialJudge }),

@@ -14,6 +14,8 @@ import type { Job, JobKind, WorkQueue } from "../queue/work-queue.js";
 import { applyOperations, type Operation } from "../record/change.js";
 import { type ItemKind, type RecordItem, formatItemLine } from "../record/format.js";
 import { RecordError, type RecordKeeper } from "../record/record-keeper.js";
+import { secretWritten, secretsFile } from "../runner/secrets.js";
+import { type Taste, roleLabel, roleWords } from "../taste/taste.js";
 import {
   ServiceError,
   type BringInInput,
@@ -22,6 +24,7 @@ import {
 } from "../server/services.js";
 import type {
   ApprovalView,
+  ClaimView,
   AskAnswer,
   AskView,
   ChatMessage,
@@ -89,7 +92,7 @@ import {
   listExisting,
   setExisting,
 } from "../existing/store.js";
-import { validateAnswer } from "./answers.js";
+import { answerWords, validateAnswer } from "./answers.js";
 import type { BriefName, Briefs } from "./briefs.js";
 import {
   type DraftItem,
@@ -215,6 +218,7 @@ type AskPurpose =
   | "milestones"
   | "stage-problem"
   | "milestone-reached"
+  | "taste-proposal"
   | "agent";
 
 /** The line's notes on one work item, kept with the item. */
@@ -281,6 +285,8 @@ export interface LineEngineOptions {
   later: LaterStages;
   /** Intake: chat that is not an answer, and the work intake items become. */
   intake: IntakeHooks;
+  /** Taste claims and their proposals (src/taste). */
+  taste: Taste;
   /** The check of a whole piece once its parts are done; a labelled stand-in when not given. */
   wholeCheck?: WholeCheck;
   /** False while no agent can start; status lines then say why work waits. */
@@ -406,7 +412,10 @@ export class LineEngine implements IntakeLine {
   /** The piece's name in plain words, for the session. */
   private label(item: WorkItem): string {
     if (item.parentId === null) return "the software";
-    if (item.kind === "milestone") return `${item.ref ?? "a milestone"} (${item.title ?? ""})`;
+    if (item.kind === "milestone") {
+      const title = (item.title ?? "").trim().replace(/\.+$/, "");
+      return title ? `the milestone "${title}"` : "a milestone";
+    }
     if (item.kind === "intake") return `the work for ${item.ref ?? "an intake item"}`;
     return `the part "${item.title ?? "unnamed"}"`;
   }
@@ -560,7 +569,89 @@ export class LineEngine implements IntakeLine {
       wholeCheckStandIn: this.wholeCheck.standIn,
       build: this.options.later.view?.(id) ?? null,
       ...(this.existingView(id) && { existing: this.existingView(id)! }),
+      claims: this.claimViews(id),
     };
+  }
+
+  // ---- Taste claims (decisions 0022, 0102, 0196) ---------------------------------------------
+
+  private claimViews(softwareId: string): ClaimView[] {
+    const making = new Set(
+      this.queue
+        .list()
+        .filter(
+          (j) => j.softwareId === softwareId && j.kind === "prototype" && !FINISHED.has(j.status),
+        )
+        .map((j) => Number(j.payload.claim)),
+    );
+    return this.options.taste
+      .list(softwareId)
+      .map((c) => this.options.taste.view(c, making.has(c.id)));
+  }
+
+  /**
+   * The role labels in use besides the operator, in plain words: from what was asked (not counting
+   * withdrawn asks) and from open claims. Empty means only the operator was ever asked anything.
+   */
+  rolesInUse(): string[] {
+    const asked = (
+      this.db.prepare("SELECT DISTINCT role FROM asks WHERE status != 'withdrawn'").all() as {
+        role: string;
+      }[]
+    ).map((r) => r.role);
+    return [...new Set([...asked, ...this.options.taste.rolesClaiming()])]
+      .filter((r) => r !== OPERATOR)
+      .map(roleWords)
+      .sort();
+  }
+
+  /** Claim an area of a software for a role's taste, from the page. */
+  async claimArea(
+    softwareId: string,
+    input: { role?: unknown; area?: unknown },
+  ): Promise<ClaimView> {
+    const software = this.require(softwareId);
+    const claim = transaction(this.db, () => this.options.taste.claim(software.id, input));
+    const who = claim.role === OPERATOR ? "you" : `the ${roleWords(claim.role)}`;
+    const building = (LATER as readonly string[]).includes(software.currentStage);
+    this.premiseSays(
+      software.id,
+      `${capital(claim.area)} is claimed${claim.role === OPERATOR ? "" : ` by the ${roleWords(claim.role)}`}. Before building it, premise shows ${who} a proposal to keep or correct; everything else premise still decides itself.${building ? " It applies from the next build: what is being built now goes on as it is." : ""} To let premise decide it after all, release the claim on the Line tab.`,
+    );
+    return this.options.taste.view(claim);
+  }
+
+  /** Release a claim: premise decides the area itself again; work waiting on its proposal goes on. */
+  async releaseClaim(claimId: number): Promise<ClaimView> {
+    this.afterCommit = [];
+    const released = transaction(this.db, () => {
+      const result = this.options.taste.release(claimId);
+      const software = getSoftware(this.db, result.claim.softwareId)!;
+      this.premiseSays(
+        software.id,
+        `The claim on ${result.claim.area} is released: premise decides it itself now${result.withdrawn ? ", and the proposal that was waiting is withdrawn; the work that waited on it goes on" : ""}.`,
+      );
+      const outcome = this.options.later.claimReleased?.(software.id, claimId) ?? null;
+      if (outcome && (LATER as readonly string[]).includes(software.currentStage)) {
+        this.applyLater(software, software.currentStage as LaterStageId, outcome);
+      }
+      return result.claim;
+    });
+    const committed = this.afterCommit;
+    this.afterCommit = [];
+    for (const work of committed) work();
+    this.queue.tick();
+    return this.options.taste.view(released);
+  }
+
+  /** proposal_submit: the planner's proposal for a claimed area goes to the claiming role. */
+  proposalSubmit(binding: ToolBinding, args: Record<string, unknown>): ToolEnvelope {
+    const job = this.jobOf(binding);
+    if (!("id" in job)) return job;
+    if (job.kind !== "prototype") {
+      return toolFail("NOT_ALLOWED", "proposal_submit is only for a proposal for a claimed area.");
+    }
+    return this.options.taste.proposalSubmit(binding, args, job);
   }
 
   /**
@@ -2479,7 +2570,7 @@ export class LineEngine implements IntakeLine {
             ? "items were struck at the last say-back and their stages were redone"
             : "a new software",
         change: "none",
-        claimed_areas: "none",
+        claimed_areas: this.options.taste.briefText(software.id),
         working_copy: "none",
         proposed_change: "none",
         decision: "none",
@@ -2813,7 +2904,7 @@ export class LineEngine implements IntakeLine {
       id: ask.id,
       softwareId: ask.softwareId,
       softwareName: names.get(ask.softwareId) ?? "a removed software",
-      role: ask.role,
+      role: roleWords(ask.role),
       // The scope check is kept as a draft ask (the asks table's kinds are fixed) and shown as its own kind.
       kind: ask.extra.meta?.purpose === "scope" ? "scope" : ask.kind,
       stage: ask.stage && isStageId(ask.stage) ? ask.stage : null,
@@ -2835,6 +2926,15 @@ export class LineEngine implements IntakeLine {
       ...(ask.extra.bestAttempt !== undefined && { bestAttempt: ask.extra.bestAttempt }),
       ...(ask.extra.choices !== undefined && { choices: ask.extra.choices }),
       ...(ask.extra.approval !== undefined && { approval: ask.extra.approval }),
+      ...(ask.extra.meta?.purpose === "taste-proposal" && {
+        claim: {
+          id: Number(ask.extra.meta.claim),
+          area: String(ask.extra.meta.area ?? ""),
+        },
+      }),
+      ...(ask.extra.meta?.secret !== undefined && {
+        secret: ask.extra.meta.secret as { key: string; file: string },
+      }),
       ...(typeof ask.extra.meta?.milestone === "string" && {
         milestone: {
           id: ask.extra.meta.milestone,
@@ -2933,6 +3033,20 @@ export class LineEngine implements IntakeLine {
     }
     const summary = validateAnswer(ask, answer);
     const software = this.require(ask.softwareId);
+    const secret = ask.extra.meta?.secret as { key: string; file: string } | undefined;
+    if (
+      ask.kind === "needed" &&
+      answer.kind === "needed" &&
+      answer.decision === "done" &&
+      secret &&
+      !secretWritten(secret.file, secret.key)
+    ) {
+      // premise checks what it can: the key is in the file (decision 0196). It never reads the value out.
+      throw new ServiceError(
+        "INVALID",
+        `premise looked, and ${secret.key} is not in ${secret.file} yet. Write it there as one line, ${secret.key}=the value, then mark this done again. Nothing else was changed.`,
+      );
+    }
 
     if (ask.extra.meta?.gateRequest !== undefined && answer.kind === "approval") {
       try {
@@ -3206,9 +3320,27 @@ export class LineEngine implements IntakeLine {
           }
         };
       }
+      case "taste-proposal": {
+        const { decision, after } = this.options.taste.decide(ask, answer);
+        return () => {
+          after();
+          const area = decision.claim.area;
+          this.premiseSays(
+            id,
+            decision.corrected
+              ? `Noted for ${area}: ${decision.words.replace(/[.\s]+$/, "")}. It is in the record as taste, and premise builds it that way.`
+              : `Kept for ${area}. It is in the record as taste, and premise builds it that way.`,
+          );
+          const later = this.options.later.answered?.(ask, answer) ?? null;
+          const current = getSoftware(this.db, id)!;
+          if (later && (LATER as readonly string[]).includes(current.currentStage)) {
+            this.applyLater(current, current.currentStage as LaterStageId, later);
+          }
+        };
+      }
       case "agent":
       default: {
-        const said = answer.kind === "text" ? answer.text : JSON.stringify(answer);
+        const said = answerWords(ask, answer);
         if (
           this.takenOn(id) &&
           ask.waitingJob !== null &&
@@ -4023,30 +4155,21 @@ export class LineEngine implements IntakeLine {
   askPerson(binding: ToolBinding, args: Record<string, unknown>): ToolEnvelope {
     const job = this.jobOf(binding);
     if (!("id" in job)) return job;
-    const role =
-      String(args.role ?? OPERATOR)
-        .toLowerCase()
-        .trim()
-        .replace(/\s+/g, "-") || OPERATOR;
+    const role = roleLabel(String(args.role ?? "")) || OPERATOR;
+    const who = role === OPERATOR ? "you" : `the ${roleWords(role)}`;
     const items = (args.items as unknown[]).map((t) => String(t).trim()).filter(Boolean);
     const kind = args.kind as "question" | "proposal" | "needed";
+    if (kind === "needed") return this.askForAct(binding, job, role, items, args);
     const ask = createAsk(this.db, {
       softwareId: job.softwareId,
       role,
       kind,
       stage: job.stage,
-      title:
-        kind === "needed"
-          ? "Something is needed from you"
-          : items.length === 1
-            ? items[0]!.slice(0, 120)
-            : `A question from the ${binding.role}`,
+      title: items.length === 1 ? items[0]!.slice(0, 120) : `A question from the ${binding.role}`,
       instruction:
-        kind === "needed"
-          ? `The ${binding.role} needs this to go on. Mark it done when it is, or say why it cannot be done.`
-          : job.kind === "recover"
-            ? `The ${binding.role} found this while recovering the record from the code: parts disagree, or it cannot be told from the code. Answer in your own words; your answer is taken in as a correction and goes through the line, and the rest goes on meanwhile.`
-            : `The ${binding.role} asks this while working on ${stageName(job.stage ?? "")}. Answer in your own words; the rest of the work goes on.`,
+        job.kind === "recover"
+          ? `The ${binding.role} found this while recovering the record from the code: parts disagree, or it cannot be told from the code. Answer in your own words; your answer is taken in as a correction and goes through the line, and the rest goes on meanwhile.`
+          : `The ${binding.role} asks this while working on ${stageName(job.stage ?? "")}, and it is ${role === OPERATOR ? "yours" : `the ${roleWords(role)}'s`} to answer. Answer in your own words; the rest of the work goes on.`,
       items:
         items.length > 1
           ? items.map((text, i) => ({ key: `q${i + 1}`, text, mark: "assumed" as const }))
@@ -4057,7 +4180,65 @@ export class LineEngine implements IntakeLine {
     return toolOk({
       ask_id: ask.id,
       status: "asked",
-      note: "Carry on with your best attempt and say in task_finish what waits on the answer; it reaches the next brief.",
+      note: `Asked of ${who}. Carry on with your best attempt and say in task_finish what waits on the answer; it reaches the next brief.`,
+    });
+  }
+
+  /**
+   * Something only a person can do (decision 0196): premise names the role, says exactly what is
+   * needed step by step, and waits for the person to say it is done. When the act ends in a secret,
+   * the person writes it into the software's secrets file (decision 0120) and premise checks it is
+   * there; it never takes the value and never does the act.
+   */
+  private askForAct(
+    binding: ToolBinding,
+    job: Job,
+    role: string,
+    steps: string[],
+    args: Record<string, unknown>,
+  ): ToolEnvelope {
+    const what =
+      typeof args.what === "string" && args.what.trim()
+        ? args.what.trim().replace(/[.\s]+$/, "")
+        : (steps[0] ?? "Something only a person can do").replace(/[.\s]+$/, "");
+    const key =
+      typeof args.secret === "string" && args.secret.trim()
+        ? args.secret
+            .trim()
+            .toUpperCase()
+            .replace(/[^A-Z0-9_]+/g, "_")
+        : null;
+    const file = key ? secretsFile(this.config.data.folder, job.softwareId) : null;
+    const allSteps = [
+      ...steps,
+      ...(key && file
+        ? [
+            `Write it into the file ${file} on this computer, as one line: ${key}=the value. Make the file if it is not there. Never paste it into this page or the chat: premise does not take secrets.`,
+          ]
+        : []),
+    ];
+    const ask = createAsk(this.db, {
+      softwareId: job.softwareId,
+      role,
+      kind: "needed",
+      stage: job.stage,
+      title: what.slice(0, 140),
+      instruction: `Only a person can do this; premise never does it for you. The ${binding.role} needs it to go on with ${stageName(job.stage ?? "")}. Do the steps below, then mark it done.${key ? " premise then checks the key is in the file." : ""} Only this work waits; the rest goes on.`,
+      items: allSteps.map((text, i) => ({ key: `s${i + 1}`, text, mark: "assumed" as const })),
+      waitingJob: job.id,
+      extra: {
+        meta: {
+          purpose: "agent",
+          job: job.id,
+          act: true,
+          ...(key && file && { secret: { key, file } }),
+        },
+      },
+    });
+    return toolOk({
+      ask_id: ask.id,
+      status: "asked",
+      note: `The ${roleWords(role)} is asked to do it. Do not do it yourself or wait: finish what you can without it, and end with task_finish "waiting-for-person". The answer reaches your next attempt${key ? `; the secret is in the software's secrets file, which the running software gets as ${key} and you never see` : ""}.`,
     });
   }
 
@@ -4080,6 +4261,8 @@ export class LineEngine implements IntakeLine {
         items: Array.isArray(args.items)
           ? args.items.filter((x): x is string => typeof x === "string")
           : [],
+        ...(typeof args.role === "string" &&
+          roleLabel(args.role) && { role: roleLabel(args.role) }),
         requestedBy: `${binding.role}, job ${job.id}`,
         jobId: job.id,
         waiting: `the ${binding.role}'s work on ${stageName(job.stage ?? "")}`,
@@ -4090,7 +4273,7 @@ export class LineEngine implements IntakeLine {
         status: request.status === "asked" ? "asked" : "approved",
         note:
           request.status === "asked"
-            ? "The operator is asked in the session. Do not wait: finish what you can without it and say in task_finish what waits on it."
+            ? `The ${roleWords(request.role)} is asked in the session. Do not wait: finish what you can without it and say in task_finish what waits on it.`
             : "A standing approval covers it. The server, not you, carries it out.",
       });
     } catch (error) {
@@ -4217,6 +4400,11 @@ const RECORD_VIEW_FILES = [
     plain: "What already exists, and what was decided about it",
   },
   { file: "what.md", title: "What", plain: "What it must, should and could do" },
+  {
+    file: "taste.md",
+    title: "Taste",
+    plain: "How claimed parts should be, as the role that claimed each one decided",
+  },
   { file: "decisions.md", title: "Decisions", plain: "Technical choices, each with its reason" },
   {
     file: "milestones.md",
@@ -4254,6 +4442,8 @@ export function jobWords(job: Pick<Job, "kind" | "payload">): string {
       return "researcher";
     case "plan":
       return "planner";
+    case "prototype":
+      return "planner, writing a proposal for a claimed part";
     case "build":
       return "builder";
     case "check":

@@ -122,12 +122,14 @@ const TOOLS: ToolDefinition[] = [
   {
     name: "ask",
     description:
-      "Ask a person a question, under the label of the role that has the last word. At most a short list of items. The job waits for the answer; other jobs go on.",
+      'Ask a person a question, under the label of the role that has the last word, in that role\'s terms. At most a short list of items. For something only a person can do (kind "needed": an account with an outside service, a payment, a signature), give "what" (one line: what is needed) and the items as the exact steps, in order; give "secret" (a key name such as MAIL_API_KEY) when the act ends in a secret the software needs: premise names the file the person writes it into and checks it is there. You never do the act yourself. The job waits for the answer; other jobs go on.',
     inputSchema: obj(
       {
         role: { type: "string" },
         kind: { type: "string", enum: ["question", "proposal", "needed"] },
         items: textList,
+        what: { type: "string" },
+        secret: { type: "string" },
         waits_on: { type: "string" },
       },
       ["role", "kind", "items"],
@@ -137,10 +139,11 @@ const TOOLS: ToolDefinition[] = [
   {
     name: "gate_request",
     description:
-      "Request an action on the floor (spending money, acting publicly, deleting data, ...). Say exactly what will happen and why. The server, never you, performs it once approved.",
+      'Request an action on the floor (spending money, acting publicly, deleting data, ...). Say exactly what will happen and why, and "role": whose call it is when the record names a role other than the operator (for example the role that holds an outside account). The server, never you, performs it once approved.',
     inputSchema: obj(
       {
         kind: { type: "string" },
+        role: { type: "string" },
         action: { type: "string" },
         why: { type: "string" },
         items: textList,
@@ -148,6 +151,20 @@ const TOOLS: ToolDefinition[] = [
       ["kind", "action", "why"],
     ),
     notBuilt: "the gate",
+  },
+  {
+    name: "proposal_submit",
+    description:
+      'Submit the proposal for a claimed area: "options", one or two (at most taste.options_max), each with a "title" of a few words and a "description" of what the claiming role would see, in that role\'s terms; "tasks", the numbers of the plan\'s tasks that build this area (they wait for the answer; leave out to hold every task); and an optional "note". The claiming role keeps one or says what to change; that becomes a T item.',
+    inputSchema: obj(
+      {
+        options: { type: "array", items: anyObject },
+        tasks: { type: "array", items: { type: "number" } },
+        note: { type: "string" },
+      },
+      ["options"],
+    ),
+    notBuilt: "taste claims",
   },
   {
     name: "progress",

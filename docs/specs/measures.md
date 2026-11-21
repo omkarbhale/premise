@@ -8,6 +8,7 @@ premise's own return, worked out from what it recorded. No agent is asked and no
 
 | Figure | What it counts | Shown as |
 | --- | --- | --- |
+| Questions asked, by role | Every question premise asked, not counting withdrawn ones, under the role it was for ([0196](../decisions/0196-roles-and-taste-in-one-session.md)) | A count per role, on the page and in every report |
 | People's attention | The time each question stood open while premise's page was in front of someone; a minute with several questions open is shared among them | A total, with the number of questions; by role and by change on the page |
 | Time to answer a question | From a question first shown on the page to its answer (from when it was asked, if never shown) | The middle value |
 | From the idea to running | From starting a software in premise (or bringing it in) to the first time premise started a built version | One software: its time. Every software: the middle value |

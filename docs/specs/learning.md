@@ -13,7 +13,7 @@ A correction is something a person does that says premise got something wrong:
 
 - striking an item premise wrote, at any stage or the say-back (items a person wrote are not counted);
 - editing an item premise wrote;
-- asking for changes to a proposal;
+- asking for changes to a proposal; for a proposal for a claimed area, premise's fixed rule sends what the claimer said to the operator's taste ([0196](../decisions/0196-roles-and-taste-in-one-session.md));
 - declining a request at the gate;
 - sending work back to an earlier stage;
 - undoing a split;

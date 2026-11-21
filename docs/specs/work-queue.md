@@ -6,7 +6,7 @@ Status: specification, being built ([0130](../decisions/0130-the-build-starts-an
 
 The work queue holds premise's jobs, stored so that a restart resumes them. It decides which job runs next, keeps at most two agent sessions running at once, and pauses work when the subscription's usage limit is reached or a software's budget is overrun. Per software it also holds the operator's optional settings of effort (a share of weekly usage, or a priority) and of milestone waits ([0128](../decisions/0128-effort-per-software-and-milestone-waits.md); how they work is the builders' reading, [0129](../decisions/0129-builders-reading-of-effort-and-milestone-waits.md), open to the owner's correction).
 
-Job kinds: `draft`, `research`, `review`, `plan`, `build`, `prototype`, `check`, `run`, `report`, `triage`, `reading`. A `check` job either writes a change's scenarios from the record before its build starts, or judges a commit ([0122](../decisions/0122-scenarios-written-before-the-build.md)).
+Job kinds: `draft`, `research`, `review`, `plan`, `build`, `prototype`, `check`, `run`, `report`, `triage`, `reading`. A `prototype` job makes the proposal for one claimed area before a milestone's tasks start; for now the planner writes it as described options ([0196](../decisions/0196-roles-and-taste-in-one-session.md)). A `check` job either writes a change's scenarios from the record before its build starts, or judges a commit ([0122](../decisions/0122-scenarios-written-before-the-build.md)).
 
 ## 2. Responsibilities and non-responsibilities
 

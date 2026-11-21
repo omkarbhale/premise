@@ -3,6 +3,7 @@ import type {
   AskAnswer,
   AskView,
   ChatMessage,
+  ClaimView,
   IntakeItemView,
   IntakeView,
   RecordView,
@@ -67,6 +68,10 @@ export interface SoftwareService {
   setMilestoneWait(id: string, milestoneId: string, wait: boolean): Promise<void>;
   /** Withdraw a standing approval for a kind of floor action. */
   withdrawApproval(id: number): Promise<void>;
+  /** Claim an area of a software for a role's taste (decision 0102). */
+  claim(id: string, input: { area: string; role?: string }): Promise<ClaimView>;
+  /** Release a claim: premise decides the area itself again. */
+  releaseClaim(claimId: number): Promise<ClaimView>;
 }
 
 /** The operator's say over one piece of work's sizing (decision 0184). */
@@ -130,6 +135,8 @@ export interface ActivityService {
 
 export interface SessionServices {
   softwares: SoftwareService;
+  /** Role labels in use besides the operator; empty when only the operator is asked anything. */
+  roles(): string[];
   workItems: WorkItemService;
   conversation: ConversationService;
   asks: AskService;

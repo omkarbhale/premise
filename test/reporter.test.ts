@@ -125,7 +125,7 @@ describe("a report from recorded facts", () => {
     const lines = allLines(view);
     expect(lines.length).toBeGreaterThan(5);
     for (const line of lines) expect(line.evidence, line.text).toBeTruthy();
-    expect(section(view, "Needed")).toEqual(["From the operator: Which greeting?. Pick one."]);
+    expect(section(view, "Needed")).toEqual(["Which greeting? Pick one."]);
     expect(section(view, "Failed or not checked").join("\n")).toContain(
       "got stuck: Ran out of turns.",
     );

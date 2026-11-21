@@ -142,7 +142,11 @@ function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) 
       report: setProblem,
       refresh,
       go: openSoftware,
-      ...(known && { softwares: known.softwares, agentsMode: known.agents.mode }),
+      ...(known && {
+        softwares: known.softwares,
+        agentsMode: known.agents.mode,
+        roles: known.roles,
+      }),
       explained,
     }),
     [api, version, onNotCurrent, refresh, openSoftware, known, explained],

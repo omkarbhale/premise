@@ -419,6 +419,25 @@ export const MIGRATIONS: readonly Migration[] = [
       INSERT INTO learning_cursor (id, last_event) SELECT 1, COALESCE(MAX(id), 0) FROM events;
     `,
   },
+  {
+    version: 11,
+    name: "taste claims",
+    sql: `
+      CREATE TABLE claims (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        software_id TEXT NOT NULL REFERENCES softwares(id),
+        role TEXT NOT NULL,
+        area TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('open', 'released')),
+        proposal_ask INTEGER,
+        decided TEXT,
+        decision TEXT,
+        created TEXT NOT NULL,
+        released TEXT
+      );
+      CREATE INDEX claims_software ON claims(software_id, status);
+    `,
+  },
 ];
 
 export const CURRENT_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

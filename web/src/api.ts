@@ -14,6 +14,7 @@ import type {
   ReportView,
   RunView,
   SettingsView,
+  ClaimView,
   SoftwareDetail,
   SoftwareSummary,
 } from "../../src/shared/api-types";
@@ -71,6 +72,8 @@ export interface Api {
   setEffort(id: string, effort: SoftwareEffort): Promise<SoftwareDetail>;
   setMilestoneWait(id: string, milestone: string, wait: boolean): Promise<SoftwareDetail>;
   withdrawApproval(id: number): Promise<{ ok: true }>;
+  claim(id: string, area: string, role?: string): Promise<ClaimView>;
+  releaseClaim(id: number): Promise<ClaimView>;
   scriptedDemo(): Promise<{ ok: true }>;
   asks(filter?: { software?: string; status?: "open" | "answered" }): Promise<AskView[]>;
   answer(id: number, answer: AskAnswer): Promise<AskView>;
@@ -172,6 +175,12 @@ export function createApi(token: string): Api {
     setMilestoneWait: (id, milestone, wait) =>
       post(`/api/softwares/${enc(id)}/milestones/${enc(milestone)}/wait`, { wait }),
     withdrawApproval: (id) => post(`/api/approvals/${id}/withdraw`),
+    claim: (id, area, role) =>
+      post(`/api/softwares/${encodeURIComponent(id)}/claims`, {
+        area,
+        ...(role?.trim() && { role: role.trim() }),
+      }),
+    releaseClaim: (id) => post(`/api/claims/${id}/release`),
     scriptedDemo: () => post("/api/agents/scripted-demo"),
     asks: (filter = {}) => {
       const query = new URLSearchParams();

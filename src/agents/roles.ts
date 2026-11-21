@@ -27,7 +27,8 @@ export const ROLE_FOR_TASK: Record<AgentTaskKind, AgentRole> = {
   review: "reviewer",
   plan: "planner",
   build: "builder",
-  prototype: "builder",
+  // A proposal for a claimed area is described options, written by the planner (decision 0196).
+  prototype: "planner",
   check: "checker",
   triage: "triager",
   reading: "reader",
@@ -151,6 +152,7 @@ export const PREMISE_TOOLS_BY_ROLE: Record<AgentRole, readonly string[]> = {
     "record_read",
     "record_propose",
     "draft_submit",
+    "proposal_submit",
     "ask",
     "gate_request",
     "progress",

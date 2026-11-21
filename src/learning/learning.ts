@@ -21,6 +21,7 @@ import { type Database, now, recordEvent, transaction } from "../storage/databas
 import {
   type CorrectionFacts,
   RULE_ONLY,
+  TASTE_CORRECTION,
   type Reading,
   cut,
   ruleReading,
@@ -315,6 +316,26 @@ export class Learning implements LessonSource {
         }
       }
       return found;
+    }
+    if (
+      answer.kind === "proposal" &&
+      answer.decision === "change" &&
+      ask.extra.meta?.purpose === "taste-proposal"
+    ) {
+      // A claimer correcting a proposal for their area: what they want is taste (decision 0196).
+      const area = String(ask.extra.meta.area ?? ask.title);
+      return [
+        {
+          ...base,
+          kind: "reject-draft",
+          source: `ask:${ask.id}`,
+          what: `${TASTE_CORRECTION} “${area}”`,
+          said: answer.text?.trim() || null,
+          touches: [],
+          subject: area,
+          replacement: answer.text?.trim() || null,
+        },
+      ];
     }
     if (answer.kind === "proposal" && answer.decision === "change") {
       return [

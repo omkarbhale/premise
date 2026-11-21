@@ -22,6 +22,7 @@ export function overview(change: Partial<Overview> = {}): Overview {
       },
     },
     softwares: [],
+    roles: [],
     softwareUsage: [],
     openAsks: 0,
     activity: { running: 0, queued: 0, waiting: 0, max: 2, paused: false },
@@ -80,6 +81,7 @@ export function software(change: Partial<SoftwareDetail> = {}): SoftwareDetail {
     },
     milestones: [],
     approvals: [],
+    claims: [],
     budget: { turns: 15, minutes: 10, usedMinutes: 1.5 },
     work: [workItem()],
     wholeCheckStandIn: true,
@@ -158,6 +160,8 @@ export function fakeApi(change: Partial<Api> = {}): Api {
     setEffort: vi.fn(fail),
     setMilestoneWait: vi.fn(fail),
     withdrawApproval: vi.fn(fail),
+    claim: vi.fn(fail),
+    releaseClaim: vi.fn(fail),
     scriptedDemo: vi.fn(fail),
     asks: vi.fn(() => Promise.resolve([])),
     answer: vi.fn((id: number) => Promise.resolve(ask({ id, status: "answered" }))),
@@ -179,7 +183,11 @@ export function fakeApi(change: Partial<Api> = {}): Api {
   };
 }
 
-export function inSession(ui: React.ReactNode, api: Api = fakeApi()) {
+export function inSession(
+  ui: React.ReactNode,
+  api: Api = fakeApi(),
+  change: Partial<Session> = {},
+) {
   const session: Session = {
     api,
     version: 0,
@@ -187,6 +195,7 @@ export function inSession(ui: React.ReactNode, api: Api = fakeApi()) {
     report: vi.fn(),
     refresh: vi.fn(),
     explained: new Set<string>(),
+    ...change,
   };
   return {
     session,

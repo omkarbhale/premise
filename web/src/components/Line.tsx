@@ -12,6 +12,7 @@ import {
 import { Define, Problem } from "./Badges";
 import { WorkItems } from "./WorkItems";
 import { BuildPanel } from "./BuildPanel";
+import { Claims } from "./Claims";
 import { RunPanel } from "./RunPanel";
 
 /** The three phases with their steps, where the software is, and the controls that move it. */
@@ -219,6 +220,8 @@ export function Line({ software }: { software: SoftwareDetail }) {
           </>
         )}
       </section>
+
+      <Claims software={software} />
 
       <section className="card">
         <h2>Effort</h2>

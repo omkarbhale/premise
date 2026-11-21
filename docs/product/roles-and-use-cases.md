@@ -1,6 +1,6 @@
 # Roles and use cases
 
-premise's users are roles, not personas. Every person a software needs is a user of the product, one person or many, and each has a way in at their step and is asked in their own terms ([0009](../decisions/0009-everyone-needed-is-a-user.md)). All of them work in one session where everything is open, designed as if one person does everything; a role is a label on what is asked, so every ask still says which role it is for ([0065](../decisions/0065-one-open-session.md)).
+premise's users are roles, not personas. Every person a software needs is a user of the product, one person or many, and each has a way in at their step and is asked in their own terms ([0009](../decisions/0009-everyone-needed-is-a-user.md)). All of them work in one session where everything is open, designed as if one person does everything; a role is a label on what is asked, so every ask still says which role it is for ([0065](../decisions/0065-one-open-session.md)); while only the operator is ever asked anything, the page shows no label at all ([0196](../decisions/0196-roles-and-taste-in-one-session.md)).
 
 Sources: [VISION.md](../../VISION.md#who-it-is-for), the [decision records](../decisions/README.md), and the plan's [line](../architecture/the-line.md) and [milestones](roadmap.md).
 
@@ -25,16 +25,16 @@ Sources: [VISION.md](../../VISION.md#who-it-is-for), the [decision records](../d
 ### People with their own taste in a part of the software
 
 - User experience, technical choices, minor features ([0022](../decisions/0022-people-can-put-in-their-taste.md)).
-- By default premise decides. A person claims an area in the session, under a role and in their own words, for example "the look of the main screen" or "the API's naming".
-- Before a claimed area is built, they see a proposal: a screenshot of a quick prototype, or a short list ([0102](../decisions/0102-taste-proposals-before-building.md), [0115](../decisions/0115-taste-prototypes-on-a-throwaway-branch.md)). It is decided under their role.
-- What they say becomes `T` items in the record; checkable ones go into the checker's scenarios.
+- By default premise decides. A person claims an area in the session, under a role and in their own words, for example "the look of the main screen" or "the API's naming", on the Line tab; a claim can be released.
+- Before a claimed area is built, they see a proposal: for now one or two described options to keep or correct ([0102](../decisions/0102-taste-proposals-before-building.md), [0196](../decisions/0196-roles-and-taste-in-one-session.md)); a screenshot of a quick prototype is for later ([0115](../decisions/0115-taste-prototypes-on-a-throwaway-branch.md)). It is decided under their role, and only the work on that area waits.
+- What they say becomes `T` items in the record; checkable ones go into the checker's scenarios. What they correct becomes part of the operator's taste that agents follow ([learning](../specs/learning.md)).
 - Small wishes come in as intake.
 
 ### People who decide or do what an LLM cannot reliably decide or do
 
 - What an LLM cannot reliably do today: know an intent nobody has stated; act in the real world (accounts, payments, signatures); carry accountability ([0007](../decisions/0007-llm-does-not-decide-what-it-cannot.md)). Whether real users want the thing is left to the operator and intake ([0036](../decisions/0036-finding-out-if-people-want-it-is-out.md)).
 - premise gives its best attempt with its reasons, and asks under the role that decides or acts ([0084](../decisions/0084-who-has-the-last-word.md)).
-- For a real-world act, premise names the role and exactly what is needed, and runs what it can meanwhile: for example an account with an outside service, a licensed system to run against, a payment ([build, check and run](../architecture/build-check-run.md#run)).
+- For a real-world act, premise names the role and exactly what is needed, step by step, and runs what it can meanwhile: for example an account with an outside service, a licensed system to run against, a payment ([build, check and run](../architecture/build-check-run.md#run)). It waits for the person to say it is done and checks what it can, such as a key written into the software's secrets file; it never does the act ([0196](../decisions/0196-roles-and-taste-in-one-session.md)).
 - Floor actions are asked by the gate under the role whose call it is ([0101](../decisions/0101-the-gate-asks-in-the-session.md)).
 - With existing software, parts that conflict or cannot be inferred become questions labelled with the role they are for ([0019](../decisions/0019-existing-software-through-the-same-line.md)).
 

@@ -8,7 +8,7 @@ export const TERMS = {
     "Say back: before any code is written, premise lists what it understood and assumed. You strike anything wrong.",
   floor:
     "The floor: things premise never does without asking first, such as creating something outside this machine, spending money or deleting data.",
-  role: "Each question says which role it is for (for example the operator: whoever decides what the software is for). In this session you answer for every role.",
+  role: "A role is a label for who should decide, not an account: the operator decides what the software is for; a designer who claimed a part decides how it looks; someone who holds an outside account does what only they can. In this session you answer for every role.",
   intake:
     "Intake: what you say that is not an answer, and problems or wishes reported on the Intake tab, are taken in. An agent reads each against the record: most become new work on the line, a question is answered, and only what needs it is held or asked of you.",
   standIn:
@@ -27,7 +27,7 @@ export const GLOSS = {
   waitingOnYou: "the questions premise needs you to answer",
   agent: "an AI worker premise gives one job to",
   scriptedAgents: "stand-in workers that follow a fixed script and call no AI",
-  step: "one stage of the work, such as Why or Plan",
+  step: "one of the eleven stages of the work, from Why to Report",
   line: "the steps a software goes through, from idea to running",
   record:
     "a short list of what was decided about the software, kept with its code; each item has an ID such as W-3",
@@ -66,7 +66,7 @@ export const JOB_LABEL: Record<string, string> = {
   review: "Reviewing a change",
   plan: "Planning",
   build: "Building",
-  prototype: "Making a prototype",
+  prototype: "Writing a proposal for a claimed part",
   check: "Checking",
   size: "Sizing the work",
   triage: "Reading new items",

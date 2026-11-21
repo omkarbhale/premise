@@ -55,7 +55,8 @@ All routes are on localhost. Every request except the static page itself and the
 | `/api/activity` | GET | Jobs running, waiting, queued and recently finished, the parallel limit, the pause | Work queue |
 | `/api/settings` | GET | Every setting's value, default and meaning, read only, with where to change it | – |
 | `/api/softwares/:id/send-back` | POST | Sends a software back to a stage | Line engine |
-| `/api/softwares/:id/claims` | POST | Claims an area for taste under a role | Line engine |
+| `/api/softwares/:id/claims` | POST | Claims an area for taste under a role (the operator when none is given) | Line engine |
+| `/api/claims/:id/release` | POST | Releases a claim; a proposal still waiting is withdrawn | Line engine |
 | `/api/softwares/:id/size` | POST | Changes the size class | Line engine |
 | `/api/softwares/:id/priority` | POST | Sets the software's priority | Line engine |
 | `/api/softwares/:id/milestones/:milestone/wait` | POST | Sets or clears a wait after a milestone | Line engine |
@@ -70,7 +71,7 @@ All routes are on localhost. Every request except the static page itself and the
 
 Errors are returned as an HTTP status with a short message that says what to do: 401 for a missing or wrong token, 403 for a bad Host or Origin, 404 for an unknown id, 409 for an ask already closed or a name already taken, 422 for an invalid request or answer.
 
-Built in milestone 1: every route above except claims, "more", readings, deleting working records and feedback pages, which come with the milestones that need them (section 11).
+Built in milestone 1: every route above except claims (built with milestone 3, [0196](../decisions/0196-roles-and-taste-in-one-session.md)), "more", readings, deleting working records and feedback pages, which come with the milestones that need them (section 11).
 
 The line engine and the gate answer their routes through the same small service interfaces (`src/server/services.ts`) ([0183](../decisions/0183-how-the-line-engine-is-built.md), [0182](../decisions/0182-how-the-gate-is-built.md)). The stand-in line of [0154](../decisions/0154-a-stand-in-line-until-the-line-engine-exists.md) is gone; only the later stages stand in, and the page labels them. The report and run routes are answered by the reporter and the runner.
 

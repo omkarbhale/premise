@@ -60,7 +60,7 @@ None. The token from the link is kept in the page's memory only.
 
 ### 5.2 Asks
 
-Every ask shows its role label and its kind, and is written in that role's terms ([0009](../decisions/0009-everyone-needed-is-a-user.md)).
+Every ask shows its kind and is written in its role's terms ([0009](../decisions/0009-everyone-needed-is-a-user.md)). Every ask shows its role label too, except while only the operator is asked anything: then no label is shown at all, since it would only be jargon ([0196](../decisions/0196-roles-and-taste-in-one-session.md)).
 
 | Kind | Shown as | Answered by |
 |---|---|---|
@@ -68,21 +68,21 @@ Every ask shows its role label and its kind, and is written in that role's terms
 | draft | A short list; each item marked assumed or from a role | Strike, keep or edit each item, one at a time |
 | say-back | At most ten items of what premise understood and assumed, assumptions marked. For a software taken on from existing code, every item recovered from the code, marked recovered, grouped by record file and in pages of twelve, still one list answered once ([0189](../decisions/0189-how-taking-on-existing-software-is-built.md)) | Strike what is wrong |
 | scope | After What: the items in three tiers (what you asked for, premise recommends adding, premise could also add) and three choices, each with a rough estimate of agent sessions and minutes ([0191](../decisions/0191-scope-check-effort-and-milestones.md)) | Pick a choice with one click (the software's effort picks the first); move any item to the first version, a later milestone, or leave it out; "Build this much" |
-| proposal | For a claimed area: a screenshot of a quick prototype, or a short list ([0102](../decisions/0102-taste-proposals-before-building.md), [0115](../decisions/0115-taste-prototypes-on-a-throwaway-branch.md)) | Accept, or say what to change |
+| proposal | For a claimed area: one or two described options to pick from ([0102](../decisions/0102-taste-proposals-before-building.md), [0196](../decisions/0196-roles-and-taste-in-one-session.md)) | Keep one, or say what to change in your own words |
 | approval | The gate's fixed card: exactly what will happen and why ([gate](gate.md)) | Approve once, approve this kind for this software (where allowed), or refuse |
-| needed | Something only a person can do or provide: an account, a licence, a payment, a secret written into a named file ([0120](../decisions/0120-secrets-stay-out-of-premise.md)) | Mark done, or say why not |
+| needed | Something only a person can do or provide: an account, a licence, a payment, a secret written into a named file ([0120](../decisions/0120-secrets-stay-out-of-premise.md)), as exact steps in order. For a secret, the file and key, and that premise never takes the value | "It is done" (premise checks the key is in the file, and says what is missing if not), or say why not |
 
 - Every list is short and item by item ([0029](../decisions/0029-lists-over-long-paragraphs.md)).
 - Answering an ask resumes only the work waiting on it.
 
 ### 5.3 Notices
 
-- The "needed" list, grouped by role; a count of open asks in the browser tab's title; browser notifications while the page is open ([0099](../decisions/0099-notices-in-the-session.md)).
+- The "needed" list ("Waiting on you"), grouped by role when another role than the operator is in use, with one note saying a role is a label and one person answers for all of them; a plain list otherwise. A count of open asks in the browser tab's title; browser notifications while the page is open ([0099](../decisions/0099-notices-in-the-session.md)).
 - A notice appears only when someone is needed ([0098](../decisions/0098-report-when-a-change-reaches-running.md)).
 
 ### 5.4 Taste
 
-- Any area can be claimed under a role, in its own words ([0022](../decisions/0022-people-can-put-in-their-taste.md)). Claimed areas are listed with their role; a claim can be released.
+- Any area can be claimed under a role, in its own words ([0022](../decisions/0022-people-can-put-in-their-taste.md)), on the Line tab under "Parts you want to see first"; with no role given, it is the operator's. Claimed areas are listed with their role and where each stands (a proposal comes before it is built, being prepared, waiting for an answer, decided); a claim can be released ([0196](../decisions/0196-roles-and-taste-in-one-session.md)).
 
 ## 6. Configuration
 
@@ -115,6 +115,6 @@ Every ask shows its role label and its kind, and is written in that role's terms
 ## 11. Milestones
 
 - Milestone 1 step 2: one session: chat, record view, report view, "needed"; drafts with per-item strike, keep and edit; say-back; approvals for one action; the running software's link or command.
-- Milestone 3: role labels on every ask, the "needed" list grouped by role, taste claims and proposals, approvals for a kind of action.
+- Milestone 3: role labels on every ask, the "needed" list grouped by role, taste claims and proposals, approvals for a kind of action. Built ([0196](../decisions/0196-roles-and-taste-in-one-session.md)).
 - Milestone 4: the intake area and readings.
 - Milestone 7: several softwares at once.

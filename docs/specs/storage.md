@@ -74,7 +74,7 @@ All tables live in `premise.db`. Times are UTC. "Software" is a row in `software
 | `chat_messages` | Message said in the session | software, text, routed to (draft, intake, reporter), linked ask or intake item, time |
 | `asks` | Thing asked in the session | id, software, role label, kind (question, draft, say-back, proposal, approval, needed), items, waiting job, status (open, answered, withdrawn), answer, asked, answered |
 | `drafts` | Not a table: a stage draft is an ask of kind `draft`, with its items and their per-item states kept with the ask ([0183](../decisions/0183-how-the-line-engine-is-built.md)) | |
-| `claims` | Area claimed for taste | software, role label, area in its own words, status (open, released) |
+| `claims` | Area claimed for taste (schema 11, [0196](../decisions/0196-roles-and-taste-in-one-session.md)) | software, role label, area in its own words, status (open, released), the proposal ask, when it was decided and what was decided, when it was made and released |
 | `jobs` | Unit of work in the queue ([work queue](work-queue.md)) | id, software, kind, stage, record items served, payload, status, attempts, failure signature, waiting ask, result, created, started, finished |
 | `agent_sessions` | Agent session started | id, job, agent role, tier, model alias, runtime session id, working copy, started, ended, end reason, turns. The tool token is never stored ([0150](../decisions/0150-agent-tools-over-plain-http-mcp-tokens-in-memory.md)) |
 | `record_changes` | Proposed change to a lasting record | software, proposing session, reason, operations, status (rejected, reviewing, at-say-back, accepted, committed), diagnostics, the files it would write and a hash of each file it was checked against, items touched, items for the say-back, review, commit |
@@ -152,7 +152,7 @@ Every job, ask, gate request and verdict also writes an `events` row, so that a 
 - Milestone 6, first part (existing software in a thin form): schema 8 added `existing_softwares`; `work_items.origin` also takes `existing` and `recover`; `premise/recovered-trace.md` is written in the software's repository ([0189](../decisions/0189-how-taking-on-existing-software-is-built.md)).
 - Schema 9 added each software's effort and whether an intake item changes what the software must do ([0191](../decisions/0191-scope-check-effort-and-milestones.md), [0192](../decisions/0192-effort-in-proportion-to-what-was-asked.md)).
 - Schema 10 added the measures and learning tables: `page_presence`, `asks_shown`, `corrections`, `lessons` and `learning_cursor` ([0193](../decisions/0193-how-the-measures-are-built.md), [0194](../decisions/0194-how-learning-from-corrections-is-built.md)).
-- Milestone 3: `claims`.
+- Milestone 3: `claims` (schema 11).
 - Milestone 4, the rest: `feedback_links`, and every intake source.
 - Milestone 6: `recovered-trace.md` in the software's repository.
 - Milestone 7: several active softwares at once share the same tables; nothing new is needed.

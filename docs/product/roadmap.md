@@ -166,6 +166,7 @@ Built sixth, with milestone 2 ([roadmap order](#the-order-plainly)).
   - a role that claimed the look of the main screen;
   - a role that must do a real-world act, such as creating an account with an outside service.
 - Reported: as for every milestone, plus how many questions each role was asked.
+- Status: built ([0196](../decisions/0196-roles-and-taste-in-one-session.md)). A proposal is for now one or two described options written by the planner, not a screenshot of a prototype. Its scenarios run as tests with the scripted agent: one session answering the asks of the operator, a designer who claimed the look of the main screen and corrects its proposal, and an account holder who must create an account with an outside service, each ask labelled; no label while only the operator is asked; a claim released mid-way; a restart with a proposal open; the gate asking under a named role.
 
 ## Milestone 2: cost and the spending limit, through usage-ledger
 

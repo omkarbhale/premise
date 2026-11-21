@@ -28,6 +28,8 @@ import { type Ask, createAsk, listAsks } from "../storage/asks.js";
 import { addChatMessage } from "../storage/chat.js";
 import { type Database, now, recordEvent } from "../storage/database.js";
 import { RecordWriter } from "../line/record-writer.js";
+import { answerWords } from "../line/answers.js";
+import { type Taste, roleWords } from "../taste/taste.js";
 
 /**
  * Build, Check and Run, for one milestone at a time (docs/architecture/build-check-run.md,
@@ -69,6 +71,8 @@ interface TaskState {
   note: string | null;
   /** The agent's question the task waits on. */
   ask: number | null;
+  /** Claimed areas whose proposal the task waits on (decision 0196); absent in older notes. */
+  claims?: number[];
   answers: string[];
 }
 
@@ -101,6 +105,20 @@ interface BuildState {
   proposals: number[];
   /** Stopped tasks the operator chose to leave. */
   leftStopped: boolean;
+  /** Proposals for claimed areas in this milestone (decision 0196); absent in older notes. */
+  taste?: TasteState[];
+}
+
+/** One claimed area's proposal, as Build waits on it. */
+interface TasteState {
+  claim: number;
+  /** The job making the proposal. */
+  job: number | null;
+  /** The proposal put to the role. */
+  ask: number | null;
+  /** The tasks that build the area; empty holds every task. */
+  tasks: number[];
+  status: "making" | "asked" | "decided" | "released";
 }
 
 interface StoredPlan {
@@ -129,6 +147,8 @@ export interface BuildCheckRunDeps {
   briefs: Briefs;
   /** Starts the landed commit; absent in tests that do not run software. */
   runner?: Runner;
+  /** Taste claims: a claimed area waits for its role's answer to a proposal (src/taste). */
+  taste?: Taste;
 }
 
 const KEY = (softwareId: string) => `build:${softwareId}`;
@@ -226,7 +246,167 @@ export class BuildCheckRun implements LaterStages {
       landed: null,
       proposals: [],
       leftStopped: false,
+      taste: [],
     };
+  }
+
+  // ---- Claimed areas (decisions 0102, 0196) -------------------------------------------------
+
+  /**
+   * Before building a milestone, each claimed area still undecided gets a proposal: a planner job
+   * writes one or two described options for the claiming role. The tasks that build the area wait
+   * for the role's answer; the others go on once the proposals are made.
+   */
+  private startProposals(softwareId: string, state: BuildState): void {
+    const taste = this.deps.taste;
+    if (!taste) return;
+    state.taste = [];
+    for (const claim of taste.list(softwareId).filter((c) => c.status === "open" && !c.decided)) {
+      const open = taste.openProposal(claim);
+      if (open) {
+        // Asked before (an earlier milestone, or before a send-back): it still holds its tasks.
+        const entry: TasteState = {
+          claim: claim.id,
+          job: null,
+          ask: open.id,
+          tasks: this.heldTasks(open),
+          status: "asked",
+        };
+        state.taste.push(entry);
+        this.hold(state, entry);
+        continue;
+      }
+      const job = this.enqueue(softwareId, state, this.proposalJob(softwareId, state, claim));
+      state.taste.push({ claim: claim.id, job, ask: null, tasks: [], status: "making" });
+    }
+    if (state.taste.some((t) => t.status === "making")) {
+      const areas = state.taste
+        .filter((t) => t.status === "making")
+        .map((t) => taste.get(t.claim)!.area);
+      this.say(
+        softwareId,
+        `Before building, premise prepares a proposal for ${areas.length === 1 ? "the claimed area" : "each claimed area"}: ${areas.join("; ")}. Building starts once ${areas.length === 1 ? "it is" : "they are"} ready; only the work on a claimed area then waits for its answer.`,
+      );
+    }
+    this.save(softwareId, state);
+  }
+
+  private proposalJob(
+    softwareId: string,
+    state: BuildState,
+    claim: { id: number; role: string; area: string },
+  ): EnqueueInput {
+    const tasks = state.tasks.map((t) => ({ number: t.number, title: t.title }));
+    return {
+      softwareId,
+      kind: "prototype",
+      stage: "build",
+      payload: {
+        purpose: "proposal",
+        claim: claim.id,
+        brief: this.deps.briefs.make(
+          "proposal brief",
+          {
+            software_name: this.name(softwareId),
+            area: claim.area,
+            role: roleWords(claim.role),
+            record: this.recordText(softwareId),
+            tasks: tasks.map((t) => `${t.number}. ${t.title}`).join("\n") || "none planned yet",
+            options_max: String(this.config.taste.options_max),
+            kind: this.kind(softwareId),
+            budget: this.budgetText("prototype"),
+          },
+          softwareId,
+        ),
+        context: {
+          stage: "build",
+          name: this.name(softwareId),
+          purpose: "proposal",
+          claim: { id: claim.id, role: claim.role, area: claim.area },
+          tasks,
+          milestone: state.milestone,
+        },
+      },
+    };
+  }
+
+  /** The tasks a proposal holds, by number: those it names, or none named (every task). */
+  private heldTasks(ask: Ask): number[] {
+    const named = ask.extra.meta?.tasks;
+    return Array.isArray(named) ? named.map(Number).filter((n) => Number.isInteger(n)) : [];
+  }
+
+  /** Hold the tasks that build a claimed area until its role answers. */
+  private hold(state: BuildState, entry: TasteState): void {
+    const claim = this.deps.taste?.get(entry.claim);
+    const wanted = new Set(entry.tasks);
+    const named = state.tasks.filter((t) => wanted.has(t.number));
+    const held = (named.length > 0 ? named : state.tasks).filter(
+      (t) => t.status === "pending" || t.status === "waiting",
+    );
+    for (const task of held) {
+      task.claims = [...new Set([...(task.claims ?? []), entry.claim])];
+      task.status = "waiting";
+      task.note = `Waiting for the ${roleWords(claim?.role ?? "operator")} to keep or correct the proposal for ${claim?.area ?? "a claimed area"}.`;
+    }
+  }
+
+  /** A claimed area is decided or released: its tasks go on unless something else holds them. */
+  private unhold(state: BuildState, claimId: number, answer: string | null): void {
+    for (const task of state.tasks) {
+      if (!task.claims?.includes(claimId)) continue;
+      task.claims = task.claims.filter((c) => c !== claimId);
+      if (answer) task.answers.push(answer);
+      if (task.status === "waiting" && task.claims.length === 0 && task.ask === null) {
+        task.status = "pending";
+        task.note = null;
+      }
+    }
+  }
+
+  private proposalEnded(job: Job, state: BuildState): LaterOutcome {
+    const taste = this.deps.taste;
+    const entry = (state.taste ?? []).find((t) => t.job === job.id);
+    if (!taste || !entry || entry.status !== "making") return this.progress(job.softwareId, state);
+    const claim = taste.get(entry.claim);
+    if (!claim || claim.status === "released") {
+      entry.status = "released";
+      this.save(job.softwareId, state);
+      return this.progress(job.softwareId, state);
+    }
+    const ask =
+      taste.openProposal(claim) ??
+      taste.noProposal(
+        claim,
+        job.status === "done"
+          ? "the agent finished without one"
+          : `the agent ${job.status === "stopped" ? "was stopped" : `did not finish: ${job.result ?? "no reason was given"}`}`,
+        job.id,
+      );
+    entry.ask = ask.id;
+    entry.tasks = this.heldTasks(ask);
+    entry.status = "asked";
+    this.hold(state, entry);
+    const who = roleWords(claim.role);
+    const free = state.tasks.some((t) => t.status === "pending");
+    this.say(
+      job.softwareId,
+      `A proposal for ${claim.area} is ready for the ${who === "operator" ? "operator (you)" : who}, under Waiting on you. That part is built after the answer${free ? "; the rest of the work goes on now" : ""}.`,
+    );
+    this.save(job.softwareId, state);
+    return this.progress(job.softwareId, state);
+  }
+
+  claimReleased(softwareId: string, claimId: number): LaterOutcome | null {
+    const state = this.load(softwareId);
+    const entry = state?.taste?.find(
+      (t) => t.claim === claimId && (t.status === "making" || t.status === "asked"),
+    );
+    if (!state || !entry) return null;
+    entry.status = "released";
+    this.unhold(state, claimId, null);
+    this.save(softwareId, state);
+    return this.progress(softwareId, state);
   }
 
   private say(softwareId: string, text: string): void {
@@ -404,6 +584,7 @@ export class BuildCheckRun implements LaterStages {
       const current = state!;
       current.run = entry.run;
       this.save(softwareId, current);
+      if (!fixRound) this.startProposals(softwareId, current);
       if (!fixRound && !this.scenariosCover(softwareId, milestone)) {
         this.enqueue(softwareId, current, this.scenarioJob(softwareId, current));
         return null;
@@ -526,7 +707,7 @@ export class BuildCheckRun implements LaterStages {
     return items.every((i) => covered.has(i));
   }
 
-  private budgetText(kind: "build" | "check"): string {
+  private budgetText(kind: "build" | "check" | "prototype"): string {
     const task = this.config.agents.tasks[kind];
     return `${task.max_turns} agent turns and ${task.max_minutes} minutes`;
   }
@@ -713,6 +894,7 @@ export class BuildCheckRun implements LaterStages {
     if (!state) return { kind: "next" };
     switch (job.stage) {
       case "build":
+        if (job.kind === "prototype") return this.proposalEnded(job, state);
         return job.payload.purpose === "scenarios"
           ? this.scenariosEnded(job, state)
           : this.taskEnded(job, state);
@@ -887,6 +1069,8 @@ export class BuildCheckRun implements LaterStages {
   /** What the build stage does next once a job of it ended or a person answered. */
   private progress(softwareId: string, state: BuildState): LaterOutcome {
     if (state.tasks.some((t) => t.status === "building")) return { kind: "wait" };
+    // Proposals are made before any task starts, so a task that builds a claimed area is held first.
+    if ((state.taste ?? []).some((t) => t.status === "making")) return { kind: "wait" };
     const next = this.nextTaskJob(softwareId, state);
     if (next) {
       const task = state.tasks.find((t) => t.status === "building")!;
@@ -1065,6 +1249,20 @@ export class BuildCheckRun implements LaterStages {
     if (!state) return null;
     const purpose = ask.extra.meta?.purpose as string | undefined;
     const text = answer.kind === "text" ? answer.text.trim() : "";
+    if (purpose === "taste-proposal") {
+      const entry = (state.taste ?? []).find((t) => t.ask === ask.id && t.status === "asked");
+      if (!entry) return null;
+      entry.status = "decided";
+      const area = String(ask.extra.meta?.area ?? "the claimed area");
+      const words = answerWords(ask, answer);
+      this.unhold(
+        state,
+        entry.claim,
+        `The ${roleWords(ask.role)} decided how ${area} should be: ${words}`,
+      );
+      this.save(id, state);
+      return this.progress(id, state);
+    }
     if (purpose === "agent") {
       const task = state.tasks.find(
         (t) => t.ask === ask.id || (t.job !== null && t.job === ask.extra.meta?.job),
@@ -1072,14 +1270,16 @@ export class BuildCheckRun implements LaterStages {
       if (!task) return null;
       if (task.status !== "waiting") {
         // Answered while the builder still works: the answer reaches its next attempt, if any.
-        task.answers.push(`${ask.title} → ${text || JSON.stringify(answer)}`);
+        task.answers.push(`${ask.title} → ${text || answerWords(ask, answer, "builder")}`);
         this.save(id, state);
         return null;
       }
-      task.answers.push(`${ask.title} → ${text || JSON.stringify(answer)}`);
-      task.status = "pending";
+      task.answers.push(`${ask.title} → ${text || answerWords(ask, answer, "builder")}`);
       task.ask = null;
-      task.note = null;
+      if ((task.claims ?? []).length === 0) {
+        task.status = "pending";
+        task.note = null;
+      }
       this.save(id, state);
       return this.progress(id, state);
     }

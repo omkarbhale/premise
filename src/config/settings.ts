@@ -760,6 +760,22 @@ export const SETTINGS: readonly Setting[] = [
     record: "0194",
   },
   {
+    key: "taste.options_max",
+    default: 2,
+    check: summarised(wholeNumber(1, 5), "1 to 5"),
+    meaning:
+      "The most options a proposal for a claimed area offers. One or two keeps it quick to judge: the role keeps one, or says what to change.",
+    record: "0196",
+  },
+  {
+    key: "taste.claims_max",
+    default: 10,
+    check: summarised(wholeNumber(1, 100), "1 to 100"),
+    meaning:
+      "The most areas that can be claimed at once for one software. Each claim adds a proposal to look at before building, so a long list slows every build.",
+    record: "0196",
+  },
+  {
     key: "doctor.command_timeout_seconds",
     default: 10,
     check: summarised(wholeNumber(1, 120), "1 to 120"),
@@ -868,5 +884,6 @@ export interface PremiseConfig {
     line_max_chars: number;
     read_with_agent: boolean;
   };
+  taste: { options_max: number; claims_max: number };
   doctor: { command_timeout_seconds: number };
 }

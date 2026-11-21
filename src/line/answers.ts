@@ -1,6 +1,7 @@
 import { ServiceError } from "../server/services.js";
 import type { AskAnswer, ItemAnswer } from "../shared/api-types.js";
 import type { Ask } from "../storage/asks.js";
+import { roleWords } from "../taste/taste.js";
 
 function short(text: string, max = 80): string {
   const flat = text.replace(/\s+/g, " ").trim();
@@ -84,7 +85,7 @@ export function validateAnswer(ask: Ask, answer: AskAnswer): string {
       return answer.decision === "done" ? "Marked done." : "Cannot be done.";
     case "proposal":
       if (answer.kind !== "proposal" || !["accept", "change"].includes(answer.decision)) {
-        return invalid("Accept the proposal, or say what to change.");
+        return invalid("Keep the proposal, or say what to change.");
       }
       if (
         answer.decision === "change" &&
@@ -92,7 +93,17 @@ export function validateAnswer(ask: Ask, answer: AskAnswer): string {
       ) {
         return invalid("Say what to change.");
       }
-      return answer.decision === "accept" ? "Accepted." : "Asked for changes.";
+      if (answer.decision === "accept") {
+        if (answer.choice !== undefined) {
+          const chosen = ask.items.find((i) => i.key === answer.choice);
+          if (!chosen) return invalid("That option is not on this proposal. Reload the page.");
+          return `Kept: ${short(chosen.text)}`;
+        }
+        if (ask.items.length > 1) return invalid("Pick the option to keep, or say what to change.");
+        return ask.items.length === 1 ? `Kept: ${short(ask.items[0]!.text)}` : "Kept.";
+      }
+      if (answer.text!.length > 2000) invalid("Keep what to change under 2000 characters.");
+      return `Asked for changes: ${short(answer.text!)}`;
   }
 }
 
@@ -125,4 +136,38 @@ function validateScope(ask: Ask, answer: AskAnswer): string {
     invalid("Put at least one item in the first version: it is the smallest version that runs.");
   }
   return `First version ${count("first")}, later ${count("later")}, left out ${count("out")}.`;
+}
+
+/** An answer in words, for the agent that asked. `builder` adds the builder's guidance. */
+export function answerWords(
+  ask: Ask,
+  answer: AskAnswer,
+  to: "agent" | "builder" = "agent",
+): string {
+  if (answer.kind === "text") return answer.text;
+  if (answer.kind === "needed") {
+    const who = roleWords(ask.role);
+    const secret = ask.extra.meta?.secret as { key: string } | undefined;
+    if (answer.decision === "done") {
+      if (!secret) return `The ${who} did it and marked it done.`;
+      return to === "builder"
+        ? `The ${who} did it and marked it done. ${secret.key} is in the software's secrets file; the running software gets it as ${secret.key} from its .env file, and you never see it.`
+        : `The ${who} did it and marked it done; ${secret.key} is in the software's secrets file.`;
+    }
+    const why = answer.reason?.trim() ? `: ${answer.reason.trim()}` : ".";
+    return to === "builder"
+      ? `The ${who} cannot do it${why} Go on without it where you can, and say plainly what does not work without it.`
+      : `The ${who} cannot do it${why}`;
+  }
+  if (answer.kind === "approval") return answer.decision === "refuse" ? "Declined." : "Approved.";
+  if (answer.kind === "proposal") {
+    if (answer.decision === "change") return answer.text?.trim() || "Change it.";
+    const chosen = answer.choice
+      ? ask.items.find((i) => i.key === answer.choice)
+      : ask.items.length === 1
+        ? ask.items[0]
+        : undefined;
+    return chosen ? chosen.text : "Kept as proposed.";
+  }
+  return JSON.stringify(answer);
 }

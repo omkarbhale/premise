@@ -1,6 +1,6 @@
 # 0115. Taste proposals are built on a throwaway branch and captured by the server
 
-- Status: Accepted
+- Status: Partly superseded by [0196](0196-roles-and-taste-in-one-session.md): for now a proposal is one or two described options written by the planner, with no prototype or screenshot
 - Scope: The plan
 - Date: 2026-11-21
 - Decided by: The builders, in the documentation restructure of 2026-11-21. The owner did not make this choice.
