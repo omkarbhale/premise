@@ -13,13 +13,19 @@ export interface BuildOptions {
   maxLines: number;
   source?: ReportView["source"];
   written?: string | null;
+  /** The version (commit) the report is about; the latest commit when not given. */
+  commit?: string | undefined;
 }
 
 const SHORT = (sha: string) => sha.slice(0, 7);
 
+function sameVersion(a: string, b: string): boolean {
+  return a.startsWith(b) || b.startsWith(a);
+}
+
 function checkedAt(verdictCommit: string | null, current: string | undefined): boolean {
   if (!verdictCommit || !current) return true;
-  return verdictCommit.startsWith(current) || current.startsWith(verdictCommit);
+  return sameVersion(verdictCommit, current);
 }
 
 function sentence(text: string): string {
@@ -42,7 +48,7 @@ interface Section {
 export function buildReport(facts: Facts, options: BuildOptions): ReportView {
   const verdictOf = new Map(facts.verdicts.map((v) => [v.item, v]));
   const itemById = new Map(facts.items.map((i) => [i.id, i]));
-  const current = facts.runs[0]?.commit ?? facts.commits[0]?.sha;
+  const current = options.commit ?? facts.commits[0]?.sha;
   const lastDay = facts.lastReport?.slice(0, 10) ?? null;
 
   // ---- Decided -----------------------------------------------------------------------------
@@ -125,6 +131,12 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
         evidence: `run ${latest.id}`,
       });
     }
+    if (current && !sameVersion(latest.commit, current)) {
+      running.push({
+        text: `This report is about version ${SHORT(current)}, but the software last started was version ${SHORT(latest.commit)}.`,
+        evidence: `run ${latest.id}`,
+      });
+    }
     const newer = facts.commits.findIndex((c) => c.sha === latest.commit);
     if (newer > 0) {
       running.push({
@@ -160,7 +172,7 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
       });
     } else if (!checkedAt(verdict.commit, current)) {
       failed.push({
-        text: `Not checked at this version: ${item.id} ${sentence(item.text)} It was last checked at an earlier version (${SHORT(verdict.commit!)}) and the result then was: ${verdict.verdict === "met" ? "met" : verdict.verdict === "not-met" ? "not met" : "could not be checked"}.`,
+        text: `Not checked at this version: ${item.id} ${sentence(item.text)} It was last checked at version ${SHORT(verdict.commit!)}, and the result there was: ${verdict.verdict === "met" ? "met" : verdict.verdict === "not-met" ? "not met" : "could not be checked"}.`,
         evidence: `check of ${item.id}`,
       });
     } else if (verdict.verdict === "not-met") {

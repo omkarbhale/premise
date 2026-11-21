@@ -360,7 +360,9 @@ export class Runner {
       } else {
         this.live.set(softwareId, live);
         live.port = await this.choosePort(softwareId);
+        if (live.stopping) return this.view(softwareId);
         await this.launchWeb(live);
+        if (live.stopping) return this.view(softwareId);
         live.phase = "up";
         this.update(runId, {
           status: "running",
@@ -563,7 +565,7 @@ export class Runner {
 
     const deadline = Date.now() + config.runner.start_timeout_seconds * 1000;
     while (Date.now() < deadline) {
-      if (spawnError || exited) break;
+      if (spawnError || exited || live.stopping) break;
       if (await canConnect("127.0.0.1", port, 500)) {
         const outside = await this.reachableFromOutside(port);
         if (outside) {
@@ -577,6 +579,7 @@ export class Runner {
       }
       await sleep(100);
     }
+    if (live.stopping) return;
     const tail = live.lines.slice(-15).join("\n");
     if (spawnError) {
       throw new RunnerError(

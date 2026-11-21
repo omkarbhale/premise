@@ -79,12 +79,13 @@ export class Reporter implements ReportService {
       trigger === "milestone" && reference ? { milestone: reference } : {},
     );
     const written = now();
+    const commit = trigger === "change-running" ? (reference ?? facts.runs[0]?.commit) : undefined;
     const view = buildReport(facts, {
       detail: true,
       maxLines: this.config.reports.max_lines,
       written,
+      commit,
     });
-    const commit = trigger === "change-running" ? (reference ?? facts.runs[0]?.commit) : undefined;
     const releaseNotes = commit ? draftReleaseNotes(facts, commit) : null;
     const id = Number(
       this.db

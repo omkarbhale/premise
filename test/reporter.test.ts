@@ -208,7 +208,7 @@ describe("a report from recorded facts", () => {
     const lines = section(view, "Failed or not checked");
     const stale = lines.find((l) => l.includes("W-1"))!;
     expect(stale).toContain("Not checked at this version");
-    expect(stale).toContain(first.slice(0, 7));
+    expect(stale).toContain(`last checked at version ${first.slice(0, 7)}`);
     expect(stale).toContain("met");
     const after = await gatherFacts(
       { db, config, records: new RecordKeeper({ db, config }), runner, ledger: new MockUsageLedger("mock-fixed", 1) },
@@ -216,6 +216,20 @@ describe("a report from recorded facts", () => {
     );
     const head = s.git.headCommit(s.repo)!;
     expect(draftReleaseNotes(after, head)).toBeNull();
+  });
+
+  it("is about the latest commit even when an older commit is the one running", async () => {
+    const s = makeSoftware(db, config, "Greeter", FILES, ["W-1"]);
+    const first = s.git.headCommit(s.repo)!;
+    const head = s.commit({ "extra.txt": "x" }, ["W-1"]);
+    verdictAt(s.id, "W-1", "met", head);
+    await runner.start(s.id, first);
+    const view = await reporter.view(s.id);
+    const failed = section(view, "Failed or not checked");
+    expect(failed.some((l) => l.includes("W-1"))).toBe(false);
+    const running = section(view, "Running").join("\n");
+    expect(running).toContain(`version ${head.slice(0, 7)}`);
+    expect(running).toContain(`version ${first.slice(0, 7)}`);
   });
 
   it("refuses an unknown software with a plain message", async () => {
