@@ -38,8 +38,8 @@ Not responsible for:
 | Bring in software | Page server (operator) | A folder on this machine or a clone address; optionally a name and what it is for | Software id; premise's own copy is made, then the software is sized and its record recovered (5.10) | `INVALID` (with what to give instead), `NAME_TAKEN` |
 | Offer the record again | Page server (operator) | Software taken on from existing code | The gate asks again before adding its record to the operator's repository | `INVALID` (asked already, added already, or not taken on yet) |
 | Answer ask | Page server | Ask id; answer (for a draft: per item kept, struck or edited; for a question: text; for an approval: approve or refuse) | The waiting job resumes, or the stage moves on | `ASK_CLOSED` |
-| Chat message | Page server | Software, text | Where it went: the open draft, or an intake item ([0118](../decisions/0118-how-chat-messages-are-routed.md)) | none |
-| Send back | Page server (operator) | Software, stage | The software reopens that stage; later stages are marked to repeat | `NO_SUCH_STAGE` |
+| Chat message | Page server | Software, text | Where it went: the open draft, or an intake item ([0118](../decisions/0118-how-chat-messages-are-routed.md)). While an existing software is still being copied, or its copy failed, nothing is taken in and the reply says why | none |
+| Send back | Page server (operator) | Software, stage | The software reopens that stage; later stages are marked to repeat | `NO_SUCH_STAGE`; `INVALID` (an existing software's copy is not ready) |
 | Claim area | Page server | Software, role label, the area in its own words | Claim id | none |
 | Set size class | Page server (operator) | Software, small, medium or large | New stage budgets | `INVALID` (the software is finished or dropped) |
 | Set a piece's size | Page server (operator) | Work item, small, medium or large | New stage budgets for that piece; recorded as the operator's | `NOT_FOUND`, `INVALID` |
