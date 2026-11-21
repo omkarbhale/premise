@@ -183,6 +183,8 @@ export interface LineEngineOptions {
 export class LineEngine {
   private readonly db: Database;
   private readonly writer: RecordWriter;
+  private readonly deferred = new Set<Promise<void>>();
+  private afterCommit: (() => void)[] = [];
 
   constructor(private readonly options: LineEngineOptions) {
     this.db = options.db;
@@ -1166,15 +1168,24 @@ export class LineEngine {
 
     // Record changes first: if the record refuses them, the ask stays open and nothing moved.
     const effects = this.recordEffects(software, ask, answer);
-    transaction(this.db, () => {
-      if (!closeAsk(this.db, id, "answered", answer, summary)) {
-        throw new ServiceError(
-          "ASK_CLOSED",
-          "This was answered a moment ago. Nothing was changed.",
-        );
-      }
-      effects();
-    });
+    this.afterCommit = [];
+    try {
+      transaction(this.db, () => {
+        if (!closeAsk(this.db, id, "answered", answer, summary)) {
+          throw new ServiceError(
+            "ASK_CLOSED",
+            "This was answered a moment ago. Nothing was changed.",
+          );
+        }
+        effects();
+      });
+    } catch (error) {
+      this.afterCommit = [];
+      throw error;
+    }
+    const committed = this.afterCommit;
+    this.afterCommit = [];
+    for (const work of committed) work();
     this.queue.tick();
     return this.askView(getAsk(this.db, id)!, this.softwareNames());
   }
@@ -1468,6 +1479,11 @@ export class LineEngine {
     };
   }
 
+  /** Wait for work deferred until after a transaction committed. For tests and shutdown. */
+  async idle(): Promise<void> {
+    while (this.deferred.size > 0) await Promise.all([...this.deferred]);
+  }
+
   // ---- The repository outside this machine, through the gate ------------------------------------
 
   private repositoryStep(software: Software): void {
@@ -1475,11 +1491,15 @@ export class LineEngine {
     const name = repositoryName(software.name);
     if (remote === "none") return;
     if (remote === "local") {
-      setImmediate(() => {
-        if (!getSoftware(this.db, software.id)) return;
-        void this.createRemoteRepository({ softwareId: software.id }).then((result) =>
-          this.premiseSays(software.id, result.outcome),
-        );
+      this.afterCommit.push(() => {
+        const copy = new Promise<void>((resolve) => setImmediate(resolve))
+          .then(async () => {
+            if (!getSoftware(this.db, software.id)) return;
+            const result = await this.createRemoteRepository({ softwareId: software.id });
+            this.premiseSays(software.id, result.outcome);
+          })
+          .finally(() => this.deferred.delete(copy));
+        this.deferred.add(copy);
       });
       return;
     }

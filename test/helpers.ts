@@ -109,6 +109,7 @@ export async function testApp(
       session.queue.tick();
       await session.queue.idle();
       await session.gate.idle();
+      await session.line.idle();
       await new Promise((r) => setTimeout(r, 5));
       if (session.queue.list("queued").length === 0 && session.queue.list("running").length === 0) {
         return;

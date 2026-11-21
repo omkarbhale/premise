@@ -99,6 +99,27 @@ describe("the line engine, Why to Plan", () => {
     expect(readdirSync(remotes).filter((n) => n.endsWith(".git"))).toHaveLength(1);
   });
 
+  it("makes no local second copy when the plan confirmation rolls back", async () => {
+    const app = await testApp({ PREMISE_LINE__REMOTE: "local" });
+    const id = await start(app);
+    await toSayBack(app, id);
+    const milestones = await toMilestones(app, id);
+    const line = app.session.line as unknown as { enterLater: () => never };
+    line.enterLater = () => {
+      throw new Error("the confirmation failed after the repository step");
+    };
+    const res = await app.call("POST", `/api/asks/${milestones.id}/answer`, {
+      answer: {
+        kind: "items",
+        items: milestones.items.map((i) => ({ key: i.key, decision: "keep" })),
+      },
+    });
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    await app.settle();
+    const remotes = join(app.folder, "remotes");
+    expect(existsSync(remotes) ? readdirSync(remotes).filter((n) => n.endsWith(".git")) : []).toEqual([]);
+  });
+
   it("drafts each stage with an agent, writes what the operator confirmed to the record, and gives each job its stage budget", async () => {
     const app = await testApp();
     const id = await start(app);
