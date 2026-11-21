@@ -2723,6 +2723,8 @@ export class LineEngine implements IntakeLine {
         : [];
       const milestones = [...fromItems, ...listed].map((m, i) => ({
         ...m,
+        // Planners number them ("1. Runs"); the record gives each its own ID (M-1).
+        text: m.text.replace(/^\s*\d+[.):]\s+/, ""),
         kind: "M" as const,
         key: `m${i + 1}`,
       }));
