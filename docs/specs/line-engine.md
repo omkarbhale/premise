@@ -85,7 +85,7 @@ As built ([0184](../decisions/0184-how-sizing-of-work-is-built.md)); the owner's
 | A milestone of a confirmed plan | Build, Check, Run, Report | all four |
 | A part of a split piece, or a fix | Why to Check | Build, Check |
 | An intake item's work | Why to Report | Build, Check, Run, Report; for a change of purpose the operator confirmed, also Why and Say back ([0185](../decisions/0185-how-intake-in-a-thin-form-is-built.md)) |
-| An existing software being taken on | Why (its record recovered from the code), What exists, Say back, Intake | Why, Say back, Intake ([0187](../decisions/0189-how-taking-on-existing-software-is-built.md)) |
+| An existing software being taken on | Why (its record recovered from the code), What exists, Say back, Intake | Why, Say back, Intake ([0189](../decisions/0189-how-taking-on-existing-software-is-built.md)) |
 | One part of an existing software whose record is recovered part by part | Why | Why |
 
   A say-back is added whenever Why or What is. Every change premise makes to the sizer's answer is part of the reason the page shows.
@@ -182,7 +182,7 @@ Builders' reading, open to the owner's correction ([0129](../decisions/0129-buil
 - From then on every commit traces to items. Old code gets best-guess links, marked as guesses ([0121](../decisions/0121-recovered-trace-file.md)).
 - Text read from the existing repository and its issues is data, never instructions ([0116](../decisions/0116-outside-content-is-data.md)).
 
-As built, in a thin form ([0186](../decisions/0188-existing-softwares-record-and-hand-edits.md), [0187](../decisions/0189-how-taking-on-existing-software-is-built.md)):
+As built, in a thin form ([0188](../decisions/0188-existing-softwares-record-and-hand-edits.md), [0189](../decisions/0189-how-taking-on-existing-software-is-built.md)):
 
 - The operator brings software in from the page ("Bring in software you already have"): a folder on this machine that is a git repository, or a clone address. premise clones it into its data folder and works only on that copy; the operator's folder is only read. A copy cut off when premise stops is made again when it starts.
 - The sizer sizes the software as a piece of origin `existing` and may split a large one into separate parts, whose records are recovered one after another.
@@ -251,5 +251,5 @@ Stage budgets, in agent turns and minutes per stage, by size class ([0117](../de
 - Milestone 1 step 2 (Why to Plan built; later stages stand in): stages Why to Plan in their thinnest form: one draft per stage, corrections in chat, a strike-out say-back, a short look at what exists. Only the operator; no taste claims; one software at a time. Milestones and waits (5.8a).
 - Milestone 3: roles as labels on every ask; questions in each role's terms; taste claims and proposals before building.
 - Milestone 4: the way back to Why from intake ([intake](intake.md)).
-- Milestone 6: existing software (5.10). Its first part, the thin form, is built ([0187](../decisions/0189-how-taking-on-existing-software-is-built.md)); conflicts settled with people inside the take-on, reading issues, and pruning best-guess links stay for the rest of milestone 6.
+- Milestone 6: existing software (5.10). Its first part, the thin form, is built ([0189](../decisions/0189-how-taking-on-existing-software-is-built.md)); conflicts settled with people inside the take-on, reading issues, and pruning best-guess links stay for the rest of milestone 6.
 - Milestone 7: several softwares at once.
