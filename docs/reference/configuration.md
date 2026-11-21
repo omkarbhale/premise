@@ -22,6 +22,7 @@ A wrong setting stops premise at start with a message naming the setting and why
 | `queue.max_agent_sessions` | `2` | 1 to 16 | How many agent sessions run at once. | [0074](../decisions/README.md) |
 | `queue.same_failure_limit` | `3` | 1 to 20 | How many times the same failure may happen before a job ends stuck. | [0088](../decisions/README.md) |
 | `queue.usage_pause_fallback_minutes` | `60` | 1 to 1440 | How long agent work pauses after a usage-limit event that gives no reset time. |  |
+| `queue.fair_wait_minutes` | `30` | 1 to 1440 | With several softwares, the most important goes first; a software that has waited this many minutes for an agent, behind more important ones, gets the next free one. | [0197](../decisions/README.md) |
 | `agents.mode` | `"claude"` | "claude" or "scripted" | "claude": real Claude Code sessions on your Claude Code login, each confined by Claude Code's sandbox (needs bubblewrap and socat on Linux). If they cannot start, premise starts anyway and the page says what is missing. "scripted": a stand-in agent that follows a script and calls no AI, for tests and demos. | [0180](../decisions/README.md) |
 | `agents.claude_config_folder` | `null` | a folder path, or null | Claude Code configuration folder to use. null means your existing Claude Code login. | [0140](../decisions/README.md) |
 | `agents.claude.command` | `"claude"` | a program name or path | The Claude Code program to run for real agents. "claude" means the one found on your PATH. | [0071](../decisions/README.md) |
@@ -102,6 +103,8 @@ A wrong setting stops premise at start with a message naming the setting and why
 | `runner.restart_delay_seconds` | `2` | 0 to 600 | How long to wait before starting a crashed software again. | [0162](../decisions/README.md) |
 | `runner.port_range` | `"4700-4799"` | two ports joined by a dash, such as "4700-4799" | Ports on this machine that running web software may use. Software is only ever reachable from this machine. | [0162](../decisions/README.md) |
 | `runner.start_timeout_seconds` | `30` | 1 to 600 | How long a web software has to start answering before the start is called failed. | [0162](../decisions/README.md) |
+| `runner.max_running_softwares` | `5` | 1 to 50 | How many softwares may be running on this machine at once, each on its own port. Starting one more says to stop another first. | [0197](../decisions/README.md) |
+| `runner.min_free_memory_mb` | `256` | 0 to 65536 | A software is not started when this machine has less free memory than this, in megabytes; premise says so. 0 never checks. | [0197](../decisions/README.md) |
 | `runner.sample_timeout_seconds` | `30` | 1 to 600 | How long a command-line software's sample run may take. | [0162](../decisions/README.md) |
 | `runner.stop_grace_seconds` | `5` | 0 to 120 | When running software is stopped, how long it gets to end by itself before it is ended forcibly. | [0162](../decisions/README.md) |
 | `runner.output_lines` | `200` | 10 to 5000 | How many of the latest lines of a running software's output the page can show. | [0162](../decisions/README.md) |

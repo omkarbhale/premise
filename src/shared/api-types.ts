@@ -23,6 +23,54 @@ export interface SoftwareSummary {
   created: string;
   /** True while premise is taking on this software from existing code (decision 0189). */
   takingOn?: boolean;
+  /** True while the operator has paused it: nothing new starts; its asks stay answerable. */
+  paused?: boolean;
+  /** True once archived: kept, hidden from the main list, restorable (decision 0197). */
+  archived?: boolean;
+  /** Whether it can be archived now, and if not, why not in plain words. */
+  archivable?: { ok: boolean; why: string };
+}
+
+/** One software's line in the summary across softwares. */
+export interface SummarySoftware {
+  id: string;
+  name: string;
+  /** The phase and what it is doing, in plain words, such as "Building: …". */
+  phase: string;
+  /** What it is doing now, or what it waits for. */
+  doing: string;
+  /** What it needs from you, or null when nothing. */
+  needsYou: string | null;
+  priority: number;
+  paused: boolean;
+  /** Where its running copy answers, when one is running. */
+  runningAt: string | null;
+}
+
+/** What changed for one software since you last looked, from recorded events. */
+export interface SummaryChange {
+  softwareId: string;
+  name: string;
+  /** Plain lines, oldest first, such as "Moved on to Building." or "Asked you 2 things." */
+  lines: string[];
+}
+
+/** The short summary across every software (docs/specs/reporter.md; decision 0197). */
+export interface SummaryView {
+  /** One plain sentence first. */
+  headline: string;
+  /** Ordered: what needs you first, then what is working, then paused and finished. */
+  softwares: SummarySoftware[];
+  needsYou: SummarySoftware[];
+  running: SummarySoftware[];
+  changes: SummaryChange[];
+  /** When you last looked, or null before the first look. */
+  since: string | null;
+  /** The newest event this summary read; send it back to mark the summary as seen. */
+  upTo: number;
+  /** Agent sessions running now, and the limit. */
+  sessions: { running: number; max: number };
+  archived: number;
 }
 
 export interface StageView {
@@ -497,6 +545,8 @@ export interface Overview {
    * is empty only the operator is asked anything, and the page shows no role labels at all.
    */
   roles: string[];
+  /** How many softwares are archived: kept, and hidden from the list above. */
+  archivedSoftwares?: number;
   /** Each software's usage, from usage-ledger (mocked until it exists). */
   softwareUsage: (UsageFigures & { softwareId: string })[];
   openAsks: number;

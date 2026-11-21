@@ -231,16 +231,93 @@ export class WorkQueue {
     return cut.map((j) => this.get(j.id)!);
   }
 
-  /** The startable jobs, in the order they should start. */
+  /**
+   * The startable jobs: queued, of a software that is active, not paused by the operator and not
+   * archived. Within one software, in the order they should start (work-queue spec 5.1).
+   */
   private startable(): Job[] {
     const rows = this.db
       .prepare(
         `SELECT j.* FROM jobs j JOIN softwares s ON s.id = j.software_id
          WHERE j.status = 'queued' AND s.state = 'active'
-         ORDER BY s.priority, ${KIND_ORDER_SQL}, j.created, j.id`,
+           AND s.paused_at IS NULL AND s.archived_at IS NULL
+         ORDER BY ${KIND_ORDER_SQL}, j.created, j.id`,
       )
       .all() as unknown as JobRow[];
     return rows.map(fromRow);
+  }
+
+  /** When each software last had a job start, from the events (so it survives a restart). */
+  private lastStarts(): Map<string, number> {
+    const rows = this.db
+      .prepare(
+        "SELECT software_id, MAX(time) AS last FROM events WHERE module = 'queue' AND kind = 'job-started' AND software_id IS NOT NULL GROUP BY software_id",
+      )
+      .all() as { software_id: string; last: string }[];
+    return new Map(rows.map((r) => [r.software_id, Date.parse(r.last)]));
+  }
+
+  /**
+   * How the softwares with startable work share the agent slots (work-queue spec 5.1; decision
+   * 0197): a software that has waited queue.fair_wait_minutes without a start goes first, the
+   * longest waiting first; then the most important; among equally important ones, the one with
+   * fewer sessions running, then the one whose turn was longest ago. Returns the softwares in the
+   * order to give the next slot to, for the running sessions counted now.
+   */
+  private shareOrder(
+    jobs: Job[],
+    runningBySoftware: Map<string, number>,
+  ): { softwareId: string; waitedMs: number; starving: boolean }[] {
+    const nowMs = this.clock().getTime();
+    const limitMs = this.options.config.queue.fair_wait_minutes * 60_000;
+    const lastStart = this.lastStarts();
+    const priorities = new Map(
+      (
+        this.db.prepare("SELECT id, priority FROM softwares").all() as {
+          id: string;
+          priority: number;
+        }[]
+      ).map((r) => [r.id, r.priority]),
+    );
+    const oldest = new Map<string, number>();
+    for (const job of jobs) {
+      const created = Date.parse(job.created);
+      oldest.set(job.softwareId, Math.min(oldest.get(job.softwareId) ?? created, created));
+    }
+    const rows = [...oldest.entries()].map(([softwareId, since]) => {
+      const turn = lastStart.get(softwareId) ?? 0;
+      const waitedMs = Math.max(0, nowMs - Math.max(since, turn));
+      return {
+        softwareId,
+        waitedMs,
+        // A software with a session running is getting its turn; it is not left waiting.
+        starving: waitedMs >= limitMs && (runningBySoftware.get(softwareId) ?? 0) === 0,
+        priority: priorities.get(softwareId) ?? 3,
+        running: runningBySoftware.get(softwareId) ?? 0,
+        turn,
+      };
+    });
+    rows.sort(
+      (a, b) =>
+        Number(b.starving) - Number(a.starving) ||
+        (a.starving && b.starving ? b.waitedMs - a.waitedMs : 0) ||
+        a.priority - b.priority ||
+        a.running - b.running ||
+        a.turn - b.turn ||
+        a.softwareId.localeCompare(b.softwareId),
+    );
+    return rows.map(({ softwareId, waitedMs, starving }) => ({ softwareId, waitedMs, starving }));
+  }
+
+  /** Agent sessions running now, per software. */
+  private runningBySoftware(): Map<string, number> {
+    const counts = new Map<string, number>();
+    for (const [id, session] of this.running) {
+      if (!session) continue;
+      const job = this.get(id);
+      if (job) counts.set(job.softwareId, (counts.get(job.softwareId) ?? 0) + 1);
+    }
+    return counts;
   }
 
   /** Start every job that can start now. Returns the ids started. */
@@ -256,18 +333,54 @@ export class WorkQueue {
       }
     }
     const started: number[] = [];
-    for (const job of this.startable()) {
-      if (this.running.has(job.id)) continue;
-      const isAgent = job.kind !== "run";
-      if (isAgent && this.runningAgentSessions() >= this.options.config.queue.max_agent_sessions) {
-        continue;
+    const ready = this.startable().filter((job) => !this.running.has(job.id));
+    // Server jobs take no slot: each starts at once.
+    if (this.options.serverJobs) {
+      for (const job of ready.filter((j) => j.kind === "run")) {
+        this.startJob(job);
+        started.push(job.id);
       }
-      if (!isAgent && !this.options.serverJobs) continue;
-      if (isAgent && this.options.runner.ready && !this.options.runner.ready()) continue;
+    }
+    if (this.options.runner.ready && !this.options.runner.ready()) return started;
+    const waiting = ready.filter((j) => j.kind !== "run");
+    const counts = this.runningBySoftware();
+    while (
+      waiting.length > 0 &&
+      this.runningAgentSessions() < this.options.config.queue.max_agent_sessions
+    ) {
+      const next = this.shareOrder(waiting, counts)[0]!;
+      const index = waiting.findIndex((j) => j.softwareId === next.softwareId);
+      const job = waiting.splice(index, 1)[0]!;
+      if (next.starving) {
+        recordEvent(this.db, {
+          softwareId: job.softwareId,
+          module: "queue",
+          kind: "fair-turn",
+          reference: String(job.id),
+          detail: { waitedMinutes: Math.round(next.waitedMs / 60_000) },
+        });
+      }
       this.startJob(job);
+      counts.set(job.softwareId, (counts.get(job.softwareId) ?? 0) + 1);
       started.push(job.id);
     }
     return started;
+  }
+
+  /**
+   * A software was paused or archived: its running agent sessions stop and their jobs go back to
+   * the queue, so the slots go to other softwares. Its asks stay answerable.
+   */
+  releaseSoftware(softwareId: string): number {
+    let stopped = 0;
+    for (const [id, session] of this.running) {
+      if (!session) continue;
+      if (this.get(id)?.softwareId !== softwareId) continue;
+      this.stoppedForPause.add(id);
+      session.stop();
+      stopped++;
+    }
+    return stopped;
   }
 
   private startJob(job: Job): void {

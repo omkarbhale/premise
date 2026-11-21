@@ -75,6 +75,32 @@ export function Help() {
         </ul>
       </section>
       <section className="card">
+        <h2>Several softwares at once</h2>
+        <ul>
+          <li>
+            Start as many as you like. The list puts whatever is waiting on you first. Each one
+            shows where it is and what it is doing now.
+          </li>
+          <li>
+            Agents are shared between them: the most important software (priority 1) goes first, and
+            none waits forever. Change a software's priority under its name.
+          </li>
+          <li>
+            <strong>Pause</strong> a software to stop new work on it and give its agents to the
+            others; its questions stay answerable. <strong>Resume</strong> carries on where it
+            stopped.
+          </li>
+          <li>
+            <strong>Archive</strong> a finished or paused software to hide it from the list. Nothing
+            is deleted, and <strong>Restore</strong> brings it back.
+          </li>
+          <li>
+            <strong>Summary</strong> (once there are two) says in one place what waits on you and
+            what changed since you last looked.
+          </li>
+        </ul>
+      </section>
+      <section className="card">
         <h2>Words you will see</h2>
         <dl className="glossary">
           <dt>The record</dt>

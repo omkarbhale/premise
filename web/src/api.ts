@@ -17,6 +17,7 @@ import type {
   ClaimView,
   SoftwareDetail,
   SoftwareSummary,
+  SummaryView,
 } from "../../src/shared/api-types";
 import type { SizeClass, SoftwareEffort, StageId } from "../../src/shared/stages";
 
@@ -47,7 +48,8 @@ export const NOT_ANSWERING =
 
 export interface Api {
   overview(): Promise<Overview>;
-  softwares(): Promise<SoftwareSummary[]>;
+  /** The main list, or with archived: true only the archived softwares. */
+  softwares(archived?: boolean): Promise<SoftwareSummary[]>;
   software(id: string): Promise<SoftwareDetail>;
   start(idea: string, name?: string, effort?: SoftwareEffort): Promise<SoftwareSummary>;
   bringIn(source: string, name?: string, idea?: string): Promise<SoftwareSummary>;
@@ -70,6 +72,13 @@ export interface Api {
   undoSplit(itemId: number): Promise<SoftwareDetail>;
   setPriority(id: string, priority: number): Promise<SoftwareDetail>;
   setEffort(id: string, effort: SoftwareEffort): Promise<SoftwareDetail>;
+  pause(id: string): Promise<SoftwareDetail>;
+  resume(id: string): Promise<SoftwareDetail>;
+  archive(id: string): Promise<SoftwareDetail>;
+  restore(id: string): Promise<SoftwareDetail>;
+  /** The short summary across every software. */
+  summary(): Promise<SummaryView>;
+  summarySeen(upTo: number): Promise<{ ok: true }>;
   setMilestoneWait(id: string, milestone: string, wait: boolean): Promise<SoftwareDetail>;
   withdrawApproval(id: number): Promise<{ ok: true }>;
   claim(id: string, area: string, role?: string): Promise<ClaimView>;
@@ -142,7 +151,7 @@ export function createApi(token: string): Api {
   const enc = encodeURIComponent;
   return {
     overview: () => get("/api/overview"),
-    softwares: () => get("/api/softwares"),
+    softwares: (archived) => get(`/api/softwares${archived ? "?archived=1" : ""}`),
     software: (id) => get(`/api/softwares/${enc(id)}`),
     start: (idea, name, effort) =>
       post("/api/softwares", { idea, ...(name && { name }), ...(effort && { effort }) }),
@@ -172,6 +181,12 @@ export function createApi(token: string): Api {
     undoSplit: (itemId) => post(`/api/work-items/${itemId}/undo-split`),
     setPriority: (id, priority) => post(`/api/softwares/${enc(id)}/priority`, { priority }),
     setEffort: (id, effort) => post(`/api/softwares/${enc(id)}/effort`, { effort }),
+    pause: (id) => post(`/api/softwares/${enc(id)}/pause`),
+    resume: (id) => post(`/api/softwares/${enc(id)}/resume`),
+    archive: (id) => post(`/api/softwares/${enc(id)}/archive`),
+    restore: (id) => post(`/api/softwares/${enc(id)}/restore`),
+    summary: () => get("/api/summary"),
+    summarySeen: (upTo) => post("/api/summary/seen", { upTo }),
     setMilestoneWait: (id, milestone, wait) =>
       post(`/api/softwares/${enc(id)}/milestones/${enc(milestone)}/wait`, { wait }),
     withdrawApproval: (id) => post(`/api/approvals/${id}/withdraw`),

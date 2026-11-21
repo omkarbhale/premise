@@ -10,9 +10,10 @@ import { SoftwareView, type SoftwareTab } from "./components/SoftwareView";
 import { BringInForm } from "./components/BringInForm";
 import { Doing } from "./components/Doing";
 import { StartForm } from "./components/StartForm";
+import { Summary } from "./components/Summary";
 import { Usage } from "./components/Usage";
 import { Welcome } from "./components/Welcome";
-import { SessionContext, type Session } from "./context";
+import { SessionContext, type Session, useSession as useSessionContext } from "./context";
 import { type Connection, useEventStream, useLoad } from "./hooks";
 import { stageName, whereNow } from "../../src/shared/stages";
 import { plural } from "./words";
@@ -21,6 +22,7 @@ type View =
   | { name: "software"; id: string | null }
   | { name: "start" }
   | { name: "needed" }
+  | { name: "summary" }
   | { name: "activity" }
   | { name: "usage" }
   | { name: "doing" }
@@ -74,20 +76,62 @@ export function NoLink({ stale = false }: { stale?: boolean }) {
   );
 }
 
-/** The `software=` part of the link's fragment: the software this page is showing. */
-function softwareFromLink(): string | null {
-  const match = /(?:^#|&)software=([^&]+)/.exec(window.location.hash);
+/** One `key=` part of the link's fragment, such as the software or the view this page shows. */
+function fromLink(key: string): string | null {
+  const match = new RegExp(`(?:^#|&)${key}=([^&]+)`).exec(window.location.hash);
   return match ? decodeURIComponent(match[1]!) : null;
 }
 
-/** Remember the open software in the link, so a refresh comes back to it (the token stays as is). */
-function rememberSoftware(id: string) {
+/**
+ * Remember where you are in the link (the software, the view and the tab), so a refresh comes back
+ * to the same place. The token stays as is.
+ */
+function rememberInLink(change: Record<string, string | null>) {
+  const keys = Object.keys(change);
   const parts = window.location.hash
     .replace(/^#/, "")
     .split("&")
-    .filter((p) => p && !p.startsWith("software="));
-  parts.push(`software=${encodeURIComponent(id)}`);
+    .filter((p) => p && !keys.some((k) => p.startsWith(`${k}=`)));
+  for (const [key, value] of Object.entries(change)) {
+    if (value !== null) parts.push(`${key}=${encodeURIComponent(value)}`);
+  }
   window.history.replaceState(null, "", `#${parts.join("&")}`);
+}
+
+const VIEW_NAMES = [
+  "software",
+  "start",
+  "needed",
+  "summary",
+  "activity",
+  "usage",
+  "doing",
+  "settings",
+  "help",
+] as const;
+const TAB_NAMES: readonly SoftwareTab[] = [
+  "conversation",
+  "line",
+  "record",
+  "report",
+  "intake",
+  "learned",
+];
+
+/** The view the link names, or the software view. */
+function viewFromLink(): View {
+  const name = fromLink("view");
+  if (name && name !== "software" && (VIEW_NAMES as readonly string[]).includes(name)) {
+    return { name } as View;
+  }
+  return { name: "software", id: fromLink("software") };
+}
+
+function tabFromLink(): SoftwareTab {
+  const tab = fromLink("tab");
+  return tab && (TAB_NAMES as readonly string[]).includes(tab)
+    ? (tab as SoftwareTab)
+    : "conversation";
 }
 
 /** The whole page: one session where everything is open (decision 0065). */
@@ -111,8 +155,20 @@ export function App({ api: given }: { api?: Api } = {}) {
 function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) {
   const [version, setVersion] = useState(0);
   const [problem, setProblem] = useState<string | null>(null);
-  const [view, setView] = useState<View>(() => ({ name: "software", id: softwareFromLink() }));
-  const [tab, setTab] = useState<SoftwareTab>("conversation");
+  const [view, setViewState] = useState<View>(viewFromLink);
+  const [tab, setTabState] = useState<SoftwareTab>(tabFromLink);
+  // Where you are is kept in the link, so a refresh keeps your place.
+  const setView = useCallback((next: View) => {
+    rememberInLink({
+      view: next.name === "software" ? null : next.name,
+      ...(next.name === "software" && next.id ? { software: next.id } : {}),
+    });
+    setViewState(next);
+  }, []);
+  const setTab = useCallback((next: SoftwareTab) => {
+    rememberInLink({ tab: next === "conversation" ? null : next });
+    setTabState(next);
+  }, []);
   const [more, setMore] = useState(false);
   const [explained] = useState(() => new Set<string>());
   const pending = useRef<number | null>(null);
@@ -127,11 +183,13 @@ function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) 
   }, []);
   const connection = useEventStream(api.eventsUrl(), refresh);
 
-  const openSoftware = useCallback((id: string, to?: SoftwareTab) => {
-    rememberSoftware(id);
-    if (to) setTab(to);
-    setView({ name: "software", id });
-  }, []);
+  const openSoftware = useCallback(
+    (id: string, to?: SoftwareTab) => {
+      if (to) setTab(to);
+      setView({ name: "software", id });
+    },
+    [setTab, setView],
+  );
   const overview = useLoad(() => api.overview(), [], version, onNotCurrent);
   const known = overview.state === "ready" ? overview.data : null;
   const session: Session = useMemo(
@@ -192,6 +250,7 @@ function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) 
 
   const nav: { view: View; label: string; extra?: React.ReactNode; more?: boolean }[] = [
     { view: { name: "software", id: selected?.id ?? null }, label: "Softwares" },
+    ...(o.softwares.length > 1 ? [{ view: { name: "summary" } as View, label: "Summary" }] : []),
     ...(o.openAsks > 0 || !firstRun
       ? [
           {
@@ -315,10 +374,21 @@ function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) 
                         <span className={`small ${s.openAsks > 0 ? "needs-you" : "muted"}`}>
                           {s.openAsks > 0 && s.id === selected?.id ? "Your turn." : s.status}
                         </span>
+                        {(s.openAsks > 0 || s.state === "waiting-milestone" || s.paused) && (
+                          <span className="pick-badges">
+                            {(s.openAsks > 0 || s.state === "waiting-milestone") && (
+                              <span className="badge badge-needs">Waiting on you</span>
+                            )}
+                            {s.paused && <span className="badge">Paused</span>}
+                          </span>
+                        )}
                       </button>
                     </li>
                   ))}
                 </ul>
+                {(o.archivedSoftwares ?? 0) > 0 && (
+                  <Archived count={o.archivedSoftwares!} onRestored={(id) => openSoftware(id)} />
+                )}
               </aside>
               <div className="detail">
                 {selected && (
@@ -346,6 +416,7 @@ function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) 
           </>
         )}
         {view.name === "needed" && <Needed asks={openAsks} notifications={o.page.notifications} />}
+        {view.name === "summary" && <Summary />}
         {view.name === "activity" && <Activity />}
         {view.name === "usage" && <Usage overview={o} />}
         {view.name === "doing" && <Doing />}
@@ -358,6 +429,51 @@ function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) 
         {plural(o.activity.max, "agent session")} at once
       </footer>
     </SessionContext.Provider>
+  );
+}
+
+/** Archived softwares: kept, hidden from the list above, restorable (decision 0197). */
+function Archived({ count, onRestored }: { count: number; onRestored: (id: string) => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <details className="archived" onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}>
+      <summary className="small muted">Archived ({count})</summary>
+      {open && <ArchivedList onRestored={onRestored} />}
+    </details>
+  );
+}
+
+function ArchivedList({ onRestored }: { onRestored: (id: string) => void }) {
+  const { api, version, notCurrent, refresh, report } = useSessionContext();
+  const list = useLoad(() => api.softwares(true), [], version, notCurrent);
+  if (list.state === "loading") return <p className="muted small">Loading…</p>;
+  if (list.state === "error") return <Problem>{list.message}</Problem>;
+  return (
+    <ul>
+      {list.data.map((s) => (
+        <li key={s.id} className="small">
+          <span className="name">{s.name}</span>{" "}
+          <span className="muted">
+            {s.state === "ended" ? "Ended" : whereNow(s.stage, s.takingOn)}
+          </span>{" "}
+          <button
+            type="button"
+            className="quiet"
+            onClick={() =>
+              void api.restore(s.id).then(
+                () => {
+                  refresh();
+                  onRestored(s.id);
+                },
+                (error: Error) => report(error.message),
+              )
+            }
+          >
+            Restore
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }
 

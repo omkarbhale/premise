@@ -10,6 +10,8 @@ import { Briefs } from "../line/briefs.js";
 import { Learning } from "../learning/learning.js";
 import { LineEngine } from "../line/line-engine.js";
 import { Measures } from "../measures/measures.js";
+import { Portfolio } from "../portfolio/portfolio.js";
+import { Summary } from "../reporter/summary.js";
 import { WorkQueue } from "../queue/work-queue.js";
 import { RecordKeeper } from "../record/record-keeper.js";
 import { Reporter } from "../reporter/reporter.js";
@@ -55,6 +57,10 @@ export interface Session {
   learning: Learning;
   /** Taste claims and their proposals (src/taste). */
   taste: Taste;
+  /** Pausing, archiving and ordering across softwares (src/portfolio). */
+  portfolio: Portfolio;
+  /** The short summary across softwares. */
+  summary: Summary;
 }
 
 /**
@@ -199,10 +205,31 @@ export function createSession(options: {
   if (runner instanceof ScriptedAgentRunner) {
     runner.useWorkingCopies(config.data.folder, config.data.keep_finished_working_copies);
   }
+  const portfolio = new Portfolio({ db, queue, stopRunning: (id) => runs.stop(id) });
+  const softwareList = async (options: { archived?: boolean } = {}) =>
+    portfolio.decorate(await engine.softwareList(), options);
+  const activity = new QueueActivity(db, queue, () => config.queue.max_agent_sessions);
+  const runService = new RunnerService(runs, (id) => getSoftware(db, id) !== undefined);
+  const summary = new Summary({
+    db,
+    softwares: () => softwareList(),
+    run: (id) => runService.view(id),
+    sessions: () => ({
+      running: queue.runningAgentSessions(),
+      max: config.queue.max_agent_sessions,
+    }),
+    archived: () =>
+      (
+        db.prepare("SELECT COUNT(*) AS n FROM softwares WHERE archived_at IS NOT NULL").get() as {
+          n: number;
+        }
+      ).n,
+    maxLines: config.reports.max_lines,
+  });
   const services: SessionServices = {
     softwares: {
-      list: () => engine.softwareList(),
-      get: (id) => engine.softwareDetail(id),
+      list: (options) => softwareList(options),
+      get: async (id) => portfolio.mark(await engine.softwareDetail(id)),
       start: (input) => engine.startSoftware(input),
       bringIn: (input) => engine.bringIn(input),
       offerRecord: (id) => engine.offerRecord(id),
@@ -214,6 +241,10 @@ export function createSession(options: {
       withdrawApproval: (id) => engine.withdrawApproval(id),
       claim: (id, input) => engine.claimArea(id, input),
       releaseClaim: (id) => engine.releaseClaim(id),
+      pause: async (id) => portfolio.pause(id),
+      resume: async (id) => portfolio.resume(id),
+      archive: (id) => portfolio.archive(id),
+      restore: async (id) => portfolio.restore(id),
     },
     roles: () => engine.rolesInUse(),
     workItems: {
@@ -227,7 +258,7 @@ export function createSession(options: {
       say: (id, text) => engine.chat(id, text),
     },
     asks: {
-      list: (filter) => engine.askList(filter),
+      list: async (filter) => portfolio.shownAsks(await engine.askList(filter)),
       answer: (id, answer) => engine.answer(id, answer),
     },
     records: { view: (id) => engine.recordView(id) },
@@ -238,8 +269,12 @@ export function createSession(options: {
       readNow: (id) => taker.readNow(id),
     },
     reports: reporter,
-    runs: new RunnerService(runs, (id) => getSoftware(db, id) !== undefined),
-    activity: new QueueActivity(db, queue, () => config.queue.max_agent_sessions),
+    runs: runService,
+    activity,
+    summary: {
+      view: () => summary.view(),
+      markSeen: async (upTo) => summary.markSeen(upTo),
+    },
   };
   return {
     queue,
@@ -254,5 +289,7 @@ export function createSession(options: {
     measures,
     learning: learner,
     taste,
+    portfolio,
+    summary,
   };
 }

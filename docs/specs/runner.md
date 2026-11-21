@@ -70,6 +70,7 @@ The runner starts the checked commit from a clean copy using `run.md`, confined 
 
 - `run.md` is the same file the checker runs from a clean copy every time, so it cannot go stale without the check failing.
 - The software listens on localhost unless the operator decided otherwise; exposing it beyond localhost is a gated act ([0092](../decisions/0092-security-defaults.md)).
+- Several softwares run at once, each on its own port of `runner.port_range` ([0197](../decisions/0197-how-several-softwares-at-once-is-built.md)). Before starting one more, the runner says plainly when the machine is the limit: `runner.max_running_softwares` already run (it names them and says to stop one), or the machine has less free memory than `runner.min_free_memory_mb`. The refusal is a failed run on the software's page, with the setting to change, and an event `no-room`.
 - Secrets: the runner places the software's secrets file from premise's data folder into the run copy, ignored by git. A person writes that file; premise never holds the values in its database, and agents never see it ([0120](../decisions/0120-secrets-stay-out-of-premise.md)).
 
 ### 5.4 Keeping it up
@@ -90,20 +91,22 @@ The runner starts the checked commit from a clean copy using `run.md`, confined 
 
 ## 6. Configuration
 
-The settings are listed in the [configuration reference](../reference/configuration.md) (`runner.*`). The two below are the specification's; the reference also holds `runner.port_range`, the start and sample time limits, the restart delay, the stop grace, the output kept for the page, `runner.confinement` and `runner.read_only_paths`.
+The settings are listed in the [configuration reference](../reference/configuration.md) (`runner.*`). The ones below are the specification's; the reference also holds `runner.port_range`, the start and sample time limits, the restart delay, the stop grace, the output kept for the page, `runner.confinement` and `runner.read_only_paths`.
 
 | Key | Default | Meaning |
 |---|---|---|
 | `runner.restart_limit` | 3 | Restarts within the window before the runner stops trying and reports |
 | `runner.restart_window_minutes` | 10 | The window for the restart limit |
 | `runner.port_range` | 4700–4799 | Local ports for running softwares |
+| `runner.max_running_softwares` | 5 | Softwares running on this machine at once |
+| `runner.min_free_memory_mb` | 256 | Free memory kept before starting one more; 0 never checks |
 | `runner.default_visibility` | private | Visibility of a new repository when the operator chose none |
 
 ## 7. Limits
 
 - Built software runs on the same machine as premise ([where it runs](../architecture/where-it-runs.md)).
 - A desktop app that cannot run on the owner's machine is shown as built, not run; its check items that need it running are `could-not-check`.
-- Before milestone 7, one software runs at a time.
+- Several softwares run at once, up to `runner.max_running_softwares`, on this machine only; keeping software live on public hosts is later ([0178](../decisions/0178-hosting-for-others-accounts-and-public-deployment-pushed-later.md)).
 
 ## 8. Failure modes and recovery
 
@@ -111,6 +114,7 @@ The settings are listed in the [configuration reference](../reference/configurat
 |---|---|---|---|
 | `run.md` does not start the software | Start fails | No run | Back to the builder as a task, with the log (the checker should have caught it first) |
 | The software keeps crashing | Restart limit | Stopped | Reported; the errors are intake items |
+| As many softwares run as allowed, or too little free memory | Before the start | Not started; the page says which ones run, or how much memory is free, and the setting | Stop one, or change `runner.max_running_softwares` or `runner.min_free_memory_mb` |
 | Another program takes the chosen port | Software says the port is in use | Not counted as a crash | The next free port is tried; if the range runs out the run fails and names `runner.port_range` |
 | Merge conflict | Merge fails | Change not merged | Back to the builder; checked again |
 | Push rejected | GitHub error | Not pushed | Reported under "Needed" for the operator with the error; never forced |
@@ -132,4 +136,4 @@ The settings are listed in the [configuration reference](../reference/configurat
 - Milestone 1 step 1: the server creates a private repository on the owner's GitHub and pushes to it (point 7).
 - Milestone 1 step 2: the server's merge and push; the runner, with a link or a command on the page.
 - Milestone 4: log errors as intake.
-- Milestone 7: running software for its real users on hosts the operator approves; keeping it up; incidents back as intake; several softwares at once. Every first deployment to a public host is public-facing and may spend money, so it is asked ([gate](gate.md)).
+- Milestone 7: running software for its real users on hosts the operator approves; keeping it up; incidents back as intake. Several softwares at once is built ([0197](../decisions/0197-how-several-softwares-at-once-is-built.md)). Every first deployment to a public host is public-facing and may spend money, so it is asked ([gate](gate.md)).
