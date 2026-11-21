@@ -1,6 +1,6 @@
 # Reporter specification
 
-Status: specification. Nothing is built until the owner says to start ([0061](../decisions/0061-nothing-built-until-the-owner-says.md)). Related: [intake and reporting](../architecture/intake-and-reporting.md), [page](page.md), [agent tools](agent-tools.md), [storage](storage.md), [models and cost](../architecture/models-and-cost.md).
+Status: specification, being built ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Related: [intake and reporting](../architecture/intake-and-reporting.md), [page](page.md), [agent tools](agent-tools.md), [storage](storage.md), [models and cost](../architecture/models-and-cost.md).
 
 ## 1. Purpose
 
@@ -123,6 +123,6 @@ The report's default form stays with premise ([0012](../decisions/0012-reporting
 ## 11. Milestones
 
 - Milestone 1 step 2: a report each time a change reaches running; the report view; notices; more detail from the page's "more" control.
-- Milestone 2 (needs usage-ledger usable): the Cost section, usage per stage and per item.
+- Milestone 2 (against usage-ledger's mock until it exists, [0133](../decisions/0133-usage-ledger-is-mocked-until-it-exists.md)): the Cost section, usage per stage and per item.
 - Milestone 4: more detail asked in chat, through triage.
 - Milestone 7: a report per software and one summary across softwares.

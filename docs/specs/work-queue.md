@@ -1,6 +1,6 @@
 # Work queue specification
 
-Status: specification. Nothing is built until the owner says to start ([0061](../decisions/0061-nothing-built-until-the-owner-says.md)). Related: [agent runner](agent-runner.md), [line engine](line-engine.md), [storage](storage.md), [models and cost](../architecture/models-and-cost.md).
+Status: specification, being built ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Related: [agent runner](agent-runner.md), [line engine](line-engine.md), [storage](storage.md), [models and cost](../architecture/models-and-cost.md).
 
 ## 1. Purpose
 
@@ -50,9 +50,9 @@ Job statuses: `queued`, `running`, `waiting` (on an ask or a gate request), `pau
 - A job is startable when it is `queued`, its software is not paused, and the queue is not paused.
 - Agent jobs need a free session slot. At most two agent sessions run at once by default: every session draws on the same subscription limits, and more sessions at once mostly reach the limit sooner ([0074](../decisions/0074-two-agent-sessions-at-once.md)).
 - `run` jobs are done by the server, not an agent, and do not take a slot.
-- Order: jobs that unblock a person's view come first (a draft, a say-back, a report), then checks, then builds, then triage and readings; within one kind, oldest first.
+- Order: the most important software first, by its priority (1 to 5, [0138](../decisions/0138-priority-is-a-field-from-milestone-1.md)); then jobs that unblock a person's view (a draft, a say-back, a report), then checks, then builds, then triage and readings; within one kind, oldest first.
 - A software stopped at a milestone wait ([line engine](line-engine.md)) is not startable: no new job starts for it until the operator says to go on. Its asks stay answerable.
-- Effort (builders' reading, [0129](../decisions/0129-builders-reading-of-effort-and-milestone-waits.md)): a software with a share of weekly usage is not started once its share is used, read from usage-ledger and the weekly figure in Claude Code's own stream; it comes with cost in milestone 2. Priority orders the queue between softwares; it comes with several softwares in milestone 7.
+- Effort (builders' reading, [0129](../decisions/0129-builders-reading-of-effort-and-milestone-waits.md)): a software with a share of weekly usage is not started once its share is used, read from usage-ledger and the weekly figure in Claude Code's own stream; it comes with cost in milestone 2. Priority orders the queue between softwares, from milestone 1 ([0138](../decisions/0138-priority-is-a-field-from-milestone-1.md)).
 - Milestone 7: with several softwares, slots are shared fairly, taking turns between softwares that have startable jobs.
 
 ### 5.2 Restarts
@@ -75,6 +75,7 @@ Anything that must survive a crash goes through the work queue's table ([archite
 - When the subscription's usage limit is reached, Claude Code reports rate-limit retries. The agent runner tells the queue, which pauses all agent work until the limit resets, and the report says so ([models and cost](../architecture/models-and-cost.md)).
 - Running sessions are stopped cleanly and their jobs return to `queued`.
 - The page shows the pause and the expected reset time.
+- The queue resumes by itself at the reset time. A reset time that is missing, not a date, or already past is replaced by `queue.usage_pause_fallback_minutes` from now.
 - premise never turns on paid extra usage ([0100](../decisions/0100-floor-actions.md)).
 
 ### 5.5 Pausing for a budget overrun
@@ -93,7 +94,7 @@ Anything that must survive a crash goes through the work queue's table ([archite
 
 | Key | Default | Meaning |
 |---|---|---|
-| `queue.max_agent_sessions` | 2 | Agent sessions running at once ([0074](../decisions/0074-two-agent-sessions-at-once.md)) |
+| `queue.max_agent_sessions` | 2 | Agent sessions running at once ([0074](../decisions/0074-two-agent-sessions-at-once.md), [0132](../decisions/0132-sensible-things-are-configurable.md)) |
 | `queue.same_failure_limit` | 3 | Same failures before a task stops |
 | `queue.usage_pause_fallback_minutes` | 60 | How long to wait before trying again when the reset time is not known |
 
@@ -127,6 +128,7 @@ Anything that must survive a crash goes through the work queue's table ([archite
 - Milestone 1 step 1: the proof of the usage-limit pause (point 6 of step 1, [roadmap](../product/roadmap.md)): rate-limit events pause the work and it resumes after the reset; if the limit cannot be reached safely, the pause is shown with a simulated event.
 - Milestone 1 step 2: the work queue that survives a restart; two sessions; three-strike rule; usage-limit pause.
 - Milestone 1 step 2: a software stopped at a milestone wait is not startable.
-- Milestone 2 (needs usage-ledger usable): per-software budget pause; effort as a share of weekly usage.
+- Milestone 2 (against usage-ledger's mock until it exists, [0133](../decisions/0133-usage-ledger-is-mocked-until-it-exists.md)): per-software budget pause; effort as a share of weekly usage.
 - Milestone 4: `triage` and `reading` jobs.
-- Milestone 7: fair sharing between several softwares; priority between softwares.
+- Milestone 1 (foundation): the queue that survives a restart, the session limit, priority between softwares, the three-strike rule and the usage-limit pause, with the scripted agent.
+- Milestone 7: fair sharing between several softwares.

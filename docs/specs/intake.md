@@ -1,6 +1,6 @@
 # Intake specification
 
-Status: specification. Nothing is built until the owner says to start ([0061](../decisions/0061-nothing-built-until-the-owner-says.md)). Related: [intake and reporting](../architecture/intake-and-reporting.md), [line engine](line-engine.md), [gate](gate.md), [reporter](reporter.md), [agent tools](agent-tools.md).
+Status: specification, being built ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Related: [intake and reporting](../architecture/intake-and-reporting.md), [line engine](line-engine.md), [gate](gate.md), [reporter](reporter.md), [agent tools](agent-tools.md).
 
 ## 1. Purpose
 
@@ -130,6 +130,6 @@ These are where patterns show what people want ([0041](../decisions/0041-intake-
 ## 11. Milestones
 
 - Milestone 1 step 2: things the operator says in chat become intake that goes in normally. No triage agent yet: every item goes in normally.
-- Milestone 2 (needs usage-ledger usable): budget warnings as intake.
+- Milestone 2 (against usage-ledger's mock until it exists, [0133](../decisions/0133-usage-ledger-is-mocked-until-it-exists.md)): budget warnings as intake.
 - Milestone 4: intake from every source; triage; the in-normally, asked, held, and merged-or-closed routes; readings; the way back to Why; telling senders.
 - Milestone 7: incidents from software kept live come back as intake.

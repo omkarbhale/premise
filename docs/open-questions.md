@@ -2,31 +2,41 @@
 
 What is still open in premise's documents, and why. Everything else is decided; the choices are in the [decision records](decisions/README.md).
 
-## Open with the owner
+## Chosen for the owner
 
-- **When building starts.** The owner says ([0061](decisions/0061-nothing-built-until-the-owner-says.md)). Nothing is built until then.
-- **The owner's read of the vision.** Open since 2026-11-20; the vision is now draft 4, which adds one line in the owner's meaning for effort per software and milestone waits ([VISION.md](../VISION.md)).
-- **Which software goes through premise first.** One the owner actually needs, as early as possible, before the later milestones are built ([0127](decisions/0127-first-software-is-one-the-owner-needs.md)). The owner picks it when they want ([0050](decisions/0050-first-software-is-the-owners-pick.md)); until then nothing past milestone 1 follows from the record.
-- **Whether the builders' reading of effort and milestone waits is right.** Milestones proposed by premise and edited by the operator; each ending at running software and a report; a wait stopping premise until the operator says to go on; shares from usage-ledger and Claude Code's stream; priority ordering the queue; waits in milestone 1, shares in milestone 2, priority in milestone 7. Each is a builders' choice ([0129](decisions/0129-builders-reading-of-effort-and-milestone-waits.md)) the owner can correct.
-- **Where a rebuild could still come from.** The conversation itself (eleven fixed stages may feel like paperwork; the record's shape may not suit), which only use can settle, and the record's format, which is costly to undo ([0126](decisions/0126-what-is-being-built-confirmed.md)).
-- **Whether finding out if real people want the software is "out" or "later".** The owner said both "out" and "So later it is". It is written as out, with an active version at most a later idea; the assistant asked to be told if the owner meant it the other way, and no answer is recorded ([0036](decisions/0036-finding-out-if-people-want-it-is-out.md)). Nothing in the plan depends on it.
-- **The other Premise project** in an adjacent space, seen only through a search summary. keel is the assistant's fallback name if it has grown ([0037](decisions/0037-name-premise.md)). Nothing in the plan depends on it.
+The owner asked the assistant to choose an answer to every question that was open with the owner, and to keep the choices in the repository ("choose for me", [0136](decisions/0136-open-questions-chosen-for-the-owner.md)). Each is its own record and open to the owner's correction; a correction is a new record that supersedes it.
+
+| Question | Chosen | Record |
+| --- | --- | --- |
+| When building starts | Now, for the whole of premise (the owner's own word) | [0130](decisions/0130-the-build-starts-and-covers-all-of-premise.md) |
+| Which software goes through premise first | usage-ledger: the owner needs it and premise depends on it. It runs with real agents when the owner allows real agent work on the Claude login; until then demos use the scripted agent | [0137](decisions/0137-first-software-is-usage-ledger.md) |
+| Whether the builders' reading of effort and milestone waits is right | It stands, except that priority between softwares is a field on each software from milestone 1 (the work queue orders by it); usage shares stay with usage-ledger, mocked | [0138](decisions/0138-priority-is-a-field-from-milestone-1.md), [0129](decisions/0129-builders-reading-of-effort-and-milestone-waits.md) |
+| Whether finding out if real people want the software is "out" or "later" | Out, as written | [0139](decisions/0139-finding-out-if-people-want-it-stays-out.md) |
+| premise's own Claude Code login folder, or the owner's existing login | The owner's existing login; the folder is a setting | [0140](decisions/0140-the-owners-existing-claude-code-login.md) |
+| Creating GitHub repositories (milestone 1 step 1, point 7) | Automated tests use local git remotes only; the real GitHub step stays behind the gate and runs only on the owner's word | [0141](decisions/0141-github-repositories-in-tests-and-behind-the-gate.md) |
+| If bubblewrap or socat is missing | The setup check names what is missing and how to install it; premise refuses to start real agents without them | [0142](decisions/0142-setup-check-names-bubblewrap-and-socat.md) |
+| The other Premise project, and the name | The name stays premise | [0143](decisions/0143-the-name-stays-premise.md) |
+| Being reached from other machines | Stays off by default; no setting opens it | [0144](decisions/0144-reach-from-other-machines-stays-off.md) |
+| Using an API key | No API key is used | [0145](decisions/0145-no-api-key.md) |
+
+## Still open with the owner
+
+- **The owner's read of the vision.** Open since 2026-11-20; the vision is draft 4 ([VISION.md](../VISION.md)). The vision is the owner's statement, so the assistant does not choose it.
+- **Where a rebuild could still come from.** The conversation itself (eleven fixed stages may feel like paperwork; the record's shape may not suit), which only use can settle, and the record's format, which is costly to undo ([0126](decisions/0126-what-is-being-built-confirmed.md)). Use settles it, not a choice.
 
 ## The owner's calls that come later, named in the plan
 
 These are not open now; the plan says they wait for the owner when they arrive.
 
-- **The first software to prove the line on.** The owner picks it when they want ([0050](decisions/0050-first-software-is-the-owners-pick.md)); milestone 1 does not wait for it, but the later milestones are not built before it has gone through ([0127](decisions/0127-first-software-is-one-the-owner-needs.md), [0060](decisions/0060-first-software-does-not-hold-up-premise.md)).
-- **If milestone 1's first step fails.** If premise cannot drive Claude Code unattended on the owner's subscription, or the server cannot create and push a repository, work stops for the owner with the options, for example an API key, which spends money ([roadmap](product/roadmap.md#milestone-1-the-thinnest-line-end-to-end-for-any-small-software)). The first test passed points 1 to 5 and 7 of its own numbering, and the owner ruled the use allowed ([0124](decisions/0124-unattended-claude-code-on-the-subscription-is-allowed.md)); the repository step is still untested (below). If bubblewrap or socat is missing, work stops for the owner.
-- **Being reached from other machines.** Security-sensitive; a later decision for the owner ([0065](decisions/0065-one-open-session.md), [0079](decisions/0079-localhost-only.md)). Milestone 5 prepares it and does not decide it.
-- **Using an API key**, for milestone 5's clean-machine demo or for other people's setups on the owner's account. It spends money, so it waits for the owner ([0103](decisions/0103-subscription-only-for-the-owner.md), [0053](decisions/0053-when-work-stops-for-the-owner.md)).
+- **Real agent work on the owner's Claude login.** Used only when strictly necessary, on Haiku at low effort, very sparingly ([0134](decisions/0134-the-owners-claude-login-only-when-strictly-necessary.md)); running usage-ledger through premise with real agents waits for the owner's word ([0137](decisions/0137-first-software-is-usage-ledger.md)).
+- **The real GitHub step.** Creating a repository on the owner's GitHub runs once, on the owner's word ([0141](decisions/0141-github-repositories-in-tests-and-behind-the-gate.md)).
 - **Accounts.** Decided at milestone 5, when other people set premise up ([0045](decisions/0045-a-link-per-person-no-accounts.md)).
 
 ## Noted by the builders
 
 - **Not yet tested for milestone 1 step 1** ([test record](record/subscription-sandbox-test-2026-11-21.md)):
-  - the server, not an agent, creating a private GitHub repository and pushing to it (roadmap point 7);
-  - premise's own Claude Code configuration folder and login ([0076](decisions/0076-own-claude-code-configuration.md)); the test used the default login;
+  - the server, not an agent, creating a private GitHub repository and pushing to it (roadmap point 7), which is proved on a local remote and run on GitHub only on the owner's word ([0141](decisions/0141-github-repositories-in-tests-and-behind-the-gate.md));
+  - a Claude Code configuration folder other than the default, which is now a setting ([0140](decisions/0140-the-owners-existing-claude-code-login.md)); the test used the default login;
   - a real usage-limit rejection and resuming after the reset; only a simulated event was run;
   - the Sonnet and Opus tiers: the test used Haiku only;
   - process-level escapes from the sandbox (symlinks, `/proc`, git hooks, programs the agent runs), and an allowed host on the network list;
@@ -52,7 +62,8 @@ The owner asked to settle everything that needs the owner first, so premise can 
 ## Settled since the first records
 
 - **Which kind of software the first proof is on:** none; premise works for any kind ([0049](decisions/0049-any-kind-of-software.md)).
-- **The spending limit and cost tracking:** from usage-ledger ([0064](decisions/0064-cost-and-spending-limit-from-usage-ledger.md)).
+- **The spending limit and cost tracking:** from usage-ledger ([0064](decisions/0064-cost-and-spending-limit-from-usage-ledger.md)), mocked until it exists ([0133](decisions/0133-usage-ledger-is-mocked-until-it-exists.md)).
+- **How changes to premise ship:** through the no-mistakes validation pipeline; the assistant merges ([0131](decisions/0131-changes-go-through-the-validation-pipeline.md)).
 - **Whether unattended use of the owner's subscription is within Anthropic's terms:** allowed, by the owner's ruling ([0124](decisions/0124-unattended-claude-code-on-the-subscription-is-allowed.md)).
 - **Visibility of each software's repository:** per software, or whatever GitHub says ([0059](decisions/0059-repository-visibility-per-software.md)).
 - **Where people converse:** one session on the web page where everything is open; no per-person links ([0065](decisions/0065-one-open-session.md)).

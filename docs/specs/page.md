@@ -1,6 +1,6 @@
 # Page specification
 
-Status: specification. Nothing is built until the owner says to start ([0061](../decisions/0061-nothing-built-until-the-owner-says.md)). Related: [page server](page-server.md), [line engine](line-engine.md), [reporter](reporter.md), [gate](gate.md), [roles and use cases](../product/roles-and-use-cases.md).
+Status: specification, being built ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Related: [page server](page-server.md), [line engine](line-engine.md), [reporter](reporter.md), [gate](gate.md), [roles and use cases](../product/roles-and-use-cases.md).
 
 ## 1. Purpose
 

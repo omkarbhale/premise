@@ -1,6 +1,6 @@
 # 0052. How changes to premise ship, reconfirmed
 
-- Status: Accepted
+- Status: Partly superseded by [0131](0131-changes-go-through-the-validation-pipeline.md): that a change goes to a pull request with no automated review-and-test run; the assistant still merges
 - Scope: Making premise
 - Date: 2026-11-21
 - Decided by: The owner, agreeing to the assistant's recommendation (call 10): "10, 11, 12, I agree."
@@ -30,6 +30,8 @@
 ## Consequences
 
 - Every milestone's changes ship this way ([roadmap](../product/roadmap.md)).
+
+- **Partly superseded by** [0131](0131-changes-go-through-the-validation-pipeline.md): every change now goes through the no-mistakes validation pipeline; the assistant still merges.
 
 ## Related
 

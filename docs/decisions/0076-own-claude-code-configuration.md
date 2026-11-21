@@ -1,6 +1,6 @@
 # 0076. premise runs Claude Code with its own configuration folder
 
-- Status: Accepted
+- Status: Superseded by [0140](0140-the-owners-existing-claude-code-login.md)
 - Scope: The plan
 - Date: 2026-11-21
 - Decided by: The builders, in the plan of 2026-11-21. The owner did not make this choice.
@@ -27,6 +27,8 @@ premise runs Claude Code with its own configuration folder, logged in once by th
 - premise tells usage-ledger where its Claude Code sessions are recorded: this configuration folder ([models and cost](../architecture/models-and-cost.md)).
 - Agents cannot read Claude Code's login ([0087](0087-agents-run-confined.md)).
 - Carried in [where it runs](../architecture/where-it-runs.md); implemented by the [page server](../specs/page-server.md) (prerequisite check) and [agent runner](../specs/agent-runner.md) specs.
+
+- **Superseded by** [0140](0140-the-owners-existing-claude-code-login.md): premise uses the owner's existing Claude Code login by default; the folder is a setting.
 
 ## Related
 [0071](0071-headless-claude-code-agents.md), [0103](0103-subscription-only-for-the-owner.md), [0064](0064-cost-and-spending-limit-from-usage-ledger.md).

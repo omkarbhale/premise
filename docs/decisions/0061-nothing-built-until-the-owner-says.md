@@ -1,6 +1,6 @@
 # 0061. The whole plan is committed; nothing is built until the owner says to start
 
-- Status: Accepted
+- Status: Superseded by [0130](0130-the-build-starts-and-covers-all-of-premise.md)
 - Scope: Making premise
 - Date: 2026-11-21
 - Decided by: The owner: "Hold off on build, commit the entire plan and wait for me."
@@ -29,6 +29,8 @@
 
 - **Changes** [0042](0042-plan-top-down-settle-owner-calls-first.md): building still needs no further calls from the owner, but it starts only when the owner says.
 - Every milestone starts only when the owner says to start ([roadmap](../product/roadmap.md)). When building starts is an [open question](../open-questions.md) with the owner.
+
+- **Superseded by** [0130](0130-the-build-starts-and-covers-all-of-premise.md): the build has started and covers the whole of premise.
 
 ## Related
 

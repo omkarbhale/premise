@@ -1,6 +1,6 @@
 # 0040. How changes to premise ship: "Fast, I merge"
 
-- Status: Accepted
+- Status: Partly superseded by [0131](0131-changes-go-through-the-validation-pipeline.md): that a change goes to a pull request with no automated review-and-test run; the assistant still merges
 - Scope: Making premise
 - Date: 2026-11-20
 - Decided by: The owner: "Fast, I merge".
@@ -29,6 +29,8 @@
 
 - **Reconfirmed:** [0052](0052-fast-i-merge-reconfirmed.md).
 - How changes ship is described in [how premise is being made](../how-we-work.md).
+
+- **Partly superseded by** [0131](0131-changes-go-through-the-validation-pipeline.md): every change now goes through the no-mistakes validation pipeline; the assistant still merges.
 
 ## Related
 

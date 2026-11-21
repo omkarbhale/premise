@@ -1,12 +1,12 @@
 # Agent runner specification
 
-Status: specification. Nothing is built until the owner says to start ([0061](../decisions/0061-nothing-built-until-the-owner-says.md)). Related: [models and cost](../architecture/models-and-cost.md), [the floor and the gate](../architecture/the-floor-and-the-gate.md), [agent tools](agent-tools.md), [work queue](work-queue.md), [prompts](../prompts/README.md), [skills](../skills/README.md).
+Status: specification, being built ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Related: [models and cost](../architecture/models-and-cost.md), [the floor and the gate](../architecture/the-floor-and-the-gate.md), [agent tools](agent-tools.md), [work queue](work-queue.md), [prompts](../prompts/README.md), [skills](../skills/README.md).
 
 ## 1. Purpose
 
 The agent runner starts, watches and stops agent sessions. It gives each its own working copy, confinement and limits. It is the only part of premise that knows which agent runtime and provider are used ([0107](../decisions/0107-one-part-knows-the-runtime.md)). Other parts ask it for "an agent with these tools, in this working copy".
 
-All LLM work goes through it. It runs Claude Code on the owner's subscription ([0046](../decisions/0046-claude-through-the-owners-subscription.md), [0071](../decisions/0071-headless-claude-code-agents.md), [0076](../decisions/0076-own-claude-code-configuration.md)).
+All LLM work goes through it. It runs Claude Code on the owner's subscription ([0046](../decisions/0046-claude-through-the-owners-subscription.md), [0071](../decisions/0071-headless-claude-code-agents.md), [0140](../decisions/0140-the-owners-existing-claude-code-login.md)). Behind one interface, a scripted agent with no LLM stands in for Claude in every test and demo, and is the default ([0134](../decisions/0134-the-owners-claude-login-only-when-strictly-necessary.md), [0148](../decisions/0148-scripted-agent-driven-by-a-script-file.md)).
 
 ## 2. Responsibilities and non-responsibilities
 
@@ -53,7 +53,7 @@ Not responsible for:
 2. Assemble the instructions: the role's prompt from premise's repository, then every skill the role lists, in full, then the task brief with its placeholders filled ([0114](../decisions/0114-prompts-and-skills-as-files.md)).
 3. Create the session's tool token and MCP configuration ([agent tools](agent-tools.md)).
 4. Start Claude Code headless (`claude -p` with streamed JSON output) as a child process ([0071](../decisions/0071-headless-claude-code-agents.md)):
-   - with premise's own configuration folder, logged in once by the owner, so the owner's personal hooks, skills, memory and settings never load into an agent, and premise's sessions stay apart from the owner's own ([0076](../decisions/0076-own-claude-code-configuration.md));
+   - with the owner's existing Claude Code login by default, or the configuration folder named in `agents.claude_config_folder` ([0140](../decisions/0140-the-owners-existing-claude-code-login.md), which supersedes premise's own folder of [0076](../decisions/0076-own-claude-code-configuration.md));
    - with no API key anywhere in its environment ([0103](../decisions/0103-subscription-only-for-the-owner.md));
    - with the model alias for the role's tier;
    - with the role's allowed tools only;
@@ -112,7 +112,8 @@ Every agent runs confined: Claude Code's sandbox for shell commands, plus permis
 
 | Key | Default | Meaning |
 |---|---|---|
-| `agents.claude_config_folder` | `claude-config` in the data folder | premise's own Claude Code configuration |
+| `agents.claude_config_folder` | none: the owner's existing login | A Claude Code configuration folder to use instead ([0140](../decisions/0140-the-owners-existing-claude-code-login.md)) |
+| `agents.mode` | `scripted` | `scripted` (no LLM) or `claude` ([0134](../decisions/0134-the-owners-claude-login-only-when-strictly-necessary.md)) |
 | `agents.tier.strongest` | Claude Code's alias for the strongest tier | Model alias for strongest-tier roles |
 | `agents.tier.fast` | Claude Code's alias for a fast tier | Model alias for fast-tier roles |
 | `agents.max_turns.build` | 200 | Turn limit for a build session |
@@ -134,7 +135,7 @@ Every agent runs confined: Claude Code's sandbox for shell commands, plus permis
 
 | Failure | Detection | Effect | Recovery |
 |---|---|---|---|
-| Claude Code not logged in in premise's folder | Start check | No agent starts | "Needed": the owner logs in once ([page server](page-server.md)) |
+| Claude Code not logged in | Start check | No agent starts | "Needed": the owner logs in once ([page server](page-server.md)) |
 | An API key is found in the environment | Start check | No agent starts | Removed from the child's environment; if it cannot be, reported |
 | Confinement unavailable (bubblewrap or socat missing) | Start check | No agent starts | Named as missing; the owner installs them |
 | An agent writes or reads outside its confinement | Denied by sandbox or permission rule | The action fails in the session | Recorded; repeated attempts count toward the three-strike rule |
@@ -171,5 +172,5 @@ If point 1, 2, 7 or 8 cannot be proven, work stops for the owner there; the repo
 Later milestones:
 
 - Milestone 1 step 2: every agent role used by the thinnest line.
-- Milestone 2 (needs usage-ledger usable): session-to-task records in usage-ledger's format.
+- Milestone 2 (against usage-ledger's mock until it exists, [0133](../decisions/0133-usage-ledger-is-mocked-until-it-exists.md)): session-to-task records in usage-ledger's format.
 - Milestone 5: each person's own model access; other providers if needed, added here only.

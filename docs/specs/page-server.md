@@ -1,6 +1,6 @@
 # Page server specification
 
-Status: specification. Nothing is built until the owner says to start ([0061](../decisions/0061-nothing-built-until-the-owner-says.md)). Related: [where it runs](../architecture/where-it-runs.md), [page](page.md), [storage](storage.md), [agent runner](agent-runner.md), [architecture overview](../architecture/overview.md).
+Status: specification, being built ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Related: [where it runs](../architecture/where-it-runs.md), [page](page.md), [storage](storage.md), [agent runner](agent-runner.md), [architecture overview](../architecture/overview.md).
 
 ## 1. Purpose
 
@@ -71,12 +71,12 @@ Errors are returned as an HTTP status with a short message: 401 for a missing or
 Installed once and checked at every start; premise names whatever is missing ([where it runs](../architecture/where-it-runs.md)):
 
 - Node.js LTS and git;
-- Claude Code, logged in once with the owner's subscription in premise's own configuration folder ([0076](../decisions/0076-own-claude-code-configuration.md));
+- Claude Code, logged in with the owner's subscription: the existing login by default, or the folder the settings name ([0140](../decisions/0140-the-owners-existing-claude-code-login.md));
 - the GitHub CLI, logged in as the owner ([0077](../decisions/0077-github-through-existing-cli-login.md));
 - on Linux and WSL2, bubblewrap and socat, which Claude Code's sandbox needs ([0087](../decisions/0087-agents-run-confined.md)). Installing them needs the owner's administrator password, so premise names them and the owner installs them;
-- usage-ledger, once it is usable ([0064](../decisions/0064-cost-and-spending-limit-from-usage-ledger.md); milestone 2).
+- usage-ledger, once it exists; until then a mock stands in ([0133](../decisions/0133-usage-ledger-is-mocked-until-it-exists.md)).
 
-Anything missing is printed, with exactly what to do. premise starts without usage-ledger before milestone 2; it does not start agents without Claude Code, the GitHub CLI or confinement.
+Anything missing is printed, with exactly what to do. The same check runs on its own as `premise doctor`. premise starts without usage-ledger; it does not start real agents without Claude Code, the GitHub CLI or confinement ([0142](../decisions/0142-setup-check-names-bubblewrap-and-socat.md)); scripted agents need none of them.
 
 ### 5.2 The session
 
@@ -132,6 +132,6 @@ Anything missing is printed, with exactly what to do. premise starts without usa
 ## 11. Milestones
 
 - Milestone 1 step 2: the server; the session's link and token; the API and event stream; the prerequisite check.
-- Milestone 2 (needs usage-ledger usable): usage-ledger in the prerequisite check.
+- Milestone 2 (against usage-ledger's mock until it exists, [0133](../decisions/0133-usage-ledger-is-mocked-until-it-exists.md)): usage-ledger in the prerequisite check.
 - Milestone 4: feedback pages.
 - Milestone 5: one install command, and a setup check that names what is missing; premise hosted in a container on a host its operator chooses; accounts, decided then. Being reached from other machines is prepared, not decided: every step that exposes premise beyond one machine waits for the person running it; for the owner's own setup, the owner.

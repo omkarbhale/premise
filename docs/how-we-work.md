@@ -56,16 +56,21 @@ Sources: [the conversation](record/conversation-2026-11-20.md), [the shaping not
 
 ## How changes ship
 
-- The owner's choice: "Fast, I merge".
-- Every change goes straight to a pull request with no automated review-and-test run, and the assistant merges it. As offered: "Fastest, least checked."
-- The other options and why they were not chosen are in record [0040](decisions/0040-fast-i-merge.md).
-- Reconfirmed on 2026-11-21 ([0052](decisions/0052-fast-i-merge-reconfirmed.md)).
+- From 2026-11-21, the owner: "Use no-mistakes pipeline" ([0131](decisions/0131-changes-go-through-the-validation-pipeline.md)).
+- Every change goes through the no-mistakes validation pipeline: automated review, tests, lint, the type check and the build, then the push, the pull request and continuous integration running the same commands. The commands are in `.no-mistakes.yaml`; the continuous-integration workflow mirrors them.
+- The assistant merges, as before.
+- Before that, the owner's choice was "Fast, I merge": a pull request with no automated run ([0040](decisions/0040-fast-i-merge.md), reconfirmed in [0052](decisions/0052-fast-i-merge-reconfirmed.md)). Who merges stands; the "no automated run" part is superseded.
+- Tests and continuous integration never call Claude or any LLM, and never touch the network or GitHub. They use a scripted agent ([0134](decisions/0134-the-owners-claude-login-only-when-strictly-necessary.md), [0148](decisions/0148-scripted-agent-driven-by-a-script-file.md)).
 
 ## Building without the owner (from 2026-11-21)
 
 - The owner asked to settle every call that needs the owner first, so that premise can be built without the owner ([0042](decisions/0042-plan-top-down-settle-owner-calls-first.md)). The calls and follow-ups are records 0043–0060; the decisions after them are 0061–0066.
-- Nothing is built until the owner says to start; the whole plan is committed first ([0061](decisions/0061-nothing-built-until-the-owner-says.md)). The plan is now carried by the [architecture](architecture/overview.md), the [roadmap](product/roadmap.md) and the [decision records](decisions/README.md) ([0066](decisions/0066-documents-follow-the-aras-insight-layout.md)).
-- Once building starts, the builders decide the rest of the design and record each choice with its reason and the alternative rejected, as a new [decision record](decisions/README.md).
+- The whole plan was committed first and building held ([0061](decisions/0061-nothing-built-until-the-owner-says.md)), until the owner said to build the whole of premise ([0130](decisions/0130-the-build-starts-and-covers-all-of-premise.md), [the instruction](record/instruction-2026-11-21-build-starts.md)). The plan is carried by the [architecture](architecture/overview.md), the [roadmap](product/roadmap.md) and the [decision records](decisions/README.md) ([0066](decisions/0066-documents-follow-the-aras-insight-layout.md)).
+- premise is built as a series of tasks, in the roadmap's order; the first is the foundation.
+- The builders decide the rest of the design and record each choice with its reason and the alternative rejected, as a new [decision record](decisions/README.md).
+- Questions that would otherwise wait for the owner are chosen by the assistant for the owner, each recorded and open to the owner's correction ([0136](decisions/0136-open-questions-chosen-for-the-owner.md), [open questions](open-questions.md)).
+- The owner's Claude login is not used for regular tasks: only when strictly necessary, on Haiku at low effort, very sparingly ([0134](decisions/0134-the-owners-claude-login-only-when-strictly-necessary.md)).
+- Reasonable suggestions left out of a task, because they are not in the plan or are too much for it, go in as GitHub issues on premise's repository, one per suggestion; the task is not widened for them ([0149](decisions/0149-left-out-suggestions-become-github-issues.md)).
 - Work stops for the owner only on destructive, security-sensitive, public-facing or money-spending actions ([0053](decisions/0053-when-work-stops-for-the-owner.md)).
 - One short report per finished milestone; an immediate message only when something needs the owner ([0054](decisions/0054-reports-to-the-owner.md)).
 

@@ -2,7 +2,7 @@
 
 This folder specifies every module of premise in enough detail to build it without a further design conversation. The specifications describe behaviour, interfaces, data, limits and failure handling in lists and tables; they contain no code. They sit below the [architecture overview](../architecture/overview.md), which explains how the parts fit together, and the [decision records](../decisions/README.md), which explain why.
 
-Nothing is built until the owner says to start ([0061](../decisions/0061-nothing-built-until-the-owner-says.md)). When building starts, these specifications are what the builders build from.
+The build has started ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)); these specifications are what the builders build from. Settings are listed in the [configuration reference](../reference/configuration.md), generated from the code.
 
 ## How to read these documents
 
