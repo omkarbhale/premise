@@ -255,7 +255,7 @@ describe("GitHub issues as an intake source", () => {
     // Its sender is told where the item it joined stands.
     const standing = await plain(app, "GET", receipt);
     expect(standing.html).toContain("Done");
-    expect(standing.html).toContain("It repeats something already in hand");
+    expect(standing.html).toContain("joined with an earlier report of the same thing");
   });
 
   it("declining a comment leaves the item visible, and a failing reading is said plainly", async () => {
