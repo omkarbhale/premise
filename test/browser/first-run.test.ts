@@ -361,8 +361,9 @@ describe("first run, in a browser", () => {
       // premise's best guess where there is one; otherwise the card's main button.
       const guess = next.getByRole("button", { name: "Go with this" });
       const go = next.locator("button.primary:enabled").first();
-      if (await guess.isVisible()) await guess.click();
-      else if (await go.isVisible()) await go.click();
+      // A card can change or go while it is clicked; a missed click is tried again on the next turn.
+      if (await guess.isVisible()) await guess.click({ timeout: 5_000 }).catch(() => undefined);
+      else if (await go.isVisible()) await go.click({ timeout: 5_000 }).catch(() => undefined);
       await page.waitForTimeout(500);
     }
     await record.waitFor({ timeout: 20_000 });

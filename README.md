@@ -8,7 +8,7 @@ One product that takes software from an idea to running software, and keeps taki
 
 The full statement is in [VISION.md](VISION.md).
 
-premise is being built, and most of the line already works: see the [status page](docs/status.md) for what is in and what is not.
+premise is built from idea to running software, with intake, existing software, roles, measures, several softwares at once and cost (on a mock of usage-ledger). One real run has been made, a tiny command-line tool with every agent on the fast tier at low effort; everything else was shown with scripted agents. The [status page](docs/status.md) says what is built, what has not been exercised with real agents or real GitHub, what is mocked and what waits.
 
 ## Quick start
 
