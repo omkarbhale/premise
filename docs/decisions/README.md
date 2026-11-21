@@ -16,7 +16,7 @@ Words: the **owner** is the person premise is being made for; the **assistant** 
 - Records 0001–0065 are the entries of the old `docs/decisions.md`, with the same numbers ([0112](0112-record-numbering-keeps-old-entry-numbers.md)). Entries 1–41 are dated 2026-11-20 and 42 onward 2026-11-21.
 - Record 0066 is the owner's decision to lay the documents out this way.
 - Records 0067–0110 are the old `docs/plan.md` choices: P*n* is record 0066 + *n* (P1 is 0067, P44 is 0110).
-- Records 0111–0123 are builders' choices made while writing these documents, the specifications, the prompts and the skills.
+- Records 0111–0125 are builders' choices made while writing these documents, the specifications, the prompts and the skills; 0124 is the owner's ruling after the first test of the plan, and 0125 is the builders' choice from that test.
 - Every record has a **Source** line. For records 0001–0040 it points into the [conversation record](../record/conversation-2026-11-20.md) and, where used, the [shaping notes](../record/shaping-notes-2026-11-20.md) and the [scope page draft](../record/scope-page-draft-0.1.html). Records 0041–0065 quote the owner from the assistant's notes of the 2026-11-21 conversations, which are not kept in this repository. The old single files are in git history at commit f62615a.
 - **Status** is Accepted, Superseded by NNNN, or Partly superseded by NNNN (naming the part). A record is never edited to reverse its decision: a new record supersedes it and both are kept. The new record carries a "Supersedes" or "Partly supersedes" line.
 - **Scope** says where a decision holds: *The product* (premise as envisioned), *The plan* (premise as planned, across milestones), *Milestone N*, or *Making premise* (how premise itself is made).
@@ -27,6 +27,7 @@ Superseded so far:
 - [0058](0058-cost-tracking-inside-premise.md) by [0064](0064-cost-and-spending-limit-from-usage-ledger.md): cost and the spending limit come from usage-ledger.
 - [0033](0033-answers-to-the-ten-assumptions.md), item 8, partly by [0049](0049-any-kind-of-software.md): no first kind of software.
 - [0045](0045-a-link-per-person-no-accounts.md), the link per person, partly by [0065](0065-one-open-session.md): one open session; no accounts still stands.
+- [0087](0087-agents-run-confined.md), the container fallback, partly by [0125](0125-the-claude-code-sandbox-is-the-confinement.md): the sandbox is the confinement; every agent still runs confined.
 
 How the decisions fit together is in the [architecture overview](../architecture/overview.md); the order of building is in the [roadmap](../product/roadmap.md); what is still open is in [open questions](../open-questions.md).
 
@@ -134,7 +135,8 @@ How the decisions fit together is in the [architecture overview](../architecture
 | --- | --- | --- | --- |
 | 0015 | [Some things are never traded for speed (accepted in principle)](0015-a-floor-never-traded-for-speed.md) | owner | Accepted |
 | 0056 | [What is never traded for speed](0056-what-is-on-the-floor.md) | owner | Accepted |
-| 0087 | [Every agent runs confined](0087-agents-run-confined.md) | builders | Accepted |
+| 0087 | [Every agent runs confined](0087-agents-run-confined.md) | builders | Partly superseded by [0125](0125-the-claude-code-sandbox-is-the-confinement.md): the container fallback |
+| 0125 | [The Claude Code sandbox is the confinement; no container fallback on the owner's machine](0125-the-claude-code-sandbox-is-the-confinement.md) | builders | Accepted |
 | 0092 | [Security defaults for every software](0092-security-defaults.md) | builders | Accepted |
 | 0100 | [Floor actions](0100-floor-actions.md) | builders | Accepted |
 | 0101 | [The gate asks in the session, under the role whose call it is](0101-the-gate-asks-in-the-session.md) | builders | Accepted |
@@ -173,6 +175,7 @@ How the decisions fit together is in the [architecture overview](../architecture
 | 0074 | [At most two agent sessions at once by default](0074-two-agent-sessions-at-once.md) | builders | Accepted |
 | 0075 | [premise's code is one package in this repository](0075-one-package.md) | builders | Accepted |
 | 0103 | [The owner's subscription only through Claude Code, for the owner's own use](0103-subscription-only-for-the-owner.md) | builders | Accepted |
+| 0124 | [Unattended use of Claude Code on the owner's subscription is allowed](0124-unattended-claude-code-on-the-subscription-is-allowed.md) | owner | Accepted |
 | 0104 | [Model tier by role](0104-model-tier-by-role.md) | builders | Accepted |
 | 0105 | [Models named by tier aliases, not pinned versions](0105-tier-aliases.md) | builders | Accepted |
 | 0106 | [What is set per software, and what stays with premise](0106-per-software-and-with-premise.md) | builders | Accepted |

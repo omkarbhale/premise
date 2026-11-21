@@ -44,7 +44,8 @@ If usage-ledger is not usable when milestone 1 ends, milestone 3 goes first and 
 
 Thinnest means: one software at a time; only the operator; no taste claims; intake only from the operator's chat; no cost figures.
 
-**Step 1: prove that premise can drive LLM work unattended through the owner's Claude subscription, on the owner's machine.**
+**Step 1: prove that premise can drive LLM work unattended through the owner's Claude subscription, on the owner's machine.** Done 2026-11-21, apart from what is named below: see the [test record](../record/subscription-sandbox-test-2026-11-21.md). It was a proof of concept; no code from it is kept in this repository.
+- Still untested: point 7 (the server creating and pushing to a private repository); point 1's premise-owned configuration folder (the test used the default login); point 6 beyond a simulated event; behaviour on the Sonnet and Opus tiers; process-level escapes from the sandbox.
 - Built: a small TypeScript program, the start of the agent runner. On the owner's machine it must show each of these:
   1. It starts Claude Code headless as a child process, logged in with the owner's subscription in premise's own configuration folder, with no API key anywhere in its environment.
   2. The session finishes a multi-step coding task (write a tiny program, test it, commit it) with nobody answering anything. Whatever would need permission is denied and reported, not waited on.
@@ -53,9 +54,9 @@ Thinnest means: one software at a time; only the operator; no taste claims; inta
   5. Each session's id is recorded against the task it did, so usage can be attributed later.
   6. The subscription's usage limit is handled: rate-limit events pause the work, and it resumes after the reset. If the limit cannot be reached safely, the pause is shown with a simulated event.
   7. The server, not an agent, creates a private repository on the owner's GitHub and pushes to it.
-  8. The use stays within [0103](../decisions/0103-subscription-only-for-the-owner.md) (P37): Anthropic's own Claude Code, the owner's login, the owner's machine, the owner's own use.
+  8. The use stays within [0103](../decisions/0103-subscription-only-for-the-owner.md) (P37): Anthropic's own Claude Code, the owner's login, the owner's machine, the owner's own use. Settled by the owner's ruling, [0124](../decisions/0124-unattended-claude-code-on-the-subscription-is-allowed.md).
 - **If point 1, 2, 7 or 8 cannot be proven, work stops for the owner there.** The report says what failed and what the options are, for example an API key, which spends money. Nothing else in milestone 1 starts.
-- If point 3 or 4 fails, agents run in a container per session instead ([0087](../decisions/0087-agents-run-confined.md)). That makes Docker a prerequisite, which the report names. If Docker is not available, work stops for the owner, because running agents unconfined is security-sensitive.
+- Points 3 and 4 held with Claude Code's sandbox, so the container fallback of [0087](../decisions/0087-agents-run-confined.md) is not needed on the owner's machine ([0125](../decisions/0125-the-claude-code-sandbox-is-the-confinement.md)). If bubblewrap or socat is missing, agents do not run, because running them unconfined is security-sensitive.
 - Shown running: the program's log, the task's commits, the confinement tests' output, the session records.
 - Reported: each of the eight points, passed or failed, with its evidence.
 

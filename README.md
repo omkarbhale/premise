@@ -102,6 +102,7 @@ Details: [scope](docs/product/scope.md); order: [roadmap](docs/product/roadmap.m
 **Raw history, never edited**
 - [docs/record/conversation-2026-11-20.md](docs/record/conversation-2026-11-20.md): the whole conversation in order, both sides.
 - [docs/record/shaping-notes-2026-11-20.md](docs/record/shaping-notes-2026-11-20.md): the assistant's running notes during the conversation.
+- [docs/record/subscription-sandbox-test-2026-11-21.md](docs/record/subscription-sandbox-test-2026-11-21.md): the first test of the plan, unattended Claude Code on the owner's subscription inside Claude Code's sandbox.
 - [docs/record/scope-page-draft-0.1.html](docs/record/scope-page-draft-0.1.html): a review page drafted mid-conversation and later dropped in favour of the vision statement.
 - [docs/prior-art/report.md](docs/prior-art/report.md): the prior-art research report.
 - [docs/prior-art/ask.md](docs/prior-art/ask.md): what that research was asked to do.
