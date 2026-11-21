@@ -258,6 +258,72 @@ describe("GitHub issues as an intake source", () => {
     expect(standing.html).toContain("joined with an earlier report of the same thing");
   });
 
+  it("posts, for each approved request, the words on that request's card, even with two comments waiting for one item", async () => {
+    const issues = new FixtureIssueSource();
+    const app = await testApp(
+      {},
+      { issues, script: script(triager(() => routed("opinion", "held"))) },
+    );
+    const id = await runningSoftware(app);
+    issues.link(id, "demo/books");
+    issues.open("demo/books", { number: 5, title: "Dark mode please", body: "" });
+    await app.call("POST", `/api/softwares/${id}/intake/read-issues`);
+    await app.settle();
+    const held = await item(app, id, "I-1");
+    expect(held.status).toBe("held");
+    await app.call("POST", `/api/intake/${held.id}/undo`);
+    await app.settle();
+    expect((await item(app, id, "I-1")).status).toBe("running");
+
+    const cards = await approvals(app, id);
+    expect(cards).toHaveLength(2);
+    const heldCard = cards.find((c) => c.approval!.action.includes("has been noted"))!;
+    const runningCard = cards.find((c) => c.approval!.action.includes("now running"))!;
+    expect(heldCard).toBeDefined();
+    expect(runningCard).toBeDefined();
+
+    await app.call("POST", `/api/asks/${heldCard.id}/answer`, {
+      answer: { kind: "approval", decision: "approve-once" },
+    });
+    await app.settle();
+    expect(issues.comments).toHaveLength(1);
+    expect(issues.comments[0]!.text).toContain("has been noted");
+
+    await app.call("POST", `/api/asks/${runningCard.id}/answer`, {
+      answer: { kind: "approval", decision: "approve-once" },
+    });
+    await app.settle();
+    expect(issues.comments).toHaveLength(2);
+    expect(issues.comments[1]!.text).toContain("now running");
+  });
+
+  it("posts the comment at once when posting is already approved as a kind", async () => {
+    const issues = new FixtureIssueSource();
+    const app = await testApp(
+      {},
+      { issues, script: script(triager(() => routed("opinion", "held"))) },
+    );
+    const id = await runningSoftware(app);
+    issues.link(id, "demo/books");
+    issues.open("demo/books", { number: 6, title: "First opinion", body: "" });
+    await app.call("POST", `/api/softwares/${id}/intake/read-issues`);
+    await app.settle();
+    const [card] = await approvals(app, id);
+    await app.call("POST", `/api/asks/${card!.id}/answer`, {
+      answer: { kind: "approval", decision: "approve-kind" },
+    });
+    await app.settle();
+    expect(issues.comments).toHaveLength(1);
+
+    issues.open("demo/books", { number: 7, title: "Second opinion", body: "" });
+    await app.call("POST", `/api/softwares/${id}/intake/read-issues`);
+    await app.settle();
+    expect(await approvals(app, id)).toEqual([]);
+    expect(issues.comments).toHaveLength(2);
+    expect(issues.comments[1]).toMatchObject({ number: 7 });
+    expect((await item(app, id, "I-2")).senderNote).toContain("was told on GitHub");
+  });
+
   it("declining a comment leaves the item visible, and a failing reading is said plainly", async () => {
     const issues = new FixtureIssueSource();
     const app = await testApp(
