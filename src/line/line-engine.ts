@@ -714,6 +714,12 @@ export class LineEngine {
   /** The operator changes a piece's size; its stages' budgets follow. */
   async setItemSize(itemId: number, size: SizeClass): Promise<void> {
     const item = this.requireItem(itemId);
+    if (["done", "withdrawn", "dropped"].includes(item.state)) {
+      throw new ServiceError(
+        "INVALID",
+        "That piece of work is finished, so its size cannot change. Send the software back to change it.",
+      );
+    }
     if (!(SIZE_CLASSES as readonly string[]).includes(size)) {
       throw new ServiceError("INVALID", `The size must be small, medium or large.`);
     }
