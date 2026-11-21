@@ -420,6 +420,28 @@ describe("intake in a thin form", () => {
     expect(said.some((t) => t.startsWith("I-1: a question, answered from the record"))).toBe(true);
   });
 
+  it("answers a question even when the triager asks, or flags the floor", async () => {
+    const app = await testApp(
+      {},
+      {
+        script: script(
+          triager(() =>
+            routed("question", "asked-at-once", {
+              touches_floor: "yes",
+              answer: "It keeps the list in one file on this machine.",
+            }),
+          ),
+        ),
+      },
+    );
+    const id = await runningSoftware(app);
+    await say(app, id, "Where does it keep my list?");
+    const question = await item(app, id, "I-1");
+    expect(question).toMatchObject({ status: "answered", workItemId: null });
+    expect(question.answer).toContain("It keeps the list in one file");
+    expect(await openAsks(app, id)).toHaveLength(0);
+  });
+
   it("refuses a triage it cannot use, and goes in normally when the triager gives none", async () => {
     const app = await testApp(
       {},

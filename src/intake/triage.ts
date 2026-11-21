@@ -147,11 +147,15 @@ export function readTriage(
     notes.push("premise took it in normally: only duplicates and noise are merged or closed.");
     route = "in-normally";
   }
+  if (kind === "question" && route !== "in-normally") {
+    notes.push("premise took it in normally: a question is answered from the record, never asked or built.");
+    route = "in-normally";
+  }
   if (kind === "change-of-purpose" && route !== "asked-at-once") {
     notes.push("premise asks you: only you decide a change of purpose.");
     route = "asked-at-once";
   }
-  if (floor && route !== "asked-at-once" && route !== "merged-or-closed") {
+  if (floor && kind !== "question" && route !== "asked-at-once" && route !== "merged-or-closed") {
     notes.push(
       "premise asks you: it touches the floor (data, security, money or acting in someone's name).",
     );
