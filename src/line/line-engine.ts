@@ -3,8 +3,20 @@ import { join } from "node:path";
 import type { AgentOutcome } from "../agents/agent-runner.js";
 import type { ToolBinding, ToolEnvelope } from "../agents/tool-server.js";
 import { toolFail, toolOk } from "../agents/tool-server.js";
-import type { BudgetGroup, PremiseConfig, StageBudget, FloorKind } from "../config/settings.js";
-import { type Gate, GateError, type GateRequest, KIND_LABELS, isFloorKind } from "../gate/gate.js";
+import {
+  type BudgetGroup,
+  FLOOR_KINDS,
+  type PremiseConfig,
+  type StageBudget,
+  type FloorKind,
+} from "../config/settings.js";
+import {
+  type Gate,
+  GateError,
+  type GateRequest,
+  type PerformResult,
+  isFloorKind,
+} from "../gate/gate.js";
 import {
   GitHubRepositoryHost,
   LocalRepositoryHost,
@@ -218,6 +230,7 @@ type AskPurpose =
   | "milestones"
   | "stage-problem"
   | "milestone-reached"
+  | "start-command"
   | "taste-proposal"
   | "agent";
 
@@ -541,7 +554,7 @@ export class LineEngine implements IntakeLine {
       id: a.id,
       softwareId: a.softwareId,
       kind: a.kind,
-      label: KIND_LABELS[a.kind],
+      label: a.label,
       role: a.role,
       given: a.given,
     }));
@@ -1238,7 +1251,28 @@ export class LineEngine implements IntakeLine {
   private afterRecoveredSayBack(softwareId: string): void {
     setExisting(this.db, softwareId, { status: "taken-on" });
     this.offerRecordCommit(softwareId);
+    this.askHowToStart(softwareId);
     this.advance(softwareId, "say-back", "recovered record checked");
+  }
+
+  /**
+   * When the code did not say how to start it, ask under Waiting on you rather than leave it in a
+   * long message. The answer is taken in as intake, like anything said in the conversation.
+   */
+  private askHowToStart(softwareId: string): void {
+    const existing = this.takenOn(softwareId);
+    if (!existing || existing.run.premiseRun) return;
+    const software = getSoftware(this.db, softwareId)!;
+    createAsk(this.db, {
+      softwareId,
+      role: OPERATOR,
+      kind: "question",
+      stage: "intake",
+      title: `How do you start ${software.name}?`,
+      instruction:
+        "premise did not find in the code how to start it, so it cannot start it or try a change yet. Write the command you type to start it, and the folder you type it in if it matters; for a web page, also the address you open. Your answer is taken in like anything said in the conversation, and goes through the line.",
+      extra: { meta: { purpose: "start-command" } },
+    });
   }
 
   /** The record goes into the operator's own repository only through the gate (decision 0189). */
@@ -1247,15 +1281,30 @@ export class LineEngine implements IntakeLine {
     const existing = this.takenOn(softwareId);
     if (!existing) return;
     const branch = this.config.existing.record_branch;
+    const folder = this.config.record.folder;
+    const local = existing.sourceKind === "folder";
     const request = this.options.gate.request({
       softwareId,
-      kind: "publish",
-      action: `Add premise's record of ${software.name} (the ${this.config.record.folder}/ folder, in commits on top of your history) to your repository at ${existing.source}, on a branch named ${branch}. Your other branches and your working folder are not touched; merge the branch when you want.`,
+      kind: "write-repository",
+      act: "add-record",
+      action: `Create a branch named ${branch} in your repository at ${existing.source}, holding premise's record of ${software.name}: a new ${folder}/ folder, in commits on top of your history. Your other branches${local ? " and your working folder" : ""} are left alone; merge the branch when you want.`,
       why: "So the record lives with the code, where it outlives premise. Until then it is only in premise's own copy.",
       requestedBy: "line engine",
       perform: "add-record",
       stage: "say-back",
       waiting: "adding the record to your repository",
+      card: {
+        title: "Add premise's record to your repository?",
+        standingLabel: "adding and updating premise's record in your repository",
+        reality: {
+          real: true,
+          text: local
+            ? `Even when the agents are scripted, approving writes a branch named ${branch} with a ${folder}/ folder to your repository on this machine. Nothing leaves this machine.`
+            : `Even when the agents are scripted, approving pushes a branch named ${branch} with a ${folder}/ folder to your repository at ${existing.source}, with your own git login.`,
+        },
+        whyNow:
+          "You have gone through what premise recovered, so the record is ready to keep with the code.",
+      },
     });
     if (request.status === "asked") {
       setExisting(this.db, softwareId, {
@@ -1271,15 +1320,30 @@ export class LineEngine implements IntakeLine {
     const existing = this.takenOn(softwareId);
     if (!existing || existing.recordStatus !== "added") return;
     const software = getSoftware(this.db, softwareId)!;
+    const branch = this.config.existing.record_branch;
+    const local = existing.sourceKind === "folder";
     this.options.gate.request({
       softwareId,
-      kind: "publish",
-      action: `Push premise's latest change of ${software.name}${ref ? ` (${ref})` : ""} to the branch ${this.config.existing.record_branch} in your repository at ${existing.source}.`,
+      kind: "write-repository",
+      act: "push-record",
+      action: `Update the branch ${branch} in your repository at ${existing.source} with premise's latest change of ${software.name}${ref ? ` (${ref})` : ""}. Your other branches${local ? " and your working folder" : ""} are left alone.`,
       why: "So your repository keeps up with what premise changed and recorded.",
       requestedBy: "line engine",
       perform: "add-record",
       stage: "intake",
-      waiting: "pushing the change to your repository",
+      waiting: "updating the branch in your repository",
+      card: {
+        title: "Update premise's branch in your repository?",
+        standingLabel: "updating premise's branch in your repository",
+        reality: {
+          real: true,
+          text: local
+            ? `Even when the agents are scripted, approving adds commits to the branch ${branch} in your repository on this machine. Nothing leaves this machine.`
+            : `Even when the agents are scripted, approving pushes commits to the branch ${branch} at ${existing.source}, with your own git login.`,
+        },
+        whyNow:
+          "A change premise made reached running, so the branch in your repository is behind.",
+      },
     });
   }
 
@@ -1750,7 +1814,7 @@ export class LineEngine implements IntakeLine {
       const approval = this.options.gate.withdraw(id);
       this.premiseSays(
         approval.softwareId,
-        `Withdrawn: premise will ask again before ${KIND_LABELS[approval.kind]}. What was already done stays done.`,
+        `Withdrawn: premise will ask again before ${approval.label}. What was already done stays done.`,
       );
     } catch (error) {
       if (error instanceof GateError) throw new ServiceError("NOT_FOUND", error.message);
@@ -2153,7 +2217,12 @@ export class LineEngine implements IntakeLine {
       );
     if (outcome.kind === "passed") {
       if (!open) {
-        this.premiseSays(software.id, `The whole of ${this.label(item)} passed its check.`);
+        this.premiseSays(
+          software.id,
+          this.wholeCheck.standIn
+            ? `Every part of ${this.label(item)} was checked on its own. Checking the parts together is not built yet, so how they work together is not verified.`
+            : `The whole of ${this.label(item)} passed its check.`,
+        );
         this.resumeParent(software.id, item);
       }
       return;
@@ -2487,13 +2556,14 @@ export class LineEngine implements IntakeLine {
         kind: "question",
         stage: "report",
         title: `Milestone reached: ${milestone!.text.replace(/\.+$/, "")}. Go on?`,
-        instruction: `You asked premise to stop after this milestone. Try the software and read the report, then say go on${nextMilestone ? ` to the next milestone, "${nextMilestone.text.replace(/\.+$/, "")}"` : " to the end of the line"}. If it is solving the wrong problem, go back to Why.`,
+        instruction: `You asked premise to stop after this milestone. Try the software and read the report. ${nextMilestone ? `"Go on" builds the next milestone, "${nextMilestone.text.replace(/\.+$/, "")}".` : `This is the last milestone, so "Go on" builds nothing more: premise finishes, and then takes in any problem or wish you send in the conversation.`} If it is solving the wrong problem, "Go back to Why" redoes the work from Why with what you say then.`,
         extra: {
           choices: [...MILESTONE_CHOICES],
           meta: {
             purpose: "milestone-reached",
             milestone: milestone!.id,
             milestoneTitle: milestone!.text.replace(/\.+$/, ""),
+            ...(nextMilestone && { next: nextMilestone.text.replace(/\.+$/, "") }),
           },
         },
       });
@@ -3297,6 +3367,13 @@ export class LineEngine implements IntakeLine {
           }
         };
       }
+      case "start-command": {
+        const said = answerWords(ask, answer);
+        return () => {
+          const taken = this.options.intake.takeIn(id, `How to start it: ${said}`);
+          this.premiseSays(id, taken.reply, `intake:I-${taken.number}`);
+        };
+      }
       case "milestone-reached": {
         const text = answer.kind === "text" ? answer.text : "";
         return () => {
@@ -3316,6 +3393,13 @@ export class LineEngine implements IntakeLine {
             return;
           }
           this.setLifecycle(id, "active", "operator said go on");
+          const next = ask.extra.meta?.next;
+          this.premiseSays(
+            id,
+            typeof next === "string"
+              ? `You said go on. Next: premise builds the next milestone, "${next}".`
+              : "You said go on. That was the last milestone, so nothing more is built: premise finishes the line, then takes in any problem or wish you send here.",
+          );
           const item = this.active(id);
           if (item.kind === "milestone" && item.ref === ask.extra.meta?.milestone) {
             this.finishItem(id, item, "done");
@@ -3419,10 +3503,11 @@ export class LineEngine implements IntakeLine {
       kind: "draft",
       stage: "what",
       title: "How much to build?",
-      instruction: `premise sorted what it must do into what you asked for, what premise recommends adding, and what it could also add. Pick how much to build; it starts on the choice your effort level (${software.effort}) gives. You can move any item. The first version is what you asked for; what premise adds comes in a later milestone, after you have tried the first. What you leave out stays in the record and is not built.`,
+      instruction: `premise sorted what it must do into what you asked for, what premise recommends adding, and what it could also add. Pick how much to build; ${software.effort === this.config.softwares.default_effort ? `the choice already picked follows premise's usual effort (${software.effort})` : `the choice already picked follows the effort you set for this software (${software.effort})`}. You can move any item. The first version is what you asked for; what premise adds comes in a later milestone, after you have tried the first. What you leave out stays in the record and is not built; to have it built later, ask for it in the conversation.`,
       items: tiers.map((t) => ({
         key: t.item.id,
-        text: `${t.item.marks.priority ?? "should"}: ${t.item.text}${t.note ? ` (${t.note})` : ""}`,
+        // A suggestion is shown once, by its mark ("premise suggests"), not again in its words.
+        text: `${t.item.marks.priority ?? "should"}: ${t.item.marks.from === "assumed" ? t.item.text.replace(/^suggestion\s*:\s*/i, "") : t.item.text}${t.note ? ` (${t.note})` : ""}`,
         mark: t.item.marks.from === "assumed" ? "suggestion" : "from-role",
         ...(t.item.marks.from !== "assumed" && { from: t.item.marks.from }),
         tier: t.tier,
@@ -3627,18 +3712,29 @@ export class LineEngine implements IntakeLine {
     this.options.gate.request({
       softwareId: software.id,
       kind,
+      act: "create-repository",
       action: `Create a ${visibility} repository named ${name} on your GitHub account, and push ${software.name}'s code and record to it.`,
       why: "So the software and its record are kept off this machine too. Until then they live only in premise's data folder.",
       requestedBy: "line engine",
       perform: "create-repository",
       stage: "plan",
       waiting: "copying the software to GitHub; building goes on meanwhile",
+      card: {
+        title: `Create ${visibility === "public" ? "a public" : "a private"} repository on GitHub for ${software.name}?`,
+        standingLabel: `creating ${visibility} repositories on GitHub`,
+        reality: {
+          real: false,
+          text: `Nothing is created on GitHub whichever you choose: premise cannot create GitHub repositories yet, because the owner has not yet allowed that step. Your answer is recorded, and ${software.name} stays on this machine.`,
+        },
+        whyNow:
+          "The plan is settled, so the software has code worth keeping somewhere besides this machine.",
+      },
     });
   }
 
   private async createRemoteRepository(
     request: Pick<GateRequest, "softwareId">,
-  ): Promise<{ ok: boolean; outcome: string }> {
+  ): Promise<PerformResult> {
     const software = getSoftware(this.db, request.softwareId);
     if (!software) return { ok: false, outcome: "The software is not in premise any more." };
     const name = repositoryName(software.name);
@@ -3667,7 +3763,9 @@ export class LineEngine implements IntakeLine {
       }
       return { ok: true, outcome: `${software.name} now has a second copy: ${created.url}.` };
     } catch (error) {
-      if (error instanceof RepositoryHostError) return { ok: false, outcome: error.message };
+      if (error instanceof RepositoryHostError) {
+        return { ok: false, outcome: error.message, unavailable: error.code === "NOT_AVAILABLE" };
+      }
       return { ok: false, outcome: `The copy could not be made: ${(error as Error).message}` };
     }
   }
@@ -3694,10 +3792,19 @@ export class LineEngine implements IntakeLine {
         );
         break;
       case "done":
-        this.premiseSays(software.id, `Done: ${request.outcome ?? request.action}`);
+        this.premiseSays(software.id, `Approved and done: ${request.outcome ?? request.action}`);
+        break;
+      case "unavailable":
+        this.premiseSays(
+          software.id,
+          `Approved, but this step is not available yet: ${request.outcome ?? "premise cannot carry it out itself yet, so nothing was done."}`,
+        );
         break;
       case "failed":
-        this.premiseSays(software.id, `Not done: ${request.outcome ?? "the action failed."}`);
+        this.premiseSays(
+          software.id,
+          `Approved, but it failed: ${request.outcome ?? "the action did not work."} Nothing more is tried without asking you again.`,
+        );
         break;
       default:
         break;
@@ -4251,7 +4358,7 @@ export class LineEngine implements IntakeLine {
     if (!isFloorKind(args.kind)) {
       return toolFail(
         "MALFORMED",
-        `"${String(args.kind)}" is not a floor kind. Use one of: delete-data, credentials, expose, access, spend, make-public, publish, post.`,
+        `"${String(args.kind)}" is not a floor kind. Use one of: ${FLOOR_KINDS.join(", ")}.`,
       );
     }
     try {

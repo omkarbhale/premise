@@ -74,6 +74,9 @@ export async function testApp(
     PREMISE_RUNNER__CONFINEMENT: "none",
     PREMISE_RUNNER__READ_ONLY_PATHS: JSON.stringify([dirname(dirname(process.execPath))]),
     PREMISE_RUNNER__PORT_RANGE: ports.range,
+    // The scripted checker verifies nothing, so by default a whole-line test would stop at Check to
+    // ask; tests of that ask set it back to "ask" (test/truthful.test.ts).
+    PREMISE_LINE__WHEN_NOTHING_VERIFIED: "land",
     ...env,
   });
   const { db, schemaVersion } = openDatabase(folder);

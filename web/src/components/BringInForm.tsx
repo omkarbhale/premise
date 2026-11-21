@@ -88,6 +88,10 @@ export function BringInForm({
         />
       </details>
       {problem && <Problem>{problem}</Problem>}
+      <p className="muted small">
+        Once premise has taken it on, make changes through premise: changes made by hand outside
+        premise are not followed yet, so its record would drift from the code.
+      </p>
       <div className="actions">
         <button type="submit" className="primary" disabled={busy}>
           {busy ? "Bringing it in…" : "Bring it in"}

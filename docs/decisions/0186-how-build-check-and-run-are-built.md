@@ -1,6 +1,6 @@
 # 0186. How Build, Check and Run are built; what a check that cannot pass leads to
 
-- Status: Accepted; points 9 and 10 chosen for the owner, open to the owner's correction
+- Status: Accepted; points 9 and 10 chosen for the owner, open to the owner's correction. Partly superseded by [0220](0220-approvals-and-verdicts-tell-the-truth.md): when a check has passed
 - Scope: Making premise
 - Date: 2026-11-21
 - Decided by: The builders, while building Build, Check and Run. Points 9 and 10 are chosen for the owner, on the owner's instruction "choose for me" ([0136](0136-open-questions-chosen-for-the-owner.md)).

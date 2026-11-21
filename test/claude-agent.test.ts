@@ -175,7 +175,7 @@ describe("real agent runner, against a fake claude", () => {
     const { runner } = setup({ PREMISE_AGENTS__CLAUDE__COMMAND: "/nowhere/claude" });
     const { outcome } = await run(runner);
     expect(outcome).toMatchObject({ kind: "failed", failureSignature: "agent-start-failed" });
-    expect((outcome as { summary: string }).summary).toContain("agents.claude.command");
+    expect((outcome as { summary: string }).summary).toContain("tell premise where it is");
   });
 
   it("maps a rejected rate-limit event to the usage limit, with its reset time", async () => {

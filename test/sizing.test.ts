@@ -222,7 +222,11 @@ describe("sizing a piece of work", () => {
       (m: { text: string }) => m.text,
     );
     expect(said.some((t: string) => t.startsWith("Split into 2 separate parts"))).toBe(true);
-    expect(said.some((t: string) => t.includes("passed its check"))).toBe(true);
+    // The check of the whole is a stand-in: never "passed", and it says what is not verified.
+    expect(said.some((t: string) => t.includes("passed its check"))).toBe(false);
+    expect(said.some((t: string) => t.includes("how they work together is not verified"))).toBe(
+      true,
+    );
 
     // Once a part is built, the split cannot be undone.
     const undo = await app.call("POST", `/api/work-items/${items[0]!.id}/undo-split`);

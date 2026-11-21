@@ -202,6 +202,7 @@ function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) 
       go: openSoftware,
       ...(known && {
         softwares: known.softwares,
+        defaults: known.defaults,
         agentsMode: known.agents.mode,
         roles: known.roles,
       }),
@@ -295,7 +296,7 @@ function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) 
             {o.agents.mode === "scripted" && (
               <span
                 className="badge badge-standin"
-                title="Agents follow a script: no AI is called and nothing is really built."
+                title="Agents follow a script: no AI is called and the software built is a placeholder. Anything premise asks to write to a repository of yours is still real, and its card says so."
               >
                 Scripted agents, not real
               </span>

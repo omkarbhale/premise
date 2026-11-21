@@ -15,7 +15,7 @@ export function StartForm({
   onStarted: (software: SoftwareSummary) => void;
   autoFocus?: boolean;
 }) {
-  const { api, notCurrent, refresh } = useSession();
+  const { api, notCurrent, refresh, defaults } = useSession();
   const [idea, setIdea] = useState("");
   const [name, setName] = useState("");
   const [effort, setEffort] = useState<SoftwareEffort | "">("");
@@ -88,7 +88,9 @@ export function StartForm({
           value={effort}
           onChange={(e) => setEffort(e.target.value as SoftwareEffort | "")}
         >
-          <option value="">As in Settings (softwares.default_effort)</option>
+          <option value="">
+            {defaults ? `Let premise decide (${defaults.effort})` : "Let premise decide"}
+          </option>
           {SOFTWARE_EFFORTS.map((e) => (
             <option key={e} value={e}>
               {e}: {EFFORT_WORDS[e]}

@@ -67,9 +67,14 @@ export function Welcome({
             <p>
               <strong>This is a demo.</strong> The agents are{" "}
               <Define term="scriptedAgents">scripted</Define>: no AI is called, your Claude login is
-              not used, and nothing real is built. The lists, the plan and the "software" at the end
-              come from fixed templates, so they will not match your idea closely. Every one is
-              labelled where it appears.
+              not used, and the lists, the plan and the "software" at the end come from fixed
+              templates, so they will not match your idea closely. Every one is labelled where it
+              appears.
+            </p>
+            <p>
+              One thing is real even here: if you bring in software of your own, premise asks before
+              it writes its record to your repository, and that write is real. Each approval card
+              says whether approving does something real.
             </p>
             <p>
               To see a whole scripted build, check and run, use <code>npm run demo:cli</code>. To

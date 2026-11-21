@@ -1,6 +1,6 @@
 # 0182. How the gate asks, approves and acts; creating any GitHub repository is gated
 
-- Status: Accepted; points 5 to 7 chosen for the owner, open to the owner's correction
+- Status: Accepted; points 5 to 7 chosen for the owner, open to the owner's correction. Partly superseded by [0220](0220-approvals-and-verdicts-tell-the-truth.md): what an approved GitHub step says, and standing approvals scoped to one kind of action
 - Scope: Making premise
 - Date: 2026-11-21
 - Decided by: The builders, while building the gate. Points 5 to 7 are chosen for the owner, on the owner's instruction "choose for me" ([0136](0136-open-questions-chosen-for-the-owner.md)).
@@ -16,7 +16,7 @@
 2. **Requests, decisions, approvals, withdrawals and outcomes are rows and events** (`gate_requests`, `approvals`). A request covered by a standing kind approval is approved at once and said in the session.
 3. **Approved actions are carried out by named server acts** registered with the gate. An approved request with no server act (most agents' requests today) is recorded as approved and done with "premise has no way to carry out this kind of action itself yet". A failed act is recorded and said; it is not retried.
 4. **An agent's `gate_request` does not hold its session:** the agent is told the request is asked and finishes what it can without it.
-5. **Creating any repository on GitHub is gated,** not only a public one: a private repository is kind `publish` (acting in the owner's name on an outside service), a public one `make-public`. Until the step is approved ([0161](0161-github-repository-step-not-approved.md)), approving it ends in "not done: that step has not been approved yet", and the software stays on this machine.
+5. **Creating any repository on GitHub is gated,** not only a public one: a private repository is kind `publish` (acting in the owner's name on an outside service), a public one `make-public`. Until the step is built ([0161](0161-github-repository-step-not-approved.md)), approving it ends in a plain "not available yet" (never "not approved", [0220](0220-approvals-and-verdicts-tell-the-truth.md)), and the software stays on this machine.
 6. **Declining the repository does not stop the line.** The software stays on this machine and building goes on.
 7. **Approvals for a kind of action are available from milestone 1,** not only from milestone 3, because the instruction for this step asks for them; they are always for one software.
 

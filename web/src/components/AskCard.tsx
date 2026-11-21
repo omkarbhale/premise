@@ -15,6 +15,7 @@ import { useLoad } from "../hooks";
 import { whereNow } from "../../../src/shared/stages";
 import { ASK_KIND_LABEL, TERMS, markLabel, plural } from "../words";
 import { Problem, Term } from "./Badges";
+import { ClaimAreaLink } from "./Claims";
 
 type Decision = ItemAnswer["decision"];
 
@@ -112,6 +113,13 @@ export function AskCard({ ask, showSoftware = false }: { ask: AskView; showSoftw
             </div>
           )}
           {ask.milestone && <TryIt softwareId={ask.softwareId} />}
+          {ask.kind === "say-back" && ask.items.some((i) => i.mark === "recovered") && (
+            <p className="note small" role="note">
+              <strong>Before you go on:</strong> once premise has taken it on, make changes through
+              premise. If you or others still change it by hand outside premise, its record drifts
+              from the code: premise cannot follow such changes yet.
+            </p>
+          )}
           {(ask.kind === "draft" || ask.kind === "say-back") && (
             <ItemsAnswer ask={ask} busy={busy} onSend={send} />
           )}
@@ -221,6 +229,11 @@ function ItemsAnswer({ ask, busy, onSend }: AnswerProps) {
             <span className="text">{item.text}</span>
           )}
           <span className={`mark mark-${item.mark}`}>{markLabel(item)}</span>
+          {/\bclaim (an? )?(area|part)\b/i.test(item.text) && (
+            <span className="small">
+              <ClaimAreaLink softwareId={ask.softwareId} />
+            </span>
+          )}
           {item.follows && (
             <span className="follows small">
               Follows what you taught premise ({item.follows.label}): {item.follows.text}
@@ -385,15 +398,54 @@ function QuestionAnswer({ ask, busy, onSend }: AnswerProps) {
       )}
       {ask.choices && ask.choices.length > 0 && (
         <div className="choices" role="group" aria-label="Pick an answer">
-          {ask.choices.map((choice) => (
-            <button type="button" key={choice} disabled={busy} onClick={() => choose(choice)}>
+          {ask.choices.map((choice, i) => (
+            <button
+              type="button"
+              key={choice}
+              // At a milestone, going on is the expected answer; going back is the exception.
+              className={ask.milestone ? (i === 0 ? "primary" : "quiet") : undefined}
+              disabled={busy}
+              onClick={() => choose(choice)}
+            >
               {choice}
             </button>
           ))}
         </div>
       )}
+      {/* A milestone's answer is one of its two choices; anything else belongs in the conversation. */}
+      {!ask.milestone && (
+        <QuestionText
+          inputId={inputId}
+          label={ask.choices?.length ? "Or write your own answer" : "Your answer"}
+          text={text}
+          setText={setText}
+          busy={busy}
+          onAnswer={() => choose(text)}
+        />
+      )}
+    </>
+  );
+}
+
+function QuestionText({
+  inputId,
+  label,
+  text,
+  setText,
+  busy,
+  onAnswer,
+}: {
+  inputId: string;
+  label: string;
+  text: string;
+  setText: (text: string) => void;
+  busy: boolean;
+  onAnswer: () => void;
+}) {
+  return (
+    <>
       <label htmlFor={inputId} className="small">
-        {ask.choices?.length ? "Or write your own answer" : "Your answer"}
+        {label}
       </label>
       <textarea id={inputId} rows={2} value={text} onChange={(e) => setText(e.target.value)} />
       <div className="actions">
@@ -401,7 +453,7 @@ function QuestionAnswer({ ask, busy, onSend }: AnswerProps) {
           type="button"
           className="primary"
           disabled={busy || !text.trim()}
-          onClick={() => choose(text)}
+          onClick={onAnswer}
         >
           {busy ? "Sending…" : "Answer"}
         </button>
@@ -410,58 +462,76 @@ function QuestionAnswer({ ask, busy, onSend }: AnswerProps) {
   );
 }
 
-/** For a milestone that waits on you: how to try the software, and where its report is. */
+/**
+ * For a milestone that waits on you: how to try the software, and where its report is. "Open it"
+ * only when there is a link to open; for command-line software, the command itself.
+ */
 function TryIt({ softwareId }: { softwareId: string }) {
   const { api, version, notCurrent, go } = useSession();
   const run = useLoad(() => api.run(softwareId), [softwareId], version, notCurrent);
-  const link = run.state === "ready" ? run.data.link : null;
+  const r = run.state === "ready" ? run.data : null;
+  const toReport = () => go?.(softwareId, "report");
   return (
-    <div className="actions try-it">
-      {link ? (
-        <a className="button-link primary" href={link} target="_blank" rel="noreferrer">
-          Open it
-        </a>
-      ) : (
-        <button type="button" className="primary" onClick={() => go?.(softwareId, "report")}>
-          Open it
-        </button>
+    <div className="try-it">
+      {r?.command && !r.link && (
+        <p className="small">
+          To try it, {r.kind === "command" ? "type this in a terminal" : "start it like this"}
+          {r.folder ? (
+            <>
+              , in <code>{r.folder}</code>
+            </>
+          ) : null}
+          : <code>{r.command}</code>
+        </p>
       )}
-      <button type="button" onClick={() => go?.(softwareId, "report")}>
-        See the report
-      </button>
+      <div className="actions">
+        {r?.link ? (
+          <a className="button-link" href={r.link} target="_blank" rel="noreferrer">
+            Open it
+          </a>
+        ) : (
+          !r?.command && (
+            <button type="button" onClick={toReport}>
+              Show me how to try it
+            </button>
+          )
+        )}
+        <button type="button" onClick={toReport}>
+          See the report
+        </button>
+      </div>
     </div>
   );
 }
 
 function ApprovalAnswer({ ask, busy, onSend }: AnswerProps) {
-  const { agentsMode } = useSession();
   const [refusing, setRefusing] = useState(false);
   const [reason, setReason] = useState("");
+  const approval = ask.approval;
   return (
     <>
-      {agentsMode === "scripted" && (
-        <p className="note small" role="note">
-          <strong>This is a demo, so it is not real.</strong> Nothing will be created on GitHub or
-          anywhere else, whichever you choose; a folder on this machine stands in. The card is shown
-          so you can see what premise would ask.
+      {approval?.reality && (
+        // What really happens, from the server, for this kind of action: true in every mode, so a
+        // card never says nothing real happens when something does.
+        <p className={approval.real ? "note small reality-real" : "note small"} role="note">
+          <strong>{approval.real ? "This is real." : "Nothing happens yet."}</strong>{" "}
+          {approval.reality}
         </p>
       )}
-      {ask.approval && (
+      {approval && (
         <dl className="approval">
           <dt>What will happen</dt>
-          <dd>{ask.approval.action}</dd>
+          <dd>{approval.action}</dd>
           <dt>Why</dt>
-          <dd>{ask.approval.why}</dd>
+          <dd>{approval.why}</dd>
           <dt>Why premise asks now</dt>
           <dd>
-            {ask.approval.waiting
-              ? `This is waiting on your answer: ${ask.approval.waiting}. `
-              : "The work reached a step that acts outside this machine. "}
-            Nothing outside this machine happens without your say; everything else carries on
-            meanwhile.
+            {approval.whyNow ? `${approval.whyNow} ` : ""}
+            {approval.waiting ? `Waiting on your answer: ${approval.waiting}. ` : ""}
+            Nothing like this happens without your say; everything else carries on meanwhile.
           </dd>
           <dt>The rule behind it</dt>
-          <dd>{ask.approval.floor}</dd>
+          <dd>{approval.floor}</dd>
         </dl>
       )}
       {refusing ? (
@@ -506,10 +576,10 @@ function ApprovalAnswer({ ask, busy, onSend }: AnswerProps) {
             <button
               type="button"
               disabled={busy}
-              title="Later requests of this kind for this software go ahead without asking. You can withdraw this on the Line tab."
+              title="Later requests of exactly this kind of action, for this software only, go ahead without asking. You can withdraw this on the Line tab."
               onClick={() => onSend({ kind: "approval", decision: "approve-kind" })}
             >
-              Approve {ask.approval.kindLabel} for {ask.softwareName}
+              Approve {ask.approval.kindLabel} for {ask.softwareName} from now on
             </button>
           )}
           <button type="button" disabled={busy} onClick={() => setRefusing(true)}>
@@ -740,7 +810,11 @@ function ScopeAnswer({ ask, busy, onSend }: AnswerProps) {
               />
               <strong>{c.label}</strong>{" "}
               <span className="muted small">
-                about {c.sessions} agent sessions and {c.minutes} minutes
+                about {plural(c.minutes, "minute")} (
+                <span className="define" title={TERMS.agentSession}>
+                  {plural(c.sessions, "agent session")}
+                </span>
+                ){c.sameCost && <span className="same-cost"> · {c.sameCost}</span>}
               </span>
             </label>
           ))}

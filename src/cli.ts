@@ -17,7 +17,10 @@ Usage:
   premise start [--data <folder>] [--port <number>] [--scripted]
                                                       Start premise and print the link to open.
                                                       --scripted: agents follow a script and call
-                                                      no AI (a demo; nothing real is built).
+                                                      no AI (a demo: the software built is a
+                                                      placeholder; writing to a repository of
+                                                      yours, if you bring one in, is still real
+                                                      and asked first).
   premise new-link [--data <folder>]                  Print a new link; older links stop working.
   premise doctor [--data <folder>]                    Check this machine and the settings.
   premise record check <folder>                       Check a software's record folder for mistakes.

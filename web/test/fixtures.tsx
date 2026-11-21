@@ -32,6 +32,7 @@ export function overview(change: Partial<Overview> = {}): Overview {
       },
     },
     softwares: [],
+    defaults: { effort: "medium", priority: 3, milestoneWaits: false },
     roles: [],
     softwareUsage: [],
     openAsks: 0,

@@ -101,6 +101,29 @@ describe("the Learned view", () => {
     expect(api.moveCorrection).toHaveBeenCalledWith(4, "taste");
   });
 
+  it("says it is premise's notebook, and marks a correction whose lesson was deleted", async () => {
+    const view = learning();
+    const api = fakeApi({
+      learning: vi.fn(() =>
+        Promise.resolve({
+          ...view,
+          software: { lines: [], max: 10 },
+          corrections: [
+            {
+              ...view.corrections[0]!,
+              lessonId: null,
+              lessonEnded: { label: "L-1", note: "Deleted by you." },
+            },
+          ],
+        }),
+      ),
+    });
+    inSession(<Learned softwareId="s1" />, api);
+    expect(await screen.findByText(/premise's notebook/)).toBeTruthy();
+    expect(screen.getByText(/its lesson L-1 is no longer followed/)).toBeTruthy();
+    expect(screen.queryByRole("group", { name: /Move: You struck/ })).toBeNull();
+  });
+
   it("edits a line", async () => {
     const api = fakeApi({
       learning: vi.fn(() => Promise.resolve(learning())),

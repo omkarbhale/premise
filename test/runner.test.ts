@@ -243,7 +243,7 @@ http.createServer((q, r) => r.end("ok")).listen(port, process.env.HOST);
     );
     try {
       const s = makeSoftware(db, config, "Crowded", WEB);
-      await expect(runner.start(s.id)).rejects.toThrow(/runner\.port_range/);
+      await expect(runner.start(s.id)).rejects.toThrow(/range of ports/);
     } finally {
       await Promise.all(blockers.map((b) => new Promise((ok) => b.close(ok))));
     }

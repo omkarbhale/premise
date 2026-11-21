@@ -30,7 +30,7 @@ Not responsible for:
 | Request | [Agent tools](agent-tools.md) (`gate_request`), server modules (runner, intake, record keeper) | Software, floor kind, exactly what will happen, why, items served, requested by | Request id; `approved` when an approval covers it, else `asked` | `MALFORMED` |
 | Decide | Page server (a person, in the session) | Request id; approve or refuse; optionally "approve this kind for this software" | Request status; an approval row when a kind was approved | `NOT_APPROVABLE_AS_KIND` (deleting data, spending money) |
 | Withdraw approval | Page server | Approval id | Approval withdrawn | none |
-| Perform | Gate (after approval) | Request | Done or failed, with the outcome | the action's own error |
+| Perform | Gate (after approval) | Request | Done, unavailable (not carried out yet, and why) or failed, with the outcome | the action's own error |
 
 ## 4. Data owned
 
@@ -48,6 +48,7 @@ From the owner's floor ([0056](../decisions/0056-what-is-on-the-floor.md)), made
 | Security holes | `credentials`, `expose`, `access` | Handling credentials; exposing anything beyond localhost; changing who can get in |
 | Spending money | `spend` | Paid services, API keys, cloud resources, paid extra usage on a subscription |
 | Acting publicly in someone's name | `make-public`, `publish`, `post` | Making a repository public; publishing a package or release; posting comments or messages |
+| Changing a repository of the person's | `write-repository` | Adding premise's record, on a branch of its own, to a repository the person brought in; updating that branch ([0220](../decisions/0220-approvals-and-verdicts-tell-the-truth.md)) |
 | False reports | none | Prevented by [0097](../decisions/0097-reports-from-recorded-facts.md), not asked about |
 
 Leaving it to each agent to judge what is risky was rejected ([0100](../decisions/0100-floor-actions.md)). The server's own modules use the gate too: the runner for exposing a software beyond localhost and for first deployments to a public host (milestone 7), intake for comments on GitHub issues ([intake](intake.md)), and the line engine for creating a software's repository as public when the operator chose that ([runner](runner.md)).
@@ -55,12 +56,15 @@ Leaving it to each agent to judge what is risky was rejected ([0100](../decision
 ### 5.2 Asking
 
 - The gate asks in the session, under the role whose call it is, saying exactly what will happen and why ([0101](../decisions/0101-the-gate-asks-in-the-session.md)). The card's wording is fixed text filled from the request, with no model writing it ([fixed wording](../prompts/fixed-wording.md)).
+- Each kind of action has its own card ([0220](../decisions/0220-approvals-and-verdicts-tell-the-truth.md)): a request names its kind of action (`act`, such as `add-record`, `push-record` or `create-repository`; none for an agent's request) and may give the card's title, standing-approval wording, rule sentence and why it asks now; otherwise the floor kind's words are used.
+- Every card says what really happens if approved, in every mode: "This is real ..." or "Nothing happens yet ...", written by the server for that kind of action. A request premise has no way to carry out always says nothing happens. There is no separate "demo" banner on approval cards.
 - The role is the operator unless the record names another role for that call (for example, a role that holds an outside account); an agent names it in `gate_request` (`role`), and the card is asked under it ([0196](../decisions/0196-roles-and-taste-in-one-session.md)).
 - Only the work that depends on the answer waits. The requesting job is `waiting`; other jobs go on.
 
 ### 5.3 Approvals
 
 - The session can approve one action, or a named kind of action for one software, such as status comments on its issues. Approvals are recorded and can be withdrawn.
+- A standing approval covers only its own kind of action: the same floor kind and the same `act`. Approving "adding premise's record to your repository" never covers creating a repository on GitHub, and a server act's approval never covers an agent's request ([0220](../decisions/0220-approvals-and-verdicts-tell-the-truth.md)).
 - Deleting data and spending money are always asked one at a time; they cannot be approved as a kind.
 - An approval never covers every software. Approvals that cover every software were rejected, as was asking for every action ([0101](../decisions/0101-the-gate-asks-in-the-session.md)).
 - A withdrawn approval stops covering new requests at once; actions already done stay done and recorded.
@@ -68,7 +72,7 @@ Leaving it to each agent to judge what is risky was rejected ([0100](../decision
 ### 5.4 Performing
 
 - The server, not an agent, performs an approved action, with the credentials only it holds (the GitHub CLI login, used only by the server, [0077](../decisions/0077-github-through-existing-cli-login.md)).
-- The outcome is recorded with the request: done, or failed with the error. A failed action is reported; it is not retried without a new request.
+- The outcome is recorded with the request: done; unavailable (approved, but premise cannot carry this out yet, with why); or failed with the error. The session says which, in those words: never "not approved" after an approval. A failed action is reported; it is not retried without a new request.
 - Paid extra usage on a subscription is never requested by premise itself ([agent runner](agent-runner.md)).
 
 ### 5.5 While premise is being built
@@ -79,7 +83,7 @@ The same rule holds for building premise: work stops for the owner only on destr
 
 | Key | Default | Meaning |
 |---|---|---|
-| `gate.kind_approvals_allowed` | every kind except `delete-data` and `spend` | Kinds that can be approved for one software |
+| `gate.kind_approvals_allowed` | every kind except `delete-data` and `spend` | Kinds that can be approved for one software; each approval still covers only its own kind of action |
 
 The floor and the gate stay with premise; they are not set per software ([0106](../decisions/0106-per-software-and-with-premise.md)).
 
@@ -109,7 +113,7 @@ The floor and the gate stay with premise; they are not set per software ([0106](
 
 ## 11. Milestones
 
-- Milestone 1 step 2: the gate, asking the operator; one-action approvals, and approvals for a kind of action for one software, never for deleting data or spending money ([0182](../decisions/0182-how-the-gate-is-built.md)). Creating any repository on GitHub is gated: private is kind `publish`, public is `make-public`; until the step is approved ([0161](../decisions/0161-github-repository-step-not-approved.md)) the software stays on this machine. The agent tool `gate_request` goes to the gate.
+- Milestone 1 step 2: the gate, asking the operator; one-action approvals, and approvals for a kind of action for one software, never for deleting data or spending money ([0182](../decisions/0182-how-the-gate-is-built.md)). Creating any repository on GitHub is gated: private is kind `publish`, public is `make-public`; until the step is built on the owner's word ([0161](../decisions/0161-github-repository-step-not-approved.md)) its card says nothing is created, an approval ends "approved, but this step is not available yet", and the software stays on this machine ([0220](../decisions/0220-approvals-and-verdicts-tell-the-truth.md)). The agent tool `gate_request` goes to the gate.
 - Milestone 3: asking under the right role. Built ([0196](../decisions/0196-roles-and-taste-in-one-session.md)).
 - Milestone 4: comments on GitHub issues through the gate.
 - Milestone 7: every first deployment to a public host is public-facing and may spend money, so it is asked.

@@ -1,6 +1,5 @@
 import { useState } from "react";
 import type { AskView } from "../api";
-import { useSession } from "../context";
 import { plural } from "../words";
 import { AskCard } from "./AskCard";
 import { Empty } from "./Badges";
@@ -17,12 +16,13 @@ export function Needed({
   asks: AskView[];
   notifications: "offer" | "off";
 }) {
-  const { roles: known } = useSession();
   const open = asks.filter((a) => a.status === "open");
   const roles = [...new Set(open.map((a) => a.role))].sort(
     (x, y) => Number(y === "operator") - Number(x === "operator") || x.localeCompare(y),
   );
-  const labelled = (known?.length ?? 0) > 0 || roles.some((r) => r !== "operator");
+  // Roles are named here only when something waiting is actually for another role than the
+  // operator; a claim elsewhere does not make every list talk about roles.
+  const labelled = roles.some((r) => r !== "operator");
   return (
     <section aria-labelledby="needed-title">
       <div className="section-head">
@@ -34,9 +34,8 @@ export function Needed({
       </p>
       {labelled && (
         <p className="note small" role="note">
-          Questions are for different roles: {listWords([...new Set([...roles, ...(known ?? [])])])}
-          . A role is a label for who should decide, not an account; in this session you answer for
-          all of them.
+          Questions are for different roles: {listWords(roles)}. A role is a label for who should
+          decide, not an account; in this session you answer for all of them.
         </p>
       )}
       {open.length === 0 ? (

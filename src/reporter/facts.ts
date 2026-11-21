@@ -37,6 +37,13 @@ export interface VerdictFact {
   evidence: string;
   commit: string | null;
   time: string;
+  /** Judged by a scripted agent, which cannot judge software. */
+  scripted?: boolean;
+  /**
+   * True when the latest commit has the same code as the commit judged: only merges or changes to
+   * the record came after it, so the verdict still holds for the latest version.
+   */
+  sameCodeAsLatest?: boolean;
 }
 
 export interface CommitFact {
@@ -194,9 +201,12 @@ interface EventRow {
 export function readVerdicts(db: Database, softwareId: string): VerdictFact[] {
   const rows = db
     .prepare(
-      "SELECT reference, detail, time FROM events WHERE software_id = ? AND module = 'checker' AND kind = 'verdict' ORDER BY id",
+      `SELECT e.reference, e.detail, e.time,
+         (SELECT s.runtime FROM agent_sessions s WHERE s.job_id = json_extract(e.detail, '$.job')
+           ORDER BY s.id DESC LIMIT 1) AS runtime
+       FROM events e WHERE e.software_id = ? AND e.module = 'checker' AND e.kind = 'verdict' ORDER BY e.id`,
     )
-    .all(softwareId) as unknown as EventRow[];
+    .all(softwareId) as unknown as (EventRow & { runtime: string | null })[];
   const latest = new Map<string, VerdictFact>();
   for (const row of rows) {
     if (!row.reference || !row.detail) continue;
@@ -218,9 +228,43 @@ export function readVerdicts(db: Database, softwareId: string): VerdictFact[] {
       evidence: detail.evidence ?? "",
       commit: detail.commit ?? null,
       time: row.time,
+      ...(row.runtime === "scripted" && { scripted: true }),
     });
   }
   return [...latest.values()];
+}
+
+/**
+ * Mark each verdict whose judged commit has the same code as the latest one. Landing merges the
+ * checked commit and premise then writes to the record folder, so the latest commit is rarely the
+ * one judged; its verdicts still hold when nothing outside the record changed.
+ */
+function withSameCode(
+  verdicts: VerdictFact[],
+  sources: FactSources,
+  softwareId: string,
+  latest: string | undefined,
+): VerdictFact[] {
+  if (!latest) return verdicts;
+  const repo = sources.records.repositoryPath(softwareId);
+  const folder = sources.config.record.folder;
+  const same = new Map<string, boolean>();
+  return verdicts.map((v) => {
+    if (!v.commit || v.commit === latest) return v;
+    if (!same.has(v.commit)) {
+      let unchanged = false;
+      try {
+        unchanged =
+          sources.records.git
+            .run(repo, ["diff", "--name-only", v.commit, latest, "--", ".", `:(exclude)${folder}`])
+            .trim() === "";
+      } catch {
+        unchanged = false;
+      }
+      same.set(v.commit, unchanged);
+    }
+    return same.get(v.commit) ? { ...v, sameCodeAsLatest: true } : v;
+  });
 }
 
 export async function gatherFacts(
@@ -335,7 +379,7 @@ export async function gatherFacts(
     recordAvailable,
     items,
     commits,
-    verdicts: readVerdicts(db, softwareId),
+    verdicts: withSameCode(readVerdicts(db, softwareId), sources, softwareId, commits[0]?.sha),
     runs,
     runView: runner ? runner.view(softwareId) : null,
     jobs,

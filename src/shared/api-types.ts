@@ -294,7 +294,22 @@ export type VerdictValue = "met" | "not-met" | "could-not-check";
 export interface CheckView {
   round: number;
   commit: string;
-  status: "writing-scenarios" | "checking" | "passed" | "not-passed" | "stopped" | "did-not-finish";
+  /**
+   * passed: every must item met, nothing blocking. not-fully-verified: no failure, some must items
+   * met and others could not be checked. not-verified: no failure, but none could be checked
+   * (decision 0197).
+   */
+  status:
+    | "writing-scenarios"
+    | "checking"
+    | "passed"
+    | "not-fully-verified"
+    | "not-verified"
+    | "not-passed"
+    | "stopped"
+    | "did-not-finish";
+  /** Judged by a scripted agent, which cannot judge software. */
+  scripted?: boolean;
   verdicts: { item: string; text: string; verdict: VerdictValue; evidence: string }[];
   findings: { text: string; blocking: boolean }[];
   when: string;
@@ -363,6 +378,8 @@ export interface ScopeCut {
   sessions: number;
   /** Rough estimate, in minutes. */
   minutes: number;
+  /** When it costs the same as the choice before it: why, in plain words. */
+  sameCost?: string;
 }
 
 export interface AskItem {
@@ -411,6 +428,12 @@ export interface AskView {
     waiting?: string;
     /** When this kind of action may be approved for the software as a whole kind. */
     kindLabel?: string;
+    /** Whether approving does something real; absent on cards asked before this was said. */
+    real?: boolean;
+    /** What really happens if approved, in plain words, true in every mode. */
+    reality?: string;
+    /** Why premise asks at this moment. */
+    whyNow?: string;
   };
   /** For a milestone's "go on?" question: which milestone, by its title. */
   milestone?: { id: string; title: string };
@@ -524,8 +547,15 @@ export interface ReportView {
   sections: { title: string; plain: string; lines: ReportLine[] }[];
   /** How to open the running software, once it runs. */
   running: { how: string; where: string; folder?: string } | null;
-  /** One plain sentence first: what was built and checked, out of what was asked. */
+  /**
+   * One plain verdict first, a newcomer can act on: Works / Partly verified / Not verified /
+   * Does not work yet (decision 0197).
+   */
   headline: string;
+  /** The counts behind the verdict, said after it and after how to try it. */
+  counts?: string;
+  /** Said when scripted agents made the checks: they cannot judge software. */
+  scripted?: string;
   cost: {
     mocked: boolean;
     text: string;
@@ -642,6 +672,8 @@ export interface Overview {
     weekly: { mocked: boolean; utilization: number; windowStart: string; resetsAt: string };
   };
   softwares: SoftwareSummary[];
+  /** What a new software starts with, so the page can name it in plain words. */
+  defaults: { effort: SoftwareEffort; priority: number; milestoneWaits: boolean };
   /**
    * The role labels in use besides the operator: from what was asked, and from open claims. When it
    * is empty only the operator is asked anything, and the page shows no role labels at all.
@@ -894,6 +926,8 @@ export interface CorrectionView {
   decidedBy: "agent" | "rule" | "operator" | null;
   /** The lesson or improvement it gave, if any. */
   lessonId: number | null;
+  /** When the lesson it gave was deleted or dropped since: which, and why. */
+  lessonEnded?: { label: string; note: string };
   created: string;
 }
 

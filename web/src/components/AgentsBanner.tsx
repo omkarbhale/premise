@@ -16,8 +16,9 @@ export function AgentsBanner({ overview }: { overview: Overview }) {
     return (
       <div className="banner warn" role="status">
         <strong>Look-around mode: agents are scripted, not real.</strong> Lists come from fixed
-        templates, no AI is called and nothing is really built. Fix what real agents need and
-        restart premise to work for real.
+        templates, no AI is called and the software built is a placeholder. Anything premise asks to
+        write to a repository of yours is still real, and its card says so. Fix what real agents
+        need and restart premise to work for real.
       </div>
     );
   }

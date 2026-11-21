@@ -1,6 +1,6 @@
 # Storage specification
 
-Status: built through schema 13, specification otherwise, being built ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Related: [record keeper](record-keeper.md), [work queue](work-queue.md), [agent runner](agent-runner.md), [the record](../architecture/the-record.md), [architecture overview](../architecture/overview.md).
+Status: built through schema 15, specification otherwise, being built ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Related: [record keeper](record-keeper.md), [work queue](work-queue.md), [agent runner](agent-runner.md), [the record](../architecture/the-record.md), [architecture overview](../architecture/overview.md).
 
 ## 1. Purpose
 
@@ -84,8 +84,8 @@ All tables live in `premise.db`. Times are UTC. "Software" is a row in `software
 | `intake_items` | Item taken in (schema 7) | software, number (`I-n`), source (session, page, premise, github, feedback), sender role, text, received, kind, items touched each with a reason, size, touches floor, whether it changes what the software must do (schema 9, [0192](../decisions/0192-effort-in-proportion-to-what-was-asked.md)), route, who routed it (triager, default, operator) and why, status (taken, triaging, asked, held, read, waiting, working, running, answered, merged, closed, dropped), joined to, answer, triage job, ask, work item, reading, when it was triaged, its change was running, and it finished ([0185](../decisions/0185-how-intake-in-a-thin-form-is-built.md)); schema 12 adds where it lives outside premise (`github:owner/name#n`), its receipt on the feedback page, and when it was last held |
 | `readings` | Reading of held items (schema 7) | software, trigger (count, time, operator), items read, short list, status, job, ask, when the operator went back to Why from it (schema 13; set once going back has started, cleared if starting fails), created, finished |
 | `existing_softwares` | A software taken on from existing code (schema 8) | software, where it came from as given and whether a folder or a clone address, status (copying, copy-failed, recovering, taken-on, stopped), what went wrong, the branch and commit copied, how many commits, how to build, start and check it as recovered, what premise could not check, and its record in the operator's repository (not yet, asked, added, refused, failed) with the gate request and a note ([0189](../decisions/0189-how-taking-on-existing-software-is-built.md)) |
-| `gate_requests` | Floor action requested | id, software, floor kind, exactly what will happen, why, requested by, role asked, status (asked, approved, refused, done, failed), approval used, outcome |
-| `approvals` | Approval given in the session | software, scope (one action, or a named kind of action), kind, given, withdrawn |
+| `gate_requests` | Floor action requested | id, software, floor kind, the kind of action (`act`, schema 15), the card's words (schema 15), exactly what will happen, why, requested by, role asked, status (asked, approved, refused, done, failed; done with the `unavailable` flag when premise could not carry it out yet), approval used, outcome |
+| `approvals` | Approval given in the session | software, scope (one action, or a named kind of action), floor kind and kind of action (`act`, schema 15), given, withdrawn |
 | `runs` | Start of a checked commit | software, commit, how opened (link, command, program), state, restarts, started, stopped |
 | `reports` | Report written | software, trigger (change reached running, asked, line ended), lines with evidence links, created |
 | `page_presence` | Stretch of time a page was in front of someone (schema 10) | started, last seen, ended; written by the page's beats, never as events ([measures](measures.md)) |
@@ -154,6 +154,7 @@ Every job, ask, gate request and verdict also writes an `events` row, so that a 
 - Schema 9 added each software's effort and whether an intake item changes what the software must do ([0191](../decisions/0191-scope-check-effort-and-milestones.md), [0192](../decisions/0192-effort-in-proportion-to-what-was-asked.md)).
 - Schema 10 added the measures and learning tables: `page_presence`, `asks_shown`, `corrections`, `lessons` and `learning_cursor` ([0193](../decisions/0193-how-the-measures-are-built.md), [0194](../decisions/0194-how-learning-from-corrections-is-built.md)).
 - Milestone 3: `claims` (schema 11).
+- Truthful approvals: `act`, `card` and `unavailable` on `gate_requests` and `act` on `approvals` (schema 15, [0220](../decisions/0220-approvals-and-verdicts-tell-the-truth.md)).
 - Milestone 4, the rest (built, schema 13): `feedback_links`, `intake_comments`, and every intake source.
 - Milestone 6: `recovered-trace.md` in the software's repository.
 - Milestone 7: several active softwares at once share the same tables; schema 12 added the operator's pause and the archive mark on `softwares` ([0197](../decisions/0197-how-several-softwares-at-once-is-built.md)). Nothing is ever deleted when a software is archived.

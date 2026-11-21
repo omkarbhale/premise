@@ -11,6 +11,45 @@ const STATE_WORDS: Record<ClaimView["state"], string> = {
   released: "released: premise decides it",
 };
 
+/** The claim form's first field, which links elsewhere on the page bring into view. */
+const CLAIM_INPUT = "claim-an-area";
+
+/**
+ * A link to the claim form (on the Line tab) from where claiming is mentioned: it opens the tab,
+ * scrolls to the form and puts the cursor in it.
+ */
+export function ClaimAreaLink({
+  softwareId,
+  children = "Claim an area",
+}: {
+  softwareId: string;
+  children?: React.ReactNode;
+}) {
+  const { go } = useSession();
+  if (!go) return null;
+  return (
+    <button
+      type="button"
+      className="link"
+      onClick={() => {
+        go(softwareId, "line");
+        // The Line tab loads first; look for the form a few times.
+        let tries = 0;
+        const look = () => {
+          const input = document.getElementById(CLAIM_INPUT);
+          if (input) {
+            input.scrollIntoView?.({ block: "center" });
+            input.focus();
+          } else if (++tries < 30) window.setTimeout(look, 100);
+        };
+        window.setTimeout(look, 0);
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
 /**
  * Taste claims (decision 0102): by default premise decides every part of the software. Claiming a
  * part, in plain words, means premise shows a proposal for it before building it, to keep or
@@ -91,6 +130,7 @@ export function Claims({ software }: { software: SoftwareDetail }) {
         <label className="small">
           Which part?
           <input
+            id={CLAIM_INPUT}
             value={area}
             maxLength={200}
             placeholder="for example: the look of the main screen"

@@ -17,6 +17,8 @@ export const TERMS = {
     "Effort: how much premise puts into a software. Low builds only what you asked for. Medium adds what premise recommends, in a later milestone. High adds everything premise could add. It also sets how long the steps before building may take. Change it at any time.",
   mocked:
     "Mocked: usage-ledger, which will report real usage and cost, does not exist yet. Until it does, these figures are made up so you can see where they will appear.",
+  agentSession:
+    "An agent session is one piece of work by an AI agent, such as drafting a list or building one part. It counts work, not money.",
 } as const;
 
 /**

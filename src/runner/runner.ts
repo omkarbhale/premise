@@ -461,7 +461,7 @@ export class Runner {
       if (!taken.has(port) && !live.busyPorts.has(port) && (await canListen(port))) return port;
     }
     throw new PortRangeError(
-      `Every port from ${range.first} to ${range.last} is in use, so there is nowhere to start it. Stop something else, or widen runner.port_range in the settings.`,
+      `Every port from ${range.first} to ${range.last} is in use, so there is nowhere to start it. Stop something else, or widen the range of ports premise may use (the Settings page says how).`,
     );
   }
 

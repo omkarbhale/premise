@@ -104,7 +104,12 @@ export function SoftwareView({
             : s.status}
         </p>
         <div className="head-facts small muted">
-          <span>Size {s.sizeClass}</span>
+          <span
+            className="define"
+            title="How big premise judged the work: small, medium or large. It sets how long each step may take. You can change it on the Line tab."
+          >
+            Size {s.sizeClass}
+          </span>
         </div>
         <SoftwareActions software={s} />
         <details className="idea">

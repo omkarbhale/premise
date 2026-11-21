@@ -61,7 +61,7 @@ Always current, for each software ([0012](../decisions/0012-reporting-with-a-pro
 | Failed or not checked | Every item not met or not checked, except what the operator left out |
 | Cost | From usage-ledger, mocked until it exists and labelled so: the total, the software's budget, and under a fold lines per step, change and record item, each with premise's own count of sessions and minutes beside the figure (not labelled mocked). A software paused for its budget has it as the first line under Needed ([usage](usage.md)). |
 
-It opens with one plain sentence saying what was built and checked out of what was asked, and "Running" gives the folder a command is typed in ([0190](../decisions/0190-how-the-first-visit-is-made-clear.md)). It is in lists ([0029](../decisions/0029-lists-over-long-paragraphs.md)), and states the known limit that the checker shares the builder's model ([0091](../decisions/0091-checker-same-provider-strongest-tier.md)).
+It opens with a plain verdict a newcomer can act on ("Works: ...", "Partly verified: ...", "Not verified: ...; try it yourself", "Does not work yet: ..."), then how to try it, then the counts, and says when the checks were made by scripted agents, which cannot judge software ([0220](../decisions/0220-approvals-and-verdicts-tell-the-truth.md)); and "Running" gives the folder a command is typed in ([0190](../decisions/0190-how-the-first-visit-is-made-clear.md)). It is in lists ([0029](../decisions/0029-lists-over-long-paragraphs.md)), and states the known limit that the checker shares the builder's model ([0091](../decisions/0091-checker-same-provider-strongest-tier.md)).
 
 ### 5.3 When reports are written
 

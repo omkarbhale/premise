@@ -66,6 +66,12 @@ export function Learned({ softwareId }: { softwareId: string | null }) {
 
   return (
     <div className="learned">
+      {softwareId !== null && (
+        <p className="intro">
+          This is premise's notebook about what your corrections taught it. You never need to open
+          it: premise uses it by itself. Look here only to fix a lesson it got wrong.
+        </p>
+      )}
       {problem && <Problem>{problem}</Problem>}
       <section className="card" aria-labelledby="adapting-title">
         <h2 id="adapting-title">What premise learned from you</h2>
@@ -337,6 +343,12 @@ function Correction({
       </p>
       {c.status === "reading" ? (
         <p className="muted small">premise is reading this to see what it teaches…</p>
+      ) : c.lessonEnded && c.destination !== "none" ? (
+        // Its lesson is gone: nothing here is in force any more, so there is nothing to move.
+        <p className="small muted">
+          <strong>Removed</strong> · its lesson {c.lessonEnded.label} is no longer followed.{" "}
+          {c.lessonEnded.note}
+        </p>
       ) : (
         <>
           <p className="small">

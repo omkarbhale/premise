@@ -60,6 +60,14 @@ describe("role labels", () => {
     expect(screen.queryByText(/answer for all of them/)).toBeNull();
     expect(screen.getByRole("heading", { name: "Why build it: is this right?" })).toBeTruthy();
   });
+
+  it("names roles only when something waiting is for another role, not because a claim exists", () => {
+    inSession(<Needed asks={[ask()]} notifications="off" />, fakeApi(), {
+      roles: ["designer"],
+    });
+    expect(screen.queryByText(/Questions are for different roles/)).toBeNull();
+    expect(screen.queryByRole("heading", { name: /For the/ })).toBeNull();
+  });
 });
 
 describe("a proposal for a claimed area", () => {

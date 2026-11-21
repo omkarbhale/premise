@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import type { Api, SoftwareSummary } from "./api";
+import type { Api, Overview, SoftwareSummary } from "./api";
 import type { SoftwareTab } from "./components/SoftwareView";
 
 export interface Session {
@@ -16,6 +16,8 @@ export interface Session {
   go?: (softwareId: string, tab?: SoftwareTab) => void;
   /** Every software, for cards that name where one stands now. */
   softwares?: SoftwareSummary[];
+  /** What a new software starts with (effort, priority, stopping after milestones). */
+  defaults?: Overview["defaults"];
   /** Whether agents are scripted (a demo) or real. */
   agentsMode?: "claude" | "scripted";
   /**

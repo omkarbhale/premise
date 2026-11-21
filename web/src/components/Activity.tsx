@@ -57,8 +57,8 @@ export function Activity() {
       <h1 id="activity-title">Activity</h1>
       <p>
         {a.runningAgentSessions} of {a.maxAgentSessions} agent sessions in use. premise runs at most{" "}
-        {plural(a.maxAgentSessions, "agent session")} at once; change it with the setting{" "}
-        <code>queue.max_agent_sessions</code>.
+        {plural(a.maxAgentSessions, "agent session")} at once; the Settings page says how to change
+        that number.
       </p>
       {a.paused && (
         <p className="warn" role="status">

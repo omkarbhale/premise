@@ -1385,3 +1385,42 @@ pre.output {
 .line-actions button {
   margin-right: 0.25rem;
 }
+
+/* Short buttons never break a word; long fields never make the page wider than the screen. */
+.say-row button,
+.tabs button,
+button.nav {
+  white-space: nowrap;
+}
+.say-row button {
+  flex-shrink: 0;
+}
+select {
+  max-width: 100%;
+}
+.start-form select {
+  width: 100%;
+}
+.intro {
+  font-size: 1.05rem;
+}
+.same-cost {
+  font-style: italic;
+}
+
+/* On a phone the header is two short rows: the name, then the views in one row that scrolls. */
+@media (max-width: 560px) {
+  .topbar nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    margin-top: 0.25rem;
+    scrollbar-width: thin;
+  }
+  button.nav {
+    padding: 0.3rem 0.55rem;
+    flex-shrink: 0;
+  }
+  .brand-row {
+    gap: 0.5rem;
+  }
+}

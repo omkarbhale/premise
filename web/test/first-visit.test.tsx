@@ -8,6 +8,7 @@ import { Conversation } from "../src/components/Conversation";
 import { Define } from "../src/components/Badges";
 import { RecordView } from "../src/components/RecordView";
 import { SoftwareView } from "../src/components/SoftwareView";
+import { StartForm } from "../src/components/StartForm";
 import { ask, fakeApi, inSession, overview, software } from "./fixtures";
 import { SessionContext, type Session } from "../src/context";
 
@@ -48,7 +49,7 @@ describe("answering", () => {
     expect(api.answer).toHaveBeenCalledWith(1, { kind: "text", text: "Do not build it" });
   });
 
-  it("says in the card that an approval is not real in scripted mode, and where the work is now", () => {
+  it("says in the card what really happens if approved, in every mode, and where the work is now", () => {
     const session: Partial<Session> = {
       agentsMode: "scripted",
       softwares: [
@@ -88,15 +89,48 @@ describe("answering", () => {
               why: "To keep the code.",
               floor: "On the floor.",
               waiting: "copying the software to GitHub",
+              real: false,
+              reality: "Nothing is created on GitHub whichever you choose.",
             },
           })}
         />
       </SessionContext.Provider>,
     );
-    expect(screen.getByText(/This is a demo, so it is not real/)).toBeTruthy();
+    // The card's truth comes from the server, per kind of action, not from the agents' mode.
+    expect(screen.getByText("Nothing happens yet.")).toBeTruthy();
+    expect(screen.getByText(/Nothing is created on GitHub whichever you choose/)).toBeTruthy();
+    expect(screen.queryByText(/This is a demo, so it is not real/)).toBeNull();
     expect(screen.getByText(/Now: Building it/)).toBeTruthy();
-    expect(screen.getByText(/waiting on your answer: copying the software to GitHub/)).toBeTruthy();
+    expect(screen.getByText(/Waiting on your answer: copying the software to GitHub/)).toBeTruthy();
     expect(screen.getByText("Why premise asks now")).toBeTruthy();
+  });
+
+  it("says a write to the person's own repository is real, even with scripted agents", () => {
+    inSession(
+      <AskCard
+        ask={ask({
+          kind: "approval",
+          title: "Add premise's record to your repository?",
+          items: [],
+          approval: {
+            action: "Create a branch named premise in your repository.",
+            why: "So the record lives with the code.",
+            floor: "On the floor.",
+            real: true,
+            reality: "Even when the agents are scripted, approving writes a branch.",
+            kindLabel: "adding and updating premise's record in your repository",
+          },
+        })}
+      />,
+    );
+    expect(screen.getByText("This is real.")).toBeTruthy();
+    expect(screen.getByText(/Even when the agents are scripted/)).toBeTruthy();
+    expect(screen.queryByText(/not real/)).toBeNull();
+    expect(
+      screen.getByRole("button", {
+        name: "Approve adding and updating premise's record in your repository for Reading list from now on",
+      }),
+    ).toBeTruthy();
   });
 
   it("shows what you struck and why on the redone list", () => {
@@ -112,7 +146,25 @@ describe("answering", () => {
     expect(screen.getByText("You struck:")).toBeTruthy();
   });
 
-  it("puts Open it and See the report on a milestone's go-on card, named by its title", async () => {
+  it("offers Open it on a milestone's card only when there is a link to open", async () => {
+    const api = fakeApi({ run: vi.fn(() => Promise.resolve(runView("http://127.0.0.1:4100/"))) });
+    inSession(
+      <AskCard
+        ask={ask({
+          kind: "question",
+          items: [],
+          title: "Milestone reached: A page that greets people. Go on?",
+          milestone: { id: "M-1", title: "A page that greets people" },
+          choices: ["Go on", "Go back to Why"],
+        })}
+      />,
+      api,
+    );
+    expect(await screen.findByRole("link", { name: "Open it" })).toBeTruthy();
+    expect(screen.queryByText(/type this in a terminal/)).toBeNull();
+  });
+
+  it("shows how to try command-line software on a milestone's card, with Go on as the main answer", async () => {
     const user = userEvent.setup();
     const go = vi.fn();
     const api = fakeApi({ run: vi.fn(() => Promise.resolve(runView(null))) });
@@ -137,10 +189,19 @@ describe("answering", () => {
         />
       </SessionContext.Provider>,
     );
+    // Command-line software has nothing to open: the card shows the command instead.
+    expect(await screen.findByText("node x.mjs")).toBeTruthy();
+    expect(screen.getByText(/type this in a terminal/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Open it" })).toBeNull();
     await user.click(screen.getByRole("button", { name: "See the report" }));
     expect(go).toHaveBeenCalledWith("s1", "report");
-    expect(screen.getByRole("button", { name: "Open it" })).toBeTruthy();
     expect(screen.queryByText(/M-1/)).toBeNull();
+    // Going on is the main answer; going back is the quiet one; no free text to mis-send.
+    expect(screen.getByRole("button", { name: "Go on" }).className).toContain("primary");
+    expect(screen.getByRole("button", { name: "Go back to Why" }).className).not.toContain(
+      "primary",
+    );
+    expect(screen.queryByRole("textbox")).toBeNull();
   });
 });
 
@@ -172,9 +233,17 @@ describe("the message box", () => {
     expect(screen.getByLabelText("Add a correction to the open list")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Add correction" })).toBeTruthy();
     unmount();
-    inSession(<Conversation softwareId="s1" asks={[]} />);
+    const { unmount: unmount2 } = inSession(<Conversation softwareId="s1" asks={[]} />);
     expect(screen.getByLabelText("Ask premise for a change")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Ask for this change" })).toBeTruthy();
+    unmount2();
+    // Before anything is built, there is no change to ask for.
+    inSession(<Conversation softwareId="s1" asks={[]} />, fakeApi(), {
+      softwares: [{ ...software(), stage: "why" }],
+    });
+    expect(screen.getByLabelText("Tell premise something")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Send" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Ask for this change" })).toBeNull();
   });
 
   it("shows no 'waiting on you' pointer where the ask itself is", () => {
@@ -290,6 +359,8 @@ describe("the page's links", () => {
         const id = /\/api\/softwares\/([^/]+)/.exec(url)?.[1];
         const found = softwares.find((s) => s.id === id);
         if (url.endsWith("/chat")) return reply(200, []);
+        if (/\/api\/softwares\/[^/?]+\/[^?]/.test(url))
+          return reply(404, { error: "not in this stub" });
         if (found) return reply(200, summary(found));
         return reply(404, { error: "no" });
       }),
@@ -327,6 +398,16 @@ describe("the page's links", () => {
     await screen.findByRole("heading", { name: "First one", level: 1 });
     await user.click(screen.getByRole("button", { name: /Second one/ }));
     expect(window.location.hash).toBe("#token=good&software=b");
+    // The tab is kept too, so a refresh comes back to it.
+    await user.click(await screen.findByRole("tab", { name: "Report" }));
+    expect(window.location.hash).toBe("#token=good&software=b&tab=report");
+  });
+
+  it("come back to the tab you were on after a refresh", async () => {
+    stubApi([{ id: "a", name: "First one", openAsks: 0 }]);
+    window.location.hash = "#token=good&software=a&tab=record";
+    render(<App />);
+    expect(await screen.findByRole("tab", { name: "Record", selected: true })).toBeTruthy();
   });
 
   it("say plainly that an old link is old, and recover when a new one is pasted in", async () => {
@@ -362,5 +443,38 @@ describe("the page's links", () => {
     expect(within(nav).getByRole("button", { name: /^Activity/ })).toBeTruthy();
     expect(within(nav).getByRole("button", { name: /^Usage/ })).toBeTruthy();
     expect(within(nav).getByRole("button", { name: /^Settings/ })).toBeTruthy();
+  });
+});
+
+describe("plain words instead of setting names", () => {
+  it("offers to let premise decide how much to build, naming its usual effort", () => {
+    inSession(<StartForm onStarted={vi.fn()} />, fakeApi(), {
+      defaults: { effort: "medium", priority: 3, milestoneWaits: false },
+    });
+    expect(screen.getByRole("option", { name: "Let premise decide (medium)" })).toBeTruthy();
+    expect(screen.queryByText(/default_effort/)).toBeNull();
+  });
+
+  it("links the assumption about claiming an area to the claim form", async () => {
+    const user = userEvent.setup();
+    const go = vi.fn();
+    inSession(
+      <AskCard
+        ask={ask({
+          stage: "who",
+          items: [
+            {
+              key: "u1",
+              text: "Nobody else needs a say yet. Anyone can claim an area later, such as the look of the main screen.",
+              mark: "assumed",
+            },
+          ],
+        })}
+      />,
+      fakeApi(),
+      { go },
+    );
+    await user.click(screen.getByRole("button", { name: "Claim an area" }));
+    expect(go).toHaveBeenCalledWith("s1", "line");
   });
 });

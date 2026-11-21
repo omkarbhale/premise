@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 import { type Browser, type Page, chromium } from "playwright";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { defaultWebRoot, start } from "../../src/server/start.js";
+import { commandLineProject, git } from "../fixtures/existing-projects.js";
 import { tempFolder, uniquePortRange } from "../helpers.js";
 
 /**
@@ -160,11 +161,12 @@ describe("first run, in a browser", () => {
     await milestones.getByRole("button", { name: "Confirm this list" }).click();
 
     // The gate asks before anything outside this machine; building goes on meanwhile.
-    const approval = card(page, "Allow premise to act in your name outside this machine?");
+    const approval = card(page, /^Create a private repository on GitHub for /);
     await approval.waitFor({ timeout: 15_000 });
     await approval.getByText("What will happen").waitFor();
-    // The card says plainly that it is not real in scripted mode, and why it asks now.
-    await approval.getByText(/This is a demo, so it is not real/).waitFor();
+    // The card says plainly what really happens (nothing, for this step), and why it asks now.
+    await approval.getByText(/Nothing happens yet\./).waitFor();
+    await approval.getByText(/Nothing is created on GitHub whichever you choose/).waitFor();
     await approval.getByText("Why premise asks now").waitFor();
     await shot(page, "06b-approval");
     await approval.getByRole("button", { name: "Approve once" }).click();
@@ -178,12 +180,33 @@ describe("first run, in a browser", () => {
 
     // premise stops after what was asked for: what follows is only its own additions.
     await page.getByRole("button", { name: /^Waiting on you/ }).click();
+    // The scripted checker can judge nothing, so premise asks before landing it unverified.
+    const unverified = card(page, "Nothing could be checked: land it anyway?");
+    await unverified.waitFor({ timeout: 20_000 });
+    await unverified.getByText(/cannot judge software/).waitFor();
+    await unverified.getByText(/To try it yourself:/).waitFor();
+    await shot(page, "07a-nothing-verified");
+    await unverified.getByRole("button", { name: "Land it unverified" }).click();
     const reached = card(page, /^Milestone reached: .+Go on\?$/);
     await reached.waitFor({ timeout: 20_000 });
     await shot(page, "07b-first-milestone-reached");
     await reached.getByRole("button", { name: "Go on" }).click();
+    // The next milestone is checked the same way: land it unverified too.
+    const again = card(page, "Nothing could be checked: land it anyway?");
+    await again.waitFor({ timeout: 20_000 });
+    await again.getByRole("button", { name: "Land it unverified" }).click();
 
     await page.getByRole("button", { name: /^Softwares/ }).click();
+    await page
+      .getByText("Running: waiting for what you say next")
+      .first()
+      .waitFor({ timeout: 20_000 });
+    // The answer is echoed in the conversation, with what happens next (among earlier messages).
+    await page.getByRole("button", { name: /^Show \d+ earlier messages/ }).click();
+    await page
+      .getByText(/You said go on\./)
+      .first()
+      .waitFor({ timeout: 20_000 });
     await page
       .getByText("Running: waiting for what you say next")
       .first()
@@ -201,8 +224,10 @@ describe("first run, in a browser", () => {
     await shot(page, "10-record");
     await page.getByRole("tab", { name: "Report" }).click();
     await page
-      .getByRole("heading", { name: /^Built and checked|^Nothing has been built/ })
+      .getByRole("heading", { name: /^Not verified: premise could not check this/ })
       .waitFor();
+    // Never "passed" or "met" first when nothing was verified; scripted checks are said to judge nothing.
+    await page.getByText(/scripted agents, which cannot judge software/).waitFor();
     await page.getByRole("heading", { name: "Failed or not checked" }).waitFor();
     await expect(page.locator(".badge-mocked").first().isVisible()).resolves.toBe(true);
     await shot(page, "11-report");
@@ -312,6 +337,55 @@ describe("first run, in a browser", () => {
     await expect(page.getByRole("heading", { name: "This link is old" }).count()).resolves.toBe(0);
     await page.close();
   }, 30_000);
+
+  it("says plainly that adding the record to your own repository is real, and then does it", async () => {
+    const folder = commandLineProject(join(tempFolder(), "wordcount"));
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.goto(running.link);
+    // The welcome page holds the form when nothing is in premise yet; otherwise it is one click away.
+    const where = page.getByLabel("Where is it?");
+    const startOrBring = page.getByRole("button", { name: "Start or bring in" });
+    await Promise.race([where.waitFor(), startOrBring.waitFor()]);
+    if (!(await where.isVisible())) await startOrBring.click();
+    await where.fill(folder);
+    await page.getByRole("button", { name: "Bring it in" }).click();
+    // Go through what premise asks, keeping what it says, until it asks to add the record.
+    const record = card(page, "Add premise's record to your repository?");
+    for (let n = 0; n < 12 && !(await record.isVisible()); n++) {
+      const next = page.locator("article.ask").first();
+      await Promise.race([
+        next.waitFor({ timeout: 20_000 }),
+        record.waitFor({ timeout: 20_000 }),
+      ]).catch(() => undefined);
+      if (await record.isVisible()) break;
+      // premise's best guess where there is one; otherwise the card's main button.
+      const guess = next.getByRole("button", { name: "Go with this" });
+      const go = next.locator("button.primary:enabled").first();
+      if (await guess.isVisible()) await guess.click();
+      else if (await go.isVisible()) await go.click();
+      await page.waitForTimeout(500);
+    }
+    await record.waitFor({ timeout: 20_000 });
+    // Its own card: real even with scripted agents, a branch in your repository, nothing leaves.
+    await record.getByText("This is real.").waitFor();
+    await record.getByText(/Even when the agents are scripted/).waitFor();
+    await record.getByText(/Create a branch named premise/).waitFor();
+    await expect(record.getByText(/not real|Nothing will be created/).count()).resolves.toBe(0);
+    await record
+      .getByRole("button", {
+        name: /^Approve adding and updating premise's record in your repository for .+ from now on$/,
+      })
+      .waitFor();
+    await shot(page, "21-record-to-your-repository");
+    await record.getByRole("button", { name: "Approve once" }).click();
+    await page
+      .getByText(/^Approved and done: /)
+      .first()
+      .waitFor({ timeout: 20_000 });
+    await shot(page, "22-record-added");
+    expect(git(folder, ["branch", "--list", "premise"])).toContain("premise");
+    await page.close();
+  }, 120_000);
 
   it("prints help and starts nothing when --help is given to start", () => {
     const folder = join(tempFolder(), "data-folder");

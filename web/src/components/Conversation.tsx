@@ -5,11 +5,18 @@ import { useLoad } from "../hooks";
 import { when } from "../words";
 import { AskCard } from "./AskCard";
 import { Problem } from "./Badges";
+import { ClaimAreaLink } from "./Claims";
+
+/** Stages at which there is software to ask a change of. */
+const BUILT_STAGES = new Set<string>(["check", "run", "report", "intake"]);
 
 /** The software's conversation, with what is waiting on you on top. */
 export function Conversation({ softwareId, asks }: { softwareId: string; asks: AskView[] }) {
-  const { api, version, notCurrent, refresh } = useSession();
+  const { api, version, notCurrent, refresh, softwares } = useSession();
   const messages = useLoad(() => api.chat(softwareId), [softwareId], version, notCurrent);
+  // Before anything is built there is no change to ask for: what is said is still taken in.
+  const summary = softwares?.find((s) => s.id === softwareId);
+  const built = !summary || summary.takingOn || BUILT_STAGES.has(summary.stage);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -76,12 +83,18 @@ export function Conversation({ softwareId, asks }: { softwareId: string; asks: A
           }}
         >
           <label htmlFor={inputId} className="small">
-            {draft ? "Add a correction to the open list" : "Ask premise for a change"}
+            {draft
+              ? "Add a correction to the open list"
+              : built
+                ? "Ask premise for a change"
+                : "Tell premise something"}
           </label>
           <p id={hintId} className="muted small">
             {draft
               ? "What you write here is added to the list above as a correction. It does not start new work."
-              : "What you write here is taken in as a request for a change (intake): premise answers with its number, and the Intake tab shows where it stands."}{" "}
+              : built
+                ? "What you write here is taken in as a request for a change (intake): premise answers with its number, and the Intake tab shows where it stands."
+                : "Nothing is built yet. What you write here is taken in (intake): premise answers with its number, works it in, and the Intake tab shows where it stands."}{" "}
             Enter sends; Shift+Enter makes a new line.
           </p>
           <div className="say-row">
@@ -99,10 +112,14 @@ export function Conversation({ softwareId, asks }: { softwareId: string; asks: A
               }}
             />
             <button type="submit" className="primary" disabled={busy || !text.trim()}>
-              {draft ? "Add correction" : "Ask for this change"}
+              {draft ? "Add correction" : built ? "Ask for this change" : "Send"}
             </button>
           </div>
           {problem && <Problem>{problem}</Problem>}
+          <p className="muted small">
+            Want to see a part, such as the look of the main screen, before premise builds it?{" "}
+            <ClaimAreaLink softwareId={softwareId} />.
+          </p>
         </form>
       </section>
     </div>

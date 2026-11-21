@@ -930,6 +930,16 @@ export class Learning implements LessonSource {
         }[]
       ).map((r) => [r.correction_id, r.id]),
     );
+    // A correction whose lesson was deleted or dropped says so, rather than look still in force.
+    const endedOf = new Map(
+      (
+        this.db
+          .prepare(
+            "SELECT id, correction_id, state, end_note FROM lessons WHERE state != 'live' ORDER BY id",
+          )
+          .all() as { id: number; correction_id: number; state: string; end_note: string | null }[]
+      ).map((r) => [r.correction_id, { label: label(r.id), note: r.end_note ?? "" }]),
+    );
     const ended = (softwareId === null
       ? this.db
           .prepare(
@@ -981,6 +991,7 @@ export class Learning implements LessonSource {
         reason: c.reason,
         decidedBy: c.decided_by,
         lessonId: lessonOf.get(c.id) ?? null,
+        ...(!lessonOf.has(c.id) && endedOf.has(c.id) && { lessonEnded: endedOf.get(c.id)! }),
         created: c.created,
       })),
       ended: endedViews,

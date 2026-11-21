@@ -108,11 +108,9 @@ describe("the Intake tab", () => {
     );
     const user = userEvent.setup();
     const box = await screen.findByLabelText("Report a problem or a wish");
-    expect((screen.getByRole("button", { name: "Report" }) as HTMLButtonElement).disabled).toBe(
-      true,
-    );
+    expect((screen.getByRole("button", { name: "Send" }) as HTMLButtonElement).disabled).toBe(true);
     await user.type(box, "The add button is hidden on a phone");
-    await user.click(screen.getByRole("button", { name: "Report" }));
+    await user.click(screen.getByRole("button", { name: "Send" }));
     expect(reportIntake).toHaveBeenCalledWith("s1", "The add button is hidden on a phone");
     expect(await screen.findByText(/Taken as I-9\. An agent reads it/)).toBeTruthy();
   });

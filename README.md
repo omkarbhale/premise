@@ -27,7 +27,7 @@ Then pick one:
 | I want to… | Run | What happens |
 | --- | --- | --- |
 | **Use my Claude Code login** (real agents) | `npm start` | Agents are Claude Code sessions on your login; no API key. On Linux and WSL2 they also need bubblewrap and socat (`sudo apt install bubblewrap socat`); `npm run doctor` says what is missing. |
-| **Look around without AI** | `npm run demo` | Scripted agents follow a script and call no AI; nothing real is built. The page labels them. |
+| **Look around without AI** | `npm run demo` | Scripted agents follow a script and call no AI; the software built is a placeholder. The page labels them. If you bring in software of your own, writing premise's record to your repository is still real, and its approval card says so. |
 
 Either prints a link such as `http://localhost:4610/#token=…`. Open it, describe a software in a sentence or two, and the page says what happens next. The link holds a private token; restarting gives a new one, and `npm run new-link` prints a new one any time (older links stop working). If real agents cannot start, premise still starts, says on the page what is missing, and offers "look around with scripted agents".
 

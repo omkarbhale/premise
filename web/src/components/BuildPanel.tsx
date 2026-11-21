@@ -12,7 +12,10 @@ const TASK_STATUS: Record<BuildTaskView["status"], string> = {
 const CHECK_STATUS: Record<CheckView["status"], string> = {
   "writing-scenarios": "Writing the checks from your record, before anything is built",
   checking: "Being checked now",
-  passed: "Passed",
+  passed: "Passed: everything it had to check is met",
+  "not-fully-verified":
+    "No failure found, but not fully verified: some things could not be checked",
+  "not-verified": "Not verified: nothing failed, but nothing could be checked",
   "not-passed": "Not passed: back to the builder with what was wrong",
   stopped: "Stopped: premise asks you what to do",
   "did-not-finish": "The check did not finish",
@@ -30,6 +33,21 @@ function tally(check: CheckView): string {
   const count = (v: VerdictValue) => check.verdicts.filter((x) => x.verdict === v).length;
   if (check.verdicts.length === 0) return "";
   return ` (${count("met")} met, ${count("not-met")} not met, ${count("could-not-check")} could not check)`;
+}
+
+/** How the landed version's check ended, never "passed" unless it did (decision 0197). */
+function landedWords(checks: CheckView[], commit: string): string {
+  const check = [...checks].reverse().find((c) => c.commit === commit && c.verdicts.length > 0);
+  switch (check?.status) {
+    case "passed":
+      return "passed its check";
+    case "not-fully-verified":
+      return "had no failure found, but is not fully verified";
+    case "not-verified":
+      return "is not verified: its check could check nothing";
+    default:
+      return "was landed with what its check found still open";
+  }
 }
 
 /**
@@ -105,6 +123,12 @@ export function BuildPanel({ build }: { build: BuildView }) {
                   <strong>{CHECK_STATUS[c.status]}</strong>
                   {tally(c)}
                 </summary>
+                {c.scripted && (
+                  <p className="note small">
+                    This check was made by a scripted agent. Scripted agents cannot judge software:
+                    at most they run fixed steps and compare what is printed.
+                  </p>
+                )}
                 {c.verdicts.length > 0 && (
                   <ul className="verdicts">
                     {c.verdicts.map((v) => (
@@ -140,8 +164,9 @@ export function BuildPanel({ build }: { build: BuildView }) {
 
       {build.landed && (
         <p className="build-landed">
-          <strong>Landed:</strong> version {short(build.landed.commit)} passed its check and was
-          merged on {when(build.landed.when)}. How to open it is under Running.
+          <strong>Landed:</strong> version {short(build.landed.commit)}{" "}
+          {landedWords(build.checks, build.landed.commit)} and was merged on{" "}
+          {when(build.landed.when)}. How to open it is under Running.
         </p>
       )}
     </section>
