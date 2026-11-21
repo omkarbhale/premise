@@ -16,7 +16,8 @@ Sources: [VISION.md](../../VISION.md#who-it-is-for), the [decision records](../d
   - to decide the outcome of What exists: do not build, build on something, or build something different ([0023](../decisions/0023-looking-at-what-exists.md));
   - to strike what is wrong in the say-back ([0028](../decisions/0028-say-back-as-assumptions-to-strike.md));
   - any change of purpose, including after a reading of held intake ([0095](../decisions/0095-what-is-held.md));
-  - to reopen accepted defects if they want ([build, check and run](../architecture/build-check-run.md#check-0030)).
+  - to reopen accepted defects if they want ([build, check and run](../architecture/build-check-run.md#check-0030));
+  - optionally, per software, how much effort it gets (a share of weekly usage, or a priority) and which milestones to wait after; at a wait, to say when to go on ([0128](../decisions/0128-effort-per-software-and-milestone-waits.md)). The builders' reading is in [0129](../decisions/0129-builders-reading-of-effort-and-milestone-waits.md).
 - Has the last word on purpose, users and priorities ([0084](../decisions/0084-who-has-the-last-word.md)).
 - Can send a software back to any stage ([the line](../architecture/the-line.md#rules-for-every-stage)).
 - Gives the feedback page's link to the software's users; that is the operator's act ([intake](../architecture/intake-and-reporting.md#intake-sources)).
@@ -46,7 +47,7 @@ Sources: [VISION.md](../../VISION.md#who-it-is-for), the [decision records](../d
 
 ### The owner of premise
 
-- The person premise is being made for. Picks the first software when they want ([0050](../decisions/0050-first-software-is-the-owners-pick.md), [0060](../decisions/0060-first-software-does-not-hold-up-premise.md)); says when building starts ([0061](../decisions/0061-nothing-built-until-the-owner-says.md)).
+- The person premise is being made for. Picks the first software when they want, one they need, which goes through premise as early as possible ([0050](../decisions/0050-first-software-is-the-owners-pick.md), [0127](../decisions/0127-first-software-is-one-the-owner-needs.md)); says when building starts ([0061](../decisions/0061-nothing-built-until-the-owner-says.md)).
 - While premise is built, work stops for the owner only on destructive, security-sensitive, public-facing or money-spending actions ([0053](../decisions/0053-when-work-stops-for-the-owner.md)), with one short report per finished milestone ([0054](../decisions/0054-reports-to-the-owner.md)).
 - While premise runs on the owner's machine, the owner is also the operator of the softwares premise builds there, and the only person whose subscription premise uses ([0103](../decisions/0103-subscription-only-for-the-owner.md)).
 
@@ -85,6 +86,10 @@ Milestone 1 shows this for a command-line utility and a small web app ([0110](..
 ### Nobody wants the software
 
 - Held opinions say people do not want it. The reading puts that to the operator, and premise goes back to Why with them: the wrong problem may have been solved, or there are other problems ([0036](../decisions/0036-finding-out-if-people-want-it-is-out.md)).
+
+### A wait after a milestone
+
+- For a software where the operator set one, premise stops after a milestone at running software and a report, and does not go on until the operator says to. That is where the operator judges whether the software is fixing the right problem, with the way back to Why ([0128](../decisions/0128-effort-per-software-and-milestone-waits.md); the reading is [0129](../decisions/0129-builders-reading-of-effort-and-milestone-waits.md)). Milestone 1 shows this.
 
 ### Taking on existing software
 

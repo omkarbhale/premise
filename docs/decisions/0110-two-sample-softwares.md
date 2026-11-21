@@ -1,6 +1,6 @@
 # 0110. Two small softwares of different kinds shown running in milestone 1
 
-- Status: Accepted
+- Status: Partly superseded by [0127](0127-first-software-is-one-the-owner-needs.md): the step "After this, the owner can run their own first pick whenever they want"; the samples stay, as extra proof
 - Scope: Milestone 1
 - Date: 2026-11-21
 - Decided by: The builders, in the plan of 2026-11-21. The owner did not make this choice.
@@ -27,6 +27,7 @@ Two kinds keep the line from fitting one kind ([0049](0049-any-kind-of-software.
 
 ## Consequences
 - Carried in [roadmap](../product/roadmap.md).
+- **Adjusted by** [0127](0127-first-software-is-one-the-owner-needs.md): the samples stay as extra proof; the owner's own first software goes through as early as possible, before the later milestones are built.
 
 ## Related
 [0108](0108-scripted-operator-for-demos.md), [0109](0109-vitest-and-kept-demos.md), [0034](0034-first-proof-new-software.md).

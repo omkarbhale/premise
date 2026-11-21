@@ -4,7 +4,7 @@ Status: specification. Nothing is built until the owner says to start ([0061](..
 
 ## 1. Purpose
 
-The work queue holds premise's jobs, stored so that a restart resumes them. It decides which job runs next, keeps at most two agent sessions running at once, and pauses work when the subscription's usage limit is reached or a software's budget is overrun.
+The work queue holds premise's jobs, stored so that a restart resumes them. It decides which job runs next, keeps at most two agent sessions running at once, and pauses work when the subscription's usage limit is reached or a software's budget is overrun. Per software it also holds the operator's optional settings of effort (a share of weekly usage, or a priority) and of milestone waits ([0128](../decisions/0128-effort-per-software-and-milestone-waits.md); how they work is the builders' reading, [0129](../decisions/0129-builders-reading-of-effort-and-milestone-waits.md), open to the owner's correction).
 
 Job kinds: `draft`, `research`, `review`, `plan`, `build`, `prototype`, `check`, `run`, `report`, `triage`, `reading`. A `check` job either writes a change's scenarios from the record before its build starts, or judges a commit ([0122](../decisions/0122-scenarios-written-before-the-build.md)).
 
@@ -51,6 +51,8 @@ Job statuses: `queued`, `running`, `waiting` (on an ask or a gate request), `pau
 - Agent jobs need a free session slot. At most two agent sessions run at once by default: every session draws on the same subscription limits, and more sessions at once mostly reach the limit sooner ([0074](../decisions/0074-two-agent-sessions-at-once.md)).
 - `run` jobs are done by the server, not an agent, and do not take a slot.
 - Order: jobs that unblock a person's view come first (a draft, a say-back, a report), then checks, then builds, then triage and readings; within one kind, oldest first.
+- A software stopped at a milestone wait ([line engine](line-engine.md)) is not startable: no new job starts for it until the operator says to go on. Its asks stay answerable.
+- Effort (builders' reading, [0129](../decisions/0129-builders-reading-of-effort-and-milestone-waits.md)): a software with a share of weekly usage is not started once its share is used, read from usage-ledger and the weekly figure in Claude Code's own stream; it comes with cost in milestone 2. Priority orders the queue between softwares; it comes with several softwares in milestone 7.
 - Milestone 7: with several softwares, slots are shared fairly, taking turns between softwares that have startable jobs.
 
 ### 5.2 Restarts
@@ -124,6 +126,7 @@ Anything that must survive a crash goes through the work queue's table ([archite
 
 - Milestone 1 step 1: the proof of the usage-limit pause (point 6 of step 1, [roadmap](../product/roadmap.md)): rate-limit events pause the work and it resumes after the reset; if the limit cannot be reached safely, the pause is shown with a simulated event.
 - Milestone 1 step 2: the work queue that survives a restart; two sessions; three-strike rule; usage-limit pause.
-- Milestone 2 (needs usage-ledger usable): per-software budget pause.
+- Milestone 1 step 2: a software stopped at a milestone wait is not startable.
+- Milestone 2 (needs usage-ledger usable): per-software budget pause; effort as a share of weekly usage.
 - Milestone 4: `triage` and `reading` jobs.
-- Milestone 7: fair sharing between several softwares.
+- Milestone 7: fair sharing between several softwares; priority between softwares.

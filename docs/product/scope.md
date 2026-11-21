@@ -42,6 +42,7 @@ premise sorts what it could cover three ways:
 - Knowing what each piece of work costs ([0016](../decisions/0016-coarse-cost-tracking.md)), through usage-ledger ([0064](../decisions/0064-cost-and-spending-limit-from-usage-ledger.md)), with a spending limit ([0048](../decisions/0048-a-spending-limit.md)).
 - Writing what the software's users read: help text, guides, release notes ([0033](../decisions/0033-answers-to-the-ten-assumptions.md), item 4).
 - Looking after several softwares at once ([0033](../decisions/0033-answers-to-the-ten-assumptions.md), item 6).
+- Per software, optionally: how much effort it gets, as a share of weekly usage or by priority, and milestones with a wait after them ([0128](../decisions/0128-effort-per-software-and-milestone-waits.md)). How it works is the builders' reading, open to the owner's correction ([0129](../decisions/0129-builders-reading-of-effort-and-milestone-waits.md)).
 - Other people setting premise up and running it themselves ([0033](../decisions/0033-answers-to-the-ten-assumptions.md), item 7).
 - Any kind of software; no first kind ([0049](../decisions/0049-any-kind-of-software.md), [0057](../decisions/0057-vision-stays-any-software.md)).
 - Nobody has to use another tool alongside premise; it may be built on other tools underneath ([0063](../decisions/0063-premise-may-depend-on-other-tools.md)).

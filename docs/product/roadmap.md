@@ -8,7 +8,8 @@ The vision states the vision only, with no now-or-later split ([0035](../decisio
 
 - Nothing is built until the owner says to start ([0061](../decisions/0061-nothing-built-until-the-owner-says.md)).
 - First proof: the thinnest line, end to end, for any small software ([0034](../decisions/0034-first-proof-new-software.md), [0049](../decisions/0049-any-kind-of-software.md)). Its first step proves that premise can drive LLM work unattended through the owner's subscription; if that cannot be proven, work stops for the owner there.
-- The first software is the owner's pick, made when the owner wants; building premise does not wait for it ([0050](../decisions/0050-first-software-is-the-owners-pick.md), [0060](../decisions/0060-first-software-does-not-hold-up-premise.md)).
+- The first software is the owner's pick, made when the owner wants ([0050](../decisions/0050-first-software-is-the-owners-pick.md)). It is one the owner actually needs, and it goes through premise as early as possible, before the later milestones are built; milestone 1 does not wait for the pick, and the two sample softwares stay as extra proof ([0127](../decisions/0127-first-software-is-one-the-owner-needs.md), which adjusts [0060](../decisions/0060-first-software-does-not-hold-up-premise.md) and [0110](../decisions/0110-two-sample-softwares.md)).
+- Per software, the owner can set how much effort it gets and milestones to wait after ([0128](../decisions/0128-effort-per-software-and-milestone-waits.md)). The builders' placement, open to the owner's correction ([0129](../decisions/0129-builders-reading-of-effort-and-milestone-waits.md)): waits in milestone 1; effort by share with cost in milestone 2; effort by priority with several softwares in milestone 7.
 - Cost tracking and the spending limit come when usage-ledger is usable ([0064](../decisions/0064-cost-and-spending-limit-from-usage-ledger.md)).
 - Existing software after the line works ([0034](../decisions/0034-first-proof-new-software.md)).
 - Other people setting premise up comes sooner than the other later items ([0033](../decisions/0033-answers-to-the-ten-assumptions.md), item 7; [0043](../decisions/0043-runs-on-the-owners-machine-first.md)).
@@ -29,7 +30,7 @@ If usage-ledger is not usable when milestone 1 ends, milestone 3 goes first and 
 
 ## For every milestone
 
-- Nothing starts until the owner says to start ([0061](../decisions/0061-nothing-built-until-the-owner-says.md)).
+- Nothing starts until the owner says to start ([0061](../decisions/0061-nothing-built-until-the-owner-says.md)); this still holds.
 - Changes to premise ship as pull requests the assistant merges ([0052](../decisions/0052-fast-i-merge-reconfirmed.md)). Work stops for the owner only on destructive, security-sensitive, public-facing or money-spending actions ([0053](../decisions/0053-when-work-stops-for-the-owner.md)).
 - "Shown running" means a recorded run with its evidence kept: transcripts, the record files, commits with their traces, the check's verdicts, screenshots or command output.
 - "Reported" means one short report to the owner when the milestone finishes ([0054](../decisions/0054-reports-to-the-owner.md)): what was built; how it was shown running, with the evidence; what failed and what could not be checked; the builders' choices made or changed (decision records); from milestone 2 on, the cost. Anything that needs the owner is sent at once.
@@ -67,20 +68,22 @@ Thinnest means: one software at a time; only the operator; no taste claims; inta
   - the record keeper writing `premise/` files with IDs into a new repository per software; trace trailers enforced;
   - one builder and one checker, confined; the checker's scenarios out of the builder's reach; verdicts with evidence;
   - the server's merge and push; the runner, with a link or a command on the page;
+  - a software's milestones, proposed by premise and edited by the operator, each ending at running software and a report, with a wait after any the operator sets: premise stops there until the operator says to go on ([0128](../decisions/0128-effort-per-software-and-milestone-waits.md), [0129](../decisions/0129-builders-reading-of-effort-and-milestone-waits.md));
   - a report each time a change reaches running; things the operator says become intake that goes in normally.
 - Shown running:
   - [0110](../decisions/0110-two-sample-softwares.md) (P44): two small softwares of different kinds, each taken from a one-paragraph idea to running software with a scripted operator: a command-line utility and a small web app.
     - Why: two kinds keep the line from fitting one kind ([0049](../decisions/0049-any-kind-of-software.md)).
     - Rejected: one sample; waiting for the owner's pick ([0060](../decisions/0060-first-software-does-not-hold-up-premise.md)).
   - In each run, one assumption is struck in the say-back and the record changes to match.
+  - In one run, a wait is set after a milestone: premise stops there with running software and a report until the scripted operator says to go on ([0129](../decisions/0129-builders-reading-of-effort-and-milestone-waits.md)).
   - In each run, the checker catches a defect planted in the build that it was not told about.
-  - After this, the owner can run their own first pick whenever they want ([0060](../decisions/0060-first-software-does-not-hold-up-premise.md)).
+  - The samples stay as extra proof. The owner's own first software, one the owner needs, then goes through as early as possible, before milestone 2 onward is built ([0127](../decisions/0127-first-software-is-one-the-owner-needs.md), which adjusts [0110](../decisions/0110-two-sample-softwares.md)).
 - Reported: the milestone report, and for each sample what failed and what could not be checked.
 
 ## Milestone 2: cost and the spending limit, through usage-ledger
 
 - **Prerequisite: usage-ledger is usable.** Building it is its own project, not premise work ([0064](../decisions/0064-cost-and-spending-limit-from-usage-ledger.md)). If it is not usable when milestone 1 ends, milestone 3 goes first and this one starts when it is.
-- Built: premise's part of [models and cost](../architecture/models-and-cost.md#cost-and-the-spending-limit-0016-0048-0064): session-to-task records in usage-ledger's format; usage per software, stage, change and record item in reports; per-software budgets set in usage-ledger; pausing a software's queue and telling the operator when its budget is overrun.
+- Built: premise's part of [models and cost](../architecture/models-and-cost.md#cost-and-the-spending-limit-0016-0048-0064): session-to-task records in usage-ledger's format; usage per software, stage, change and record item in reports; per-software budgets set in usage-ledger; pausing a software's queue and telling the operator when its budget is overrun; a software's effort as a share of weekly usage, read from usage-ledger and Claude Code's own stream ([0129](../decisions/0129-builders-reading-of-effort-and-milestone-waits.md)).
 - Shown running: milestone 1's demos run again, with usage per stage and per item in their reports; a deliberately small budget overrun that pauses the software and tells the operator.
 - Reported: as for every milestone, plus what milestone 1's demos cost.
 
@@ -125,7 +128,7 @@ Sooner than the other later items ([0033](../decisions/0033-answers-to-the-ten-a
 
 ## Milestone 7: kept live, and several softwares at once
 
-- Built: running software for its real users on hosts the operator approves; keeping it up; incidents back as intake; several softwares at once, sharing the work queue fairly, with a report per software and one summary.
+- Built: running software for its real users on hosts the operator approves; keeping it up; incidents back as intake; several softwares at once, sharing the work queue fairly, with a report per software and one summary; priority between softwares orders the work queue ([0129](../decisions/0129-builders-reading-of-effort-and-milestone-waits.md)).
 - Every first deployment to a public host is public-facing and may spend money, so it is asked ([0100](../decisions/0100-floor-actions.md)).
 - Shown running: two softwares live on approved hosts, one taking an incident back through the line.
 - Reported: as for every milestone.

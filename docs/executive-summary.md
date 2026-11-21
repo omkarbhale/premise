@@ -11,11 +11,13 @@
   - thin: deciding what to build, several people entering at their own steps, reporting at a detail the operator chooses, cost against value, recovering intent from existing code;
   - not found anywhere: a product that owns the conversation and will not build until the problem and users are settled; routing each question to the right person in their own terms; keeping a record of rejected alternatives.
 - What the research says goes wrong: intent mismatch is the top reported failure; human attention, not build speed, is the bottleneck; agents game checks they can reach; non-expert operators are where security incidents cluster.
+- The owner confirmed this problem statement, and eight points of what is being built, on 2026-11-21 ([0126](decisions/0126-what-is-being-built-confirmed.md)).
 
 ## The product
 
 premise is one product that takes software from an idea to running software, and keeps taking work back in, with LLMs doing everything an LLM can do ([VISION.md](../VISION.md)).
 - It is for someone who knows what the software is for. That is all it requires of them ([0008](decisions/0008-operator-knows-the-purpose.md)).
+- Per software, the owner can decide how much effort it gets, as a share of weekly usage or by priority, and can make milestones and have premise wait after them ([0128](decisions/0128-effort-per-software-and-milestone-waits.md)).
 - Every other person the software needs is also a user, asked in their own terms at their step ([0009](decisions/0009-everyone-needed-is-a-user.md)).
 - If an LLM can do it, an LLM does it; return on effort decides, not perfection. If an LLM cannot reliably do it, it proposes and a person decides ([0006](decisions/0006-llm-does-what-it-can.md), [0007](decisions/0007-llm-does-not-decide-what-it-cannot.md)).
 
@@ -39,11 +41,12 @@ premise is one product that takes software from an idea to running software, and
 
 - **First:** proof that premise can drive LLM work unattended through the owner's Claude subscription on the owner's machine, with confinement that holds. If that cannot be proven, work stops for the owner.
 - **Then:** the thinnest line, end to end: one software at a time, only the operator, Why to Plan in their thinnest form, one builder and one independent checker, the server's merge and push, running software with a link or a command, and a report each time a change reaches running.
+- **Also:** a software's milestones, with a wait after any the operator sets ([0129](decisions/0129-builders-reading-of-effort-and-milestone-waits.md), the builders' reading).
 - **Shown by:** two small softwares of different kinds, a command-line utility and a small web app, each taken from a one-paragraph idea to running software with a scripted operator; in each, one assumption struck in the say-back and one planted defect caught by the checker ([roadmap](product/roadmap.md)).
 
 ## What comes later
 
-In order ([roadmap](product/roadmap.md)): cost and the spending limit, once usage-ledger is usable; every role in one session; intake, automatic and held; other people setting premise up; existing software; kept live for real users, and several softwares at once.
+The owner's first software goes through premise as early as possible, before the later milestones are built ([0127](decisions/0127-first-software-is-one-the-owner-needs.md)). In order ([roadmap](product/roadmap.md)): cost and the spending limit, once usage-ledger is usable; every role in one session; intake, automatic and held; other people setting premise up; existing software; kept live for real users, and several softwares at once.
 
 ## Main risks, and what meets them
 

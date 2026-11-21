@@ -17,7 +17,7 @@ Carved from section 7 of the plan. Part of the [architecture](overview.md). Spec
   - Why: a better model makes premise better without a change ([0031](../decisions/0031-the-product-is-general.md)).
   - Rejected: pinned model versions.
 - [0106](../decisions/0106-per-software-and-with-premise.md) (P40): what is set per software, and what stays with premise:
-  - per software: its record; its `run.md` and build setup, written by the builder in its repository and regenerated when needed; its people and claimed areas; its approvals;
+  - per software: its record; its `run.md` and build setup, written by the builder in its repository and regenerated when needed; its people and claimed areas; its approvals; optionally, its effort (a share of weekly usage, or a priority) and its milestone waits ([0128](../decisions/0128-effort-per-software-and-milestone-waits.md), [0129](../decisions/0129-builders-reading-of-effort-and-milestone-waits.md));
   - with premise: the line, the agent instructions, the record format, the roles and their models, the floor and the gate.
   - Why: the line and the record are general; a software's build setup is specific to it ([0031](../decisions/0031-the-product-is-general.md)).
   - Rejected: per-software instructions, or changes to the line per software.
@@ -36,6 +36,7 @@ Carved from section 7 of the plan. Part of the [architecture](overview.md). Spec
   - it tells usage-ledger where its Claude Code sessions are recorded (premise's own configuration folder, [0076](../decisions/0076-own-claude-code-configuration.md));
   - it reads usage per software, stage, change and record item from usage-ledger and shows it in reports;
   - it sets per-software budgets in usage-ledger; when usage-ledger reports one overrun, premise pauses that software's queue and tells the operator.
+- Effort per software (the owner's requirement, [0128](../decisions/0128-effort-per-software-and-milestone-waits.md)), as the builders read it ([0129](../decisions/0129-builders-reading-of-effort-and-milestone-waits.md), open to the owner's correction): a share of weekly usage relies on usage-ledger, and the weekly usage figure is visible in Claude Code's own stream ([test record](../record/subscription-sandbox-test-2026-11-21.md)); a priority orders the work queue between softwares. Shares come with cost in milestone 2, priority with several softwares in milestone 7.
 - Because sessions carry their record items, rework shows up: an item that keeps failing its check shows its whole cost.
 - Until usage-ledger is usable, reports say that cost is not tracked yet. The turn and time limits of [0088](../decisions/0088-turn-and-time-limits.md) still stop runaway sessions; they are not cost tracking.
 - Building usage-ledger is not premise work; usage-ledger being usable is the prerequisite of milestone 2 ([roadmap](../product/roadmap.md)).
