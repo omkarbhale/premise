@@ -12,7 +12,7 @@ premise's own return, worked out from what it recorded. No agent is asked and no
 | Time to answer a question | From a question first shown on the page to its answer (from when it was asked, if never shown) | The middle value |
 | From the idea to running | From starting a software in premise (or bringing it in) to the first time premise started a built version | One software: its time. Every software: the middle value |
 | From a problem reported to its fix running | From an intake item arriving to the change it led to running | The middle value |
-| Reported working, came back as a bug | Intake items triaged as bugs touching a record item whose latest check, before the bug, said "met"; out of the record items any check said were met | "2 of 20 (10%)" |
+| Reported working, came back as a bug | Intake items triaged as bugs touching a record item whose latest check, before the bug, said "met"; out of the record items any check said were met; an item hit by several bugs counts once in the rate, each bug is still listed | "2 of 20 (10%)" |
 | Agent sessions per change | Agent sessions, each counted against the piece of work the software was on when it started | The average, with the total |
 
 ## 2. "Not enough yet"
