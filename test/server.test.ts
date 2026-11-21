@@ -76,7 +76,7 @@ describe("page server: overview and settings", () => {
     expect(body.agents.mode).toBe("scripted");
     expect(body.line).toEqual({
       mode: "engine",
-      standInStages: ["build", "check", "run", "report", "intake"],
+      standInStages: ["build", "check", "run", "report"],
     });
     expect(body.activity.max).toBe(2);
     expect(body.usage).toMatchObject({ mocked: true, weekly: { mocked: true } });

@@ -38,7 +38,7 @@ import {
   stageName,
 } from "../shared/stages.js";
 import { type Ask, closeAsk, createAsk, getAsk, listAsks, setAskItems } from "../storage/asks.js";
-import { addChatMessage, countIntakeMessages, listChatMessages } from "../storage/chat.js";
+import { addChatMessage, listChatMessages } from "../storage/chat.js";
 import { type Database, now, recordEvent, transaction } from "../storage/database.js";
 import {
   type Software,
@@ -63,6 +63,7 @@ import {
   sizeFrom,
   toAskItem,
 } from "./draft-items.js";
+import type { IntakeHooks, IntakeLine } from "./intake-hooks.js";
 import type { LaterStageId, LaterStages, MilestoneRef } from "./later-stages.js";
 import { RecordWriter } from "./record-writer.js";
 import {
@@ -165,6 +166,8 @@ interface ItemNotes {
   resumeAfter?: StageId;
   /** Rounds of the whole-piece check so far. */
   wholeRound?: number;
+  /** For an intake item's work: what the triager found it is (bug, wish, ...). */
+  intakeKind?: string;
 }
 
 /** Fixes the whole-piece check may ask for before premise goes on and reports it. */
@@ -206,6 +209,8 @@ export interface LineEngineOptions {
   gate: Gate;
   briefs: Briefs;
   later: LaterStages;
+  /** Intake: chat that is not an answer, and the work intake items become. */
+  intake: IntakeHooks;
   /** The check of a whole piece once its parts are done; a labelled stand-in when not given. */
   wholeCheck?: WholeCheck;
   /** False while no agent can start; status lines then say why work waits. */
@@ -214,13 +219,13 @@ export interface LineEngineOptions {
   reporter?: {
     write(
       softwareId: string,
-      trigger: "milestone" | "do-not-build",
+      trigger: "milestone" | "do-not-build" | "change-running",
       reference?: string,
     ): Promise<unknown>;
   };
 }
 
-export class LineEngine {
+export class LineEngine implements IntakeLine {
   private readonly db: Database;
   private readonly writer: RecordWriter;
   private readonly wholeCheck: WholeCheck;
@@ -320,6 +325,7 @@ export class LineEngine {
   private label(item: WorkItem): string {
     if (item.parentId === null) return "the software";
     if (item.kind === "milestone") return `${item.ref ?? "a milestone"} (${item.title ?? ""})`;
+    if (item.kind === "intake") return `the work for ${item.ref ?? "an intake item"}`;
     return `the part "${item.title ?? "unnamed"}"`;
   }
 
@@ -348,8 +354,8 @@ export class LineEngine {
     if (item.parentId === null || software.state !== "active") return said;
     const parts = childItems(this.db, item.parentId);
     const where =
-      item.kind === "milestone"
-        ? `${item.ref ?? "Milestone"}`
+      item.kind === "milestone" || item.kind === "intake"
+        ? `${item.ref ?? (item.kind === "intake" ? "Intake item" : "Milestone")}`
         : `Part ${parts.findIndex((p) => p.id === item.id) + 1} of ${parts.length}, "${item.title}"`;
     return `${where}: ${said}`;
   }
@@ -606,6 +612,8 @@ export class LineEngine {
   /** Stop a software's jobs and withdraw its open asks (approvals stay: they belong to the gate). */
   private clearWork(id: string, why: string): void {
     for (const job of this.queue.list()) {
+      // Triage and readings are intake's, not the line's: they go on.
+      if (job.kind === "triage" || job.kind === "reading") continue;
       if (job.softwareId === id && !FINISHED.has(job.status)) {
         this.markHandled(job.id);
         this.queue.stop(job.id);
@@ -613,6 +621,8 @@ export class LineEngine {
     }
     for (const ask of listAsks(this.db, { softwareId: id, status: "open" })) {
       if (ask.extra.meta?.gateRequest !== undefined) continue;
+      const purpose = ask.extra.meta?.purpose;
+      if (purpose === "intake" || purpose === "intake-reading") continue;
       closeAsk(this.db, ask.id, "withdrawn", null, why);
     }
   }
@@ -687,6 +697,7 @@ export class LineEngine {
         kind: "work-item-withdrawn",
         reference: String(child.id),
       });
+      this.options.intake.workItemMoved(getWorkItem(this.db, child.id)!, "withdrawn");
       count += 1;
     }
     this.setNotes(item, {
@@ -998,6 +1009,7 @@ export class LineEngine {
     setSoftwareStage(this.db, software.id, stage, why);
     this.setState(software.id, { run, ...(budget ? {} : { boost: undefined }) });
     if (stage === "build") this.markBuildStarted(item);
+    this.options.intake.workItemMoved(getWorkItem(this.db, item.id)!, stage);
     return run;
   }
 
@@ -1055,6 +1067,7 @@ export class LineEngine {
     const run = Number(row.lastInsertRowid);
     this.setState(softwareId, { run, boost: undefined });
     setWorkItem(this.db, item.id, { state: "sizing", proposal: null });
+    this.options.intake.workItemMoved(getWorkItem(this.db, item.id)!, "sizing");
     const allowed = allowedStages(item);
     const required = requiredStages(item);
     const splitting = maySplit(item, this.config);
@@ -1092,6 +1105,7 @@ export class LineEngine {
           allowed: [...allowed],
           required: [...required],
           splitting,
+          ...(item.kind === "intake" && { intakeKind: this.notes(item).intakeKind ?? "wish" }),
         },
       },
     });
@@ -1255,8 +1269,27 @@ export class LineEngine {
       kind: state === "done" ? "work-item-done" : "work-item-dropped",
       reference: String(item.id),
     });
+    this.options.intake.workItemMoved(getWorkItem(this.db, item.id)!, state);
     const parent = getWorkItem(this.db, item.parentId)!;
-    const next = childItems(this.db, parent.id).find((c) => c.state === "ahead");
+    if (item.kind === "intake") {
+      // Intake work is the software's own, one item after another; then the line rests at Intake.
+      const queued = this.nextIntakeWork(softwareId);
+      if (queued) {
+        this.beginItem(softwareId, queued, `${item.ref ?? "an intake item"} finished`);
+        return;
+      }
+      this.setActive(softwareId, parent);
+      this.restAtIntake(
+        getSoftware(this.db, softwareId)!,
+        `${item.ref ?? "intake work"} finished`,
+        true,
+      );
+      return;
+    }
+    // Intake work waits until the software's own round reaches Intake.
+    const next = childItems(this.db, parent.id).find(
+      (c) => c.state === "ahead" && c.kind !== "intake",
+    );
     if (next) {
       this.beginItem(softwareId, next, `${this.label(item)} finished`);
       return;
@@ -1394,13 +1427,73 @@ export class LineEngine {
       this.enterLater(software, stage as LaterStageId, this.milestoneOf(software.id), why);
       return;
     }
-    // Intake: the end of the line.
+    this.restAtIntake(software, why, false);
+  }
+
+  /**
+   * Intake: the end of the line, where the software rests. Work taken in meanwhile starts now, one
+   * item after another. `back` is true when an intake item's work just finished.
+   */
+  private restAtIntake(software: Software, why: string, back: boolean): void {
+    const wasAtIntake = back;
     this.openRun(software, "intake", why);
     this.setState(software.id, { milestone: undefined });
-    this.premiseSays(
-      software.id,
-      "That is the whole line. Anything you say in chat from now on is taken as new work.",
-    );
+    const queued = this.nextIntakeWork(software.id);
+    if (!wasAtIntake || !queued) {
+      this.premiseSays(
+        software.id,
+        wasAtIntake
+          ? "Back at Intake: nothing else is waiting. Say in chat, or report on the Intake tab, what to change next."
+          : "That is the whole line. Anything you say in chat from now on is taken as new work.",
+      );
+    }
+    if (queued) this.beginItem(software.id, queued, "taken in earlier");
+  }
+
+  /** The next intake item's work waiting for the line, if any. */
+  private nextIntakeWork(softwareId: string): WorkItem | undefined {
+    const root = rootItem(this.db, softwareId);
+    return childItems(this.db, root.id).find((c) => c.kind === "intake" && c.state === "ahead");
+  }
+
+  /**
+   * IntakeLine: an intake item's work joins the line as a piece of the software. It starts at once
+   * when the software rests at Intake; otherwise after the work before it (decision 0185).
+   */
+  takeWork(
+    softwareId: string,
+    work: { ref: string; title: string; words: string; purpose: boolean; kind: string },
+  ): WorkItem {
+    const root = rootItem(this.db, softwareId);
+    const origin: WorkItemOrigin = work.purpose ? "purpose" : "intake";
+    const piece = { kind: "intake" as const, origin, parentId: root.id };
+    const item = createWorkItem(this.db, {
+      softwareId,
+      parentId: root.id,
+      kind: "intake",
+      origin,
+      title: work.title,
+      words: work.words,
+      ref: work.ref,
+      position: childItems(this.db, root.id).length,
+      sizeClass: "small",
+      stages: defaultStages(piece),
+      state: "ahead",
+    });
+    this.setNotes(item, { intakeKind: work.kind });
+    const software = getSoftware(this.db, softwareId)!;
+    const resting =
+      software.state === "active" &&
+      this.active(softwareId).id === root.id &&
+      root.currentStage === "intake" &&
+      this.nextIntakeWork(softwareId)?.id === item.id;
+    if (resting) this.beginItem(softwareId, item, `${work.ref} taken in`);
+    return getWorkItem(this.db, item.id)!;
+  }
+
+  /** IntakeLine: the whole software goes back to Why with the operator. */
+  async backToWhy(softwareId: string): Promise<void> {
+    await this.sendBack(softwareId, "why");
   }
 
   private enterLater(
@@ -1457,7 +1550,7 @@ export class LineEngine {
   /** Have the reporter write a report from recorded facts (after this transaction commits). */
   private report(
     softwareId: string,
-    trigger: "milestone" | "do-not-build",
+    trigger: "milestone" | "do-not-build" | "change-running",
     reference?: string,
   ): void {
     const reporter = this.options.reporter;
@@ -1498,6 +1591,17 @@ export class LineEngine {
   }
 
   private writeReport(software: Software, milestone: MilestoneRef | null): void {
+    const piece = this.active(software.id);
+    if (piece.kind === "intake") {
+      // An intake item's change reached running: a short report (decision 0098).
+      this.report(software.id, "change-running", piece.ref ?? undefined);
+      this.premiseSays(
+        software.id,
+        `The report on ${piece.ref ?? "this change"} is ready: open the Report tab.${this.options.later.standIn ? " (Stand-in: building, checking and running are not built into premise yet, so nothing was really built or started.)" : ""}`,
+      );
+      this.afterLater(software.id, "report");
+      return;
+    }
     this.report(software.id, "milestone", milestone?.id);
     for (const line of this.options.later.reportLines(software.id, milestone)) {
       this.premiseSays(software.id, line);
@@ -1596,7 +1700,7 @@ export class LineEngine {
       piece:
         item.parentId === null
           ? "the whole software"
-          : `${item.kind === "milestone" ? `the milestone ${item.ref ?? ""}` : "one part of it"}: ${item.title ?? ""}. ${item.words ?? ""}`.trim(),
+          : `${item.kind === "milestone" ? `the milestone ${item.ref ?? ""}` : item.kind === "intake" ? `the intake item ${item.ref ?? ""}, a change to the software` : "one part of it"}: ${item.title ?? ""}. ${item.words ?? ""}`.trim(),
       record: this.recordText(software.id),
       struck_items: this.struckText(software.id, stage),
       size_class: stage === "why" ? "none" : asSize(item.sizeClass),
@@ -1683,6 +1787,8 @@ export class LineEngine {
 
   /** The work queue says a job changed: when one of the line's jobs ended, move its software on. */
   jobChanged(job: Job): void {
+    // Triage and readings are intake's jobs (src/intake).
+    if (job.kind === "triage" || job.kind === "reading") return;
     if (!FINISHED.has(job.status) || this.isHandled(job.id)) return;
     if (!this.isCurrent(job)) {
       this.markHandled(job.id);
@@ -1735,6 +1841,13 @@ export class LineEngine {
         software.id,
         `The ${jobWords(job)} ${job.status === "stopped" ? "was stopped" : "did not finish"}: ${job.result ?? "no reason was given"}. Send ${software.name} back to ${stageName(stage)} to try again.`,
       );
+      if (stage === "check" && job.status !== "stopped") {
+        // A check that stopped by itself is something premise raises as intake (spec 5.1).
+        this.options.intake.raise(
+          software.id,
+          `The check of ${this.label(this.active(software.id))} stopped without a verdict: ${job.result ?? "no reason was given"}.`,
+        );
+      }
       return;
     }
     const outcome = this.options.later.finished(job);
@@ -1979,7 +2092,8 @@ export class LineEngine {
     }
 
     // Record changes first: if the record refuses them, the ask stays open and nothing moved.
-    const effects = this.recordEffects(software, ask, answer);
+    const effects =
+      this.options.intake.answered(ask, answer) ?? this.recordEffects(software, ask, answer);
     this.afterCommit = [];
     try {
       transaction(this.db, () => {
@@ -2501,18 +2615,13 @@ export class LineEngine {
         }
         return { said, reply };
       }
-      const number = countIntakeMessages(this.db, softwareId) + 1;
-      const said = addChatMessage(this.db, {
-        softwareId,
-        author: "person",
-        text,
-        routedTo: `intake:I-${number}`,
-      });
-      const reply = this.premiseSays(
-        softwareId,
-        this.options.later.takeIn(softwareId, text, number, software.currentStage === "intake"),
-      );
-      return { said, reply };
+      const said = addChatMessage(this.db, { softwareId, author: "person", text });
+      const taken = this.options.intake.takeIn(softwareId, text);
+      this.db
+        .prepare("UPDATE chat_messages SET routed_to = ? WHERE id = ?")
+        .run(`intake:I-${taken.number}`, said.id);
+      const reply = this.premiseSays(softwareId, taken.reply, `intake:I-${taken.number}`);
+      return { said: { ...said, routedTo: `intake:I-${taken.number}` }, reply };
     });
     this.queue.tick();
     return result;
@@ -2916,12 +3025,12 @@ export class LineEngine {
           .prepare("UPDATE asks SET extra = ? WHERE id = ?")
           .run(JSON.stringify({ ...draft.extra, meta: { ...draft.extra.meta, items } }), draft.id);
       }
-      const number = countIntakeMessages(this.db, job.softwareId) + 1;
+      const taken = this.options.intake.takeIn(job.softwareId, context?.message ?? "");
       addChatMessage(this.db, {
         softwareId: job.softwareId,
         author: "premise",
-        text: `That message was not about the open list, so it was taken off it. ${this.options.later.takeIn(job.softwareId, context?.message ?? "", number, false)}`,
-        routedTo: `intake:I-${number}`,
+        text: `That message was not about the open list, so it was taken off it. ${taken.reply}`,
+        routedTo: `intake:I-${taken.number}`,
       });
     });
   }

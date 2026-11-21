@@ -149,6 +149,7 @@ export async function start(
     agents,
     gate,
     runner: runs,
+    intake,
   } = createSession({
     db,
     config,
@@ -201,6 +202,7 @@ export async function start(
     throw error;
   }
   queue.tick();
+  intake.start();
   const token = issueSessionToken(db, config.server.token_bytes);
   recordEvent(db, { module: "page-server", kind: "started", detail: { port: config.server.port } });
   const address = app.server.address();
@@ -231,6 +233,7 @@ export async function start(
   return {
     link,
     close: async () => {
+      intake.close();
       await app.close();
       await runs.close();
       await queue.close();

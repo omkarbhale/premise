@@ -79,7 +79,7 @@ export function Conversation({ softwareId, asks }: { softwareId: string; asks: A
           <p id={hintId} className="muted small">
             {draft
               ? "While the list above is open, what you write is added to it as a correction."
-              : "What you write is taken as new work (intake) for this software."}{" "}
+              : "What you write is taken in as new work (intake): premise answers with its number, and the Intake tab shows where it stands."}{" "}
             Enter sends; Shift+Enter makes a new line.
           </p>
           <div className="say-row">

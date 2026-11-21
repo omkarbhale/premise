@@ -45,7 +45,7 @@ None. The token from the link is kept in the page's memory only.
 | Report | The report view ([reporter](reporter.md)): Decided, Running, Needed, Failed or not checked, Cost | Open the running software; ask "more" on any line |
 | Approvals | Standing approvals per software | Withdraw one |
 | Queue | Jobs running, waiting (and on what), queued, paused | Stop a job |
-| Intake | Items, their routes and statuses, held count | Ask for a reading now |
+| Intake | A tab per software: every item with where it stands in plain words, its kind, why it went where it went (and the record items it touches), a question's answer, minutes from arriving to its change running; the held count and earlier readings ([0185](../decisions/0185-how-intake-in-a-thin-form-is-built.md)) | Report a problem or a wish; take a merged, closed or held item in after all; ask for a reading now |
 
 ### 5.1a First run and plain words
 

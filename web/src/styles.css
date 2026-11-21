@@ -438,10 +438,10 @@ details summary {
 
 .tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.25rem;
   border-bottom: 1px solid var(--border);
   margin-bottom: 1rem;
-  overflow-x: auto;
 }
 .tabs [role="tab"] {
   border: none;
@@ -973,4 +973,24 @@ pre.output {
   .work-item {
     margin-inline-start: 0 !important;
   }
+}
+
+/* Intake */
+.intake-items {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.intake-item p {
+  margin: 0.25rem 0;
+}
+.intake-where {
+  font-weight: 600;
+}
+.intake-asked .intake-where {
+  color: var(--needs);
+}
+.intake-answer {
+  border-left: 3px solid var(--accent);
+  padding-left: 0.6rem;
 }

@@ -50,6 +50,8 @@ export interface RunnerDeps {
   config: PremiseConfig;
   /** Where each software's repository is: the record keeper answers this. */
   repositories: { repositoryPath(softwareId: string): string; git?: Git };
+  /** Told when a software keeps crashing and premise stops starting it again. */
+  onGaveUp?: (softwareId: string, failure: string) => void;
 }
 
 interface RunRow {
@@ -686,6 +688,7 @@ export class Runner {
         kind: "gave-up",
         detail: { run: live.runId },
       });
+      this.deps.onGaveUp?.(live.softwareId, `It keeps crashing: ${failure}`);
       return;
     }
     live.restartTimes.push(Date.now());

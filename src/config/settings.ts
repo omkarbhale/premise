@@ -182,8 +182,8 @@ const STRONGEST: AgentTaskKind[] = [
   "reading",
 ];
 const LONG_TASKS: AgentTaskKind[] = ["build", "prototype", "check"];
-/** Short tasks: sizing must keep the first stages quick (decision 0184). */
-const SHORT_TASKS: AgentTaskKind[] = ["size"];
+/** Short tasks: sizing and triage must keep small fixes quick (decisions 0184, 0185). */
+const SHORT_TASKS: AgentTaskKind[] = ["size", "triage"];
 
 function taskSettings(kind: AgentTaskKind): Setting[] {
   const strongest = STRONGEST.includes(kind);
@@ -441,6 +441,35 @@ export const SETTINGS: readonly Setting[] = [
   },
   ...budgetSettings(),
   {
+    key: "intake.reading_held_count",
+    default: 10,
+    check: summarised(wholeNumber(1, 500), "1 to 500"),
+    meaning: "How many held items of one software start a reading, where they are read together.",
+    record: "0096",
+  },
+  {
+    key: "intake.reading_max_days",
+    default: 14,
+    check: summarised(wholeNumber(1, 365), "1 to 365"),
+    meaning:
+      "Days an item may stay held before a reading starts, even with fewer held than the count above.",
+    record: "0096",
+  },
+  {
+    key: "intake.max_text_chars",
+    default: 4000,
+    check: summarised(wholeNumber(100, 20000), "100 to 20000"),
+    meaning: "Longest problem or wish the page's report box takes, in characters.",
+    record: "0185",
+  },
+  {
+    key: "intake.recent_items_in_brief",
+    default: 30,
+    check: summarised(wholeNumber(0, 500), "0 to 500"),
+    meaning: "How many of a software's other open items the triager is shown, to spot duplicates.",
+    record: "0185",
+  },
+  {
     key: "runner.default_visibility",
     default: "private",
     check: summarised(oneOf(VISIBILITIES), `"private" or "public"`),
@@ -650,6 +679,12 @@ export interface PremiseConfig {
     split_max_parts: number;
     agents_per_stage: number;
     budgets: Record<BudgetGroup, Record<"small" | "medium" | "large", StageBudget>>;
+  };
+  intake: {
+    reading_held_count: number;
+    reading_max_days: number;
+    max_text_chars: number;
+    recent_items_in_brief: number;
   };
   gate: { kind_approvals_allowed: FloorKind[] };
   record: {

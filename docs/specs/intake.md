@@ -1,6 +1,6 @@
 # Intake specification
 
-Status: specification, being built ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Related: [intake and reporting](../architecture/intake-and-reporting.md), [line engine](line-engine.md), [gate](gate.md), [reporter](reporter.md), [agent tools](agent-tools.md).
+Status: built in a thin form in `src/intake/` ([0185](../decisions/0185-how-intake-in-a-thin-form-is-built.md)): items from the session, from the page's "Report a problem or a wish" box and from premise itself (a check that stopped, a run that keeps crashing); the triager; every route; holding and readings; status in plain words on the Intake tab and in the session; the time from an item arriving to its change running. GitHub issues, the feedback page with its own link, telling a GitHub issue's sender, and budget warnings are not built yet ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Related: [intake and reporting](../architecture/intake-and-reporting.md), [line engine](line-engine.md), [gate](gate.md), [reporter](reporter.md), [agent tools](agent-tools.md).
 
 ## 1. Purpose
 
@@ -98,9 +98,12 @@ These are where patterns show what people want ([0041](../decisions/0041-intake-
 
 | Key | Default | Meaning |
 |---|---|---|
-| `intake.issue_poll_minutes` | 10 | How often the server reads a software's GitHub issues |
+| `intake.issue_poll_minutes` | 10 | How often the server reads a software's GitHub issues (not built yet; the setting comes with the reader) |
 | `intake.reading_held_count` | 10 | Held items that start a reading |
-| `intake.reading_max_days` | 14 | Days with at least one held item that start a reading |
+| `intake.reading_max_days` | 14 | Days an item may stay held before a reading starts |
+| `intake.max_text_chars` | 4000 | Longest problem or wish the page's report box takes |
+| `intake.recent_items_in_brief` | 30 | Other open items the triager is shown, to spot duplicates |
+| `agents.tasks.triage.*` | fast tier, low effort, 20 turns, 5 minutes | The triager's model, effort and limits ([0185](../decisions/0185-how-intake-in-a-thin-form-is-built.md)) |
 
 ## 7. Limits
 
@@ -131,5 +134,6 @@ These are where patterns show what people want ([0041](../decisions/0041-intake-
 
 - Milestone 1 step 2: things the operator says in chat become intake that goes in normally. No triage agent yet: every item goes in normally.
 - Milestone 2 (against usage-ledger's mock until it exists, [0133](../decisions/0133-usage-ledger-is-mocked-until-it-exists.md)): budget warnings as intake.
-- Milestone 4: intake from every source; triage; the in-normally, asked, held, and merged-or-closed routes; readings; the way back to Why; telling senders.
+- Milestone 4, first part (built, [0185](../decisions/0185-how-intake-in-a-thin-form-is-built.md)): intake from the session, the page and premise itself; triage; the in-normally, asked, held, and merged-or-closed routes, each visible and undoable; questions answered from the record; readings and the way back to Why; telling senders in the session and on the Intake tab; the time from an item to its change running.
+- Milestone 4, the rest: GitHub issues, the feedback page with its own link, telling a GitHub issue's sender through the gate.
 - Milestone 7: incidents from software kept live come back as intake.

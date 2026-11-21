@@ -3,6 +3,7 @@ import { ScriptedAgentRunner } from "../agents/scripted-agent.js";
 import type { AgentToolServer } from "../agents/tool-server.js";
 import type { PremiseConfig } from "../config/settings.js";
 import { Gate } from "../gate/gate.js";
+import { Intake } from "../intake/intake.js";
 import { Briefs } from "../line/briefs.js";
 import { StandInLaterStages } from "../line/later-stages.js";
 import { LineEngine } from "../line/line-engine.js";
@@ -39,12 +40,14 @@ export interface Session {
   runner: Runner;
   /** Writes reports from recorded facts; the line engine has it write each milestone's report. */
   reporter: Reporter;
+  /** Takes items in, has them triaged, and routes them (src/intake). */
+  intake: Intake;
 }
 
 /**
  * Wire the session: the work queue, the record keeper, the gate and the line engine, which answers
- * the page server's interfaces, with the runner and the reporter beside it. Build, Check, Run and
- * Intake are a labelled stand-in until their own modules plug in here (src/line/later-stages.ts);
+ * the page server's interfaces, with the runner, the reporter and intake beside it. Build, Check
+ * and Run are a labelled stand-in until their own modules plug in here (src/line/later-stages.ts);
  * each milestone's report is written by the reporter. When a tool server is given, agents'
  * tool calls reach the line engine, the record keeper and the gate.
  */
@@ -60,12 +63,16 @@ export function createSession(options: {
 }): Session {
   const { db, config, ledger, runner, tools } = options;
   let line: LineEngine | null = null;
+  let intake: Intake | null = null;
   const queue = new WorkQueue({
     db,
     config,
     runner,
     serverJobs: (job) => line!.runServerJob(job),
-    onChange: (job) => line?.jobChanged(job),
+    onChange: (job) => {
+      intake?.jobChanged(job);
+      line?.jobChanged(job);
+    },
   });
   const record = options.record ?? new RecordKeeper({ db, config });
   const agents: AgentsStatus = options.agents ?? {
@@ -75,7 +82,16 @@ export function createSession(options: {
     useScriptedDemo: () => {},
   };
   const gate = new Gate({ db, config });
-  const runs = new Runner({ db, config, repositories: record });
+  const briefs = new Briefs(options.docs ?? docsFolder());
+  intake = new Intake({ db, config, queue, keeper: record, briefs });
+  const taker = intake;
+  const runs = new Runner({
+    db,
+    config,
+    repositories: record,
+    // A run that keeps crashing is something premise raises as intake (docs/specs/intake.md 5.1).
+    onGaveUp: (softwareId, failure) => taker.raise(softwareId, failure),
+  });
   const reporter = new Reporter({ db, config, records: record, runner: runs, ledger }, config);
   line = new LineEngine({
     db,
@@ -84,12 +100,14 @@ export function createSession(options: {
     config,
     keeper: record,
     gate,
-    briefs: new Briefs(options.docs ?? docsFolder()),
+    briefs,
     later: new StandInLaterStages(() => config.agents.scripted.step_seconds),
+    intake: taker,
     agentsReady: () => agents.ready(),
     reporter,
   });
   const engine = line;
+  taker.useLine(engine);
   if (tools) {
     tools.setHandlers({
       tools: {
@@ -100,6 +118,8 @@ export function createSession(options: {
         gate_request: (b, a) => engine.gateRequest(b, a),
         review_submit: (b, a) => engine.reviewSubmit(b, a),
         sizing_submit: (b, a) => engine.sizingSubmit(b, a),
+        triage_submit: (b, a) => taker.triageSubmit(b, a),
+        reading_submit: (b, a) => taker.readingSubmit(b, a),
       },
       onFinish: (b, account) => engine.taskFinished(b, account),
     });
@@ -131,9 +151,15 @@ export function createSession(options: {
       answer: (id, answer) => engine.answer(id, answer),
     },
     records: { view: (id) => engine.recordView(id) },
+    intake: {
+      view: (id) => taker.view(id),
+      report: (id, text) => taker.report(id, text),
+      undo: (id) => taker.undo(id),
+      readNow: (id) => taker.readNow(id),
+    },
     reports: reporter,
     runs: new RunnerService(runs, (id) => getSoftware(db, id) !== undefined),
     activity: new QueueActivity(db, queue, () => config.queue.max_agent_sessions),
   };
-  return { queue, services, line, gate, record, agents, runner: runs, reporter };
+  return { queue, services, line, gate, record, agents, runner: runs, reporter, intake: taker };
 }

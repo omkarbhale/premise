@@ -1,6 +1,6 @@
 # Line engine specification
 
-Status: Why to Plan, and sizing of every piece of work ([0184](../decisions/0184-how-sizing-of-work-is-built.md)), built in `src/line/`; Build, Check, Run and Intake are behind a labelled scripted stand-in until the line hands them to their modules, and each milestone's report is written by the [reporter](reporter.md) ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md), [0183](../decisions/0183-how-the-line-engine-is-built.md)). Related: [the line](../architecture/the-line.md), [record keeper](record-keeper.md), [work queue](work-queue.md), [page](page.md), [agent tools](agent-tools.md), [prompts](../prompts/README.md).
+Status: Why to Plan, and sizing of every piece of work ([0184](../decisions/0184-how-sizing-of-work-is-built.md)), built in `src/line/`; Intake, in a thin form, is built in `src/intake/` and meets the line through `IntakeHooks` and `IntakeLine` ([0185](../decisions/0185-how-intake-in-a-thin-form-is-built.md)); Build, Check and Run are behind a labelled scripted stand-in until the line hands them to their modules, and each milestone's report is written by the [reporter](reporter.md) ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md), [0183](../decisions/0183-how-the-line-engine-is-built.md)). Related: [the line](../architecture/the-line.md), [record keeper](record-keeper.md), [work queue](work-queue.md), [page](page.md), [agent tools](agent-tools.md), [prompts](../prompts/README.md).
 
 ## 1. Purpose
 
@@ -82,12 +82,14 @@ As built ([0184](../decisions/0184-how-sizing-of-work-is-built.md)); the owner's
 | A new software | every stage | Why, What, Say back, Plan, Build, Check, Run, Report, Intake (so only Who and What exists can be skipped) |
 | A milestone of a confirmed plan | Build, Check, Run, Report | all four |
 | A part of a split piece, or a fix | Why to Check | Build, Check |
+| An intake item's work | Why to Report | Build, Check, Run, Report; for a change of purpose the operator confirmed, also Why and Say back ([0185](../decisions/0185-how-intake-in-a-thin-form-is-built.md)) |
 
   A say-back is added whenever Why or What is. Every change premise makes to the sizer's answer is part of the reason the page shows.
 - Splitting: only completely separate parts, or a very long part; one heavy piece is not by itself a reason; when unsure, not at all. Two to `line.split_max_parts` parts. Parts and fixes are not split again. `line.splitting` turns it off.
 - A sizer that fails or gives no answer leaves the piece at its size, through every stage it may have, whole; the reason says so.
 - One piece of a software is worked on at a time. A split piece's parts go through the line one after another up to Check. Then the whole is checked through the `WholeCheck` hand-off (a labelled stand-in until the Check stage takes it), and the piece goes on with Run, Report and, for a software, Intake. When the whole does not pass, a fix goes through as one more part, up to three rounds.
 - A confirmed plan's milestones become the piece's parts, each referring to its `M-n` record item; waits stay on the record items (5.8a). After the last milestone, the software goes on to Intake.
+- An intake item that goes in normally becomes a work item of kind `intake` under the software's root, referring to its `I-n` ([0185](../decisions/0185-how-intake-in-a-thin-form-is-built.md)). Intake work waits until the software's own round reaches Intake, then goes one item after another; when it is done the software rests at Intake again. Its report is the short one written when a change reaches running.
 - The operator can change any piece's size and stages, and undo a split until a part reaches Build. Sending back applies to the piece being worked on, or to the nearest piece above it that went through that stage itself; parts made after that stage are withdrawn.
 - The software's stage view gives each stage's position for the piece being worked on: done, current, ahead, or skipped with the reason.
 - The first time a piece reaches Build, the time it spent before building is recorded on it and on every piece above it that had not reached Build yet (`build-started` events), so the first stages can be measured ([0172](../decisions/0172-premise-measures-its-own-return.md)).

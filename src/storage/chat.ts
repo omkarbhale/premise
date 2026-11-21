@@ -64,13 +64,3 @@ export function listChatMessages(db: Database, softwareId: string, limit = 500):
     .all(softwareId, limit) as unknown as ChatRow[];
   return rows.map(fromRow);
 }
-
-/** How many of a software's chat messages were taken as intake items (for "Taken as I-n"). */
-export function countIntakeMessages(db: Database, softwareId: string): number {
-  const row = db
-    .prepare(
-      "SELECT COUNT(*) AS n FROM chat_messages WHERE software_id = ? AND routed_to LIKE 'intake:%'",
-    )
-    .get(softwareId) as { n: number };
-  return row.n;
-}

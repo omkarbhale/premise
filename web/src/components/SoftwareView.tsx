@@ -6,20 +6,22 @@ import { stageName, whereNow } from "../../../src/shared/stages";
 import { percent } from "../words";
 import { MockedBadge, Problem, StandInBadge } from "./Badges";
 import { Conversation } from "./Conversation";
+import { IntakeView } from "./IntakeView";
 import { Line } from "./Line";
 import { RecordView } from "./RecordView";
 import { ReportView } from "./ReportView";
 
-export type SoftwareTab = "conversation" | "line" | "record" | "report";
+export type SoftwareTab = "conversation" | "line" | "record" | "report" | "intake";
 
 const TABS: { id: SoftwareTab; label: string }[] = [
   { id: "conversation", label: "Conversation" },
   { id: "line", label: "Line" },
   { id: "record", label: "Record" },
   { id: "report", label: "Report" },
+  { id: "intake", label: "Intake" },
 ];
 
-/** One software: where it is, what waits on you, and its conversation, line, record and report. */
+/** One software: where it is, what waits on you, and its conversation, line, record, report and intake. */
 export function SoftwareView({
   softwareId,
   tab,
@@ -67,9 +69,9 @@ export function SoftwareView({
             Usage: {s.usage.sessions} sessions, ${s.usage.costUsd.toFixed(2)},{" "}
             {percent(s.usage.weeklyShare)} of the week {s.usage.mocked && <MockedBadge />}
           </span>
-          {(["build", "check", "run", "report", "intake"] as const).includes(
-            s.stage as "build",
-          ) && <StandInBadge />}
+          {(["build", "check", "run", "report"] as const).includes(s.stage as "build") && (
+            <StandInBadge />
+          )}
         </div>
         <details className="idea">
           <summary>What you asked for</summary>
@@ -103,6 +105,7 @@ export function SoftwareView({
         {tab === "line" && <Line software={s} />}
         {tab === "record" && <RecordView softwareId={s.id} />}
         {tab === "report" && <ReportView softwareId={s.id} />}
+        {tab === "intake" && <IntakeView softwareId={s.id} />}
       </div>
     </div>
   );

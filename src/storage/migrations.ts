@@ -276,6 +276,54 @@ export const MIGRATIONS: readonly Migration[] = [
         WHERE parent_id IS NULL;
     `,
   },
+  {
+    version: 7,
+    name: "intake in a thin form",
+    sql: `
+      CREATE TABLE intake_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        software_id TEXT NOT NULL REFERENCES softwares(id),
+        number INTEGER NOT NULL,
+        source TEXT NOT NULL CHECK (source IN ('session', 'page', 'premise', 'github', 'feedback')),
+        sender TEXT NOT NULL,
+        text TEXT NOT NULL,
+        status TEXT NOT NULL,
+        kind TEXT,
+        touches TEXT NOT NULL DEFAULT '[]',
+        size TEXT,
+        touches_floor INTEGER NOT NULL DEFAULT 0,
+        route TEXT,
+        reason TEXT,
+        routed_by TEXT,
+        joins INTEGER,
+        answer TEXT,
+        triage_job INTEGER,
+        ask_id INTEGER,
+        work_item_id INTEGER,
+        reading_id INTEGER,
+        received TEXT NOT NULL,
+        triaged TEXT,
+        fix_running TEXT,
+        finished TEXT,
+        UNIQUE (software_id, number)
+      );
+      CREATE INDEX intake_items_software ON intake_items(software_id, status);
+
+      CREATE TABLE readings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        software_id TEXT NOT NULL REFERENCES softwares(id),
+        trigger TEXT NOT NULL CHECK (trigger IN ('count', 'time', 'operator')),
+        items TEXT NOT NULL DEFAULT '[]',
+        short_list TEXT,
+        status TEXT NOT NULL CHECK (status IN ('reading', 'done', 'failed')),
+        job_id INTEGER,
+        ask_id INTEGER,
+        created TEXT NOT NULL,
+        finished TEXT
+      );
+      CREATE INDEX readings_software ON readings(software_id, id);
+    `,
+  },
 ];
 
 export const CURRENT_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

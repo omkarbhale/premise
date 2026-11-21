@@ -3,6 +3,8 @@ import type {
   AskAnswer,
   AskView,
   ChatMessage,
+  IntakeItemView,
+  IntakeView,
   RecordView,
   ReportView,
   RunView,
@@ -76,6 +78,17 @@ export interface AskService {
   answer(id: number, answer: AskAnswer): Promise<AskView>;
 }
 
+/** Intake (docs/specs/intake.md): a software's items, the page's report box, and the operator's say. */
+export interface IntakeService {
+  view(softwareId: string): Promise<IntakeView>;
+  /** "Report a problem or a wish" on the page. */
+  report(softwareId: string, text: string): Promise<IntakeItemView>;
+  /** Take a merged, closed or held item in after all. */
+  undo(itemId: number): Promise<IntakeItemView>;
+  /** Read the held items together now. */
+  readNow(softwareId: string): Promise<IntakeView>;
+}
+
 export interface RecordService {
   view(softwareId: string): Promise<RecordView>;
 }
@@ -104,6 +117,7 @@ export interface SessionServices {
   conversation: ConversationService;
   asks: AskService;
   records: RecordService;
+  intake: IntakeService;
   reports: ReportService;
   /** Absent until the runner is wired in. */
   runs?: RunService;

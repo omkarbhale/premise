@@ -225,7 +225,7 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
           unavailable: agents.unavailable(),
           scriptedDemo: agents.scriptedDemo(),
         },
-        line: { mode: "engine", standInStages: ["build", "check", "run", "report", "intake"] },
+        line: { mode: "engine", standInStages: ["build", "check", "run", "report"] },
         page: { notifications: deps.config.page.notifications },
         usage: { mode: deps.ledger.mode, mocked: deps.ledger.mocked, weekly },
         softwares,
@@ -309,6 +309,40 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
       "/api/softwares/:id/record",
       { schema: { params: idParam } },
       async (request) => services.records.view(request.params.id),
+    );
+
+    api.get<{ Params: { id: string } }>(
+      "/api/softwares/:id/intake",
+      { schema: { params: idParam } },
+      async (request) => services.intake.view(request.params.id),
+    );
+
+    api.post<{ Params: { id: string }; Body: { text: string } }>(
+      "/api/softwares/:id/intake",
+      {
+        schema: {
+          params: idParam,
+          body: {
+            type: "object",
+            properties: { text: { type: "string", maxLength: 20000 } },
+            required: ["text"],
+          },
+        },
+      },
+      async (request, reply) =>
+        reply.code(201).send(await services.intake.report(request.params.id, request.body.text)),
+    );
+
+    api.post<{ Params: { id: string } }>(
+      "/api/softwares/:id/intake/read-now",
+      { schema: { params: idParam } },
+      async (request) => services.intake.readNow(request.params.id),
+    );
+
+    api.post<{ Params: { id: number } }>(
+      "/api/intake/:id/undo",
+      { schema: { params: numberIdParam } },
+      async (request) => services.intake.undo(request.params.id),
     );
 
     api.get<{ Params: { id: string } }>(
