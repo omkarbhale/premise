@@ -2,7 +2,9 @@ import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AgentRunner } from "../agents/agent-runner.js";
+import { ClaudeAgentRunner } from "../agents/claude-agent.js";
 import { ScriptedAgentRunner, loadScriptFile } from "../agents/scripted-agent.js";
+import { AgentToolServer } from "../agents/tool-server.js";
 import type { PremiseConfig } from "../config/settings.js";
 import { formatDoctorReport, runDoctor } from "../doctor/doctor.js";
 import { WorkQueue } from "../queue/work-queue.js";
@@ -13,20 +15,39 @@ import { issueSessionToken } from "./session-token.js";
 
 /** Where the built page is: dist/web, next to dist/server. */
 export function defaultWebRoot(): string {
+  return join(packageRoot(), "dist", "web");
+}
+
+/** premise's own folder: the one holding its package.json. */
+function packageRoot(): string {
   let folder = dirname(fileURLToPath(import.meta.url));
   while (!existsSync(join(folder, "package.json"))) {
     const parent = dirname(folder);
     if (parent === folder) break;
     folder = parent;
   }
-  return join(folder, "dist", "web");
+  return folder;
 }
 
-function createRunner(config: PremiseConfig): AgentRunner {
+/** Where agents reach premise's tools. */
+export function toolsUrl(config: PremiseConfig): string {
+  const host = config.server.host === "::1" ? "[::1]" : config.server.host;
+  return `http://${host}:${config.server.port}/mcp`;
+}
+
+async function createRunner(
+  config: PremiseConfig,
+  tools: AgentToolServer,
+  env: NodeJS.ProcessEnv,
+): Promise<AgentRunner> {
   if (config.agents.mode === "claude") {
-    throw new Error(
-      'agents.mode is "claude", but real Claude agents are not built into premise yet. Set agents.mode to "scripted" (the default).',
-    );
+    return ClaudeAgentRunner.create({
+      config,
+      tools,
+      toolsUrl: toolsUrl(config),
+      docsFolder: join(packageRoot(), "docs"),
+      env,
+    });
   }
   const file = config.agents.scripted.script_file;
   return new ScriptedAgentRunner(file ? loadScriptFile(file) : undefined);
@@ -51,15 +72,28 @@ export async function start(
   const config = setup.config;
   if (config.agents.mode === "claude" && !setup.canRunRealAgents) {
     throw new Error(
-      `${formatDoctorReport(setup)}\n\npremise does not start real agents without Claude Code, bubblewrap and socat (decision 0142).`,
+      `${formatDoctorReport(setup)}\n\npremise does not start real agents without Claude Code, bubblewrap and socat, because it never runs agents unconfined (decisions 0125, 0142). Install what is MISSING above, or set agents.mode to "scripted" to try premise without real agents.`,
     );
   }
-  const runner = createRunner(config);
   const ledger = createUsageLedger(config.usage_ledger);
   const { db, schemaVersion, backup } = openDatabase(config.data.folder);
   if (backup) print(`Updated premise's database; the copy from before is ${backup}.`);
 
+  const made: { queue: WorkQueue | null } = { queue: null };
+  const tools = new AgentToolServer({
+    db,
+    config,
+    isPaused: () => made.queue?.state().paused ?? false,
+  });
+  let runner: AgentRunner;
+  try {
+    runner = await createRunner(config, tools, options.env);
+  } catch (error) {
+    db.close();
+    throw error;
+  }
   const queue = new WorkQueue({ db, config, runner });
+  made.queue = queue;
   const recovered = queue.recover();
   if (recovered.length > 0) {
     print(`Resumed ${recovered.length} job(s) that were cut off when premise last stopped.`);
@@ -72,6 +106,7 @@ export async function start(
     queue,
     ledger,
     setup,
+    tools,
     webRoot: options.webRoot ?? defaultWebRoot(),
   });
   try {
@@ -97,7 +132,7 @@ export async function start(
   print(`  Open this link: ${link}`);
   print("");
   print(
-    `  Agents:        ${config.agents.mode === "scripted" ? "scripted (no AI is called)" : config.agents.mode}`,
+    `  Agents:        ${config.agents.mode === "scripted" ? "scripted (no AI is called)" : "real Claude Code sessions on your login, confined by its sandbox"}`,
   );
   print(
     `  Usage figures: ${ledger.mocked ? `mocked (${ledger.mode}); not real usage` : ledger.mode}`,

@@ -1,0 +1,428 @@
+import { createHash, randomBytes } from "node:crypto";
+import type { PremiseConfig } from "../config/settings.js";
+import { type Database, recordEvent } from "../storage/database.js";
+import { VERSION } from "../version.js";
+import { type AgentRole, PREMISE_TOOLS_BY_ROLE } from "./roles.js";
+
+/**
+ * premise's tools for agents (docs/specs/agent-tools.md), served over MCP from inside the server
+ * process (decision 0073). Each session gets its own token, which binds every call to one session,
+ * one role, one software and one job. The token is revoked when the session ends.
+ *
+ * MCP is spoken in its plain HTTP form: one JSON-RPC message per POST, answered with JSON. No
+ * stream is held open, because no tool needs to call the agent back.
+ *
+ * Tools whose module is not built yet (the record keeper, the gate, the line engine) are stubs:
+ * every call is checked and recorded as an event, and the agent is told plainly that nothing more
+ * comes of it yet.
+ */
+
+export const TOOL_ERROR_CODES = [
+  "NOT_ALLOWED",
+  "UNKNOWN_ITEM",
+  "MALFORMED",
+  "CONFLICT",
+  "TASK_CLOSED",
+  "BUDGET_EXHAUSTED",
+  "PAUSED",
+  "INTERNAL",
+] as const;
+export type ToolErrorCode = (typeof TOOL_ERROR_CODES)[number];
+
+export interface ToolEnvelope {
+  ok: boolean;
+  result?: unknown;
+  error?: { code: ToolErrorCode; message: string };
+  diagnostics: string[];
+}
+
+export interface ToolBinding {
+  role: AgentRole;
+  softwareId: string;
+  jobId: number;
+  /** A progress line from the agent, for the page. */
+  onProgress: (text: string) => void;
+  /** The agent's own account of how the task ended. Never a report source (decision 0097). */
+  onFinish?: (account: { status: string; note: string | null }) => void;
+}
+
+interface TokenEntry {
+  binding: ToolBinding;
+  revoked: boolean;
+}
+
+interface ToolDefinition {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+  /** The module that will act on it; absent when the tool is fully served here. */
+  notBuilt?: string;
+}
+
+const obj = (properties: Record<string, unknown>, required: string[] = []) => ({
+  type: "object",
+  properties,
+  required,
+});
+const anyObject = { type: "object", additionalProperties: true };
+const textList = { type: "array", items: { type: "string" } };
+
+const TOOLS: ToolDefinition[] = [
+  {
+    name: "record_read",
+    description:
+      "Read lines of the software's record, with their file and ID. Give item IDs or file names, or nothing for the whole record.",
+    inputSchema: obj({ items: textList, include_struck: { type: "boolean" } }),
+    notBuilt: "the record keeper",
+  },
+  {
+    name: "record_propose",
+    description:
+      "Propose a change to the record: add, replace or strike items, with one reason. premise checks it; you never write the record yourself.",
+    inputSchema: obj(
+      { operations: { type: "array", items: anyObject }, reason: { type: "string" } },
+      ["operations", "reason"],
+    ),
+    notBuilt: "the record keeper",
+  },
+  {
+    name: "draft_submit",
+    description: "Submit a draft of a stage as a short list for people to strike, keep or edit.",
+    inputSchema: obj({ stage: { type: "string" }, items: { type: "array", items: anyObject } }, [
+      "stage",
+      "items",
+    ]),
+    notBuilt: "the line engine",
+  },
+  {
+    name: "ask",
+    description:
+      "Ask a person a question, under the label of the role that has the last word. At most a short list of items. The job waits for the answer; other jobs go on.",
+    inputSchema: obj(
+      {
+        role: { type: "string" },
+        kind: { type: "string", enum: ["question", "proposal", "needed"] },
+        items: textList,
+        waits_on: { type: "string" },
+      },
+      ["role", "kind", "items"],
+    ),
+    notBuilt: "the line engine",
+  },
+  {
+    name: "gate_request",
+    description:
+      "Request an action on the floor (spending money, acting publicly, deleting data, ...). Say exactly what will happen and why. The server, never you, performs it once approved.",
+    inputSchema: obj(
+      {
+        kind: { type: "string" },
+        action: { type: "string" },
+        why: { type: "string" },
+        items: textList,
+      },
+      ["kind", "action", "why"],
+    ),
+    notBuilt: "the gate",
+  },
+  {
+    name: "progress",
+    description: "Tell the people watching what you are doing now, in one short line.",
+    inputSchema: obj({ text: { type: "string" } }, ["text"]),
+  },
+  {
+    name: "task_finish",
+    description:
+      "Say how the task ended: done, stuck (with what you tried), or waiting-for-person (with the ask id).",
+    inputSchema: obj(
+      {
+        status: { type: "string", enum: ["done", "stuck", "waiting-for-person"] },
+        note: { type: "string" },
+        ask_id: { type: "string" },
+      },
+      ["status"],
+    ),
+  },
+  {
+    name: "scenario_write",
+    description:
+      "Write a check scenario: its name, the items it checks, the steps and what is expected.",
+    inputSchema: obj(
+      { name: { type: "string" }, items: textList, steps: textList, expected: { type: "string" } },
+      ["name", "items", "steps", "expected"],
+    ),
+    notBuilt: "the line engine",
+  },
+  {
+    name: "verdict_submit",
+    description:
+      "Submit the check's verdicts: met, not-met or could-not-check per item, each with evidence.",
+    inputSchema: obj({ verdicts: { type: "array", items: anyObject }, findings: textList }, [
+      "verdicts",
+    ]),
+    notBuilt: "the line engine",
+  },
+  {
+    name: "review_submit",
+    description:
+      "Submit a review: consistent or conflicting per proposed change, or agree or object.",
+    inputSchema: obj({ reviews: { type: "array", items: anyObject } }, ["reviews"]),
+    notBuilt: "the record keeper",
+  },
+  {
+    name: "triage_submit",
+    description: "Submit how one intake item is routed.",
+    inputSchema: anyObject,
+    notBuilt: "intake",
+  },
+  {
+    name: "reading_submit",
+    description: "Submit the short list from reading the held intake items.",
+    inputSchema: anyObject,
+    notBuilt: "intake",
+  },
+  {
+    name: "facts_read",
+    description:
+      "Read recorded facts about the software since a time, each with its evidence link.",
+    inputSchema: obj({ since: { type: "string" }, kinds: textList }),
+    notBuilt: "the reporter",
+  },
+  {
+    name: "report_submit",
+    description: "Submit report lines, each with the evidence link of the fact it rests on.",
+    inputSchema: obj({ lines: { type: "array", items: anyObject } }, ["lines"]),
+    notBuilt: "the reporter",
+  },
+];
+
+const TOOLS_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));
+
+function hashToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+function fail(code: ToolErrorCode, message: string, diagnostics: string[] = []): ToolEnvelope {
+  return { ok: false, error: { code, message }, diagnostics };
+}
+
+function okResult(result: unknown): ToolEnvelope {
+  return { ok: true, result, diagnostics: [] };
+}
+
+export interface HttpAnswer {
+  status: number;
+  body?: unknown;
+}
+
+interface JsonRpcRequest {
+  jsonrpc?: string;
+  id?: string | number | null;
+  method?: string;
+  params?: Record<string, unknown>;
+}
+
+export interface AgentToolServerOptions {
+  db: Database;
+  config: Pick<PremiseConfig, "tools">;
+  /** The work queue is paused: calls answer PAUSED. */
+  isPaused?: () => boolean;
+}
+
+export class AgentToolServer {
+  private readonly tokens = new Map<string, TokenEntry>();
+
+  constructor(private readonly options: AgentToolServerOptions) {}
+
+  /** A new token for one session. Only its hash is kept. */
+  issue(binding: ToolBinding): string {
+    const token = randomBytes(32).toString("base64url");
+    this.tokens.set(hashToken(token), { binding, revoked: false });
+    return token;
+  }
+
+  revoke(token: string): void {
+    const entry = this.tokens.get(hashToken(token));
+    if (entry) entry.revoked = true;
+  }
+
+  /** The tools a role is served. */
+  toolsFor(role: AgentRole): ToolDefinition[] {
+    return PREMISE_TOOLS_BY_ROLE[role].map((name) => TOOLS_BY_NAME.get(name)!);
+  }
+
+  /** One HTTP request to the MCP endpoint. */
+  handleHttp(authorization: string | undefined, body: unknown): HttpAnswer {
+    const token = /^Bearer\s+(\S+)$/i.exec(authorization ?? "")?.[1];
+    const entry = token ? this.tokens.get(hashToken(token)) : undefined;
+    if (!entry) {
+      recordEvent(this.options.db, { module: "agent-tools", kind: "refused-token" });
+      return {
+        status: 401,
+        body: {
+          jsonrpc: "2.0",
+          id: null,
+          error: { code: -32001, message: "Unknown session token." },
+        },
+      };
+    }
+    if (Array.isArray(body)) {
+      const answers = body
+        .map((message) => this.handleMessage(entry, message as JsonRpcRequest))
+        .filter((a) => a !== null);
+      return answers.length ? { status: 200, body: answers } : { status: 202 };
+    }
+    const answer = this.handleMessage(entry, body as JsonRpcRequest);
+    return answer ? { status: 200, body: answer } : { status: 202 };
+  }
+
+  private handleMessage(entry: TokenEntry, message: JsonRpcRequest): unknown {
+    if (!message || typeof message !== "object" || typeof message.method !== "string") {
+      return {
+        jsonrpc: "2.0",
+        id: null,
+        error: { code: -32600, message: "Not a JSON-RPC request." },
+      };
+    }
+    const isNotification = message.id === undefined;
+    const reply = (result: unknown) =>
+      isNotification ? null : { jsonrpc: "2.0", id: message.id, result };
+    switch (message.method) {
+      case "initialize": {
+        const asked = message.params?.protocolVersion;
+        return reply({
+          protocolVersion: typeof asked === "string" ? asked : "2025-06-18",
+          capabilities: { tools: { listChanged: false } },
+          serverInfo: { name: "premise", version: VERSION },
+          instructions:
+            "premise's tools for this task. Every result is JSON: ok, result or error (code and message), diagnostics.",
+        });
+      }
+      case "ping":
+        return reply({});
+      case "tools/list":
+        return reply({
+          tools: this.toolsFor(entry.binding.role).map((t) => ({
+            name: t.name,
+            description: t.description,
+            inputSchema: t.inputSchema,
+          })),
+        });
+      case "tools/call": {
+        const name = message.params?.name;
+        const args = message.params?.arguments;
+        const envelope = this.call(
+          entry,
+          typeof name === "string" ? name : "",
+          args && typeof args === "object" && !Array.isArray(args)
+            ? (args as Record<string, unknown>)
+            : {},
+        );
+        return reply({
+          content: [{ type: "text", text: JSON.stringify(envelope) }],
+          isError: !envelope.ok,
+        });
+      }
+      default:
+        if (isNotification) return null;
+        return {
+          jsonrpc: "2.0",
+          id: message.id,
+          error: { code: -32601, message: `premise does not answer "${message.method}".` },
+        };
+    }
+  }
+
+  /** Check a call, record it, and hand it to whoever owns it. */
+  private call(entry: TokenEntry, tool: string, args: Record<string, unknown>): ToolEnvelope {
+    const { binding } = entry;
+    const envelope = this.check(entry, tool) ?? this.perform(binding, tool, args);
+    recordEvent(this.options.db, {
+      softwareId: binding.softwareId,
+      module: "agent-tools",
+      kind: "tool-call",
+      reference: String(binding.jobId),
+      detail: {
+        tool,
+        role: binding.role,
+        ok: envelope.ok,
+        error: envelope.error?.code ?? null,
+        ...(envelope.ok && (TOOLS_BY_NAME.get(tool)?.notBuilt || tool === "task_finish")
+          ? { input: args }
+          : {}),
+      },
+    });
+    return envelope;
+  }
+
+  private check(entry: TokenEntry, tool: string): ToolEnvelope | null {
+    if (entry.revoked) return fail("TASK_CLOSED", "This task has ended. Stop.");
+    if (!PREMISE_TOOLS_BY_ROLE[entry.binding.role].includes(tool)) {
+      return fail(
+        "NOT_ALLOWED",
+        `The ${entry.binding.role} does not have the tool "${tool}". Do not retry it; ask a person through "ask" if one must decide, or finish.`,
+      );
+    }
+    if (this.options.isPaused?.()) {
+      return fail("PAUSED", "premise has paused all agent work. Stop; the task resumes later.");
+    }
+    return null;
+  }
+
+  private perform(binding: ToolBinding, tool: string, args: Record<string, unknown>): ToolEnvelope {
+    const { tools } = this.options.config;
+    switch (tool) {
+      case "progress": {
+        const text = typeof args.text === "string" ? args.text.trim() : "";
+        if (!text) return fail("MALFORMED", 'Give one line of progress as "text".');
+        const line = text.split("\n")[0]!.slice(0, tools.progress_max_chars);
+        binding.onProgress(line);
+        return okResult(null);
+      }
+      case "task_finish": {
+        const status = args.status;
+        if (status !== "done" && status !== "stuck" && status !== "waiting-for-person") {
+          return fail("MALFORMED", 'Give a status of "done", "stuck" or "waiting-for-person".');
+        }
+        const note = typeof args.note === "string" ? args.note : null;
+        binding.onFinish?.({ status, note });
+        return okResult(null);
+      }
+      case "ask": {
+        const items = args.items;
+        const problems: string[] = [];
+        if (typeof args.role !== "string" || !args.role.trim())
+          problems.push("Name the role asked.");
+        if (!["question", "proposal", "needed"].includes(args.kind as string)) {
+          problems.push('Give a kind of "question", "proposal" or "needed".');
+        }
+        if (!Array.isArray(items) || items.length === 0) problems.push("Give at least one item.");
+        else if (items.length > tools.ask_max_items) {
+          problems.push(`Give at most ${tools.ask_max_items} items; you gave ${items.length}.`);
+        }
+        if (problems.length)
+          return fail("MALFORMED", "The question cannot be asked as it is.", problems);
+        return this.stub(tool);
+      }
+      case "record_read":
+        return okResult({
+          lines: [],
+          note: "premise does not keep this software's record yet, so there is nothing to read. Work from your task brief.",
+        });
+      case "facts_read":
+        return okResult({
+          facts: [],
+          note: "premise does not collect facts for reports yet, so there are none to read.",
+        });
+      default:
+        return this.stub(tool);
+    }
+  }
+
+  private stub(tool: string): ToolEnvelope {
+    const owner = TOOLS_BY_NAME.get(tool)?.notBuilt ?? "the part of premise that acts on it";
+    return okResult({
+      status: "recorded",
+      note: `premise recorded this call, but ${owner} is not built yet, so nothing more comes of it in this task. Carry on without waiting for it, and say in your final message what is still open.`,
+    });
+  }
+}

@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import fastifyStatic from "@fastify/static";
 import Fastify, { type FastifyInstance } from "fastify";
+import type { AgentToolServer } from "../agents/tool-server.js";
 import type { PremiseConfig } from "../config/settings.js";
 import { AGENT_TASK_KINDS } from "../config/settings.js";
 import type { DoctorReport } from "../doctor/doctor.js";
@@ -21,6 +22,8 @@ export interface AppDeps {
   queue: WorkQueue;
   ledger: UsageLedger;
   setup: DoctorReport;
+  /** premise's tools for agents, served at /mcp; each call carries its session's own token. */
+  tools?: AgentToolServer;
   /** The built page; when it is missing, a short note says how to build it. */
   webRoot: string;
 }
@@ -55,6 +58,23 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
   });
 
   app.get("/api/health", async () => ({ ok: true, name: "premise", version: VERSION }));
+
+  // Agents' tools (docs/specs/agent-tools.md). Not under /api: the page's link token does not
+  // open it, and a session token opens nothing else.
+  const tools = deps.tools;
+  if (tools) {
+    app.post("/mcp", async (request, reply) => {
+      const answer = tools.handleHttp(request.headers.authorization, request.body);
+      reply.code(answer.status);
+      return answer.body === undefined ? reply.send() : reply.send(answer.body);
+    });
+    app.get("/mcp", async (_request, reply) =>
+      reply
+        .code(405)
+        .header("allow", "POST")
+        .send({ error: "premise's agent tools take POST only." }),
+    );
+  }
 
   await app.register(async (api) => {
     api.addHook("onRequest", async (request, reply) => {

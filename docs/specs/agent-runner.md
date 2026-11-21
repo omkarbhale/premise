@@ -1,6 +1,6 @@
 # Agent runner specification
 
-Status: specification, being built ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Related: [models and cost](../architecture/models-and-cost.md), [the floor and the gate](../architecture/the-floor-and-the-gate.md), [agent tools](agent-tools.md), [work queue](work-queue.md), [prompts](../prompts/README.md), [skills](../skills/README.md).
+Status: built for real agents in `src/agents/` (`claude-agent.ts` and the files it uses), selected by `agents.mode` = `claude`; the scripted agent stays the default ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Not built yet: the session-to-task record in usage-ledger's format (5.5), stage budgets (5.3). Related: [models and cost](../architecture/models-and-cost.md), [the floor and the gate](../architecture/the-floor-and-the-gate.md), [agent tools](agent-tools.md), [work queue](work-queue.md), [prompts](../prompts/README.md), [skills](../skills/README.md).
 
 ## 1. Purpose
 
@@ -45,11 +45,13 @@ Not responsible for:
 
 ### 5.1 Starting a session
 
-1. Make a fresh working copy for the job under `work/<software>/<job>/` ([0086](../decisions/0086-working-copy-and-branch-per-change.md)):
-   - builder: a clone of the software's repository on a branch for the change;
+1. Make a fresh working copy for the job under `work/<software>/job-<job>/` ([0086](../decisions/0086-working-copy-and-branch-per-change.md)); premise clones, with the owner's git setup, so the agent holds no credential. Files the sandbox leaves in a working copy (`.bashrc`, `.gitconfig`, `.claude/` and the like) are excluded from git there, so no commit picks them up:
+   - builder: a clone of the software's repository on a branch for the change (`premise/job-<job>`);
    - checker: its own clone of the commit under check, separate from the builder's ([0089](../decisions/0089-checker-in-a-fresh-session.md));
    - planner, drafter, reviewer: a read-only clone at the default branch, where the job needs one;
-   - researcher, triager, reader, reporter: none, or an empty scratch folder.
+   - researcher, triager, reader, reporter: none, or an empty scratch folder;
+   - any role, when the software has no repository yet: an empty scratch folder.
+   - A job whose last session was cut off (usage limit, pause, premise stopped) keeps its working copy and carries that session on with `--resume` ([0151](../decisions/0151-session-ids-chosen-by-premise-and-cut-off-sessions-carried-on.md)).
 2. Assemble the instructions: the role's prompt from premise's repository, then every skill the role lists, in full, then the task brief with its placeholders filled ([0114](../decisions/0114-prompts-and-skills-as-files.md)).
 3. Create the session's tool token and MCP configuration ([agent tools](agent-tools.md)).
 4. Start Claude Code headless (`claude -p` with streamed JSON output) as a child process ([0071](../decisions/0071-headless-claude-code-agents.md)):
@@ -58,16 +60,20 @@ Not responsible for:
    - with the model alias for the role's tier;
    - with the role's allowed tools only;
    - with confinement (5.2);
-   - with permission prompts denied, not waited on: whatever would need permission is denied and reported.
+   - with permission prompts denied, not waited on: whatever would need permission is denied and reported (`--permission-mode dontAsk --permission-prompts none`);
+   - reading no settings but its own generated file (`--setting-sources ""`) and no MCP server but premise's (`--strict-mcp-config`);
+   - with an id premise chose (`--session-id`), confirmed by the session's first event ([0151](../decisions/0151-session-ids-chosen-by-premise-and-cut-off-sessions-carried-on.md)).
 5. Record the session in `agent_sessions`, and the session-to-task record for usage-ledger (5.5).
 
 ### 5.2 Confinement
 
 Every agent runs confined: Claude Code's sandbox for shell commands, plus permission rules for its file tools, because the sandbox covers shell commands only ([0087](../decisions/0087-agents-run-confined.md)).
 
+- The confinement is a settings file generated per session: the sandbox on, `failIfUnavailable`, `allowUnsandboxedCommands` off; permission rules in the double-slash form for absolute paths (`Read(//path/**)`).
 - Writes only in its working copy and its scratch folder.
+- Other sessions' folders and premise's data are denied one by one, never by a parent of the session's own folder, because a denied parent denies everything in it. Known limit: a folder made after a session started is not in its list ([0153](../decisions/0153-confinement-names-the-folders-that-exist-at-start.md)).
 - Reads denied for premise's data folder, the checker's scenarios, and credential files (SSH keys, the GitHub login, Claude Code's login). The checker alone may read its own scenarios.
-- Network only to the package registries the plan names; the researcher alone gets web search and web fetch; the checker also reaches the software it started on localhost.
+- Network only to the package registries in `agents.network.allowed_domains`, for builders and checkers; other roles reach no host; the researcher alone gets web search and web fetch; the checker also reaches the software it started on localhost.
 - The builder holds no credentials. It commits; the server pushes ([0077](../decisions/0077-github-through-existing-cli-login.md)).
 - On Linux and WSL2, Claude Code's sandbox needs bubblewrap and socat ([page server](page-server.md)).
 - The sandbox held in the milestone 1 step 1 test, so no container is used and Docker is not a prerequisite ([0125](../decisions/0125-the-claude-code-sandbox-is-the-confinement.md)). If bubblewrap or socat is missing, no agent starts and work stops for the owner, because running agents unconfined is security-sensitive ([0053](../decisions/0053-when-work-stops-for-the-owner.md)).
@@ -75,7 +81,8 @@ Every agent runs confined: Claude Code's sandbox for shell commands, plus permis
 ### 5.3 Limits
 
 - Each session has a turn limit and a time limit. A stuck agent otherwise loops through the subscription's limits ([0088](../decisions/0088-turn-and-time-limits.md)).
-- At the limit, the session is stopped and the job finishes `stuck`, with what it was doing.
+- Claude Code has no turn limit of its own in headless mode, so the runner counts the session's model turns from its events. At either limit, the session is stopped and the job finishes `stuck`, with which limit it hit.
+- Stopping asks the session's whole process group to end, and ends it forcibly after `agents.claude.stop_grace_seconds`.
 - During a stage with a budget, the stage budget also applies ([line engine](line-engine.md)).
 
 ### 5.4 Models
@@ -100,7 +107,7 @@ Every agent runs confined: Claude Code's sandbox for shell commands, plus permis
 
 ### 5.6 The usage limit
 
-- When the subscription's usage limit is reached, Claude Code reports rate-limit retries. The runner tells the work queue, which pauses until the limit resets, and the report says so ([work queue](work-queue.md)).
+- When the subscription's usage limit is reached, Claude Code reports it as a `rate_limit_event` with status `rejected` and the reset time. The runner stops the session and tells the work queue, which pauses all agent work until the reset, and the report says so ([work queue](work-queue.md)). A status of `allowed_warning` is shown as progress. After the reset, the cut-off session is carried on.
 - premise never turns on paid extra usage. Paid extra usage on a subscription is spending money, on the floor ([0100](../decisions/0100-floor-actions.md)).
 
 ### 5.7 Watching
@@ -110,20 +117,20 @@ Every agent runs confined: Claude Code's sandbox for shell commands, plus permis
 
 ## 6. Configuration
 
+Every setting, with its default, is in the [configuration reference](../reference/configuration.md). The agent runner's:
+
 | Key | Default | Meaning |
 |---|---|---|
-| `agents.claude_config_folder` | none: the owner's existing login | A Claude Code configuration folder to use instead ([0140](../decisions/0140-the-owners-existing-claude-code-login.md)) |
 | `agents.mode` | `scripted` | `scripted` (no LLM) or `claude` ([0134](../decisions/0134-the-owners-claude-login-only-when-strictly-necessary.md)) |
-| `agents.tier.strongest` | Claude Code's alias for the strongest tier | Model alias for strongest-tier roles |
-| `agents.tier.fast` | Claude Code's alias for a fast tier | Model alias for fast-tier roles |
-| `agents.max_turns.build` | 200 | Turn limit for a build session |
-| `agents.max_minutes.build` | 60 | Time limit for a build session |
-| `agents.max_turns.check` | 200 | Turn limit for a check session |
-| `agents.max_minutes.check` | 60 | Time limit for a check session |
-| `agents.max_turns.other` | 60 | Turn limit for other sessions, unless a stage budget is lower |
-| `agents.max_minutes.other` | 20 | Time limit for other sessions |
-| `agents.allowed_registries` | the main registries the plan names | Network allowed to builders and checkers |
-| `agents.confinement` | `sandbox` | `sandbox` is the only value in use ([0125](../decisions/0125-the-claude-code-sandbox-is-the-confinement.md)) |
+| `agents.claude_config_folder` | none: the owner's existing login | A Claude Code configuration folder to use instead ([0140](../decisions/0140-the-owners-existing-claude-code-login.md)) |
+| `agents.claude.command` | `claude` | The Claude Code program |
+| `agents.claude.stop_grace_seconds` | 10 | How long a stopped session gets before it is ended forcibly |
+| `agents.network.allowed_domains` | the main package registries | Network allowed to builders and checkers |
+| `agents.confinement.extra_denied_paths` | none | More paths no agent may read or write |
+| `agents.tasks.<type>.model` | `opus` for strongest-tier roles, `sonnet` for fast | Model alias per type of task ([0104](../decisions/0104-model-tier-by-role.md), [0105](../decisions/0105-tier-aliases.md)) |
+| `agents.tasks.<type>.effort` | `medium` | Reasoning effort per type of task |
+| `agents.tasks.<type>.max_turns` | 200 for build, prototype and check; 60 otherwise | Turn limit |
+| `agents.tasks.<type>.max_minutes` | 60 for build, prototype and check; 20 otherwise | Time limit |
 
 ## 7. Limits
 
@@ -137,7 +144,9 @@ Every agent runs confined: Claude Code's sandbox for shell commands, plus permis
 |---|---|---|---|
 | Claude Code not logged in | Start check | No agent starts | "Needed": the owner logs in once ([page server](page-server.md)) |
 | An API key is found in the environment | Start check | No agent starts | Removed from the child's environment; if it cannot be, reported |
-| Confinement unavailable (bubblewrap or socat missing) | Start check | No agent starts | Named as missing; the owner installs them |
+| Confinement unavailable (bubblewrap or socat missing) | Start check, and again when the runner is made | premise does not start with `agents.mode` = `claude` | Named as missing; the owner installs them, or sets `agents.mode` to `scripted` |
+| The sandbox fails to start anyway | Claude Code refuses to run (`failIfUnavailable`) | The job fails as `sandbox-unavailable` | The setup check says what is missing |
+| Claude Code is using an API key | The session's first event names a key source | The session is stopped; the job fails | The owner removes the key from Claude Code's settings |
 | An agent writes or reads outside its confinement | Denied by sandbox or permission rule | The action fails in the session | Recorded; repeated attempts count toward the three-strike rule |
 | Session hangs | Time limit | Stopped | Job `stuck`, reported |
 | Usage limit | Rate-limit events | All agent work paused | Resumes after the reset |

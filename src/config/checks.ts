@@ -42,3 +42,13 @@ export function describeCheck(check: Check): string {
 export function summarised(check: Check, summary: string): Check {
   return Object.assign((value: unknown) => check(value), { summary });
 }
+
+/** A list of non-empty pieces of text (possibly empty). */
+export const textList: Check = (value) => {
+  if (!Array.isArray(value))
+    return `must be a list of text, such as ["a", "b"]; it is ${show(value)}`;
+  const wrong = value.find((v) => typeof v !== "string" || v.trim().length === 0);
+  return wrong === undefined
+    ? null
+    : `must hold only non-empty pieces of text; ${show(wrong)} is not one`;
+};
