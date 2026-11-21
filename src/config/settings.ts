@@ -480,7 +480,7 @@ export const SETTINGS: readonly Setting[] = [
     default: "github",
     check: summarised(oneOf(REMOTES), `"github", "local" or "none"`),
     meaning:
-      '"github": at the end of Plan, premise asks you (through the gate) before creating the software\'s repository on your GitHub account; that step is not approved yet, so the software stays on this machine. "local": a second copy in the data folder\'s remotes folder, no question asked. "none": the software stays on this machine only.',
+      '"github": at the end of Plan, premise asks you (through the gate) before creating the software\'s repository on your GitHub account; that step is not available yet (premise cannot create GitHub repositories yet), so the software stays on this machine. "local": a second copy in the data folder\'s remotes folder, no question asked. "none": the software stays on this machine only.',
     record: "0161",
   },
   {
