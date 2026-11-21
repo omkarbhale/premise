@@ -1,6 +1,6 @@
 # Record keeper specification
 
-Status: built, except the reading of `recovered-trace.md` and the reviewer's own table ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md), [0159](../decisions/0159-how-the-record-keeper-is-built.md)); the code is in `src/record/` and `src/git/`. Related: [the record](../architecture/the-record.md), [agent tools](agent-tools.md), [line engine](line-engine.md), [runner](runner.md), [storage](storage.md).
+Status: built, except removing lines from `recovered-trace.md` once later commits cover their code, and the reviewer's own table ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md), [0159](../decisions/0159-how-the-record-keeper-is-built.md)); the code is in `src/record/` and `src/git/`. Related: [the record](../architecture/the-record.md), [agent tools](agent-tools.md), [line engine](line-engine.md), [runner](runner.md), [storage](storage.md).
 
 ## 1. Purpose
 
@@ -154,4 +154,4 @@ The record format is not configurable per software; it stays with premise ([0106
 - Milestone 1 step 2: everything above except `recovered-trace.md` (including `milestones.md`); the `from:` values used are `operator` and `assumed`.
 - Milestone 3: `from:` names every role; `taste.md` is filled from claims ([0102](../decisions/0102-taste-proposals-before-building.md)).
 - Milestone 4: `I-n` in trailers for work from every intake source.
-- Milestone 6: recovered items, confirmation by say-back, and `recovered-trace.md`.
+- Milestone 6: recovered items, confirmation by say-back, and `recovered-trace.md`. Its first part writes recovered items and confirms them ([0187](../decisions/0189-how-taking-on-existing-software-is-built.md)); `run.md` and `recovered-trace.md` are written as free text through `writeTextFiles`, one commit naming the items they serve. Lines of `recovered-trace.md` are added, never removed, in the thin form.

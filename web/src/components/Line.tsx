@@ -37,7 +37,7 @@ export function Line({ software }: { software: SoftwareDetail }) {
         back to any step it has reached.
       </p>
       <p className="where-now">
-        <strong>{whereNow(software.stage)}</strong>
+        <strong>{whereNow(software.stage, software.takingOn)}</strong>
       </p>
       <ol className="phases">
         {PHASES.map((phase, n) => {

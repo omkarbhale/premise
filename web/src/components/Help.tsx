@@ -47,6 +47,34 @@ export function Help() {
         </p>
       </section>
       <section className="card">
+        <h2>Software you already have</h2>
+        <ul>
+          <li>
+            Under <strong>Start or bring in</strong>, give a folder on this computer that is a git
+            repository, or a clone address. premise copies it and works on its copy; your folder is
+            never changed.
+          </li>
+          <li>
+            A drafter reads the code, its documents and its history and writes down why it exists,
+            who it is for, what it does and its decisions, each marked recovered. Where the code and
+            its documents disagree, it asks you.
+          </li>
+          <li>
+            You go through that list once and strike what is wrong. It usually misses things: say
+            what is missing in chat or on the Intake tab, and it goes through the line like any
+            change.
+          </li>
+          <li>
+            premise says what it could not check (for example, how to start it) and what it would
+            need, and asks before adding its record to your repository, on a branch named premise.
+          </li>
+          <li>
+            Changes made by hand outside premise are not followed yet, so the record drifts from
+            them.
+          </li>
+        </ul>
+      </section>
+      <section className="card">
         <h2>Words you will see</h2>
         <dl className="glossary">
           <dt>The record</dt>

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { PremiseConfig } from "../config/settings.js";
 import { type CommitInfo, Git, GitError } from "../git/git.js";
@@ -22,6 +22,10 @@ import {
   readTrailer,
   recordIdsAt,
 } from "./trace.js";
+
+/** The record's free-text files: how to run it, and best-guess links from old code. */
+export const TEXT_FILES = ["run.md", "recovered-trace.md"] as const;
+let textCounter = 0;
 
 export type ChangeStatus = "rejected" | "reviewing" | "at-say-back" | "accepted" | "committed";
 
@@ -440,6 +444,47 @@ export class RecordKeeper {
     });
     this.setStatus(row, "committed", { commit: sha });
     return sha;
+  }
+
+  /**
+   * Write the record's free-text files (run.md, and recovered-trace.md for existing software,
+   * decision 0121) in one commit that names the items it serves, and merge it. Nothing else may be
+   * written this way: items only ever change through proposed changes.
+   */
+  writeTextFiles(
+    softwareId: string,
+    files: Record<string, string>,
+    options: { subject: string; serves: string[]; body?: string },
+  ): string {
+    const allowed = new Set<string>(TEXT_FILES);
+    const wrong = Object.keys(files).filter((f) => !allowed.has(f));
+    if (wrong.length > 0) {
+      throw new RecordError(
+        "NOT_ALLOWED",
+        `${wrong.join(", ")} cannot be written as free text; only ${TEXT_FILES.join(" and ")} can.`,
+      );
+    }
+    const key = `text-${Date.now().toString(36)}-${(textCounter++).toString(36)}`;
+    const branch = `record/${key}`;
+    const copy = this.createWorkingCopy(softwareId, key, branch);
+    try {
+      mkdirSync(join(copy, this.folder), { recursive: true });
+      for (const [file, content] of Object.entries(files)) {
+        writeFileSync(join(copy, this.folder, file), content);
+      }
+      this.git.run(copy, ["add", "--", this.folder]);
+      this.commitWork(copy, { subject: options.subject, serves: options.serves });
+      return this.mergeJob(softwareId, copy, branch);
+    } finally {
+      rmSync(copy, { recursive: true, force: true });
+    }
+  }
+
+  /** A free-text record file as it stands (run.md, recovered-trace.md), or undefined. */
+  readTextFile(softwareId: string, file: string): string | undefined {
+    const repo = this.repositoryPath(softwareId);
+    if (!existsSync(join(repo, ".git")) || !this.git.headCommit(repo)) return undefined;
+    return this.git.readFileAt(repo, "HEAD", `${this.folder}/${file}`);
   }
 
   // ---- Reading ------------------------------------------------------------------------------

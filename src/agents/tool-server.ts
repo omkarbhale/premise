@@ -104,6 +104,21 @@ const TOOLS: ToolDefinition[] = [
     notBuilt: "the line engine",
   },
   {
+    name: "recovery_submit",
+    description:
+      'Submit the record recovered from an existing software: items (each with kind Y, U, R, W or D, its text, and the files it is guessed to serve), how to build, start and check it ("run"), and what premise would need to check it ("could_not_check"). Submitting again replaces it.',
+    inputSchema: obj(
+      {
+        items: { type: "array", items: anyObject },
+        run: anyObject,
+        could_not_check: textList,
+        summary: { type: "string" },
+      },
+      ["items"],
+    ),
+    notBuilt: "the line engine",
+  },
+  {
     name: "ask",
     description:
       "Ask a person a question, under the label of the role that has the last word. At most a short list of items. The job waits for the answer; other jobs go on.",

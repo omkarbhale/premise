@@ -24,6 +24,7 @@ const PROGRESS: Record<AgentTaskKind, string> = {
   reading: "Reading held items together (scripted)",
   report: "Writing the report (scripted)",
   size: "Sizing the work: how big, which steps, whether to split (scripted)",
+  recover: "Reading the code, its documents and history (scripted: only file names are read)",
 };
 
 function idea(request: AgentRequest): string {
@@ -259,6 +260,47 @@ const trialJudge: ScriptBehaviour = async (request, call) => {
 };
 
 /**
+ * The scripted recovery: fixed templates filled with what premise read without AI (the file names,
+ * the README's first line, how many commits). Every item says it is a scripted guess, so the say-back
+ * has something real to strike; nothing here reads or understands the code.
+ */
+const recover: ScriptBehaviour = (request, call) => {
+  const context = request.context ?? {};
+  const name = typeof context.name === "string" ? context.name : "the software";
+  const readme = typeof context.readme === "string" ? context.readme : "";
+  const files = Array.isArray(context.files) ? (context.files as string[]) : [];
+  const commits = typeof context.commits === "number" ? context.commits : 0;
+  const shown = files.slice(0, 6);
+  call("recovery_submit", {
+    items: [
+      {
+        kind: "Y",
+        text: readme
+          ? `Its README says: ${readme.slice(0, 200)}`
+          : `Guess: ${name} exists to save its users effort; its documents do not say why.`,
+      },
+      { kind: "U", text: "Guess: its users are the people who wrote it.", assumed: true },
+      { kind: "R", text: "Operator: you. Decides what it is for and what matters most." },
+      {
+        kind: "W",
+        priority: "must",
+        text: `Keep doing what it does today${shown.length ? ` (its top folder holds ${shown.join(", ")})` : ""}.`,
+        files: shown,
+      },
+      {
+        kind: "D",
+        text: `Its history has ${commits === 1 ? "1 commit" : `${commits} commits`}; the scripted drafter read none of it.`,
+      },
+    ],
+    run: {},
+    could_not_check: [
+      "The scripted drafter does not read code, so how to build, start and check it is not known.",
+    ],
+    summary: "Scripted recovery: templates filled from file names only.",
+  });
+};
+
+/**
  * The scripted sizer: every piece is small, goes through every stage it may have, and stays whole.
  * A real sizer leaves out what a piece does not need; this one never guesses.
  */
@@ -356,6 +398,7 @@ export function standInScript(stepSeconds: number): AgentScript {
       rule("plan", { when: { purpose: "draft" }, behave: plan }),
       rule("review", { behave: review }),
       rule("size", { behave: size }),
+      rule("recover", { behave: recover }),
       rule("triage", { behave: triage }),
       rule("reading", { behave: reading }),
       rule("build", { behave: trialBuild }),

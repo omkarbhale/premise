@@ -7,6 +7,7 @@ import { Help } from "./components/Help";
 import { Needed } from "./components/Needed";
 import { Settings } from "./components/Settings";
 import { SoftwareView, type SoftwareTab } from "./components/SoftwareView";
+import { BringInForm } from "./components/BringInForm";
 import { StartForm } from "./components/StartForm";
 import { Usage } from "./components/Usage";
 import { Welcome } from "./components/Welcome";
@@ -207,7 +208,7 @@ function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) 
                 <div className="section-head">
                   <h2>Softwares</h2>
                   <button type="button" onClick={() => setView({ name: "start" })}>
-                    Start another
+                    Start or bring in
                   </button>
                 </div>
                 <ul>
@@ -221,7 +222,7 @@ function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) 
                       >
                         <span className="name">{s.name}</span>
                         <span className="small muted">
-                          {whereNow(s.stage)}
+                          {whereNow(s.stage, s.takingOn)}
                           <span className="sr-only"> (step: {stageName(s.stage)})</span>
                         </span>
                         <span className={`small ${s.openAsks > 0 ? "needs-you" : "muted"}`}>
@@ -246,16 +247,27 @@ function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) 
             </div>
           ))}
         {view.name === "start" && (
-          <section className="card narrow-card" aria-labelledby="start-title">
-            <h1 id="start-title">Start another software</h1>
-            <StartForm
-              autoFocus
-              onStarted={(s) => {
-                setTab("conversation");
-                setView({ name: "software", id: s.id });
-              }}
-            />
-          </section>
+          <>
+            <section className="card narrow-card" aria-labelledby="start-title">
+              <h1 id="start-title">Start another software</h1>
+              <StartForm
+                autoFocus
+                onStarted={(s) => {
+                  setTab("conversation");
+                  setView({ name: "software", id: s.id });
+                }}
+              />
+            </section>
+            <section className="card narrow-card" aria-labelledby="bring-in-title">
+              <h2 id="bring-in-title">Or bring in software you already have</h2>
+              <BringInForm
+                onStarted={(s) => {
+                  setTab("conversation");
+                  setView({ name: "software", id: s.id });
+                }}
+              />
+            </section>
+          </>
         )}
         {view.name === "needed" && <Needed asks={openAsks} notifications={o.page.notifications} />}
         {view.name === "activity" && <Activity />}

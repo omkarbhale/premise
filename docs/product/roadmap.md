@@ -128,6 +128,7 @@ Built second, in two parts. After the thin part, the line works ([0034](../decis
 Built third, in two parts ([0171](../decisions/0171-existing-software-much-earlier-in-a-thin-form.md)).
 
 **First part: existing software, in a thin form.**
+- Status: built ([0186](../decisions/0188-existing-softwares-record-and-hand-edits.md), [0187](../decisions/0189-how-taking-on-existing-software-is-built.md)). Its scenarios run as tests with the scripted agent against two fixture repositories (a command-line project with history, a web project whose README contradicts its code): the recovered draft, a conflict becoming an ask, the say-back striking a wrong item, the record added to the operator's repository when approved and kept back when refused, an intake fix afterwards going through the line, a large software recovered part by part, and restarts in the middle of copying and of recovering.
 - Built: premise drafts the record from the code, people strike what is wrong, and changes come in as intake from there. Where premise cannot operate the software it says "could not check" and names what is needed ([0167](../decisions/0167-premise-adapts-at-runtime-to-the-software.md)). Detail: [existing software](../architecture/the-line.md#existing-software-milestone-6).
 - Shown running: one demo software taken on with its `premise/` folder removed; one assumption struck in the say-back; one intake item taken through the line.
 - Reported: as for every milestone, plus what people were asked.

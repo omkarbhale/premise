@@ -209,7 +209,7 @@ describe("first run, in a browser", () => {
     )) as number;
     expect(overflow).toBeLessThanOrEqual(0);
     await shot(page, "16-phone-dark");
-    await page.getByRole("button", { name: "Start another" }).click();
+    await page.getByRole("button", { name: "Start or bring in" }).click();
     await shot(page, "17-phone-dark-start");
     await page.close();
   }, 30_000);

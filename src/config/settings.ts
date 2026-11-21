@@ -22,6 +22,7 @@ export const AGENT_TASK_KINDS = [
   "reading",
   "report",
   "size",
+  "recover",
 ] as const;
 export type AgentTaskKind = (typeof AGENT_TASK_KINDS)[number];
 
@@ -64,7 +65,7 @@ export const VISIBILITIES = ["private", "public"] as const;
 export type Visibility = (typeof VISIBILITIES)[number];
 
 /** Stage groups that share a budget (docs/specs/line-engine.md 6). */
-export const BUDGET_GROUPS = ["draft", "exists", "say_back", "plan"] as const;
+export const BUDGET_GROUPS = ["draft", "exists", "say_back", "plan", "recover"] as const;
 export type BudgetGroup = (typeof BUDGET_GROUPS)[number];
 const SIZES = ["small", "medium", "large"] as const;
 const BUDGET_DEFAULTS: Record<BudgetGroup, Record<(typeof SIZES)[number], [number, number]>> = {
@@ -72,12 +73,14 @@ const BUDGET_DEFAULTS: Record<BudgetGroup, Record<(typeof SIZES)[number], [numbe
   exists: { small: [30, 15], medium: [60, 30], large: [120, 60] },
   say_back: { small: [10, 5], medium: [15, 10], large: [20, 15] },
   plan: { small: [40, 20], medium: [80, 40], large: [160, 80] },
+  recover: { small: [40, 20], medium: [80, 40], large: [160, 80] },
 };
 const BUDGET_STAGES: Record<BudgetGroup, string> = {
   draft: "Why, Who and What (each)",
   exists: "What exists",
   say_back: "Say back",
   plan: "Plan",
+  recover: "Recover (an existing software's record, drafted from its code, per part)",
 };
 
 function budgetSettings(): Setting[] {
@@ -180,6 +183,7 @@ const STRONGEST: AgentTaskKind[] = [
   "prototype",
   "check",
   "reading",
+  "recover",
 ];
 const LONG_TASKS: AgentTaskKind[] = ["build", "prototype", "check"];
 /** Short tasks: sizing and triage must keep small fixes quick (decisions 0184, 0185). */
@@ -478,6 +482,30 @@ export const SETTINGS: readonly Setting[] = [
     record: "0185",
   },
   {
+    key: "existing.record_branch",
+    default: "premise",
+    check: summarised(branchName, "a branch name"),
+    meaning:
+      "When you bring in software you already have and approve adding its record to your repository, premise pushes its record and later changes to this branch there. Your own branches and working folder are never touched; merge the branch when you want.",
+    record: "0189",
+  },
+  {
+    key: "existing.history_commits",
+    default: 200,
+    check: summarised(wholeNumber(0, 5000), "0 to 5000"),
+    meaning:
+      "How many of an existing software's latest commits (their first lines) the drafter reads when recovering its record. 0 reads no history.",
+    record: "0189",
+  },
+  {
+    key: "existing.clone_timeout_minutes",
+    default: 10,
+    check: summarised(wholeNumber(1, 240), "1 to 240"),
+    meaning:
+      "How long premise waits for a copy of an existing software's repository before it gives up and says so.",
+    record: "0189",
+  },
+  {
     key: "runner.default_visibility",
     default: "private",
     check: summarised(oneOf(VISIBILITIES), `"private" or "public"`),
@@ -688,6 +716,11 @@ export interface PremiseConfig {
     split_max_parts: number;
     agents_per_stage: number;
     budgets: Record<BudgetGroup, Record<"small" | "medium" | "large", StageBudget>>;
+  };
+  existing: {
+    record_branch: string;
+    history_commits: number;
+    clone_timeout_minutes: number;
   };
   intake: {
     reading_held_count: number;

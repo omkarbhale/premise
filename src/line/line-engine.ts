@@ -14,12 +14,18 @@ import type { Job, JobKind, WorkQueue } from "../queue/work-queue.js";
 import { applyOperations, type Operation } from "../record/change.js";
 import { type ItemKind, type RecordItem, formatItemLine } from "../record/format.js";
 import { RecordError, type RecordKeeper } from "../record/record-keeper.js";
-import { ServiceError, type ChatResult, type StartSoftwareInput } from "../server/services.js";
+import {
+  ServiceError,
+  type BringInInput,
+  type ChatResult,
+  type StartSoftwareInput,
+} from "../server/services.js";
 import type {
   ApprovalView,
   AskAnswer,
   AskView,
   ChatMessage,
+  ExistingView,
   MilestoneView,
   RecordFileView,
   RecordView,
@@ -53,6 +59,31 @@ import {
 } from "../storage/softwares.js";
 import type { UsageLedger } from "../usage-ledger/usage-ledger.js";
 import { nameFromIdea, repositoryName } from "../demo/drafts.js";
+import {
+  type Recovery,
+  mergeRun,
+  readRecovery,
+  recoveryOperations,
+  runFile,
+  runProblems,
+  traceFile,
+  traceLinks,
+  unconfirmed,
+} from "../existing/recovery.js";
+import {
+  SourceError,
+  copySource,
+  nameFromSource,
+  pushRecordBranch,
+  readSource,
+} from "../existing/source.js";
+import {
+  type ExistingSoftware,
+  addExisting,
+  getExisting,
+  listExisting,
+  setExisting,
+} from "../existing/store.js";
 import { validateAnswer } from "./answers.js";
 import type { BriefName, Briefs } from "./briefs.js";
 import {
@@ -150,17 +181,30 @@ export const EXISTS_OUTCOMES = [
   "Build something different",
   "Do not build it",
 ] as const;
+/** What exists now, for software premise took on: is all of it still needed? (decision 0189) */
+export const EXISTING_OUTCOMES = [
+  "Keep it as it is",
+  "Use what exists for part of it",
+  "Stop: it is no longer needed",
+] as const;
 const MILESTONE_CHOICES = ["Go on", "Go back to Why"] as const;
 const PROBLEM_CHOICES = ["Try again", "Try again with twice the budget"] as const;
 
 /** What an ask is for, kept in its meta. */
 type AskPurpose =
-  "draft" | "exists" | "say-back" | "milestones" | "stage-problem" | "milestone-reached" | "agent";
+  | "draft"
+  | "exists"
+  | "say-back"
+  | "recovered-say-back"
+  | "milestones"
+  | "stage-problem"
+  | "milestone-reached"
+  | "agent";
 
 /** The line's notes on one work item, kept with the item. */
 interface ItemNotes {
-  /** The item's parts: made by a split, or a confirmed plan's milestones. */
-  children?: "split" | "plan";
+  /** The item's parts: made by a split, a confirmed plan's milestones, or recovery part by part. */
+  children?: "split" | "plan" | "recover";
   /** The last stage the item went through itself before its parts took over; null for a split. */
   handedOffAt?: StageId | null;
   /** When its parts are done, the item goes on after this stage. */
@@ -169,6 +213,8 @@ interface ItemNotes {
   wholeRound?: number;
   /** For an intake item's work: what the triager found it is (bug, wish, ...). */
   intakeKind?: string;
+  /** For existing software: what the drafter's recovery submitted, used when its job ends. */
+  recovery?: Recovery;
 }
 
 /** Fixes the whole-piece check may ask for before premise goes on and reports it. */
@@ -246,6 +292,7 @@ export class LineEngine implements IntakeLine {
     options.gate.registerPerformer("create-repository", (request) =>
       this.createRemoteRepository(request),
     );
+    options.gate.registerPerformer("add-record", (request) => this.addRecordToRepository(request));
   }
 
   private get queue(): WorkQueue {
@@ -289,8 +336,11 @@ export class LineEngine implements IntakeLine {
   /** The effort budget of an early stage for the piece being worked on, with any boost given. */
   budgetFor(software: Software, stage: string): StageBudget | null {
     if (!(EARLY as readonly string[]).includes(stage)) return null;
-    const size = asSize(this.active(software.id).sizeClass);
-    const base = this.config.line.budgets[STAGE_JOB[stage as EarlyStage].group][size];
+    const item = this.active(software.id);
+    const size = asSize(item.sizeClass);
+    const group =
+      stage === "why" && this.isRecovery(item) ? "recover" : STAGE_JOB[stage as EarlyStage].group;
+    const base = this.config.line.budgets[group][size];
     const boost = this.state(software.id).boost ?? 1;
     return { turns: base.turns * boost, minutes: base.minutes * boost };
   }
@@ -373,6 +423,16 @@ export class LineEngine implements IntakeLine {
     if (software.state === "active" && item.state === "sizing" && !blocked) {
       return "Sizing the work: an agent is deciding how big it is, which steps it needs, and whether it splits into parts. This is quick.";
     }
+    const existing = this.takenOn(software.id);
+    if (existing?.status === "copying") {
+      return "Copying it into premise's own folder. Your folder is only read.";
+    }
+    if (existing?.status === "copy-failed") {
+      return "Could not be copied, so nothing was taken on. The conversation says why and what to do.";
+    }
+    if (software.state === "ended" && existing) {
+      return "Stopped: you decided it is no longer needed. Send it back to any stage to pick it up again.";
+    }
     if (software.state === "ended") {
       return "Ended: you decided not to build it. Send it back to any stage to pick it up again.";
     }
@@ -411,6 +471,7 @@ export class LineEngine implements IntakeLine {
       milestoneWaits: software.milestoneWaits,
       openAsks,
       created: software.created,
+      ...(this.isTakingOn(software.id) && { takingOn: true }),
     };
   }
 
@@ -471,6 +532,7 @@ export class LineEngine implements IntakeLine {
       work: this.workViews(id),
       wholeCheckStandIn: this.wholeCheck.standIn,
       build: this.options.later.view?.(id) ?? null,
+      ...(this.existingView(id) && { existing: this.existingView(id)! }),
     };
   }
 
@@ -493,8 +555,30 @@ export class LineEngine implements IntakeLine {
       const parts = childItems(this.db, item.id).filter((p) => p.state !== "withdrawn");
       return parts.some((p) => p.stages.includes(stage)) ? "done" : "skipped";
     };
+    const takingOn = this.isRecovery(chain.at(-1) ?? active) && active.kind !== "intake";
+    const allowed = allowedStages(active);
     return STAGES.map((s) => {
-      const view = { id: s.id, name: s.name, plain: s.plain };
+      const view =
+        takingOn && s.id === "why"
+          ? {
+              id: s.id,
+              name: "Recover",
+              plain: "Recover the record from the code: why, who, what and its decisions",
+            }
+          : { id: s.id, name: s.name, plain: s.plain };
+      if (
+        takingOn &&
+        !allowed.includes(s.id) &&
+        !(active.origin === "recover" && chain.some((c) => c.stages.includes(s.id)))
+      ) {
+        return {
+          ...view,
+          position: "skipped" as const,
+          why: (["plan", "build", "check", "run", "report"] as string[]).includes(s.id)
+            ? "Nothing is built while taking it on. Changes you ask for afterwards go through this step."
+            : "Taking it on: this is recovered from the code at Recover instead.",
+        };
+      }
       const covered = active.state === "sizing" ? null : coveredByParts(active, s.id);
       if (covered === "done") return { ...view, position: "done" as const };
       if (active.stages.includes(s.id) && covered === null) {
@@ -614,6 +698,550 @@ export class LineEngine implements IntakeLine {
     });
     this.queue.tick();
     return this.summary(getSoftware(this.db, software.id)!);
+  }
+
+  // ---- Existing software (decision 0189) -------------------------------------------------------
+
+  /**
+   * Take on a software that already exists: premise copies it into its own data folder (the
+   * operator's folder is only read), then recovers its record from the code at Why, looks at what
+   * exists now, says the whole recovered record back, and rests at Intake.
+   */
+  async bringIn(input: BringInInput): Promise<SoftwareSummary> {
+    let source;
+    try {
+      source = readSource(input.source, this.config.data.folder);
+    } catch (error) {
+      if (error instanceof SourceError) throw new ServiceError("INVALID", error.message);
+      throw error;
+    }
+    const words = (input.idea ?? "").trim();
+    if (words.length > MAX_IDEA) {
+      throw new ServiceError(
+        "INVALID",
+        `That is ${words.length} characters; keep what it is for under ${MAX_IDEA}. You can add detail in chat later.`,
+      );
+    }
+    const given = input.name?.trim();
+    if (given && given.length > 80) {
+      throw new ServiceError("INVALID", "Keep the name under 80 characters.");
+    }
+    const taken = new Set(listSoftwares(this.db).map((s) => s.name.toLowerCase()));
+    if (given && taken.has(given.toLowerCase())) {
+      throw new ServiceError(
+        "NAME_TAKEN",
+        `There is already a software called "${given}". Choose another name, or leave the name empty.`,
+      );
+    }
+    const base = given || nameFromSource(source.given);
+    let name = base;
+    for (let n = 2; taken.has(name.toLowerCase()); n++) name = `${base} ${n}`;
+    const idea = words || `Existing software, taken on from ${source.given}.`;
+
+    const software = transaction(this.db, () => {
+      const created = createSoftware(this.db, { name, idea }, this.config.softwares);
+      addExisting(this.db, {
+        softwareId: created.id,
+        source: source.given,
+        sourceKind: source.kind,
+      });
+      addChatMessage(this.db, {
+        softwareId: created.id,
+        author: "person",
+        text: words ? `Bring in ${source.given}: ${words}` : `Bring in ${source.given}.`,
+        routedTo: "start",
+      });
+      createWorkItem(this.db, {
+        softwareId: created.id,
+        kind: "software",
+        origin: "existing",
+        sizeClass: created.sizeClass,
+        stages: defaultStages({ kind: "software", origin: "existing", parentId: null }),
+      });
+      this.premiseSays(
+        created.id,
+        `Copying ${source.given} into premise's own folder. Your ${source.kind === "folder" ? "folder" : "repository"} is only read; premise works on its own copy and changes nothing there.`,
+      );
+      return created;
+    });
+    this.copyExisting(software.id);
+    return this.summary(getSoftware(this.db, software.id)!);
+  }
+
+  /**
+   * Copy an existing software into premise's data folder, then begin taking it on. Run again at
+   * start for a copy premise was cut off in the middle of.
+   */
+  private copyExisting(softwareId: string): void {
+    const existing = getExisting(this.db, softwareId);
+    if (!existing) return;
+    const work = (async () => {
+      await new Promise((r) => setImmediate(r));
+      const source = { given: existing.source, kind: existing.sourceKind, location: "" };
+      try {
+        source.location = readSource(existing.source, this.config.data.folder).location;
+        const copied = await copySource(source, this.options.keeper.repositoryPath(softwareId), {
+          timeoutMinutes: this.config.existing.clone_timeout_minutes,
+          recordFolder: this.config.record.folder,
+        });
+        if (!getSoftware(this.db, softwareId)) return;
+        transaction(this.db, () => {
+          setExisting(this.db, softwareId, {
+            status: "recovering",
+            sourceBranch: copied.branch,
+            baseCommit: copied.commit,
+            commits: copied.commits,
+          });
+          this.premiseSays(
+            softwareId,
+            `Copied: ${copied.commits === 1 ? "1 commit" : `${copied.commits} commits`} on ${copied.branch}. Next, premise works out how big it is, then a drafter reads the code, its documents and its history and writes down what it finds.`,
+          );
+          this.beginItem(softwareId, rootItem(this.db, softwareId), "copied");
+        });
+        this.queue.tick();
+      } catch (error) {
+        if (!getSoftware(this.db, softwareId)) return;
+        const problem = (error as Error).message;
+        transaction(this.db, () => {
+          setExisting(this.db, softwareId, { status: "copy-failed", problem });
+          this.setLifecycle(softwareId, "ended", "could not copy it");
+          this.premiseSays(
+            softwareId,
+            `${problem.endsWith(".") ? problem : `${problem}.`} Nothing was changed anywhere. Fix that, then bring it in again with "Bring in software you already have".`,
+          );
+        });
+      }
+    })().finally(() => this.deferred.delete(work));
+    this.deferred.add(work);
+  }
+
+  /** At start: copies premise was cut off in the middle of are made again from the start. */
+  resumeTakeOns(): number {
+    const cut = listExisting(this.db, "copying");
+    for (const existing of cut) {
+      this.premiseSays(
+        existing.softwareId,
+        "premise stopped while copying this; copying it again from the start.",
+      );
+      this.copyExisting(existing.softwareId);
+    }
+    return cut.length;
+  }
+
+  /** The software is being taken on: copied, or its record recovered and not yet gone through. */
+  private isTakingOn(softwareId: string): boolean {
+    const status = this.takenOn(softwareId)?.status;
+    return status === "copying" || status === "recovering";
+  }
+
+  /** The root of a software taken on from existing code, or a part of it being recovered. */
+  private isRecovery(item: WorkItem): boolean {
+    return item.origin === "existing" || item.origin === "recover";
+  }
+
+  private takenOn(softwareId: string): ExistingSoftware | undefined {
+    return getExisting(this.db, softwareId);
+  }
+
+  /** What the drafter reads about a software being taken on, besides the code itself. */
+  private recoveryMaterial(softwareId: string): {
+    history: string;
+    readme: string;
+    files: string[];
+    commits: number;
+  } {
+    const repo = this.options.keeper.repositoryPath(softwareId);
+    const git = this.options.keeper.git;
+    const count = this.config.existing.history_commits;
+    const commits = count > 0 ? git.log(repo, ["-n", String(count), "HEAD"]) : [];
+    const history = commits
+      .map((c) => `${c.sha.slice(0, 7)} ${c.date.slice(0, 10)} ${c.subject}`)
+      .join("\n");
+    const files = git.listFolderAt(repo, "HEAD", "");
+    const readmeName = files.find((f) => /^readme(\.[a-z]+)?$/i.test(f));
+    const readme = readmeName
+      ? ((git.readFileAt(repo, "HEAD", readmeName) ?? "")
+          .split("\n")
+          .map((l) => l.trim())
+          .find((l) => l && !l.startsWith("#") && !l.startsWith("![") && !l.startsWith("[!")) ?? "")
+      : "";
+    return {
+      history,
+      readme: readme.slice(0, 300),
+      files,
+      commits: this.takenOn(softwareId)?.commits ?? commits.length,
+    };
+  }
+
+  /** Queue the drafter's recovery of the record for the piece being worked on. */
+  private queueRecovery(software: Software): void {
+    const item = this.active(software.id);
+    const budget = this.budgetFor(software, "why")!;
+    const material = this.recoveryMaterial(software.id);
+    const piece =
+      item.parentId === null
+        ? "the whole software"
+        : `one part of it: ${item.title ?? ""}. ${item.words ?? ""}`.trim();
+    const existing = this.takenOn(software.id);
+    const brief = this.options.briefs.make("record recovery brief", {
+      software_name: software.name,
+      piece,
+      operator_words:
+        existing && software.idea.startsWith("Existing software, taken on from")
+          ? "none"
+          : software.idea,
+      history: material.history
+        ? material.history
+            .split("\n")
+            .map((l) => `  ${l}`)
+            .join("\n")
+        : "  none were read",
+      issues:
+        "not read. premise does not read issues yet, so open bugs and wishes are not part of this recovery",
+      record: this.recordText(software.id),
+      budget: `${budget.turns} agent turns and ${budget.minutes} minutes`,
+    });
+    this.queue.enqueue({
+      softwareId: software.id,
+      kind: "recover",
+      stage: "why",
+      payload: {
+        run: this.state(software.id).run,
+        item: item.id,
+        purpose: "recover",
+        brief,
+        repository: this.options.keeper.repositoryPath(software.id),
+        limits: { turns: budget.turns, minutes: budget.minutes },
+        context: {
+          stage: "why",
+          purpose: "recover",
+          name: software.name,
+          idea: software.idea,
+          ...(item.parentId !== null && { piece: item.title }),
+          readme: material.readme,
+          files: material.files,
+          commits: material.commits,
+        },
+      },
+    });
+  }
+
+  /** recovery_submit: the recovered record, kept with the piece until the job ends. */
+  recoverySubmit(binding: ToolBinding, args: Record<string, unknown>): ToolEnvelope {
+    const job = this.jobOf(binding);
+    if (!("id" in job)) return job;
+    if (job.kind !== "recover") {
+      return toolFail(
+        "MALFORMED",
+        "recovery_submit is only for recovering an existing software's record.",
+      );
+    }
+    const item = getWorkItem(this.db, Number(job.payload.item));
+    if (!item)
+      return toolFail("TASK_CLOSED", "This piece of work is not in premise any more. Stop.");
+    const read = readRecovery(args);
+    if ("problems" in read) {
+      return toolFail("MALFORMED", "The recovered record cannot be used as it is.", read.problems);
+    }
+    const problems = this.dryRun(job.softwareId, recoveryOperations(read));
+    if (problems.length) {
+      return toolFail("MALFORMED", "Some items would not fit the record.", problems);
+    }
+    this.setNotes(item, { recovery: read });
+    return toolOk({
+      status: "received",
+      items: read.items.length,
+      note: "premise puts these into the record, marked recovered, when you finish; they stay unconfirmed until the operator has gone through them. Submitting again replaces them.",
+    });
+  }
+
+  /** The recovery job ended: its record goes in, marked recovered, or the operator decides. */
+  private recoverJobEnded(software: Software, job: Job): void {
+    const item = getWorkItem(this.db, Number(job.payload.item));
+    if (!item) return;
+    const recovery = this.notes(item).recovery;
+    if (job.status !== "done" || !recovery) {
+      this.stageProblem(
+        software,
+        job,
+        job.status === "done" ? "finished without a recovered record" : undefined,
+      );
+      return;
+    }
+    const landed = this.writer.land(
+      software.id,
+      recoveryOperations(recovery),
+      `Recovered from the code by the drafter${item.parentId === null ? "" : ` (${item.title ?? "one part"})`}; unconfirmed until the operator has gone through it.`,
+    );
+    if (!landed.ok) {
+      this.stageProblem(
+        software,
+        job,
+        `could not put what it recovered into the record: ${landed.diagnostics.map((d) => d.message).join(" ")}`,
+      );
+      return;
+    }
+    this.setNotes(item, { recovery: undefined });
+    const existing = this.takenOn(software.id);
+    const merged = mergeRun(
+      { run: existing?.run ?? {}, couldNotCheck: existing?.couldNotCheck ?? [] },
+      recovery,
+    );
+    setExisting(this.db, software.id, { run: merged.run, couldNotCheck: merged.couldNotCheck });
+    const ids = landed.assigned.filter((x): x is string => Boolean(x));
+    const links = traceLinks(recovery, landed.assigned);
+    const files: Record<string, string> = {
+      "run.md": runFile(merged.run, this.needs(merged), new Date().toISOString().slice(0, 10)),
+    };
+    if (links.size > 0) {
+      files["recovered-trace.md"] = traceFile(
+        this.options.keeper.readTextFile(software.id, "recovered-trace.md"),
+        links,
+      );
+    }
+    try {
+      this.options.keeper.writeTextFiles(software.id, files, {
+        subject: "Record: how to run it, and best-guess links from the old code",
+        serves: ids,
+      });
+    } catch (error) {
+      this.premiseSays(
+        software.id,
+        `How to run it could not be written into the record: ${(error as Error).message}`,
+      );
+    }
+    const kinds = (k: string) => recovery.items.filter((i) => i.kind === k).length;
+    const needs = this.needs(merged);
+    this.premiseSays(
+      software.id,
+      `Recovered ${ids.length === 1 ? "1 item" : `${ids.length} items`} from the code${item.parentId === null ? "" : ` of ${this.label(item)}`}: ${kinds("Y")} on why, ${kinds("U") + kinds("R")} on who, ${kinds("W")} on what it does, ${kinds("D")} decisions. Each is marked recovered and stays unconfirmed until you have gone through it.${needs.length ? ` Could not check: ${needs.join(" ")}` : ""}`,
+    );
+    this.advance(software.id, "why", "record recovered");
+  }
+
+  /** What premise would need to build, start or check the software, in plain words. */
+  private needs(found: { run: ExistingSoftware["run"]; couldNotCheck: string[] }): string[] {
+    return [...found.couldNotCheck, ...runProblems(found.run, this.config.record.folder)];
+  }
+
+  /**
+   * The say-back of the whole recovered record (decision 0189): premise lists every item nobody
+   * has confirmed yet, grouped by file, for the operator to strike what is wrong in one pass.
+   * No agent is needed: the list is the record itself.
+   */
+  private askRecoveredSayBack(software: Software): void {
+    const items = unconfirmed(this.recordLines(software.id));
+    if (items.length === 0) {
+      this.premiseSays(software.id, "Nothing recovered is left to go through.");
+      this.afterRecoveredSayBack(software.id);
+      return;
+    }
+    const titles = new Map(RECORD_VIEW_FILES.map((f) => [f.file, f.title]));
+    createAsk(this.db, {
+      softwareId: software.id,
+      role: OPERATOR,
+      kind: "say-back",
+      stage: "say-back",
+      title: "What premise recovered from the code: strike anything wrong",
+      instruction:
+        "premise read the code, its documents and its history, and wrote down what it understood. A recovered record usually misses things and gets some wrong. Strike what is wrong and say why; whatever you keep is taken as right. What is missing or half right comes in afterwards: say it in chat or on the Intake tab, and it goes through the line.",
+      items: items.map((i) => ({
+        key: i.id,
+        text: i.marks.priority ? `${i.marks.priority}: ${i.text}` : i.text,
+        mark: "recovered" as const,
+        refs: [i.id],
+        group: titles.get(i.file) ?? i.file,
+      })),
+      extra: { meta: { purpose: "recovered-say-back", ids: items.map((i) => i.id) } },
+    });
+    this.premiseSays(
+      software.id,
+      `Before going on: ${items.length === 1 ? "1 item" : `${items.length} items`} recovered from the code, for you to strike what is wrong. It is one list, in pages if it is long; under Waiting on you.`,
+    );
+  }
+
+  /** The operator went through the recovered record: strike what was struck, confirm the rest. */
+  private recoveredSayBackEffects(software: Software, ask: Ask, answer: AskAnswer): () => void {
+    const id = software.id;
+    const ids = ((ask.extra.meta?.ids ?? []) as string[]).filter(Boolean);
+    const decided = new Map((answer.kind === "items" ? answer.items : []).map((a) => [a.key, a]));
+    const live = new Set(this.recordLines(id).map((i) => i.id));
+    const operations: Operation[] = [];
+    let struck = 0;
+    let kept = 0;
+    for (const itemId of ids) {
+      if (!live.has(itemId)) continue;
+      const said = decided.get(itemId);
+      if (said?.decision === "strike") {
+        struck += 1;
+        operations.push({
+          op: "strike",
+          id: itemId,
+          reason: `Struck when the recovered record was said back${said.reason ? `: ${said.reason}` : "."}`,
+        });
+      } else {
+        kept += 1;
+        operations.push({ op: "mark", id: itemId, confirmed: true });
+      }
+    }
+    this.land(id, operations, "The operator went through the record recovered from the code.");
+    return () => {
+      this.premiseSays(
+        id,
+        `Gone through: ${kept === 1 ? "1 item" : `${kept} items`} kept and confirmed, ${struck === 1 ? "1" : struck} struck. A recovered record usually misses things: anything missing or half right, say in chat or on the Intake tab, and it goes through the line.`,
+      );
+      this.afterRecoveredSayBack(id);
+    };
+  }
+
+  /** After the recovered say-back: ask to add the record to the operator's repository, go on. */
+  private afterRecoveredSayBack(softwareId: string): void {
+    setExisting(this.db, softwareId, { status: "taken-on" });
+    this.offerRecordCommit(softwareId);
+    this.advance(softwareId, "say-back", "recovered record checked");
+  }
+
+  /** The record goes into the operator's own repository only through the gate (decision 0189). */
+  private offerRecordCommit(softwareId: string): void {
+    const software = getSoftware(this.db, softwareId)!;
+    const existing = this.takenOn(softwareId);
+    if (!existing) return;
+    const branch = this.config.existing.record_branch;
+    const request = this.options.gate.request({
+      softwareId,
+      kind: "publish",
+      action: `Add premise's record of ${software.name} (the ${this.config.record.folder}/ folder, in commits on top of your history) to your repository at ${existing.source}, on a branch named ${branch}. Your other branches and your working folder are not touched; merge the branch when you want.`,
+      why: "So the record lives with the code, where it outlives premise. Until then it is only in premise's own copy.",
+      requestedBy: "line engine",
+      perform: "add-record",
+      stage: "say-back",
+      waiting: "adding the record to your repository",
+    });
+    if (request.status === "asked") {
+      setExisting(this.db, softwareId, {
+        recordStatus: "asked",
+        recordRequest: request.id,
+        recordNote: null,
+      });
+    }
+  }
+
+  /** After a change of a taken-on software reached running: push it to the record branch too. */
+  private pushLatest(softwareId: string, ref: string | null): void {
+    const existing = this.takenOn(softwareId);
+    if (!existing || existing.recordStatus !== "added") return;
+    const software = getSoftware(this.db, softwareId)!;
+    this.options.gate.request({
+      softwareId,
+      kind: "publish",
+      action: `Push premise's latest change of ${software.name}${ref ? ` (${ref})` : ""} to the branch ${this.config.existing.record_branch} in your repository at ${existing.source}.`,
+      why: "So your repository keeps up with what premise changed and recorded.",
+      requestedBy: "line engine",
+      perform: "add-record",
+      stage: "intake",
+      waiting: "pushing the change to your repository",
+    });
+  }
+
+  /** The gate approved: push premise's record branch to the operator's repository. */
+  private async addRecordToRepository(
+    request: Pick<GateRequest, "softwareId">,
+  ): Promise<{ ok: boolean; outcome: string }> {
+    const software = getSoftware(this.db, request.softwareId);
+    const existing = this.takenOn(request.softwareId);
+    if (!software || !existing)
+      return { ok: false, outcome: "The software is not in premise any more." };
+    const branch = this.config.existing.record_branch;
+    try {
+      await pushRecordBranch(this.options.keeper.repositoryPath(software.id), branch, {
+        timeoutMinutes: this.config.existing.clone_timeout_minutes,
+      });
+      const note = `On the branch ${branch} in ${existing.source}.`;
+      setExisting(this.db, software.id, { recordStatus: "added", recordNote: note });
+      return {
+        ok: true,
+        outcome: `${software.name}'s record is in your repository: ${note} Merge it when you want.`,
+      };
+    } catch (error) {
+      const why = (error as Error).message;
+      if (existing.recordStatus !== "added") {
+        setExisting(this.db, software.id, { recordStatus: "failed", recordNote: why });
+      }
+      return { ok: false, outcome: `Nothing was pushed: ${why}` };
+    }
+  }
+
+  /** The operator asks premise to offer the record commit again, after refusing or a failure. */
+  async offerRecord(id: string): Promise<void> {
+    this.require(id);
+    const existing = this.takenOn(id);
+    if (!existing) {
+      throw new ServiceError(
+        "INVALID",
+        "This software was started in premise, so its record is already in its own repository.",
+      );
+    }
+    if (existing.status !== "taken-on") {
+      throw new ServiceError(
+        "INVALID",
+        "premise offers to add the record once you have gone through what it recovered. Do that first.",
+      );
+    }
+    if (existing.recordStatus === "asked") {
+      throw new ServiceError(
+        "INVALID",
+        "premise is already asking about this under Waiting on you.",
+      );
+    }
+    if (existing.recordStatus === "added") {
+      throw new ServiceError("INVALID", "The record is already in your repository.");
+    }
+    transaction(this.db, () => this.offerRecordCommit(id));
+    this.queue.tick();
+  }
+
+  /** The page's view of a software taken on from existing code. */
+  private existingView(softwareId: string): ExistingView | undefined {
+    const existing = this.takenOn(softwareId);
+    if (!existing) return undefined;
+    const all = this.recordLines(softwareId, { includeStruck: true }).filter(
+      (i) => i.marks.from === "recovered",
+    );
+    const needs =
+      existing.status === "copying" || existing.status === "copy-failed"
+        ? []
+        : all.length
+          ? this.needs(existing)
+          : existing.couldNotCheck;
+    return {
+      source: existing.source,
+      sourceKind: existing.sourceKind,
+      status: existing.status,
+      problem: existing.problem,
+      commits: existing.commits,
+      recovered: all.filter((i) => !i.struck).length,
+      confirmed: all.filter((i) => !i.struck && i.marks.confirmed).length,
+      struck: all.filter((i) => i.struck).length,
+      run: {
+        build: existing.run.build ?? null,
+        start: existing.run.start ?? null,
+        check: existing.run.check ?? null,
+        canStart: runProblems(existing.run, this.config.record.folder).every(
+          (p) => !p.startsWith("How to start") && !p.startsWith("The start"),
+        ),
+      },
+      couldNotCheck: needs,
+      record: {
+        status: existing.recordStatus,
+        branch: this.config.existing.record_branch,
+        note: existing.recordNote,
+        canOffer:
+          existing.status === "taken-on" &&
+          (existing.recordStatus === "refused" ||
+            existing.recordStatus === "failed" ||
+            existing.recordStatus === "not-yet"),
+      },
+    };
   }
 
   /** Stop a software's jobs and withdraw its open asks (approvals stay: they belong to the gate). */
@@ -1107,7 +1735,12 @@ export class LineEngine implements IntakeLine {
           purpose: "size",
           name: software.name,
           idea: software.idea,
-          piece: item.parentId === null ? "software" : item.kind,
+          piece:
+            item.origin === "existing"
+              ? "existing"
+              : item.parentId === null
+                ? "software"
+                : item.kind,
           title: item.title ?? software.name,
           words: item.words ?? software.idea,
           allowed: [...allowed],
@@ -1219,21 +1852,24 @@ export class LineEngine implements IntakeLine {
       this.enterStage(getSoftware(this.db, softwareId)!, fresh.stages[0] ?? "build", "sized");
       return;
     }
+    const recovering = this.isRecovery(fresh);
     const parts = this.makeParts(
       fresh,
       proposal.split.map((p) => ({ title: p.title, words: p.words })),
-      "split",
+      recovering ? "recover" : "split",
     );
-    this.setNotes(fresh, {
-      children: "split",
-      handedOffAt: null,
-      resumeAfter: "check",
-      wholeRound: 0,
-    });
+    this.setNotes(
+      fresh,
+      recovering
+        ? { children: "recover", handedOffAt: null, resumeAfter: "why" }
+        : { children: "split", handedOffAt: null, resumeAfter: "check", wholeRound: 0 },
+    );
     setWorkItem(this.db, fresh.id, { state: "waiting" });
     this.premiseSays(
       softwareId,
-      `Split into ${parts.length} separate parts, because ${lowerFirst(proposal.splitReason)} ${parts.map((p, i) => `${i + 1}. ${p.title}`).join("; ")}. Each part goes through the steps it needs, one after another; then the whole is checked, run and reported. You can undo the split on the Line tab until a part is built.`,
+      recovering
+        ? `Its record is recovered in ${parts.length} parts, because ${lowerFirst(proposal.splitReason)} ${parts.map((p, i) => `${i + 1}. ${p.title}`).join("; ")}. A drafter reads each part in turn; then everything recovered is said back to you in one list.`
+        : `Split into ${parts.length} separate parts, because ${lowerFirst(proposal.splitReason)} ${parts.map((p, i) => `${i + 1}. ${p.title}`).join("; ")}. Each part goes through the steps it needs, one after another; then the whole is checked, run and reported. You can undo the split on the Line tab until a part is built.`,
     );
     this.beginItem(softwareId, parts[0]!, "split");
   }
@@ -1427,6 +2063,35 @@ export class LineEngine implements IntakeLine {
         this.setState(software.id, { sayBackRounds: 0 });
       if (stage === "plan") this.setState(software.id, { review: { round: 0, objections: [] } });
       this.openRun(software, stage, why);
+      if (this.isRecovery(item)) {
+        // Taking on an existing software (decision 0189).
+        const fresh = getSoftware(this.db, software.id)!;
+        if (stage === "why") {
+          this.queueRecovery(fresh);
+          this.premiseSays(
+            software.id,
+            item.parentId === null
+              ? "Recovering the record: a drafter is reading the code, its documents and its history, and writing down why it exists, who it is for, what it does and the decisions it shows."
+              : `Recovering the record of ${this.label(item)}: a drafter is reading that part of the code.`,
+          );
+          return;
+        }
+        if (stage === "say-back") {
+          this.askRecoveredSayBack(fresh);
+          return;
+        }
+        if (stage === "exists") {
+          this.queueStageJob(fresh, "exists", "since", {
+            scope: "since",
+            subject: `whether anything has appeared since ${software.name} was built that makes part of it unnecessary`,
+          });
+          this.premiseSays(
+            software.id,
+            "A short look at what exists now: has anything appeared that makes part of it unnecessary? A researcher is on it.",
+          );
+          return;
+        }
+      }
       this.queueStageJob(getSoftware(this.db, software.id)!, stage as EarlyStage, "draft");
       this.premiseSays(software.id, ENTER_WORDS[stage as EarlyStage]);
       return;
@@ -1452,7 +2117,9 @@ export class LineEngine implements IntakeLine {
         software.id,
         wasAtIntake
           ? "Back at Intake: nothing else is waiting. Say in chat, or report on the Intake tab, what to change next."
-          : "That is the whole line. Anything you say in chat from now on is taken as new work.",
+          : this.takenOn(software.id)
+            ? `${software.name} is taken on. From now on, say in chat or on the Intake tab what to change; each change goes through the line and its commits name what they serve. If people still change it by hand outside premise, its record will drift from the code: premise cannot follow such changes yet.`
+            : "That is the whole line. Anything you say in chat from now on is taken as new work.",
       );
     }
     if (queued) this.beginItem(software.id, queued, "taken in earlier");
@@ -1605,6 +2272,7 @@ export class LineEngine implements IntakeLine {
     if (piece.kind === "intake") {
       // An intake item's change reached running: a short report (decision 0098).
       this.report(software.id, "change-running", piece.ref ?? undefined);
+      this.pushLatest(software.id, piece.ref);
       this.premiseSays(
         software.id,
         `The report on ${piece.ref ?? "this change"} is ready: open the Report tab.${this.options.later.standIn ? " (Stand-in: building, checking and running are not built into premise yet, so nothing was really built or started.)" : ""}`,
@@ -1701,7 +2369,9 @@ export class LineEngine implements IntakeLine {
           ? "contradiction review brief"
           : purpose === "revision"
             ? "foundation revision brief"
-            : STAGE_JOB[stage].brief;
+            : purpose === "since"
+              ? "smaller look brief"
+              : STAGE_JOB[stage].brief;
     const item = this.active(software.id);
     return this.options.briefs.make(name, {
       software_name: software.name,
@@ -1812,6 +2482,10 @@ export class LineEngine implements IntakeLine {
         this.sizeJobEnded(software, job);
         return;
       }
+      if (job.kind === "recover") {
+        this.recoverJobEnded(software, job);
+        return;
+      }
       if (job.payload.whole === true) {
         this.wholeJobEnded(software, job);
         return;
@@ -1915,7 +2589,7 @@ export class LineEngine implements IntakeLine {
       );
       return;
     }
-    const stage = stageName(job.stage ?? "");
+    const stage = job.kind === "recover" ? "Recovering the record" : stageName(job.stage ?? "");
     createAsk(this.db, {
       softwareId: software.id,
       role: OPERATOR,
@@ -2241,7 +2915,8 @@ export class LineEngine implements IntakeLine {
       }
       case "exists": {
         const text = answer.kind === "text" ? answer.text.trim() : "";
-        const notBuild = /^do not build/i.test(text);
+        const takingOn = this.isRecovery(this.active(id));
+        const notBuild = takingOn ? /^stop/i.test(text) : /^do not build/i.test(text);
         const findings = items
           .map((item) => addOperation({ item, text: item.text, edited: false })!)
           .filter(Boolean);
@@ -2264,6 +2939,21 @@ export class LineEngine implements IntakeLine {
             this.finishItem(id, item, "dropped");
             return;
           }
+          if (notBuild && takingOn) {
+            this.setLifecycle(id, "ended", "operator decided it is no longer needed");
+            setExisting(this.db, id, { status: "stopped" });
+            this.premiseSays(
+              id,
+              `premise stops working on ${software.name}, as you decided. Nothing in your repository was changed. If you change your mind, send it back to any stage on the Line tab.`,
+            );
+            return;
+          }
+          if (takingOn && /^use what exists/i.test(text)) {
+            this.premiseSays(
+              id,
+              "Noted. Say in chat which part to replace with what; it comes in as a change and goes through the line once you have gone through the recovered record.",
+            );
+          }
           if (notBuild) {
             this.setLifecycle(id, "ended", "operator decided not to build");
             this.openRun(software, "report", "not built");
@@ -2279,6 +2969,8 @@ export class LineEngine implements IntakeLine {
       }
       case "say-back":
         return this.sayBackEffects(software, items, answer);
+      case "recovered-say-back":
+        return this.recoveredSayBackEffects(software, ask, answer);
       case "milestones":
         return this.milestoneEffects(software, items, answer);
       case "stage-problem": {
@@ -2331,6 +3023,20 @@ export class LineEngine implements IntakeLine {
       case "agent":
       default: {
         const said = answer.kind === "text" ? answer.text : JSON.stringify(answer);
+        if (
+          this.takenOn(id) &&
+          ask.waitingJob !== null &&
+          this.queue.get(ask.waitingJob)?.kind === "recover"
+        ) {
+          // A conflict or gap found while recovering: the answer is a correction, taken in as intake.
+          return () => {
+            const taken = this.options.intake.takeIn(
+              id,
+              `Answer to "${ask.title}" (asked while recovering the record): ${said}`,
+            );
+            this.premiseSays(id, taken.reply, `intake:I-${taken.number}`);
+          };
+        }
         return () => {
           const later = this.options.later.answered?.(ask, answer) ?? null;
           if (purpose === "agent" || later === null) {
@@ -2543,13 +3249,21 @@ export class LineEngine implements IntakeLine {
   private gateDecided(request: GateRequest): void {
     const software = getSoftware(this.db, request.softwareId);
     if (!software) return;
+    if (request.perform === "add-record" && request.status === "refused") {
+      const existing = this.takenOn(software.id);
+      if (existing && existing.recordStatus !== "added") {
+        setExisting(this.db, software.id, { recordStatus: "refused", recordNote: null });
+      }
+    }
     switch (request.status) {
       case "refused":
         this.premiseSays(
           software.id,
           request.perform === "create-repository"
             ? `Declined: nothing was created, and ${software.name} stays on this machine. Everything else goes on.`
-            : `Declined: ${request.action} The ${request.requestedBy} was told, and finds another way.`,
+            : request.perform === "add-record"
+              ? `Declined: nothing was added to your repository. The record stays only in premise's own copy, and everything else goes on. To add it later, use "Offer it again" on the Line tab.`
+              : `Declined: ${request.action} The ${request.requestedBy} was told, and finds another way.`,
         );
         break;
       case "done":
@@ -2792,17 +3506,29 @@ export class LineEngine implements IntakeLine {
         return toolFail("MALFORMED", "Some items would not fit the record.", problems);
       const why =
         typeof args.reason === "string" && args.reason.trim() ? ` ${args.reason.trim()}` : "";
+      const takingOn = this.isRecovery(this.active(id));
+      const advice = takingOn
+        ? /no longer|unnecessary|not needed|stop|do not/i.test(outcome)
+          ? EXISTING_OUTCOMES[2]
+          : /part|replace|use|build on/i.test(outcome)
+            ? EXISTING_OUTCOMES[1]
+            : EXISTING_OUTCOMES[0]
+        : recommended;
       const ask = createAsk(this.db, {
         softwareId: id,
         role: OPERATOR,
         kind: "question",
         stage: "exists",
-        title: "Build it, build on something, or not build it?",
-        instruction: `This is what already exists${items.length ? "" : " (nothing was found)"}. premise recommends: ${recommended}.${why} Pick one, or write your own answer.`,
+        title: takingOn
+          ? "Is all of it still needed?"
+          : "Build it, build on something, or not build it?",
+        instruction: takingOn
+          ? `This is what exists now that could do part of its job${items.length ? "" : " (nothing was found)"}. premise recommends: ${advice}.${why} Pick one, or write your own answer.`
+          : `This is what already exists${items.length ? "" : " (nothing was found)"}. premise recommends: ${recommended}.${why} Pick one, or write your own answer.`,
         items: items.map(toAskItem),
         extra: {
-          bestAttempt: recommended,
-          choices: [...EXISTS_OUTCOMES],
+          bestAttempt: advice,
+          choices: takingOn ? [...EXISTING_OUTCOMES] : [...EXISTS_OUTCOMES],
           meta: { purpose: "exists", items, job: job.id },
         },
       });
@@ -2970,7 +3696,9 @@ export class LineEngine implements IntakeLine {
       instruction:
         kind === "needed"
           ? `The ${binding.role} needs this to go on. Mark it done when it is, or say why it cannot be done.`
-          : `The ${binding.role} asks this while working on ${stageName(job.stage ?? "")}. Answer in your own words; the rest of the work goes on.`,
+          : job.kind === "recover"
+            ? `The ${binding.role} found this while recovering the record from the code: parts disagree, or it cannot be told from the code. Answer in your own words; your answer is taken in as a correction and goes through the line, and the rest goes on meanwhile.`
+            : `The ${binding.role} asks this while working on ${stageName(job.stage ?? "")}. Answer in your own words; the rest of the work goes on.`,
       items:
         items.length > 1
           ? items.map((text, i) => ({ key: `q${i + 1}`, text, mark: "assumed" as const }))
@@ -3169,6 +3897,8 @@ export function jobWords(job: Pick<Job, "kind" | "payload">): string {
   switch (job.kind) {
     case "size":
       return "sizer";
+    case "recover":
+      return "drafter, recovering the record from the code";
     case "draft":
       return "drafter";
     case "research":

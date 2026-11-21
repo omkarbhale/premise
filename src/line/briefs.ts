@@ -16,7 +16,9 @@ export type BriefName =
   | "What brief"
   | "say-back brief"
   | "chat corrections brief"
+  | "record recovery brief"
   | "full look brief"
+  | "smaller look brief"
   | "plan brief"
   | "foundation revision brief"
   | "contradiction review brief"
@@ -33,7 +35,9 @@ export const BRIEF_ROLE: Record<BriefName, AgentRole> = {
   "What brief": "drafter",
   "say-back brief": "drafter",
   "chat corrections brief": "drafter",
+  "record recovery brief": "drafter",
   "full look brief": "researcher",
+  "smaller look brief": "researcher",
   "plan brief": "planner",
   "foundation revision brief": "planner",
   "contradiction review brief": "reviewer",

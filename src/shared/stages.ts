@@ -103,9 +103,16 @@ const DOING: Record<StageId, string> = {
   intake: "waiting for what you say next",
 };
 
+/** While taking on an existing software, the same stages do something else (decision 0189). */
+const TAKING_ON: Partial<Record<StageId, string>> = {
+  why: "recovering the record from the code",
+  exists: "looking at what exists now",
+  "say-back": "checking what it recovered with you",
+};
+
 /** "Understanding what you want: drafting who it is for". Stage names are not needed to read it. */
-export function whereNow(stage: string): string {
+export function whereNow(stage: string, takingOn = false): string {
   const phase = PHASES.find((p) => p.id === phaseOf(stage))!;
-  const doing = DOING[stage as StageId];
+  const doing = (takingOn ? TAKING_ON[stage as StageId] : undefined) ?? DOING[stage as StageId];
   return doing ? `${phase.now}: ${doing}` : phase.now;
 }

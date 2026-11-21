@@ -6,6 +6,7 @@ import { stageName, whereNow } from "../../../src/shared/stages";
 import { percent } from "../words";
 import { MockedBadge, Problem } from "./Badges";
 import { Conversation } from "./Conversation";
+import { ExistingPanel } from "./ExistingPanel";
 import { IntakeView } from "./IntakeView";
 import { Line } from "./Line";
 import { RecordView } from "./RecordView";
@@ -56,7 +57,7 @@ export function SoftwareView({
       <header className="software-head">
         <h1>{s.name}</h1>
         <p className="where">
-          <strong>{whereNow(s.stage)}</strong>{" "}
+          <strong>{whereNow(s.stage, s.takingOn)}</strong>{" "}
           <span className="muted small">(step: {stageName(s.stage)})</span>
         </p>
         <p className={`status status-${open > 0 ? "needs-you" : s.state}`} role="status">
@@ -74,6 +75,7 @@ export function SoftwareView({
           <summary>What you asked for</summary>
           <p>{s.idea}</p>
         </details>
+        {s.existing && <ExistingPanel softwareId={s.id} existing={s.existing} />}
       </header>
 
       <div className="tabs" role="tablist" aria-label={`${s.name} views`}>

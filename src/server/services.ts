@@ -39,10 +39,23 @@ export interface StartSoftwareInput {
   name?: string;
 }
 
+/** Bring in software that already exists (decision 0189). */
+export interface BringInInput {
+  /** A folder on this machine, or a clone address. */
+  source: string;
+  name?: string;
+  /** What the operator says it is for, in their own words; optional. */
+  idea?: string;
+}
+
 export interface SoftwareService {
   list(): Promise<SoftwareSummary[]>;
   get(id: string): Promise<SoftwareDetail>;
   start(input: StartSoftwareInput): Promise<SoftwareSummary>;
+  /** Take on a software that already exists, from a folder or a clone address. */
+  bringIn(input: BringInInput): Promise<SoftwareSummary>;
+  /** Offer again to add an existing software's record to its repository, through the gate. */
+  offerRecord(id: string): Promise<void>;
   sendBack(id: string, stage: StageId): Promise<void>;
   setSize(id: string, size: SizeClass): Promise<void>;
   setPriority(id: string, priority: number): Promise<void>;

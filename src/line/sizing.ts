@@ -29,8 +29,18 @@ const EARLY_AND_BUILD: readonly StageId[] = [
 ];
 const MILESTONE: readonly StageId[] = ["build", "check", "run", "report"];
 
+/**
+ * An existing software taken on (decision 0189): its record is recovered from the code at Why, a
+ * short look at what exists now, the whole recovered record said back, and then Intake, where
+ * changes come in. Nothing is built while taking it on.
+ */
+const EXISTING: readonly StageId[] = ["why", "exists", "say-back", "intake"];
+
 /** The stages a piece of this kind may go through. */
 export function allowedStages(piece: Piece): readonly StageId[] {
+  if (piece.origin === "existing") return EXISTING;
+  // One part of an existing software whose record is recovered part by part.
+  if (piece.origin === "recover") return ["why"];
   if (piece.parentId === null) return STAGE_IDS;
   if (piece.kind === "milestone") return MILESTONE;
   if (piece.kind === "intake") return STAGE_IDS.filter((s) => s !== "intake");
@@ -41,6 +51,8 @@ export function allowedStages(piece: Piece): readonly StageId[] {
 
 /** The stages a piece of this kind always goes through, whatever the sizer says. */
 export function requiredStages(piece: Piece): readonly StageId[] {
+  if (piece.origin === "existing") return ["why", "say-back", "intake"];
+  if (piece.origin === "recover") return ["why"];
   if (piece.parentId === null) {
     // A new software: its purpose and what it must do are new, so they are drafted and said back
     // (decision 0020), and a plan's first milestone is the smallest version that runs.
@@ -65,7 +77,12 @@ export function defaultStages(piece: Piece): StageId[] {
 
 /** Whether a piece may be split by the sizer. Parts and fixes are not split again. */
 export function maySplit(piece: Piece, config: Pick<PremiseConfig, "line">): boolean {
-  return config.line.splitting && piece.origin !== "split" && piece.origin !== "fix";
+  return (
+    config.line.splitting &&
+    piece.origin !== "split" &&
+    piece.origin !== "fix" &&
+    piece.origin !== "recover"
+  );
 }
 
 /** A stage named by its id or its plain name ("What exists", "say back"). */
@@ -103,7 +120,7 @@ export function settleStages(
     if (!chosen.has(stage)) {
       chosen.add(stage);
       notes.push(
-        `${stageName(stage)} was added: ${(piece.kind === "intake" ? INTAKE_REQUIRED_WHY[stage] : undefined) ?? REQUIRED_WHY[stage] ?? "this kind of work always has it."}`,
+        `${stageName(stage)} was added: ${(piece.kind === "intake" ? INTAKE_REQUIRED_WHY[stage] : piece.origin === "existing" || piece.origin === "recover" ? EXISTING_REQUIRED_WHY[stage] : undefined) ?? REQUIRED_WHY[stage] ?? "this kind of work always has it."}`,
       );
     }
   }
@@ -130,6 +147,14 @@ const REQUIRED_WHY: Partial<Record<StageId, string>> = {
   run: "the software runs on this machine at the end of its line.",
   report: "every software and every milestone ends with a report.",
   intake: "a software's line ends at Intake, where what you say becomes new work.",
+};
+
+/** Why taking on an existing software always has a stage. */
+const EXISTING_REQUIRED_WHY: Partial<Record<StageId, string>> = {
+  why: "an existing software's record is always recovered from its code here.",
+  "say-back":
+    "what premise recovered from the code is always said back, for you to strike what is wrong.",
+  intake: "once it is taken on, what you say becomes new work at Intake.",
 };
 
 /** Why an intake item's work always has a stage, when the reason differs from the general one. */
@@ -238,6 +263,11 @@ export function readSizing(
 
 /** What a piece is, in a few words, for the sizer's brief. */
 export function pieceWords(piece: Piece): string {
+  if (piece.origin === "existing") {
+    return "an existing software premise is taking on: its record is recovered from its code (at why), with an optional short look at what exists now, then said back; nothing is built. Split it only into completely separate parts whose records are best recovered one at a time, such as separate programs in one repository";
+  }
+  if (piece.origin === "recover")
+    return "one part of an existing software, whose record is recovered on its own";
   if (piece.parentId === null) return "a whole new software";
   switch (piece.kind) {
     case "milestone":

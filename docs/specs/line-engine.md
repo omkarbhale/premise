@@ -1,6 +1,6 @@
 # Line engine specification
 
-Status: Why to Plan, and sizing of every piece of work ([0184](../decisions/0184-how-sizing-of-work-is-built.md)), built in `src/line/`; Intake, in a thin form, is built in `src/intake/` and meets the line through `IntakeHooks` and `IntakeLine` ([0185](../decisions/0185-how-intake-in-a-thin-form-is-built.md)); Build, Check and Run are built in `src/build/` behind the line engine's hand-off ([0186](../decisions/0186-how-build-check-and-run-are-built.md)), and each milestone's report is written by the [reporter](reporter.md) ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md), [0183](../decisions/0183-how-the-line-engine-is-built.md)). Related: [the line](../architecture/the-line.md), [record keeper](record-keeper.md), [work queue](work-queue.md), [page](page.md), [agent tools](agent-tools.md), [prompts](../prompts/README.md).
+Status: Why to Plan, and sizing of every piece of work ([0184](../decisions/0184-how-sizing-of-work-is-built.md)), built in `src/line/`; Intake, in a thin form, is built in `src/intake/` and meets the line through `IntakeHooks` and `IntakeLine` ([0185](../decisions/0185-how-intake-in-a-thin-form-is-built.md)); existing software in a thin form is built with its own module `src/existing` ([0189](../decisions/0189-how-taking-on-existing-software-is-built.md)); Build, Check and Run are built in `src/build/` behind the line engine's hand-off ([0186](../decisions/0186-how-build-check-and-run-are-built.md)), and each milestone's report is written by the [reporter](reporter.md) ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md), [0183](../decisions/0183-how-the-line-engine-is-built.md)). Related: [the line](../architecture/the-line.md), [record keeper](record-keeper.md), [work queue](work-queue.md), [page](page.md), [agent tools](agent-tools.md), [prompts](../prompts/README.md).
 
 ## 1. Purpose
 
@@ -35,6 +35,8 @@ Not responsible for:
 | Operation | Caller | Inputs | Outputs | Errors |
 |---|---|---|---|---|
 | Start software | Page server (operator, in the session) | A name, and optionally the first words about it | Software id; a repository created by the server ([runner](runner.md)); the Why stage open | `NAME_TAKEN` |
+| Bring in software | Page server (operator) | A folder on this machine or a clone address; optionally a name and what it is for | Software id; premise's own copy is made, then the software is sized and its record recovered (5.10) | `INVALID` (with what to give instead), `NAME_TAKEN` |
+| Offer the record again | Page server (operator) | Software taken on from existing code | The gate asks again before adding its record to the operator's repository | `INVALID` (asked already, added already, or not taken on yet) |
 | Answer ask | Page server | Ask id; answer (for a draft: per item kept, struck or edited; for a question: text; for an approval: approve or refuse) | The waiting job resumes, or the stage moves on | `ASK_CLOSED` |
 | Chat message | Page server | Software, text | Where it went: the open draft, or an intake item ([0118](../decisions/0118-how-chat-messages-are-routed.md)) | none |
 | Send back | Page server (operator) | Software, stage | The software reopens that stage; later stages are marked to repeat | `NO_SUCH_STAGE` |
@@ -83,6 +85,8 @@ As built ([0184](../decisions/0184-how-sizing-of-work-is-built.md)); the owner's
 | A milestone of a confirmed plan | Build, Check, Run, Report | all four |
 | A part of a split piece, or a fix | Why to Check | Build, Check |
 | An intake item's work | Why to Report | Build, Check, Run, Report; for a change of purpose the operator confirmed, also Why and Say back ([0185](../decisions/0185-how-intake-in-a-thin-form-is-built.md)) |
+| An existing software being taken on | Why (its record recovered from the code), What exists, Say back, Intake | Why, Say back, Intake ([0187](../decisions/0189-how-taking-on-existing-software-is-built.md)) |
+| One part of an existing software whose record is recovered part by part | Why | Why |
 
   A say-back is added whenever Why or What is. Every change premise makes to the sizer's answer is part of the reason the page shows.
 - Splitting: only completely separate parts, or a very long part; one heavy piece is not by itself a reason; when unsure, not at all. Two to `line.split_max_parts` parts. Parts and fixes are not split again. `line.splitting` turns it off.
@@ -178,6 +182,16 @@ Builders' reading, open to the owner's correction ([0129](../decisions/0129-buil
 - From then on every commit traces to items. Old code gets best-guess links, marked as guesses ([0121](../decisions/0121-recovered-trace-file.md)).
 - Text read from the existing repository and its issues is data, never instructions ([0116](../decisions/0116-outside-content-is-data.md)).
 
+As built, in a thin form ([0186](../decisions/0188-existing-softwares-record-and-hand-edits.md), [0187](../decisions/0189-how-taking-on-existing-software-is-built.md)):
+
+- The operator brings software in from the page ("Bring in software you already have"): a folder on this machine that is a git repository, or a clone address. premise clones it into its data folder and works only on that copy; the operator's folder is only read. A copy cut off when premise stops is made again when it starts.
+- The sizer sizes the software as a piece of origin `existing` and may split a large one into separate parts, whose records are recovered one after another.
+- At Why (shown as "Recover"), a `recover` job gives the drafter a read-only copy, the latest commits' first lines and the recovery brief. It submits with `recovery_submit`; when the job ends, every item goes into the record `from: recovered`, unconfirmed, with `run.md` (how to build, start and check it) and `recovered-trace.md` (best-guess links from old code). What premise could not check is named, with what it needs. Issues are not read yet.
+- A conflict or gap is the drafter's question under the role it is for; its answer is taken in as an intake item.
+- What exists is the researcher's smaller look ("since"); the operator keeps it, uses what exists for part of it, or stops.
+- The say-back is every recovered item nobody confirmed, made by premise from the record, grouped and paged, answered once. Kept items are confirmed and struck items struck; no stage is redone. The card says a recovered record usually misses things and that corrections come in as intake.
+- Then the gate asks before adding the record to the operator's repository, on a branch of its own (`existing.record_branch`); declined, the record stays in premise's copy and the page offers it again. The software rests at Intake; each change from then on goes through the line, its commits name what they serve, and pushing it to that branch goes through the gate again. The page says that hand edits outside premise make the record drift until that is built ([0177](../decisions/0177-tolerating-commits-made-outside-premise-later.md)).
+
 ## 6. Configuration
 
 Stage budgets, in agent turns and minutes per stage, by size class ([0117](../decisions/0117-size-classes-set-stage-budgets.md)). These are builders' starting values, tuned on milestone 1's demos.
@@ -198,6 +212,11 @@ Stage budgets, in agent turns and minutes per stage, by size class ([0117](../de
 | `line.split_max_parts` | 5 | Most parts one piece may be split into |
 | `line.agents_per_stage` | 1 | Agents one stage of one piece may use at once; only 1 is used today ([0181](../decisions/0181-the-line-works-on-work-items.md)) |
 | `agents.tasks.size.*` | fast tier, low effort, 20 turns, 5 minutes | The sizer's model, effort and limits |
+| `agents.tasks.recover.*` | strongest tier, medium effort, 60 turns, 20 minutes | The drafter's model, effort and limits when recovering an existing software's record |
+| `line.budgets.recover.*` | 40, 80, 160 turns; 20, 40, 80 minutes | Recovery's budget by size class (per part when split) |
+| `existing.record_branch` | `premise` | The branch of the operator's repository the record goes to, once approved |
+| `existing.history_commits` | 200 | How many of the latest commits' first lines the drafter reads |
+| `existing.clone_timeout_minutes` | 10 | How long premise waits for its copy of the repository |
 
 ## 7. Limits
 
@@ -232,5 +251,5 @@ Stage budgets, in agent turns and minutes per stage, by size class ([0117](../de
 - Milestone 1 step 2 (Why to Plan built; later stages stand in): stages Why to Plan in their thinnest form: one draft per stage, corrections in chat, a strike-out say-back, a short look at what exists. Only the operator; no taste claims; one software at a time. Milestones and waits (5.8a).
 - Milestone 3: roles as labels on every ask; questions in each role's terms; taste claims and proposals before building.
 - Milestone 4: the way back to Why from intake ([intake](intake.md)).
-- Milestone 6: existing software (5.10).
+- Milestone 6: existing software (5.10). Its first part, the thin form, is built ([0187](../decisions/0189-how-taking-on-existing-software-is-built.md)); conflicts settled with people inside the take-on, reading issues, and pruning best-guess links stay for the rest of milestone 6.
 - Milestone 7: several softwares at once.
