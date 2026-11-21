@@ -2,7 +2,7 @@ import { type Git } from "./git.js";
 
 /**
  * Where a software's repository lives besides this machine. The real implementation, GitHub,
- * is not approved yet: it will go through the gate (docs/specs/gate.md) and is not built.
+ * is not available yet: it will go through the gate (docs/specs/gate.md) and is not built.
  * Until then the only host premise can reach is a local bare repository, which is what the
  * tests use (decision 0141).
  */
