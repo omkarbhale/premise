@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type Api, type AskView, createApi, sessionToken } from "./api";
 import { Activity } from "./components/Activity";
-import { MockedBadge, Problem, StandInBadge } from "./components/Badges";
+import { AgentsBanner } from "./components/AgentsBanner";
+import { MockedBadge, Problem } from "./components/Badges";
 import { Help } from "./components/Help";
 import { Needed } from "./components/Needed";
 import { Settings } from "./components/Settings";
@@ -148,10 +149,12 @@ function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) 
         <div className="brand-row">
           <span className="brand">premise</span>
           <span className="trial small">
-            {o.line.mode === "stand-in" && <StandInBadge />}
             {o.agents.mode === "scripted" && (
-              <span className="badge" title="Agents follow a script; no AI is called.">
-                Scripted agents
+              <span
+                className="badge badge-standin"
+                title="Agents follow a script: no AI is called and nothing is really built."
+              >
+                Scripted agents, not real
               </span>
             )}
           </span>
@@ -181,6 +184,7 @@ function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) 
           </button>
         </div>
       )}
+      <AgentsBanner overview={o} />
       {o.activity.paused && (
         <div className="banner warn" role="status">
           All agent work is paused. See Activity for why and when it starts again.

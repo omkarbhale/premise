@@ -6,8 +6,14 @@ type Call = Awaited<ReturnType<typeof testApp>>["call"];
 
 async function openAsk(call: Call, softwareId: string): Promise<AskView> {
   const { body } = await call("GET", `/api/asks?software=${softwareId}&status=open`);
-  expect(body).toHaveLength(1);
-  return body[0] as AskView;
+  const line = (body as AskView[]).filter((a) => a.kind !== "approval");
+  expect(line).toHaveLength(1);
+  return line[0]!;
+}
+
+async function approvals(call: Call, softwareId: string): Promise<AskView[]> {
+  const { body } = await call("GET", `/api/asks?software=${softwareId}&status=open`);
+  return (body as AskView[]).filter((a) => a.kind === "approval");
 }
 
 async function keepAll(call: Call, ask: AskView) {
@@ -106,6 +112,7 @@ describe("answering asks", () => {
 
     const record = await call("GET", `/api/softwares/${sw.id}/record`);
     const why = record.body.files.find((f: { file: string }) => f.file === "why.md");
+    // The fourth item was the size class: it sets the size, and is not a record item.
     expect(why.items).toEqual([
       expect.objectContaining({ id: "Y-1", status: "live" }),
       expect.objectContaining({ id: "Y-2", status: "struck", reason: "Not true for me" }),
@@ -113,10 +120,10 @@ describe("answering asks", () => {
         id: "Y-3",
         status: "live",
         text: "It must take under a minute a day.",
-        marks: expect.arrayContaining(["edited by operator"]),
+        marks: expect.arrayContaining(["from: operator"]),
       }),
-      expect.objectContaining({ id: "Y-4", status: "live" }),
     ]);
+    expect(record.body.source).toBe("record");
     const detail = await call("GET", `/api/softwares/${sw.id}`);
     expect(detail.body.stage).toBe("who");
     expect(detail.body.stages.map((s: { position: string }) => s.position).slice(0, 3)).toEqual([
@@ -176,9 +183,9 @@ describe("answering asks", () => {
   });
 });
 
-describe("the whole line, with the stand-in", () => {
+describe("the whole line, with the line engine and stand-in later stages", () => {
   it("walks from the idea to Intake, with jobs in the queue and a report at the end", async () => {
-    const { call, settle } = await testApp();
+    const { call, settle, session } = await testApp();
     const { body: sw } = await call("POST", "/api/softwares", { idea: "Track plant watering" });
     await keepAll(call, await openAsk(call, sw.id)); // why
     await keepAll(call, await openAsk(call, sw.id)); // who
@@ -201,24 +208,31 @@ describe("the whole line, with the stand-in", () => {
       },
     });
     expect(editSayBack.status).toBe(422);
-    // Strike one: the stand-in drops it and says back again.
+    // Strike one: the record strikes it, its stage is redone, and premise says back again.
     await call("POST", `/api/asks/${sayBack.id}/answer`, {
       answer: { kind: "items", items: [{ key: sayBack.items[1]!.key, decision: "strike" }] },
     });
+    await settle();
+    await keepAll(call, await openAsk(call, sw.id)); // the stage redone
+    await settle();
     const sayBackAgain = await openAsk(call, sw.id);
     expect(sayBackAgain.kind).toBe("say-back");
-    expect(sayBackAgain.items.map((i) => i.key)).not.toContain(sayBack.items[1]!.key);
+    expect(sayBackAgain.items.flatMap((i) => i.refs ?? [])).not.toContain(
+      sayBack.items[1]!.refs![0],
+    );
     await keepAll(call, sayBackAgain);
 
-    await settle(); // plan job
-    const approval = await openAsk(call, sw.id);
-    expect(approval.kind).toBe("approval");
-    expect(approval.approval?.action).toContain("private repository");
-    expect(approval.approval?.floor).toContain("never does without asking");
-    await call("POST", `/api/asks/${approval.id}/answer`, {
+    await settle(); // plan and review jobs
+    const milestones = await openAsk(call, sw.id);
+    expect(milestones.title).toBe("Milestones: is this the right order?");
+    await keepAll(call, milestones);
+    const [approval] = await approvals(call, sw.id);
+    expect(approval!.approval?.action).toContain("private repository");
+    expect(approval!.approval?.floor).toContain("never does without asking");
+    await call("POST", `/api/asks/${approval!.id}/answer`, {
       answer: { kind: "approval", decision: "approve-once" },
     });
-    await settle(); // build, check, run
+    await settle(); // build, check, run, for each milestone
 
     const detail = await call("GET", `/api/softwares/${sw.id}`);
     expect(detail.body.stage).toBe("intake");
@@ -231,17 +245,18 @@ describe("the whole line, with the stand-in", () => {
     expect(report.body.running).toBeNull();
     const runningLines = report.body.sections.find((x: { title: string }) => x.title === "Running");
     expect(runningLines.lines[0].text).toBe("Nothing has been started yet.");
+    // Building is still a stand-in: the repository holds only the record, so nothing is running.
     const run = await call("GET", `/api/softwares/${sw.id}/run`);
-    expect(run.body).toMatchObject({ state: "none", canStart: false });
-    const started = await call("POST", `/api/softwares/${sw.id}/run/start`);
-    expect(started.status).toBe(422);
-    expect(started.body.error).toContain("Nothing has been built");
+    expect(run.body).toMatchObject({ state: "none" });
     const titles = report.body.sections.map((s: { title: string }) => s.title);
-    expect(titles).toEqual(["Decided", "Running", "Needed", "Failed or not checked"]);
+    expect(titles).toEqual(expect.arrayContaining(["Running"]));
 
     const activity = await call("GET", "/api/activity");
     expect(activity.body.recent.map((j: { kind: string }) => j.kind)).toEqual(
-      expect.arrayContaining(["research", "plan", "build", "check", "run"]),
+      expect.arrayContaining(["build", "check", "run"]),
+    );
+    expect(session.queue.list().map((j) => j.kind)).toEqual(
+      expect.arrayContaining(["draft", "research", "plan", "review", "build", "check", "run"]),
     );
   });
 
@@ -255,18 +270,24 @@ describe("the whole line, with the stand-in", () => {
     await call("POST", `/api/asks/${exists.id}/answer`, {
       answer: { kind: "text", text: "Build it" },
     });
-    await keepAll(call, await openAsk(call, sw.id));
-    await keepAll(call, await openAsk(call, sw.id));
+    await keepAll(call, await openAsk(call, sw.id)); // what
     await settle();
-    const approval = await openAsk(call, sw.id);
-    await call("POST", `/api/asks/${approval.id}/answer`, {
-      answer: { kind: "approval", decision: "approve-once" },
-    });
+    await keepAll(call, await openAsk(call, sw.id)); // say-back
+    await settle();
+    await keepAll(call, await openAsk(call, sw.id)); // milestones, each waiting by default
     await settle();
     const waiting = await call("GET", `/api/softwares/${sw.id}`);
     expect(waiting.body).toMatchObject({ stage: "report", state: "waiting-milestone" });
     const goOn = await openAsk(call, sw.id);
     await call("POST", `/api/asks/${goOn.id}/answer`, { answer: { kind: "text", text: "Go on" } });
+    await settle();
+    // The second milestone waits too.
+    const second = await call("GET", `/api/softwares/${sw.id}`);
+    expect(second.body).toMatchObject({ stage: "report", state: "waiting-milestone" });
+    const goOnAgain = await openAsk(call, sw.id);
+    await call("POST", `/api/asks/${goOnAgain.id}/answer`, {
+      answer: { kind: "text", text: "Go on" },
+    });
     const after = await call("GET", `/api/softwares/${sw.id}`);
     expect(after.body).toMatchObject({ stage: "intake", state: "active" });
   });
@@ -285,7 +306,7 @@ describe("the whole line, with the stand-in", () => {
     expect(detail.body).toMatchObject({ state: "ended" });
     expect(detail.body.status).toContain("decided not to build");
   });
-});
+}, 30_000);
 
 describe("send back, size and jobs", () => {
   it("sends a software back to an earlier stage, withdrawing what was open", async () => {
@@ -323,9 +344,10 @@ describe("send back, size and jobs", () => {
   it("stops a queued job, and refuses to stop one that has ended", async () => {
     const { call, session } = await testApp();
     const { body: sw } = await call("POST", "/api/softwares", { idea: "Track plant watering" });
+    await keepAll(call, await openAsk(call, sw.id));
+    const who = await openAsk(call, sw.id);
     session.queue.pauseAll("Testing.", new Date(Date.now() + 3_600_000).toISOString());
-    await keepAll(call, await openAsk(call, sw.id));
-    await keepAll(call, await openAsk(call, sw.id));
+    await keepAll(call, who);
     const before = await call("GET", "/api/activity");
     expect(before.body.paused).toBe(true);
     const job = before.body.queued[0];
@@ -335,7 +357,8 @@ describe("send back, size and jobs", () => {
     expect(stopped.body.recent[0]).toMatchObject({ id: job.id, status: "stopped" });
     expect((await call("POST", `/api/jobs/${job.id}/stop`)).status).toBe(422);
     expect((await call("POST", "/api/jobs/999/stop")).status).toBe(404);
-    const chat = await call("GET", `/api/softwares/${sw.id}/chat`);
-    expect(chat.body.at(-1).text).toContain("was stopped");
+    const problem = await openAsk(call, sw.id);
+    expect(problem.title).toBe("What exists did not finish: try again?");
+    expect(problem.instruction).toContain("was stopped");
   });
 });

@@ -42,6 +42,10 @@ export interface SoftwareDetail extends SoftwareSummary {
   idea: string;
   stages: StageView[];
   usage: UsageFigures;
+  milestones: MilestoneView[];
+  approvals: ApprovalView[];
+  /** This stage's effort budget and what is used, when the stage has one. */
+  budget: { turns: number; minutes: number; usedMinutes: number } | null;
 }
 
 export type AskKind = "question" | "draft" | "say-back" | "proposal" | "approval" | "needed";
@@ -53,6 +57,10 @@ export interface AskItem {
   /** assumed: premise's guess; from: who said it (a role label); suggestion: premise's idea. */
   mark: "assumed" | "suggestion" | "from-role";
   from?: string;
+  /** For a milestone: whether premise stops after it until the operator says go on. */
+  wait?: boolean;
+  /** Record items the item stands for (a say-back item), or sources (What exists). */
+  refs?: string[];
 }
 
 export interface AskView {
@@ -71,7 +79,13 @@ export interface AskView {
   /** For a question: answers to pick from, besides writing one's own. */
   choices?: string[];
   /** For an approval: exactly what will happen and why (the gate's fixed card). */
-  approval?: { action: string; why: string; floor: string };
+  approval?: {
+    action: string;
+    why: string;
+    floor: string;
+    /** When this kind of action may be approved for the software as a whole kind. */
+    kindLabel?: string;
+  };
   status: "open" | "answered" | "withdrawn";
   answerSummary?: string;
   asked: string;
@@ -80,14 +94,14 @@ export interface AskView {
 
 /** An answer to one item of a draft or say-back. */
 export type ItemAnswer =
-  | { key: string; decision: "keep" }
+  | { key: string; decision: "keep"; wait?: boolean }
   | { key: string; decision: "strike"; reason?: string }
-  | { key: string; decision: "edit"; text: string };
+  | { key: string; decision: "edit"; text: string; wait?: boolean };
 
 export type AskAnswer =
   | { kind: "items"; items: ItemAnswer[] }
   | { kind: "text"; text: string }
-  | { kind: "approval"; decision: "approve-once" | "refuse"; reason?: string }
+  | { kind: "approval"; decision: "approve-once" | "approve-kind" | "refuse"; reason?: string }
   | { kind: "needed"; decision: "done" | "cannot"; reason?: string }
   | { kind: "proposal"; decision: "accept" | "change"; text?: string };
 
@@ -128,6 +142,26 @@ export interface RecordView {
 export interface ReportLine {
   text: string;
   evidence?: string;
+}
+
+/** A standing approval for a kind of floor action, for one software. */
+export interface ApprovalView {
+  id: number;
+  softwareId: string;
+  kind: string;
+  /** The kind in plain words, such as "posting comments and messages". */
+  label: string;
+  role: string;
+  given: string;
+}
+
+/** A software's milestones as the record holds them. */
+export interface MilestoneView {
+  id: string;
+  text: string;
+  wait: boolean;
+  /** reached: built, checked, running and reported; current: being worked on; ahead. */
+  position: "reached" | "current" | "ahead";
 }
 
 export interface ReportView {
@@ -226,9 +260,20 @@ export interface SetupCheck {
 export interface Overview {
   version: string;
   dataFolder: string;
-  agents: { mode: "scripted" | "claude" };
-  /** "stand-in" until the line engine is built: drafts come from templates, no AI. */
-  line: { mode: "stand-in" | "engine" };
+  agents: {
+    mode: "scripted" | "claude";
+    /** Whether agent jobs can start now. */
+    ready: boolean;
+    /** Why real agents cannot start on this machine, when they cannot. */
+    unavailable: string | null;
+    /** The operator chose a look around with scripted agents (not real) until premise restarts. */
+    scriptedDemo: boolean;
+  };
+  /**
+   * The line engine runs Why to Plan. Build, Check, Run, Report and Intake are a labelled stand-in
+   * until their own modules exist.
+   */
+  line: { mode: "engine"; standInStages: StageId[] };
   page: { notifications: "offer" | "off" };
   usage: {
     mode: string;

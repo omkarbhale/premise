@@ -187,6 +187,76 @@ export const MIGRATIONS: readonly Migration[] = [
       CREATE INDEX reports_software ON reports(software_id, id);
     `,
   },
+  {
+    version: 5,
+    name: "line engine and gate",
+    sql: `
+      CREATE TABLE work_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        software_id TEXT NOT NULL REFERENCES softwares(id),
+        parent_id INTEGER REFERENCES work_items(id),
+        kind TEXT NOT NULL CHECK (kind IN ('software', 'milestone', 'module', 'intake')),
+        size_class TEXT NOT NULL DEFAULT 'small',
+        current_stage TEXT NOT NULL DEFAULT 'why',
+        state TEXT NOT NULL DEFAULT 'active',
+        stages TEXT NOT NULL,
+        line_state TEXT NOT NULL DEFAULT '{}',
+        created TEXT NOT NULL
+      );
+      CREATE INDEX work_items_software ON work_items(software_id, parent_id);
+      INSERT INTO work_items (software_id, kind, size_class, current_stage, state, stages, created)
+        SELECT id, 'software', size_class, current_stage, state,
+          '["why","who","exists","what","say-back","plan","build","check","run","report","intake"]',
+          created FROM softwares;
+
+      CREATE TABLE stage_runs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        software_id TEXT NOT NULL REFERENCES softwares(id),
+        work_item_id INTEGER NOT NULL REFERENCES work_items(id),
+        stage TEXT NOT NULL,
+        milestone TEXT,
+        entered TEXT NOT NULL,
+        exited TEXT,
+        exit_reason TEXT,
+        budget_turns INTEGER,
+        budget_minutes INTEGER,
+        used_minutes REAL NOT NULL DEFAULT 0
+      );
+      CREATE INDEX stage_runs_software ON stage_runs(software_id, id);
+
+      CREATE TABLE gate_requests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        software_id TEXT NOT NULL REFERENCES softwares(id),
+        floor_kind TEXT NOT NULL,
+        action TEXT NOT NULL,
+        why TEXT NOT NULL,
+        items TEXT NOT NULL DEFAULT '[]',
+        requested_by TEXT NOT NULL,
+        job_id INTEGER REFERENCES jobs(id),
+        perform TEXT,
+        role_asked TEXT NOT NULL,
+        ask_id INTEGER REFERENCES asks(id),
+        status TEXT NOT NULL CHECK (status IN ('asked', 'approved', 'refused', 'done', 'failed')),
+        approval_used INTEGER,
+        outcome TEXT,
+        created TEXT NOT NULL,
+        decided TEXT
+      );
+      CREATE INDEX gate_requests_software ON gate_requests(software_id, status);
+
+      CREATE TABLE approvals (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        software_id TEXT NOT NULL REFERENCES softwares(id),
+        scope TEXT NOT NULL CHECK (scope IN ('once', 'kind')),
+        floor_kind TEXT NOT NULL,
+        request_id INTEGER REFERENCES gate_requests(id),
+        role TEXT NOT NULL,
+        given TEXT NOT NULL,
+        withdrawn TEXT
+      );
+
+    `,
+  },
 ];
 
 export const CURRENT_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

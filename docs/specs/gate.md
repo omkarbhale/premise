@@ -1,6 +1,6 @@
 # Gate specification
 
-Status: specification, being built ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Related: [the floor and the gate](../architecture/the-floor-and-the-gate.md), [agent tools](agent-tools.md), [page](page.md), [runner](runner.md), [fixed wording](../prompts/fixed-wording.md).
+Status: built in `src/gate/` for milestone 1, including approvals for a kind of action ([0182](../decisions/0182-how-the-gate-is-built.md)); being built otherwise ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Related: [the floor and the gate](../architecture/the-floor-and-the-gate.md), [agent tools](agent-tools.md), [page](page.md), [runner](runner.md), [fixed wording](../prompts/fixed-wording.md).
 
 ## 1. Purpose
 
@@ -109,7 +109,7 @@ The floor and the gate stay with premise; they are not set per software ([0106](
 
 ## 11. Milestones
 
-- Milestone 1 step 2: the gate, asking the operator; one-action approvals.
-- Milestone 3: asking under the right role; approvals for a kind of action.
+- Milestone 1 step 2: the gate, asking the operator; one-action approvals, and approvals for a kind of action for one software, never for deleting data or spending money ([0182](../decisions/0182-how-the-gate-is-built.md)). Creating any repository on GitHub is gated: private is kind `publish`, public is `make-public`; until the step is approved ([0161](../decisions/0161-github-repository-step-not-approved.md)) the software stays on this machine. The agent tool `gate_request` goes to the gate.
+- Milestone 3: asking under the right role.
 - Milestone 4: comments on GitHub issues through the gate.
 - Milestone 7: every first deployment to a public host is public-facing and may spend money, so it is asked.

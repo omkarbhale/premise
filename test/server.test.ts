@@ -68,13 +68,16 @@ describe("page server: the session check", () => {
 });
 
 describe("page server: overview and settings", () => {
-  it("gives the overview, with usage marked as mocked and the line as a stand-in", async () => {
+  it("gives the overview, with usage marked as mocked and the later stages as a stand-in", async () => {
     const { call } = await testApp();
     await call("POST", "/api/softwares", { idea: "A tool that renames photos by date" });
     const { status, body } = await call("GET", "/api/overview");
     expect(status).toBe(200);
     expect(body.agents.mode).toBe("scripted");
-    expect(body.line.mode).toBe("stand-in");
+    expect(body.line).toEqual({
+      mode: "engine",
+      standInStages: ["build", "check", "run", "report", "intake"],
+    });
     expect(body.activity.max).toBe(2);
     expect(body.usage).toMatchObject({ mocked: true, weekly: { mocked: true } });
     expect(body.softwares[0]).toMatchObject({ name: "Tool that renames photos", stage: "why" });

@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../src/api";
 import { App } from "../src/App";
+import { AgentsBanner } from "../src/components/AgentsBanner";
 import { AskCard } from "../src/components/AskCard";
 import { Line } from "../src/components/Line";
 import { Needed } from "../src/components/Needed";
@@ -136,6 +137,62 @@ describe("answering an ask in place", () => {
     expect(api.answer).toHaveBeenCalledWith(1, { kind: "approval", decision: "approve-once" });
   });
 
+  it("offers to approve a kind of action for the software, when the gate allows it", async () => {
+    const user = userEvent.setup();
+    const api = fakeApi();
+    inSession(
+      <AskCard
+        ask={ask({
+          kind: "approval",
+          items: [],
+          approval: {
+            action: "Post a comment.",
+            why: "To answer a user.",
+            floor: "On the floor.",
+            kindLabel: "posting comments and messages",
+          },
+        })}
+      />,
+      api,
+    );
+    await user.click(
+      screen.getByRole("button", {
+        name: "Approve posting comments and messages for Reading list",
+      }),
+    );
+    expect(api.answer).toHaveBeenCalledWith(1, { kind: "approval", decision: "approve-kind" });
+  });
+
+  it("lets the operator choose which milestones to stop after", async () => {
+    const user = userEvent.setup();
+    const api = fakeApi();
+    inSession(
+      <AskCard
+        ask={ask({
+          stage: "plan",
+          title: "Milestones: is this the right order?",
+          items: [
+            { key: "m1", text: "The smallest version that runs.", mark: "assumed", wait: false },
+            { key: "m2", text: "Everything else.", mark: "assumed", wait: false },
+          ],
+        })}
+      />,
+      api,
+    );
+    const boxes = screen.getAllByRole("checkbox", {
+      name: "Stop after this milestone until I say go on",
+    });
+    await user.click(boxes[0]!);
+    await user.click(screen.getByRole("button", { name: "Confirm this list" }));
+    expect(api.answer).toHaveBeenCalledWith(1, {
+      kind: "items",
+      items: [
+        { key: "m1", decision: "keep", wait: true },
+        { key: "m2", decision: "keep", wait: false },
+      ],
+    });
+  });
+
   it("says when an ask was already answered elsewhere, and refreshes", async () => {
     const user = userEvent.setup();
     const api = fakeApi({
@@ -201,6 +258,66 @@ describe("the other views", () => {
     const labels = [...document.querySelectorAll(".chip, .sr-only")].map((e) => e.textContent);
     expect(labels.join(" ")).not.toMatch(/pending|failed|skipped/i);
     expect(screen.getAllByText("Comes later").length).toBe(2);
+  });
+
+  it("shows milestones with their stops, and standing approvals to withdraw", async () => {
+    const user = userEvent.setup();
+    const setMilestoneWait = vi.fn(() => Promise.resolve(software()));
+    const withdrawApproval = vi.fn(() => Promise.resolve({ ok: true as const }));
+    inSession(
+      <Line
+        software={software({
+          milestones: [
+            { id: "M-1", text: "Smallest version", wait: true, position: "reached" },
+            { id: "M-2", text: "The rest", wait: false, position: "ahead" },
+          ],
+          approvals: [
+            {
+              id: 7,
+              softwareId: "s1",
+              kind: "post",
+              label: "posting comments and messages",
+              role: "operator",
+              given: "2026-11-21T10:00:00Z",
+            },
+          ],
+        })}
+      />,
+      fakeApi({ setMilestoneWait, withdrawApproval }),
+    );
+    expect(screen.getByText("(reached)")).toBeTruthy();
+    await user.click(screen.getAllByRole("checkbox", { name: "Stop after it" })[1]!);
+    expect(setMilestoneWait).toHaveBeenCalledWith("s1", "M-2", true);
+    await user.click(screen.getByRole("button", { name: "Withdraw" }));
+    expect(withdrawApproval).toHaveBeenCalledWith(7);
+  });
+
+  it("says plainly when real agents cannot start, and offers the scripted look-around", async () => {
+    const user = userEvent.setup();
+    const scriptedDemo = vi.fn(() => Promise.resolve({ ok: true as const }));
+    const o = overview({
+      agents: {
+        mode: "claude",
+        ready: false,
+        unavailable: "Real agents cannot start on this machine: Claude Code is missing.",
+        scriptedDemo: false,
+      },
+      setup: [
+        {
+          name: "Claude Code",
+          status: "missing",
+          detail: "not found",
+          fix: "Install Claude Code, then run `claude` once to log in.",
+        },
+      ],
+    });
+    inSession(<AgentsBanner overview={o} />, fakeApi({ scriptedDemo }));
+    expect(screen.getByText(/Claude Code is missing/)).toBeTruthy();
+    expect(screen.getByText(/run `claude` once to log in/)).toBeTruthy();
+    await user.click(
+      screen.getByRole("button", { name: "Look around with scripted agents (not real)" }),
+    );
+    expect(scriptedDemo).toHaveBeenCalled();
   });
 
   it("shows struck record items with their reason", async () => {

@@ -1,6 +1,6 @@
 # Agent tools specification
 
-Status: built in `src/agents/tool-server.ts`, served at `POST /mcp` ([0150](../decisions/0150-agent-tools-over-plain-http-mcp-tokens-in-memory.md)). `progress` and `task_finish` work fully; the other tools check and record every call but their modules are not built yet, so they answer that nothing more comes of it ([0152](../decisions/0152-tools-of-unbuilt-modules-record-and-say-so.md)). Related: [agent runner](agent-runner.md), [record keeper](record-keeper.md), [gate](gate.md), [line engine](line-engine.md), [prompts](../prompts/README.md), [skills](../skills/README.md).
+Status: built in `src/agents/tool-server.ts`, served at `POST /mcp` ([0150](../decisions/0150-agent-tools-over-plain-http-mcp-tokens-in-memory.md)). `progress`, `task_finish`, `draft_submit`, `record_read`, `record_propose`, `ask`, `gate_request` and `review_submit` are served by the real modules (the line engine, the record keeper, the gate), set with `setHandlers`. `scenario_write`, `verdict_submit`, `triage_submit`, `reading_submit`, `facts_read` and `report_submit` still check and record every call but their modules are not built yet, so they answer that nothing more comes of it ([0152](../decisions/0152-tools-of-unbuilt-modules-record-and-say-so.md)). Related: [agent runner](agent-runner.md), [record keeper](record-keeper.md), [gate](gate.md), [line engine](line-engine.md), [prompts](../prompts/README.md), [skills](../skills/README.md).
 
 ## 1. Purpose
 

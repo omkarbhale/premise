@@ -163,22 +163,103 @@ export function Line({ software }: { software: SoftwareDetail }) {
       </section>
 
       <section className="card">
-        <h2>Priority and milestones</h2>
-        <ul className="facts">
-          <li>
-            Priority {software.priority} of 5 (1 is most important). When agents are busy, the most
-            important software goes first.
-          </li>
-          <li>
-            {software.milestoneWaits
-              ? "Stops after each milestone until you say go on."
-              : "Goes straight on after each milestone."}
-          </li>
-        </ul>
+        <h2>Milestones</h2>
+        {software.milestones.length === 0 ? (
+          <p className="muted small">
+            premise proposes milestones at Plan. Each ends with running software and a report.
+          </p>
+        ) : (
+          <>
+            <p className="muted small">
+              Each milestone ends with running software and a report. Tick one to make premise stop
+              there until you say go on, so you can judge whether it is solving the right problem.
+            </p>
+            <ol className="milestones">
+              {software.milestones.map((m) => (
+                <li key={m.id} className={`milestone milestone-${m.position}`}>
+                  <span>
+                    <strong>{m.id}</strong> {m.text}{" "}
+                    <span className="muted small">
+                      {m.position === "reached"
+                        ? "(reached)"
+                        : m.position === "current"
+                          ? "(being worked on)"
+                          : ""}
+                    </span>
+                  </span>
+                  <label className="wait small">
+                    <input
+                      type="checkbox"
+                      checked={m.wait}
+                      disabled={busy || m.position === "reached"}
+                      onChange={(e) =>
+                        void act(() => api.setMilestoneWait(software.id, m.id, e.target.checked))
+                      }
+                    />
+                    Stop after it
+                  </label>
+                </li>
+              ))}
+            </ol>
+          </>
+        )}
+      </section>
+
+      <section className="card">
+        <h2>Priority</h2>
+        <label className="small">
+          When agents are busy, the most important software goes first.{" "}
+          <select
+            value={software.priority}
+            disabled={busy}
+            onChange={(e) => void act(() => api.setPriority(software.id, Number(e.target.value)))}
+          >
+            {[1, 2, 3, 4, 5].map((p) => (
+              <option key={p} value={p}>
+                {p === 1 ? "1 (most important)" : p === 5 ? "5 (least important)" : p}
+              </option>
+            ))}
+          </select>
+        </label>
+        {software.budget && (
+          <p className="muted small">
+            This stage may take up to {software.budget.turns} agent turns and{" "}
+            {software.budget.minutes} minutes; about {software.budget.usedMinutes} minutes are used.
+          </p>
+        )}
         <p className="muted small">
-          New softwares get these from the settings softwares.default_priority and
-          softwares.default_milestone_waits (see Settings).
+          New softwares get their priority and whether to stop after milestones from the settings
+          softwares.default_priority and softwares.default_milestone_waits (see Settings).
         </p>
+      </section>
+
+      <section className="card">
+        <h2>Standing approvals</h2>
+        {software.approvals.length === 0 ? (
+          <p className="muted small">
+            None. premise asks before every action outside this machine. When you approve a kind of
+            action for this software, it shows here and you can withdraw it.
+          </p>
+        ) : (
+          <ul className="approvals">
+            {software.approvals.map((a) => (
+              <li key={a.id}>
+                <span>
+                  {a.label[0]!.toUpperCase() + a.label.slice(1)}, approved{" "}
+                  {new Date(a.given).toLocaleDateString()}
+                </span>{" "}
+                <button
+                  type="button"
+                  className="quiet"
+                  disabled={busy}
+                  onClick={() => void act(() => api.withdrawApproval(a.id))}
+                >
+                  Withdraw
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
     </div>
   );

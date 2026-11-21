@@ -41,6 +41,79 @@ export type RunnerConfinement = (typeof RUNNER_CONFINEMENTS)[number];
 
 export const LOOPBACK_HOSTS = ["127.0.0.1", "::1", "localhost"] as const;
 
+/** Floor kinds the gate recognises (decision 0100; docs/specs/gate.md 5.1). */
+export const FLOOR_KINDS = [
+  "delete-data",
+  "credentials",
+  "expose",
+  "access",
+  "spend",
+  "make-public",
+  "publish",
+  "post",
+] as const;
+export type FloorKind = (typeof FLOOR_KINDS)[number];
+/** Always asked one action at a time; never approved as a kind (decision 0101). */
+export const NEVER_AS_KIND: readonly FloorKind[] = ["delete-data", "spend"];
+
+/** Where a software's repository goes besides this machine, once the gate allows it. */
+export const REMOTES = ["github", "local", "none"] as const;
+export type Remote = (typeof REMOTES)[number];
+export const VISIBILITIES = ["private", "public"] as const;
+export type Visibility = (typeof VISIBILITIES)[number];
+
+/** Stage groups that share a budget (docs/specs/line-engine.md 6). */
+export const BUDGET_GROUPS = ["draft", "exists", "say_back", "plan"] as const;
+export type BudgetGroup = (typeof BUDGET_GROUPS)[number];
+const SIZES = ["small", "medium", "large"] as const;
+const BUDGET_DEFAULTS: Record<BudgetGroup, Record<(typeof SIZES)[number], [number, number]>> = {
+  draft: { small: [15, 10], medium: [30, 20], large: [60, 40] },
+  exists: { small: [30, 15], medium: [60, 30], large: [120, 60] },
+  say_back: { small: [10, 5], medium: [15, 10], large: [20, 15] },
+  plan: { small: [40, 20], medium: [80, 40], large: [160, 80] },
+};
+const BUDGET_STAGES: Record<BudgetGroup, string> = {
+  draft: "Why, Who and What (each)",
+  exists: "What exists",
+  say_back: "Say back",
+  plan: "Plan",
+};
+
+function budgetSettings(): Setting[] {
+  return BUDGET_GROUPS.flatMap((group) =>
+    SIZES.flatMap((size): Setting[] => [
+      {
+        key: `line.budgets.${group}.${size}.turns`,
+        default: BUDGET_DEFAULTS[group][size][0],
+        check: summarised(wholeNumber(1, 2000), "1 to 2000"),
+        meaning: `Agent turns a ${size} software's ${BUDGET_STAGES[group]} stage may use.`,
+        record: "0117",
+      },
+      {
+        key: `line.budgets.${group}.${size}.minutes`,
+        default: BUDGET_DEFAULTS[group][size][1],
+        check: summarised(wholeNumber(1, 1440), "1 to 1440"),
+        meaning: `Minutes a ${size} software's ${BUDGET_STAGES[group]} stage may take.`,
+        record: "0117",
+      },
+    ]),
+  );
+}
+
+const kindApprovals = summarised((value) => {
+  const wrong = textList(value);
+  if (wrong) return wrong;
+  for (const kind of value as string[]) {
+    if (!(FLOOR_KINDS as readonly string[]).includes(kind)) {
+      return `names "${kind}", which is not a floor kind (${FLOOR_KINDS.join(", ")})`;
+    }
+    if ((NEVER_AS_KIND as readonly string[]).includes(kind)) {
+      return `names "${kind}", which is always asked one action at a time and can never be approved as a kind (decision 0101)`;
+    }
+  }
+  return null;
+}, `a list of floor kinds, without delete-data and spend`);
+
 /** One setting: its dotted key, default, check and meaning. */
 export interface Setting {
   key: string;
@@ -194,11 +267,11 @@ export const SETTINGS: readonly Setting[] = [
   },
   {
     key: "agents.mode",
-    default: "scripted",
-    check: summarised(oneOf(AGENT_MODES), `"scripted" or "claude"`),
+    default: "claude",
+    check: summarised(oneOf(AGENT_MODES), `"claude" or "scripted"`),
     meaning:
-      '"scripted": a stand-in agent that follows a script file and calls no AI. "claude": real Claude Code sessions on your Claude Code login, each confined by Claude Code\'s sandbox (needs bubblewrap and socat on Linux).',
-    record: "0134",
+      '"claude": real Claude Code sessions on your Claude Code login, each confined by Claude Code\'s sandbox (needs bubblewrap and socat on Linux). If they cannot start, premise starts anyway and the page says what is missing. "scripted": a stand-in agent that follows a script and calls no AI, for tests and demos.',
+    record: "0180",
   },
   {
     key: "agents.claude_config_folder",
@@ -311,6 +384,50 @@ export const SETTINGS: readonly Setting[] = [
     check: summarised(orNone(wholeNumber(1, 100)), "1 to 100, or null"),
     meaning: "Share of weekly usage a new software may use. null means no share is set.",
     record: "0128",
+  },
+  {
+    key: "line.say_back_max_items",
+    default: 10,
+    check: summarised(wholeNumber(1, 30), "1 to 30"),
+    meaning: "Most items in a say-back: what premise understood and assumed, for you to strike.",
+    record: "0028",
+  },
+  {
+    key: "line.why_items_min",
+    default: 3,
+    check: summarised(wholeNumber(1, 20), "1 to 20"),
+    meaning: "Fewest items the Why draft should have. The drafter is told the range.",
+  },
+  {
+    key: "line.why_items_max",
+    default: 7,
+    check: summarised(wholeNumber(1, 30), "1 to 30"),
+    meaning: "Most items the Why draft may have; a longer draft is sent back to the drafter.",
+  },
+  {
+    key: "line.remote",
+    default: "github",
+    check: summarised(oneOf(REMOTES), `"github", "local" or "none"`),
+    meaning:
+      '"github": at the end of Plan, premise asks you (through the gate) before creating the software\'s repository on your GitHub account; that step is not approved yet, so the software stays on this machine. "local": a second copy in the data folder\'s remotes folder, no question asked. "none": the software stays on this machine only.',
+    record: "0161",
+  },
+  ...budgetSettings(),
+  {
+    key: "runner.default_visibility",
+    default: "private",
+    check: summarised(oneOf(VISIBILITIES), `"private" or "public"`),
+    meaning:
+      "Visibility of a new software's repository on GitHub. Public is acting publicly in your name, so the gate asks first.",
+    record: "0059",
+  },
+  {
+    key: "gate.kind_approvals_allowed",
+    default: ["credentials", "expose", "access", "make-public", "publish", "post"],
+    check: kindApprovals,
+    meaning:
+      "Floor kinds you may approve for one software as a whole kind, so later requests of that kind go through without asking. Deleting data and spending money are always asked one at a time.",
+    record: "0101",
   },
   {
     key: "page.notifications",
@@ -465,6 +582,12 @@ export interface TaskSettings {
   max_minutes: number;
 }
 
+/** One stage's effort budget (decision 0085). */
+export interface StageBudget {
+  turns: number;
+  minutes: number;
+}
+
 /** The whole configuration, as the rest of premise sees it. */
 export interface PremiseConfig {
   data: { folder: string; keep_finished_working_copies: boolean };
@@ -491,6 +614,14 @@ export interface PremiseConfig {
     default_weekly_share_percent: number | null;
   };
   page: { notifications: PageNotifications };
+  line: {
+    say_back_max_items: number;
+    why_items_min: number;
+    why_items_max: number;
+    remote: Remote;
+    budgets: Record<BudgetGroup, Record<"small" | "medium" | "large", StageBudget>>;
+  };
+  gate: { kind_approvals_allowed: FloorKind[] };
   record: {
     folder: string;
     trailer: string;
@@ -509,6 +640,7 @@ export interface PremiseConfig {
     output_lines: number;
     confinement: RunnerConfinement;
     read_only_paths: string[];
+    default_visibility: Visibility;
   };
   reports: { max_lines: number };
   doctor: { command_timeout_seconds: number };

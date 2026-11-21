@@ -9,7 +9,6 @@ export function Welcome({
   overview: Overview;
   onStarted: (software: SoftwareSummary) => void;
 }) {
-  const trial = overview.line.mode === "stand-in" || overview.agents.mode === "scripted";
   return (
     <div className="welcome">
       <section className="card hero">
@@ -44,31 +43,29 @@ export function Welcome({
         </p>
       </section>
 
-      {trial && (
-        <section className="card note" aria-label="This is a trial run">
-          <h2>This is a trial run</h2>
-          <ul>
-            {overview.line.mode === "stand-in" && (
-              <li>
-                The line is a <strong>stand-in</strong>: lists come from fixed templates, no AI is
-                called, and nothing is really built. Every step and question works as it will.
-              </li>
-            )}
-            {overview.agents.mode === "scripted" && (
-              <li>
-                Agents are <strong>scripted</strong>: they take a moment and report progress, but do
-                no real work. Your Claude login is not used.
-              </li>
-            )}
-            {overview.usage.mocked && (
-              <li>
-                Usage and cost figures are <strong>mocked</strong>: made up until usage-ledger,
-                which will measure them, exists. They are labelled Mocked wherever they appear.
-              </li>
-            )}
-          </ul>
-        </section>
-      )}
+      <section className="card note" aria-label="This is a trial run">
+        <h2>This is a trial run</h2>
+        <p>premise is still being built. What you see here is real, except:</p>
+        <ul>
+          <li>
+            Building, checking and running are a <strong>stand-in</strong> for now: premise drafts
+            and plans for real, then walks through the later stages without building anything. Each
+            one is labelled where it appears.
+          </li>
+          {overview.agents.mode === "scripted" && (
+            <li>
+              Agents are <strong>scripted</strong>: their lists come from fixed templates and they
+              do no real work. No AI is called, and your Claude login is not used.
+            </li>
+          )}
+          {overview.usage.mocked && (
+            <li>
+              Usage and cost figures are <strong>mocked</strong>: made up until usage-ledger, which
+              will measure them, exists. They are labelled Mocked wherever they appear.
+            </li>
+          )}
+        </ul>
+      </section>
     </div>
   );
 }

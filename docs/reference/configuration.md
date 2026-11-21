@@ -22,7 +22,7 @@ A wrong setting stops premise at start with a message naming the setting and why
 | `queue.max_agent_sessions` | `2` | 1 to 16 | How many agent sessions run at once. | [0074](../decisions/README.md) |
 | `queue.same_failure_limit` | `3` | 1 to 20 | How many times the same failure may happen before a job ends stuck. | [0088](../decisions/README.md) |
 | `queue.usage_pause_fallback_minutes` | `60` | 1 to 1440 | How long agent work pauses after a usage-limit event that gives no reset time. |  |
-| `agents.mode` | `"scripted"` | "scripted" or "claude" | "scripted": a stand-in agent that follows a script file and calls no AI. "claude": real Claude Code sessions on your Claude Code login, each confined by Claude Code's sandbox (needs bubblewrap and socat on Linux). | [0134](../decisions/README.md) |
+| `agents.mode` | `"claude"` | "claude" or "scripted" | "claude": real Claude Code sessions on your Claude Code login, each confined by Claude Code's sandbox (needs bubblewrap and socat on Linux). If they cannot start, premise starts anyway and the page says what is missing. "scripted": a stand-in agent that follows a script and calls no AI, for tests and demos. | [0180](../decisions/README.md) |
 | `agents.claude_config_folder` | `null` | a folder path, or null | Claude Code configuration folder to use. null means your existing Claude Code login. | [0140](../decisions/README.md) |
 | `agents.claude.command` | `"claude"` | a program name or path | The Claude Code program to run for real agents. "claude" means the one found on your PATH. | [0071](../decisions/README.md) |
 | `agents.claude.stop_grace_seconds` | `10` | 1 to 300 | When a real agent session is stopped, how long it gets to end by itself before it is ended forcibly. |  |
@@ -37,6 +37,36 @@ A wrong setting stops premise at start with a message naming the setting and why
 | `softwares.default_priority` | `3` | 1 (most important) to 5 | Priority a new software gets. The work queue starts the most important first. | [0138](../decisions/README.md) |
 | `softwares.default_milestone_waits` | `false` | true or false | Whether a new software stops after each of its milestones until you say go on. | [0129](../decisions/README.md) |
 | `softwares.default_weekly_share_percent` | `null` | 1 to 100, or null | Share of weekly usage a new software may use. null means no share is set. | [0128](../decisions/README.md) |
+| `line.say_back_max_items` | `10` | 1 to 30 | Most items in a say-back: what premise understood and assumed, for you to strike. | [0028](../decisions/README.md) |
+| `line.why_items_min` | `3` | 1 to 20 | Fewest items the Why draft should have. The drafter is told the range. |  |
+| `line.why_items_max` | `7` | 1 to 30 | Most items the Why draft may have; a longer draft is sent back to the drafter. |  |
+| `line.remote` | `"github"` | "github", "local" or "none" | "github": at the end of Plan, premise asks you (through the gate) before creating the software's repository on your GitHub account; that step is not approved yet, so the software stays on this machine. "local": a second copy in the data folder's remotes folder, no question asked. "none": the software stays on this machine only. | [0161](../decisions/README.md) |
+| `line.budgets.draft.small.turns` | `15` | 1 to 2000 | Agent turns a small software's Why, Who and What (each) stage may use. | [0117](../decisions/README.md) |
+| `line.budgets.draft.small.minutes` | `10` | 1 to 1440 | Minutes a small software's Why, Who and What (each) stage may take. | [0117](../decisions/README.md) |
+| `line.budgets.draft.medium.turns` | `30` | 1 to 2000 | Agent turns a medium software's Why, Who and What (each) stage may use. | [0117](../decisions/README.md) |
+| `line.budgets.draft.medium.minutes` | `20` | 1 to 1440 | Minutes a medium software's Why, Who and What (each) stage may take. | [0117](../decisions/README.md) |
+| `line.budgets.draft.large.turns` | `60` | 1 to 2000 | Agent turns a large software's Why, Who and What (each) stage may use. | [0117](../decisions/README.md) |
+| `line.budgets.draft.large.minutes` | `40` | 1 to 1440 | Minutes a large software's Why, Who and What (each) stage may take. | [0117](../decisions/README.md) |
+| `line.budgets.exists.small.turns` | `30` | 1 to 2000 | Agent turns a small software's What exists stage may use. | [0117](../decisions/README.md) |
+| `line.budgets.exists.small.minutes` | `15` | 1 to 1440 | Minutes a small software's What exists stage may take. | [0117](../decisions/README.md) |
+| `line.budgets.exists.medium.turns` | `60` | 1 to 2000 | Agent turns a medium software's What exists stage may use. | [0117](../decisions/README.md) |
+| `line.budgets.exists.medium.minutes` | `30` | 1 to 1440 | Minutes a medium software's What exists stage may take. | [0117](../decisions/README.md) |
+| `line.budgets.exists.large.turns` | `120` | 1 to 2000 | Agent turns a large software's What exists stage may use. | [0117](../decisions/README.md) |
+| `line.budgets.exists.large.minutes` | `60` | 1 to 1440 | Minutes a large software's What exists stage may take. | [0117](../decisions/README.md) |
+| `line.budgets.say_back.small.turns` | `10` | 1 to 2000 | Agent turns a small software's Say back stage may use. | [0117](../decisions/README.md) |
+| `line.budgets.say_back.small.minutes` | `5` | 1 to 1440 | Minutes a small software's Say back stage may take. | [0117](../decisions/README.md) |
+| `line.budgets.say_back.medium.turns` | `15` | 1 to 2000 | Agent turns a medium software's Say back stage may use. | [0117](../decisions/README.md) |
+| `line.budgets.say_back.medium.minutes` | `10` | 1 to 1440 | Minutes a medium software's Say back stage may take. | [0117](../decisions/README.md) |
+| `line.budgets.say_back.large.turns` | `20` | 1 to 2000 | Agent turns a large software's Say back stage may use. | [0117](../decisions/README.md) |
+| `line.budgets.say_back.large.minutes` | `15` | 1 to 1440 | Minutes a large software's Say back stage may take. | [0117](../decisions/README.md) |
+| `line.budgets.plan.small.turns` | `40` | 1 to 2000 | Agent turns a small software's Plan stage may use. | [0117](../decisions/README.md) |
+| `line.budgets.plan.small.minutes` | `20` | 1 to 1440 | Minutes a small software's Plan stage may take. | [0117](../decisions/README.md) |
+| `line.budgets.plan.medium.turns` | `80` | 1 to 2000 | Agent turns a medium software's Plan stage may use. | [0117](../decisions/README.md) |
+| `line.budgets.plan.medium.minutes` | `40` | 1 to 1440 | Minutes a medium software's Plan stage may take. | [0117](../decisions/README.md) |
+| `line.budgets.plan.large.turns` | `160` | 1 to 2000 | Agent turns a large software's Plan stage may use. | [0117](../decisions/README.md) |
+| `line.budgets.plan.large.minutes` | `80` | 1 to 1440 | Minutes a large software's Plan stage may take. | [0117](../decisions/README.md) |
+| `runner.default_visibility` | `"private"` | "private" or "public" | Visibility of a new software's repository on GitHub. Public is acting publicly in your name, so the gate asks first. | [0059](../decisions/README.md) |
+| `gate.kind_approvals_allowed` | `["credentials","expose","access","make-public","publish","post"]` | a list of floor kinds, without delete-data and spend | Floor kinds you may approve for one software as a whole kind, so later requests of that kind go through without asking. Deleting data and spending money are always asked one at a time. | [0101](../decisions/README.md) |
 | `page.notifications` | `"offer"` | "offer" or "off" | "offer": the page offers browser notifications for new questions, and asks the browser only when you accept. "off": it never offers them. | [0157](../decisions/README.md) |
 | `record.folder` | `"premise"` | a folder name with letters, digits, dots, dashes or underscores | Name of the folder at the root of each software's repository that holds its record. | [0080](../decisions/README.md) |
 | `record.trailer` | `"Premise-Trace"` | letters, digits and dashes, starting with a letter | Name of the line every commit premise makes carries, naming the record items the commit serves. | [0083](../decisions/README.md) |

@@ -1,6 +1,6 @@
 # Line engine specification
 
-Status: specification, being built ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Related: [the line](../architecture/the-line.md), [record keeper](record-keeper.md), [work queue](work-queue.md), [page](page.md), [agent tools](agent-tools.md), [prompts](../prompts/README.md).
+Status: Why to Plan built in `src/line/`; Build, Check, Run and Intake are behind a labelled scripted stand-in until the line hands them to their modules, and each milestone's report is written by the [reporter](reporter.md) ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md), [0183](../decisions/0183-how-the-line-engine-is-built.md)). Related: [the line](../architecture/the-line.md), [record keeper](record-keeper.md), [work queue](work-queue.md), [page](page.md), [agent tools](agent-tools.md), [prompts](../prompts/README.md).
 
 ## 1. Purpose
 
@@ -40,9 +40,13 @@ Not responsible for:
 | Send back | Page server (operator) | Software, stage | The software reopens that stage; later stages are marked to repeat | `NO_SUCH_STAGE` |
 | Claim area | Page server | Software, role label, the area in its own words | Claim id | none |
 | Set size class | Page server (operator) | Software, small, medium or large | New stage budgets | none |
+| Set priority | Page server (operator) | Software, priority | The work queue orders by it | none |
+| Milestone wait | Page server (operator) | Software, milestone, wait or not | The software stops after that milestone, or no longer does ([5.8a](#58a-milestones-and-waits)) | none |
 | Job finished | Work queue | Job, result | Next step for the software | none |
 
-Asks are rows in `asks`; drafts in `drafts`; claims in `claims` ([storage](storage.md)).
+Asks are rows in `asks`; drafts are asks of kind `draft` (no separate table, [0183](../decisions/0183-how-the-line-engine-is-built.md)); claims in `claims` ([storage](storage.md)).
+
+As built: what goes through the line is a work item, and each software is one root item ([0181](../decisions/0181-the-line-works-on-work-items.md)). Why, Who, What, the say-back and Plan each queue one agent job (What exists: one research job) with the published brief from `docs/prompts`. The later stages are behind the `LaterStages` interface, completed by a scripted stand-in that the page labels ([0183](../decisions/0183-how-the-line-engine-is-built.md)).
 
 ## 4. Data owned
 
@@ -190,7 +194,7 @@ Stage budgets, in agent turns and minutes per stage, by size class ([0117](../de
 
 ## 11. Milestones
 
-- Milestone 1 step 2: stages Why to Plan in their thinnest form: one draft per stage, corrections in chat, a strike-out say-back, a short look at what exists. Only the operator; no taste claims; one software at a time. Milestones and waits (5.8a).
+- Milestone 1 step 2 (Why to Plan built; later stages stand in): stages Why to Plan in their thinnest form: one draft per stage, corrections in chat, a strike-out say-back, a short look at what exists. Only the operator; no taste claims; one software at a time. Milestones and waits (5.8a).
 - Milestone 3: roles as labels on every ask; questions in each role's terms; taste claims and proposals before building.
 - Milestone 4: the way back to Why from intake ([intake](intake.md)).
 - Milestone 6: existing software (5.10).

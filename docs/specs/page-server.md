@@ -44,7 +44,7 @@ All routes are on localhost. Every request except the static page itself and the
 |---|---|---|---|
 | `/` | GET | Serves the page; reads the token from the link and keeps it in the page's memory | – |
 | `/api/health` | GET | Whether premise is up; needs no token | – |
-| `/api/overview` | GET | Versions, modes (scripted agents, stand-in line, mocked usage), softwares, open asks, activity counts, setup check | All |
+| `/api/overview` | GET | Versions, modes (agents: mode, ready, unavailable, scripted demo; line: engine, stages still standing in; mocked usage), softwares, open asks, activity counts, setup check | All |
 | `/api/softwares` | GET, POST | Lists softwares; starts one from an idea and an optional name | Line engine |
 | `/api/softwares/:id` | GET | The software: its stage, the eleven stages with where it is, its state and status line, its usage | Line engine |
 | `/api/softwares/:id/record` | GET | The record view | Record keeper |
@@ -57,7 +57,10 @@ All routes are on localhost. Every request except the static page itself and the
 | `/api/softwares/:id/send-back` | POST | Sends a software back to a stage | Line engine |
 | `/api/softwares/:id/claims` | POST | Claims an area for taste under a role | Line engine |
 | `/api/softwares/:id/size` | POST | Changes the size class | Line engine |
+| `/api/softwares/:id/priority` | POST | Sets the software's priority | Line engine |
+| `/api/softwares/:id/milestones/:milestone/wait` | POST | Sets or clears a wait after a milestone | Line engine |
 | `/api/approvals/:id/withdraw` | POST | Withdraws an approval | Gate |
+| `/api/agents/scripted-demo` | POST | When real agents cannot start, switches to scripted agents for a look around until restart, labelled as not real | Agent runner |
 | `/api/jobs/:id/stop` | POST | Stops a job | Work queue |
 | `/api/softwares/:id/more` | POST | Asks for more on an item or a report line | Reporter |
 | `/api/softwares/:id/readings` | POST | Asks for a reading of held intake now | Intake |
@@ -67,9 +70,9 @@ All routes are on localhost. Every request except the static page itself and the
 
 Errors are returned as an HTTP status with a short message that says what to do: 401 for a missing or wrong token, 403 for a bad Host or Origin, 404 for an unknown id, 409 for an ask already closed or a name already taken, 422 for an invalid request or answer.
 
-Built in milestone 1: every route above except claims, withdrawing approvals, "more", readings, deleting working records and feedback pages, which come with the milestones that need them (section 11).
+Built in milestone 1: every route above except claims, "more", readings, deleting working records and feedback pages, which come with the milestones that need them (section 11).
 
-Until the line engine, record keeper and reporter exist, a stand-in line answers their routes through the same small service interfaces (`src/server/services.ts`), and the page labels it ([0154](../decisions/0154-a-stand-in-line-until-the-line-engine-exists.md)).
+The line engine and the gate answer their routes through the same small service interfaces (`src/server/services.ts`) ([0183](../decisions/0183-how-the-line-engine-is-built.md), [0182](../decisions/0182-how-the-gate-is-built.md)). The stand-in line of [0154](../decisions/0154-a-stand-in-line-until-the-line-engine-exists.md) is gone; only the later stages stand in, and the page labels them. The report and run routes are answered by the reporter and the runner.
 
 ## 4. Data owned
 
@@ -87,7 +90,7 @@ Installed once and checked at every start; premise names whatever is missing ([w
 - on Linux and WSL2, bubblewrap and socat, which Claude Code's sandbox needs ([0087](../decisions/0087-agents-run-confined.md)). Installing them needs the owner's administrator password, so premise names them and the owner installs them;
 - usage-ledger, once it exists; until then a mock stands in ([0133](../decisions/0133-usage-ledger-is-mocked-until-it-exists.md)).
 
-Anything missing is printed, with exactly what to do. The same check runs on its own as `premise doctor`. premise starts without usage-ledger; it does not start real agents without Claude Code, the GitHub CLI or confinement ([0142](../decisions/0142-setup-check-names-bubblewrap-and-socat.md)); scripted agents need none of them.
+Anything missing is printed, with exactly what to do. The same check runs on its own as `premise doctor`. premise starts without usage-ledger; it does not run real agents without Claude Code, the GitHub CLI or confinement ([0142](../decisions/0142-setup-check-names-bubblewrap-and-socat.md)). premise still starts: agent work is held, the page says what is missing and offers a look around with scripted agents, labelled as not real ([0180](../decisions/0180-premise-uses-real-agents-by-default.md)). Scripted agents need none of them.
 
 ### 5.2 The session
 

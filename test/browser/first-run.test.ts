@@ -7,7 +7,7 @@ import { defaultWebRoot, start } from "../../src/server/start.js";
 import { tempFolder, uniquePortRange } from "../helpers.js";
 
 /**
- * The first-run path in a real (headless) browser, against the stand-in line and scripted agents:
+ * The first-run path in a real (headless) browser, against the line engine with scripted agents (no AI):
  * someone who has read nothing opens the link, starts a software, and answers everything premise
  * asks until it reaches the end of the line. Screenshots of each main state are kept as artefacts.
  */
@@ -39,6 +39,7 @@ beforeAll(async () => {
     env: {
       PREMISE_SERVER__PORT: String(port),
       PREMISE_RUNNER__PORT_RANGE: JSON.stringify((await uniquePortRange()).range),
+      PREMISE_AGENTS__MODE: "scripted",
       PREMISE_AGENTS__SCRIPTED__STEP_SECONDS: "1",
     },
     print: () => {},
@@ -90,7 +91,7 @@ describe("first run, in a browser", () => {
     await page.keyboard.press("Control+Enter");
 
     const why = card(page, "Why build it: is this right?");
-    await why.waitFor();
+    await why.waitFor({ timeout: 15_000 });
     await expect(page.title()).resolves.toBe("(1) premise");
     await page
       .getByText("Understanding what you want: drafting why it is worth building")
@@ -112,7 +113,7 @@ describe("first run, in a browser", () => {
 
     // A correction in chat goes to the open list.
     const who = card(page, "Who it is for: is this right?");
-    await who.waitFor();
+    await who.waitFor({ timeout: 15_000 });
     await page.getByLabel("Say something to premise").fill("My partner reads it too.");
     await page.getByLabel("Say something to premise").press("Enter");
     await who.getByText("My partner reads it too.").waitFor();
@@ -124,20 +125,30 @@ describe("first run, in a browser", () => {
     await exists.getByRole("button", { name: "Use this" }).click();
     await exists.getByRole("button", { name: "Answer" }).click();
 
-    await card(page, "What it must do: is this right?")
-      .getByRole("button", { name: "Confirm this list" })
-      .click();
+    const what = card(page, "What it must do: is this right?");
+    await what.waitFor({ timeout: 15_000 });
+    await what.getByRole("button", { name: "Confirm this list" }).click();
 
     const sayBack = card(page, "Say back: what I understood");
-    await sayBack.waitFor();
+    await sayBack.waitFor({ timeout: 15_000 });
     await shot(page, "05-say-back");
     await sayBack.getByRole("button", { name: "Confirm what I understood" }).click();
 
-    // Plan: a scripted job, then the gate's approval card.
-    const approval = card(page, "Create the software's repository?");
+    // Plan: the planner and the reviewer (scripted), then the milestones to confirm.
+    const milestones = card(page, "Milestones: is this the right order?");
+    await milestones.waitFor({ timeout: 20_000 });
+    await milestones
+      .getByRole("checkbox", { name: "Stop after this milestone until I say go on" })
+      .first()
+      .waitFor();
+    await shot(page, "06-milestones");
+    await milestones.getByRole("button", { name: "Confirm this list" }).click();
+
+    // The gate asks before anything outside this machine; building goes on meanwhile.
+    const approval = card(page, "Allow premise to act in your name outside this machine?");
     await approval.waitFor({ timeout: 15_000 });
     await approval.getByText("What will happen").waitFor();
-    await shot(page, "06-approval");
+    await shot(page, "06b-approval");
     await approval.getByRole("button", { name: "Approve once" }).click();
 
     // Build, check and run go by themselves; the activity view shows the work.

@@ -49,7 +49,7 @@ None. The token from the link is kept in the page's memory only.
 
 ### 5.1a First run and plain words
 
-- With no software yet, the page says what premise is, gives one box to describe a software ("What should the software do, and for whom?"), says what happens next, and says what is not real yet (stand-in line, scripted agents, mocked usage) ([0135](../decisions/0135-the-experience-works-without-the-guide.md)).
+- With no software yet, the page says what premise is, gives one box to describe a software ("What should the software do, and for whom?"), says what happens next, and says what is not real yet (the stand-in for the later stages, scripted agents when in use, mocked usage), and, when real agents cannot start, what is missing and a "look around with scripted agents (not real)" button ([0180](../decisions/0180-premise-uses-real-agents-by-default.md)) ([0135](../decisions/0135-the-experience-works-without-the-guide.md)).
 - Every empty view says what will appear there and when. Every error says what to do next.
 - premise's own words (the record, say back, the floor, roles, intake) are explained where they appear, in a few words; the Help view lists them all.
 - Navigation: Softwares (each with Conversation, Line, Record and Report), Waiting on you, Activity, Usage, Settings (read only, with where to change each setting) and Help.

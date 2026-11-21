@@ -1,13 +1,16 @@
-import { existsSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import type { AgentRunner } from "../agents/agent-runner.js";
-import { ClaudeAgentRunner } from "../agents/claude-agent.js";
+import { join } from "node:path";
+import { ClaudeAgentRunner, PrerequisiteMissingError } from "../agents/claude-agent.js";
+import { SwitchableRunner } from "../agents/switchable-runner.js";
 import { ScriptedAgentRunner, loadScriptFile } from "../agents/scripted-agent.js";
 import { AgentToolServer } from "../agents/tool-server.js";
 import { loadConfig } from "../config/load.js";
 import type { PremiseConfig } from "../config/settings.js";
-import { type CommandRunner, formatDoctorReport, runDoctor } from "../doctor/doctor.js";
+import {
+  type CommandRunner,
+  type DoctorReport,
+  formatDoctorReport,
+  runDoctor,
+} from "../doctor/doctor.js";
 import { standInScript } from "../demo/stand-in-script.js";
 import type { WorkQueue } from "../queue/work-queue.js";
 import { RecordKeeper } from "../record/record-keeper.js";
@@ -15,22 +18,12 @@ import { openDatabase, recordEvent } from "../storage/database.js";
 import { createUsageLedger } from "../usage-ledger/mock-usage-ledger.js";
 import { createApp } from "./app.js";
 import { issueSessionToken } from "./session-token.js";
+import { docsFolder, packageRoot } from "./package-root.js";
 import { createSession } from "./wiring.js";
 
 /** Where the built page is: dist/web, next to dist/server. */
 export function defaultWebRoot(): string {
   return join(packageRoot(), "dist", "web");
-}
-
-/** premise's own folder: the one holding its package.json. */
-function packageRoot(): string {
-  let folder = dirname(fileURLToPath(import.meta.url));
-  while (!existsSync(join(folder, "package.json"))) {
-    const parent = dirname(folder);
-    if (parent === folder) break;
-    folder = parent;
-  }
-  return folder;
 }
 
 /** Where agents reach premise's tools. */
@@ -39,24 +32,55 @@ export function toolsUrl(config: PremiseConfig): string {
   return `http://${host}:${config.server.port}/mcp`;
 }
 
-async function createRunner(
-  config: PremiseConfig,
-  tools: AgentToolServer,
-  env: NodeJS.ProcessEnv,
-): Promise<AgentRunner> {
-  if (config.agents.mode === "claude") {
-    return ClaudeAgentRunner.create({
-      config,
-      tools,
-      toolsUrl: toolsUrl(config),
-      docsFolder: join(packageRoot(), "docs"),
-      env,
-    });
-  }
+/** The scripted agent: for tests and demos, and the look-around when real agents cannot start. */
+export function scriptedRunner(config: PremiseConfig): ScriptedAgentRunner {
   const file = config.agents.scripted.script_file;
   return new ScriptedAgentRunner(
     file ? loadScriptFile(file) : standInScript(config.agents.scripted.step_seconds),
   );
+}
+
+/**
+ * Real agents when agents.mode is "claude" and they can start; otherwise none, with the reason, so
+ * premise still starts and the page says what is missing (decision 0180).
+ */
+async function createRunner(
+  config: PremiseConfig,
+  tools: AgentToolServer,
+  env: NodeJS.ProcessEnv,
+  setup: DoctorReport,
+): Promise<SwitchableRunner> {
+  if (config.agents.mode === "scripted") {
+    const scripted = scriptedRunner(config);
+    scripted.useTools(tools);
+    return new SwitchableRunner(scripted);
+  }
+  if (!setup.canRunRealAgents) {
+    const missing = setup.checks
+      .filter((c) => c.status === "missing")
+      .map((c) => c.name)
+      .join(", ");
+    return new SwitchableRunner(
+      null,
+      `Real agents cannot start on this machine: ${missing || "something they need"} is missing.`,
+    );
+  }
+  try {
+    return new SwitchableRunner(
+      await ClaudeAgentRunner.create({
+        config,
+        tools,
+        toolsUrl: toolsUrl(config),
+        docsFolder: docsFolder(),
+        env,
+      }),
+    );
+  } catch (error) {
+    if (error instanceof PrerequisiteMissingError) {
+      return new SwitchableRunner(null, error.message);
+    }
+    throw error;
+  }
 }
 
 /** The session's link: the token rides in the part after #, which browsers never send anywhere. */
@@ -101,11 +125,6 @@ export async function start(
     throw new Error(formatDoctorReport(setup));
   }
   const config = setup.config;
-  if (config.agents.mode === "claude" && !setup.canRunRealAgents) {
-    throw new Error(
-      `${formatDoctorReport(setup)}\n\npremise does not start real agents without Claude Code, bubblewrap and socat, because it never runs agents unconfined (decisions 0125, 0142). Install what is MISSING above, or set agents.mode to "scripted" to try premise without real agents.`,
-    );
-  }
   const ledger = createUsageLedger(config.usage_ledger);
   const { db, schemaVersion, backup } = openDatabase(config.data.folder);
   if (backup) print(`Updated premise's database; the copy from before is ${backup}.`);
@@ -116,16 +135,42 @@ export async function start(
     config,
     isPaused: () => made.queue?.state().paused ?? false,
   });
-  let runner: AgentRunner;
+  let runner: SwitchableRunner;
   try {
-    runner = await createRunner(config, tools, options.env);
+    runner = await createRunner(config, tools, options.env, setup);
   } catch (error) {
     db.close();
     throw error;
   }
-  const { queue, services, runner: runs } = createSession({ db, config, ledger, runner });
+  const record = new RecordKeeper({ db, config });
+  const {
+    queue,
+    services,
+    agents,
+    gate,
+    runner: runs,
+  } = createSession({
+    db,
+    config,
+    ledger,
+    runner,
+    tools,
+    record,
+    agents: {
+      ready: () => runner.ready(),
+      unavailable: () => (runner.scriptedDemo ? null : runner.unavailable),
+      scriptedDemo: () => runner.scriptedDemo,
+      useScriptedDemo: () => {
+        const demo = scriptedRunner(config);
+        demo.useTools(tools);
+        runner.useScriptedDemo(demo);
+        made.queue?.tick();
+      },
+    },
+  });
   runs.recoverStale();
   made.queue = queue;
+  gate.recoverInterrupted();
   const recovered = queue.recover();
   if (recovered.length > 0) {
     print(`Resumed ${recovered.length} job(s) that were cut off when premise last stopped.`);
@@ -136,8 +181,9 @@ export async function start(
     db,
     schemaVersion,
     services,
+    agents,
     ledger,
-    record: new RecordKeeper({ db, config }),
+    record,
     setup,
     tools,
     webRoot: options.webRoot ?? defaultWebRoot(),
@@ -167,7 +213,7 @@ export async function start(
   print(`  Open this link: ${link}`);
   print("");
   print(
-    `  Agents:        ${config.agents.mode === "scripted" ? "scripted (no AI is called)" : "real Claude Code sessions on your login, confined by its sandbox"}`,
+    `  Agents:        ${config.agents.mode === "scripted" ? "scripted (no AI is called)" : runner.ready() ? "real Claude Code sessions on your login, confined by its sandbox" : `NOT READY. ${runner.unavailable} The page says how to fix it.`}`,
   );
   print(
     `  Usage figures: ${ledger.mocked ? `mocked (${ledger.mode}); not real usage` : ledger.mode}`,

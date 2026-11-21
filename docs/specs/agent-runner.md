@@ -1,6 +1,6 @@
 # Agent runner specification
 
-Status: built for real agents in `src/agents/` (`claude-agent.ts` and the files it uses), selected by `agents.mode` = `claude`; the scripted agent stays the default ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Not built yet: the session-to-task record in usage-ledger's format (5.5), stage budgets (5.3). Related: [models and cost](../architecture/models-and-cost.md), [the floor and the gate](../architecture/the-floor-and-the-gate.md), [agent tools](agent-tools.md), [work queue](work-queue.md), [prompts](../prompts/README.md), [skills](../skills/README.md).
+Status: built for real agents in `src/agents/` (`claude-agent.ts` and the files it uses), selected by `agents.mode` = `claude`, the default ([0180](../decisions/0180-premise-uses-real-agents-by-default.md)); the scripted agent is for tests, demos and CI, set with `agents.mode` = `scripted`. Not built yet: the session-to-task record in usage-ledger's format (5.5), stage budgets (5.3). Related: [models and cost](../architecture/models-and-cost.md), [the floor and the gate](../architecture/the-floor-and-the-gate.md), [agent tools](agent-tools.md), [work queue](work-queue.md), [prompts](../prompts/README.md), [skills](../skills/README.md).
 
 ## 1. Purpose
 
@@ -121,7 +121,7 @@ Every setting, with its default, is in the [configuration reference](../referenc
 
 | Key | Default | Meaning |
 |---|---|---|
-| `agents.mode` | `scripted` | `scripted` (no LLM) or `claude` ([0134](../decisions/0134-the-owners-claude-login-only-when-strictly-necessary.md)) |
+| `agents.mode` | `claude` | `claude` or `scripted` (no LLM; tests, demos, CI) ([0134](../decisions/0134-the-owners-claude-login-only-when-strictly-necessary.md)) |
 | `agents.claude_config_folder` | none: the owner's existing login | A Claude Code configuration folder to use instead ([0140](../decisions/0140-the-owners-existing-claude-code-login.md)) |
 | `agents.claude.command` | `claude` | The Claude Code program |
 | `agents.claude.stop_grace_seconds` | 10 | How long a stopped session gets before it is ended forcibly |
@@ -144,7 +144,7 @@ Every setting, with its default, is in the [configuration reference](../referenc
 |---|---|---|---|
 | Claude Code not logged in | Start check | No agent starts | "Needed": the owner logs in once ([page server](page-server.md)) |
 | An API key is found in the environment | Start check | No agent starts | Removed from the child's environment; if it cannot be, reported |
-| Confinement unavailable (bubblewrap or socat missing) | Start check, and again when the runner is made | premise does not start with `agents.mode` = `claude` | Named as missing; the owner installs them, or sets `agents.mode` to `scripted` |
+| Confinement unavailable (bubblewrap or socat missing) | Start check, and again when the runner is made | premise starts, holds agent work and does not run real agents ([0180](../decisions/0180-premise-uses-real-agents-by-default.md)) | Named as missing on the page; the owner installs them, or looks around with scripted agents (labelled not real) |
 | The sandbox fails to start anyway | Claude Code refuses to run (`failIfUnavailable`) | The job fails as `sandbox-unavailable` | The setup check says what is missing |
 | Claude Code is using an API key | The session's first event names a key source | The session is stopped; the job fails | The owner removes the key from Claude Code's settings |
 | An agent writes or reads outside its confinement | Denied by sandbox or permission rule | The action fails in the session | Recorded; repeated attempts count toward the three-strike rule |

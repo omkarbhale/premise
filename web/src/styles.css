@@ -883,3 +883,43 @@ pre.output {
 .where-now {
   margin: 0.5rem 0;
 }
+
+/* Milestones, standing approvals and the agents note (line engine). */
+.wait {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+.milestones,
+.approvals {
+  display: grid;
+  gap: 0.5rem;
+  padding-left: 1.25rem;
+}
+.milestones li,
+.approvals li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+.milestone-reached > span:first-child {
+  opacity: 0.75;
+}
+.agents-banner p,
+.agents-banner ul {
+  margin: 0.25rem 0;
+}
+.agents-banner button {
+  margin-top: 0.25rem;
+}
+.item .wait {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+.wait input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}
