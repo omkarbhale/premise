@@ -16,6 +16,10 @@ export function Doing() {
   return (
     <div className="doing">
       <h1>How premise is doing</h1>
+      <p className="intro">
+        This is premise's notebook about itself: whether it is worth your time. You never need to
+        open it to get software built.
+      </p>
       <p className="muted">
         premise's own return: how much of your attention it took, how long things took, and how
         often something it said worked came back as a bug. Worked out from what premise recorded;
@@ -32,8 +36,8 @@ export function Doing() {
               <Figures key={s.softwareId} view={s} heading={s.name} collapsed />
             ))}
           <p className="muted small">
-            A rate or a typical time needs at least {measures.data.minEvents} events (the setting
-            measures.min_events).
+            A rate or a typical time needs at least {measures.data.minEvents} events; the Settings
+            page says how to change that number.
           </p>
         </>
       )}

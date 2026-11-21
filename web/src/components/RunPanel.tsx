@@ -42,7 +42,8 @@ export function RunPanel({ softwareId }: { softwareId: string }) {
 
   return (
     <section className="card running" aria-label="How it runs">
-      <h2>Open it</h2>
+      {/* "Open it" only for what has a link to open; anything else is tried. */}
+      <h2>{r.kind === "web" ? "Open it" : "Try it"}</h2>
       <p>
         <strong>{STATE_NAME[r.state]}.</strong> {r.plain}
         {r.commit && <span className="muted small"> Version {r.commit}.</span>}
@@ -73,8 +74,8 @@ export function RunPanel({ softwareId }: { softwareId: string }) {
       )}
       {!r.confined && (
         <p className="warn" role="status">
-          This ran without confinement, because the setting runner.confinement is none. It could
-          read your files.
+          This ran without confinement, because confinement is switched off in premise's settings.
+          It could read your files.
         </p>
       )}
       {problem && <Problem>{problem}</Problem>}

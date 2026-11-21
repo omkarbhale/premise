@@ -357,7 +357,7 @@ class ClaudeSession implements AgentSession {
         reject(
           (error as NodeJS.ErrnoException).code === "ENOENT"
             ? new Error(
-                `Claude Code ("${config.agents.claude.command}") was not found. Install it, or set agents.claude.command to where it is.`,
+                `Claude Code ("${config.agents.claude.command}") was not found. Install it, or tell premise where it is (the Settings page says how).`,
               )
             : error,
         );

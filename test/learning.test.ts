@@ -166,6 +166,9 @@ describe("learning from corrections", () => {
     const after = await learned(app, null);
     expect(after.taste.lines).toHaveLength(0);
     expect(after.ended[0]).toMatchObject({ label: "L-1", note: "Deleted by you." });
+    // The correction it came from says its lesson is gone, rather than look still in force.
+    const source = after.corrections.find((c) => c.lessonEnded?.label === "L-1");
+    expect(source).toMatchObject({ lessonId: null, lessonEnded: { note: "Deleted by you." } });
     // A deleted line cannot be deleted again; the message says what to do.
     const again = await app.call("POST", "/api/lessons/1/delete");
     expect(again.status).toBe(404);

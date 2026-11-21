@@ -39,6 +39,12 @@ export function ReportView({ softwareId }: { softwareId: string }) {
         ) : (
           <p className="muted">Nothing is running yet, so there is nothing to try.</p>
         )}
+        {r.counts && <p className="small">{r.counts}</p>}
+        {r.scripted && (
+          <p className="note small" role="note">
+            {r.scripted}
+          </p>
+        )}
       </section>
       <RunPanel softwareId={softwareId} />
       {r.written ? (

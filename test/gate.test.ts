@@ -123,7 +123,88 @@ describe("gate", () => {
     });
     expect(third.status).toBe("asked");
     await gate.idle();
-    expect(gate.get(second.id)!.status).toBe("done");
+    // premise has no performer for posting: approved, but said to be unavailable, never "done".
+    expect(gate.get(second.id)!.status).toBe("unavailable");
+    expect(gate.get(second.id)!.outcome).toMatch(/nothing was done/);
+    // The first one, approved on its card, is unavailable too.
+    expect(events("gate-unavailable")).toBe(2);
+  });
+
+  it("scopes a standing approval to its own kind of action, never to others of the same floor kind", () => {
+    gate.registerPerformer("add-record", async () => ({ ok: true, outcome: "Added." }));
+    gate.registerPerformer("create-repository", async () => ({ ok: true, outcome: "Made." }));
+    const record = gate.request({
+      softwareId,
+      kind: "write-repository",
+      act: "add-record",
+      action: "Create a branch named premise in your repository.",
+      why: "x",
+      requestedBy: "line engine",
+      perform: "add-record",
+      card: {
+        title: "Add premise's record to your repository?",
+        standingLabel: "adding the record",
+      },
+    });
+    expect(getAsk(db, record.askId!)!.extra.approval!.kindLabel).toBe("adding the record");
+    gate.answerCard(record.askId!, "approve-kind", "ok");
+    expect(gate.standing(softwareId)).toMatchObject([
+      { act: "add-record", label: "adding the record" },
+    ]);
+    // The same act goes through by rule; another act of the same floor kind is asked.
+    const again = gate.request({
+      softwareId,
+      kind: "write-repository",
+      act: "add-record",
+      action: "Again.",
+      why: "x",
+      requestedBy: "line engine",
+      perform: "add-record",
+    });
+    expect(again.status).toBe("approved");
+    const push = gate.request({
+      softwareId,
+      kind: "write-repository",
+      act: "push-record",
+      action: "Update the branch.",
+      why: "x",
+      requestedBy: "line engine",
+      perform: "add-record",
+    });
+    expect(push.status).toBe("asked");
+    // And an agent's request of the floor kind is not covered by the server act's approval.
+    const agent = gate.request({
+      softwareId,
+      kind: "write-repository",
+      action: "Write to the repository.",
+      why: "x",
+      requestedBy: "builder, job 2",
+    });
+    expect(agent.status).toBe("asked");
+  });
+
+  it("never lets a card say something real happens when premise cannot carry it out", () => {
+    const request = gate.request({
+      softwareId,
+      kind: "publish",
+      action: "Publish a release.",
+      why: "x",
+      requestedBy: "builder, job 3",
+      card: { reality: { real: true, text: "This is real." } },
+    });
+    const card = getAsk(db, request.askId!)!.extra.approval!;
+    expect(card.real).toBe(false);
+    expect(card.reality).toMatch(/^Nothing is done whichever you choose/);
+    gate.registerPerformer("release", async () => ({ ok: true, outcome: "Released." }));
+    const real = gate.request({
+      softwareId,
+      kind: "publish",
+      action: "Publish a release.",
+      why: "x",
+      requestedBy: "line engine",
+      perform: "release",
+    });
+    expect(getAsk(db, real.askId!)!.extra.approval!.real).toBe(true);
   });
 
   it("marks a request left approved as failed on recovery, asks the person, and never performs it", async () => {
@@ -164,8 +245,11 @@ describe("gate", () => {
       action: "Post a.",
       why: "x",
       requestedBy: "t",
+      perform: "act",
     });
     gate.answerCard(first.askId!, "approve-kind", "ok");
+    await gate.idle();
+    calls = 0;
     expect(() =>
       transaction(db, () => {
         const covered = gate.request({

@@ -33,8 +33,9 @@ describe("first run", () => {
     expect(
       screen.getByRole("heading", { name: "What is real here, and what is not" }),
     ).toBeTruthy();
-    // Scripted agents: the note says it is a demo and that nothing real is built.
-    expect(screen.getByText(/nothing real is built/)).toBeTruthy();
+    // Scripted agents: the note says it is a demo, and the one thing that is still real.
+    expect(screen.getByText(/This is a demo\./)).toBeTruthy();
+    expect(screen.getByText(/One thing is real even here/)).toBeTruthy();
     expect(document.title).toBe("premise");
   });
 
@@ -121,6 +122,8 @@ describe("answering an ask in place", () => {
                 label: "Everything premise could add",
                 sessions: 10,
                 minutes: 30,
+                sameCost:
+                  "Same rough cost as the choice above: what it adds fits in the same builds.",
               },
             ],
             preselected: "recommended",
@@ -131,6 +134,12 @@ describe("answering an ask in place", () => {
       api,
     );
     expect(screen.getByRole("heading", { name: "premise recommends adding" })).toBeTruthy();
+    // The time comes first; agent sessions are explained; equal costs say why.
+    expect(screen.getAllByText(/about 21 minutes/)).toHaveLength(1);
+    expect(screen.getByText("7 agent sessions").getAttribute("title")).toContain(
+      "It counts work, not money",
+    );
+    expect(screen.getByText(/fits in the same builds/)).toBeTruthy();
     expect(screen.getByText("1 in the first version, 1 later, 1 left out")).toBeTruthy();
     await user.click(screen.getByRole("radio", { name: /Only what I asked for/ }));
     expect(screen.getByText("1 in the first version, 0 later, 2 left out")).toBeTruthy();
@@ -214,7 +223,7 @@ describe("answering an ask in place", () => {
     );
     await user.click(
       screen.getByRole("button", {
-        name: "Approve posting comments and messages for Reading list",
+        name: "Approve posting comments and messages for Reading list from now on",
       }),
     );
     expect(api.answer).toHaveBeenCalledWith(1, { kind: "approval", decision: "approve-kind" });

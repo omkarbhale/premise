@@ -89,6 +89,19 @@ describe("the scope check's tiers", () => {
     expect(cuts[0]!.sessions).toBeLessThan(cuts[1]!.sessions);
     expect(cuts[1]!.sessions).toBeLessThanOrEqual(cuts[2]!.sessions);
     expect(cuts[0]!.minutes).toBe(cuts[0]!.sessions * 2);
+    // Recommended and everything cost the same here (one build covers both): it says why.
+    expect(cuts[1]!.sameCost).toBeUndefined();
+    expect(cuts[2]!.sessions).toBe(cuts[1]!.sessions);
+    expect(cuts[2]!.sameCost).toContain("fits in the same builds");
+    // With nothing it could also add, the last choice adds nothing at all.
+    const none = scopeCuts(
+      scopeTiers([
+        item("W-1", "a", { priority: "must", from: "operator" }),
+        item("W-2", "b", { priority: "should" }),
+      ]),
+      { minutesPerSession: 2, itemsPerBuild: 3 },
+    );
+    expect(none[2]!.sameCost).toContain("nothing more to add");
     expect(estimate(1, 0, { minutesPerSession: 3, itemsPerBuild: 3 })).toEqual({
       sessions: 7,
       minutes: 21,

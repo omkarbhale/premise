@@ -111,16 +111,31 @@ const CUT_LABELS: Record<ScopeCut["id"], string> = {
   everything: "Everything premise could add",
 };
 
-/** The three cuts with their rough cost. */
+/**
+ * The three cuts with their rough cost. When a cut costs the same as the one before it, it says why,
+ * so the choice does not look pointless: either it adds nothing, or what it adds fits in the same
+ * builds (the estimate counts builds, and one build covers a few items).
+ */
 export function scopeCuts(tiers: readonly TieredItem[], basis: EstimateBasis): ScopeCut[] {
   const count = (t: ScopeTier) => tiers.filter((i) => i.tier === t).length;
   const asked = count("asked");
   const recommended = count("recommended");
   const could = count("could");
-  return (["asked", "recommended", "everything"] as const).map((id) => {
-    const later = id === "asked" ? 0 : id === "recommended" ? recommended : recommended + could;
-    return { id, label: CUT_LABELS[id], ...estimate(asked, later, basis) };
-  });
+  const laterFor = (id: ScopeCut["id"]) =>
+    id === "asked" ? 0 : id === "recommended" ? recommended : recommended + could;
+  const cuts: ScopeCut[] = [];
+  for (const id of ["asked", "recommended", "everything"] as const) {
+    const cut: ScopeCut = { id, label: CUT_LABELS[id], ...estimate(asked, laterFor(id), basis) };
+    const before = cuts.at(-1);
+    if (before && before.sessions === cut.sessions) {
+      cut.sameCost =
+        laterFor(id) === laterFor(before.id)
+          ? "Same as the choice above: premise has nothing more to add here."
+          : "Same rough cost as the choice above: what it adds fits in the same builds.";
+    }
+    cuts.push(cut);
+  }
+  return cuts;
 }
 
 /** Read the operator's answer into where each record item goes. Unknown keys are ignored. */

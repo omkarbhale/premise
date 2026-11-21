@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import type { ToolBinding, ToolEnvelope } from "../agents/tool-server.js";
 import { toolFail, toolOk } from "../agents/tool-server.js";
 import type { PremiseConfig } from "../config/settings.js";
@@ -736,11 +737,7 @@ export class Intake implements IntakeHooks {
         reference: `I-${item.number}`,
         detail: { minutesToRunning: minutes },
       });
-      this.say(
-        item.softwareId,
-        item,
-        `its change is running, ${minutes === null ? "" : `${minutes} ${minutes === 1 ? "minute" : "minutes"} after it came in`}.`,
-      );
+      this.say(item.softwareId, item, this.landed(item, minutes));
     }
     if (where === "done") {
       setIntakeItem(this.db, item.id, {
@@ -1591,6 +1588,59 @@ export class Intake implements IntakeHooks {
     });
   }
 
+  /**
+   * The version now running and how to try it, from the software's latest run; null when it has
+   * not run (a stand-in line). A link is named only while the software is running.
+   */
+  private latestRun(softwareId: string): { version: string; how: string | null } | null {
+    const row = this.db
+      .prepare(
+        "SELECT commit_sha, kind, status, command, link FROM runs WHERE software_id = ? ORDER BY id DESC LIMIT 1",
+      )
+      .get(softwareId) as
+      | {
+          commit_sha: string;
+          kind: string;
+          status: string;
+          command: string | null;
+          link: string | null;
+        }
+      | undefined;
+    if (!row) return null;
+    const folder = join(this.config.data.folder, "work", softwareId, "run");
+    const how =
+      row.link && row.status === "running"
+        ? `open ${row.link}`
+        : row.command
+          ? row.kind === "web"
+            ? `start it again on the Line tab, then open its link`
+            : `${row.kind === "command" ? "type" : "start it with"} ${row.command} in a terminal, in ${folder}`
+          : null;
+    return { version: row.commit_sha.slice(0, 7), how };
+  }
+
+  /**
+   * What an item's sender is told when its change runs: which version, how to try it, and what to
+   * do if it is still not right. "Fixed" is not claimed: the check may not have judged it.
+   */
+  private landed(item: IntakeItem, minutes: number | null): string {
+    const run = this.latestRun(item.softwareId);
+    const after =
+      minutes === null
+        ? ""
+        : `, ${minutes} ${minutes === 1 ? "minute" : "minutes"} after it came in`;
+    const what = item.kind === "bug" ? "its fix" : "its change";
+    return [
+      `${what} is running${run ? ` in version ${run.version}` : ""}${after}.`,
+      run?.how ? `Try it: ${run.how}.` : "",
+      item.kind === "bug"
+        ? "If the problem is still there, say so here."
+        : "If it is not what you wanted, say so here.",
+    ]
+      .filter(Boolean)
+      .join(" ");
+  }
+
   /** Where an item stands, in plain words for its sender. */
   private where(item: IntakeItem): string {
     const work = item.workItemId ? getWorkItem(this.db, item.workItemId) : undefined;
@@ -1625,7 +1675,8 @@ export class Intake implements IntakeHooks {
       }
       case "running": {
         const minutes = minutesToRunning(item);
-        return `Running: its change runs${minutes === null ? "" : `, ${minutes} ${minutes === 1 ? "minute" : "minutes"} after it came in`}.`;
+        const run = this.latestRun(item.softwareId);
+        return `Done: its change runs${run ? ` in version ${run.version}` : ""}${minutes === null ? "" : `, ${minutes} ${minutes === 1 ? "minute" : "minutes"} after it came in`}.${run?.how ? ` Try it: ${run.how}.` : ""} ${item.kind === "bug" ? "If the problem is still there" : "If it is not what you wanted"}, say so in the conversation.`;
       }
       case "answered":
         return "Answered from the record; nothing was built.";

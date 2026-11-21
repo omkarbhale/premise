@@ -24,7 +24,7 @@ export interface RepositoryHost {
 
 export class RepositoryHostError extends Error {
   constructor(
-    readonly code: "NOT_YET_APPROVED" | "REFUSED",
+    readonly code: "NOT_AVAILABLE" | "WAITING" | "REFUSED",
     message: string,
   ) {
     super(message);
@@ -36,15 +36,29 @@ export class RepositoryHostError extends Error {
 export interface GateSeam {
   request(request: {
     softwareId: string;
-    kind: "make-public" | "publish" | "post" | "credentials" | "expose" | "access" | "spend";
+    kind:
+      | "make-public"
+      | "publish"
+      | "post"
+      | "credentials"
+      | "expose"
+      | "access"
+      | "spend"
+      | "write-repository";
     what: string;
     why: string;
   }): Promise<{ status: "approved" | "asked" | "refused" }>;
 }
 
+/** Why premise cannot create a GitHub repository yet, in the words a person reads. */
+export function githubNotAvailable(name: string): string {
+  return `premise cannot create the GitHub repository ${name} yet: that step is not built, because the owner has not yet allowed premise to create repositories on GitHub. Nothing was created on GitHub; the software's repository stays on this machine, and nothing is lost.`;
+}
+
 /**
  * Creating the software's repository on GitHub. It is built to ask the gate before it acts, and
- * the act itself is not approved yet, so this always ends in NOT_YET_APPROVED and never calls GitHub.
+ * the act itself is not built yet (decision 0161), so this always ends in NOT_AVAILABLE (or
+ * WAITING, while the gate's question is open) and never calls GitHub.
  */
 export class GitHubRepositoryHost implements RepositoryHost {
   constructor(private readonly gate?: GateSeam) {}
@@ -60,11 +74,14 @@ export class GitHubRepositoryHost implements RepositoryHost {
       if (answer.status === "refused") {
         throw new RepositoryHostError("REFUSED", "You said no to making the repository public.");
       }
+      if (answer.status === "asked") {
+        throw new RepositoryHostError(
+          "WAITING",
+          `Waiting for your answer before making the repository ${request.name} public. Nothing has been created yet.`,
+        );
+      }
     }
-    throw new RepositoryHostError(
-      "NOT_YET_APPROVED",
-      `premise cannot create the GitHub repository ${request.name} yet: that step has not been approved. The software's repository stays on this machine, and nothing is lost.`,
-    );
+    throw new RepositoryHostError("NOT_AVAILABLE", githubNotAvailable(request.name));
   }
 }
 

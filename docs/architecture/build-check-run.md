@@ -36,7 +36,8 @@ Carved from section 5 of the plan (the confinement and security-default choices 
 - Its verdict per item: met, not met, or could not check, each with evidence (a screenshot, output, a log).
 - It also checks that `run.md` works from a clean copy, that the security defaults hold ([0092](../decisions/0092-security-defaults.md)), and that what users read matches what the software does.
 - Outcomes:
-  - every must item met and no floor finding: the change passes;
+  - every must item met and no floor finding: the change passes (only then is it "passed");
+  - no failure, but some must items could not be checked: it lands marked not fully verified, or, when none could be checked, premise asks once before landing it unverified ([0220](../decisions/0220-approvals-and-verdicts-tell-the-truth.md));
   - a must item not met, or a floor finding: back to the builder as a new task, with the evidence;
   - should or could items not met, and small defects: accepted and reported when fixing costs more than it is worth ([0006](../decisions/0006-llm-does-what-it-can.md)); the operator can reopen them;
   - the same item failing three rounds: work on it stops, and the report names which role is needed and for what.

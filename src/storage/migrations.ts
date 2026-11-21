@@ -502,6 +502,22 @@ export const MIGRATIONS: readonly Migration[] = [
       ALTER TABLE readings ADD COLUMN sent_back_at TEXT;
     `,
   },
+  {
+    version: 15,
+    name: "gate requests by kind of action",
+    sql: `
+      ALTER TABLE gate_requests ADD COLUMN act TEXT;
+      ALTER TABLE gate_requests ADD COLUMN card TEXT;
+      ALTER TABLE gate_requests ADD COLUMN unavailable INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE approvals ADD COLUMN act TEXT;
+      UPDATE gate_requests SET act = perform WHERE perform IS NOT NULL;
+      UPDATE gate_requests SET floor_kind = 'write-repository' WHERE perform = 'add-record';
+      UPDATE approvals SET
+        act = (SELECT g.act FROM gate_requests g WHERE g.id = approvals.request_id),
+        floor_kind = (SELECT g.floor_kind FROM gate_requests g WHERE g.id = approvals.request_id)
+      WHERE request_id IS NOT NULL;
+    `,
+  },
 ];
 
 export const CURRENT_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

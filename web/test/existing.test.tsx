@@ -112,7 +112,7 @@ describe("bringing in software you already have", () => {
       cleanup();
       inSession(<SoftwareView softwareId="s1" tab="intake" onTab={() => {}} asks={[]} />, api);
       expect(await screen.findByText(/nothing to report/)).toBeTruthy();
-      expect(screen.queryByRole("button", { name: "Report" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Send" })).toBeNull();
     },
   );
 

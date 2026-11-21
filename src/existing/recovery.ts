@@ -180,7 +180,7 @@ export function runProblems(run: RecoveredRun, recordFolder: string): string[] {
   const problems: string[] = [];
   if (!run.premiseRun) {
     problems.push(
-      `How to start it was not found in the code, so premise cannot start it yet. Say in chat how you start it (the command, and the address if it is a web page).`,
+      `How to start it was not found in the code, so premise cannot start it yet. Once you have gone through what it recovered, premise asks you how you start it, under Waiting on you.`,
     );
   } else {
     const parsed = parseRunInstructions(

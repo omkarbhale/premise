@@ -160,11 +160,12 @@ Applied to every decision a stage meets ([0084](../decisions/0084-who-has-the-la
 
 ### 5.7 Check outcomes
 
-- Every must item met and no floor finding: the change passes, and the run stage starts.
+- Every must item met and no floor finding: the change passes, and the run stage starts. Only then is it called "passed" ([0220](../decisions/0220-approvals-and-verdicts-tell-the-truth.md)).
+- No must item failed, but some could not be checked: "no failure found, N not verified". If some must items were met, it lands and runs, marked not fully verified, and the report says which items and what is needed to check them. If none could be verified, premise asks once: land it unverified, write what the checker needs (it checks the same version again), or stop; `line.when_nothing_verified: land` lands it unverified without asking, saying so.
 - A must item not met, or a floor finding: back to the builder as a new task, with the evidence.
 - Should or could items not met, and small defects: accepted and reported when fixing costs more than it is worth ([0006](../decisions/0006-llm-does-what-it-can.md)); the operator can reopen them.
 - The same item failing three rounds: work on it stops, and the report names which role is needed and for what.
-- As built ([0186](../decisions/0186-how-build-check-and-run-are-built.md)): a check judges the items the milestone's tasks serve plus the must items of milestones already landed; "could not check" does not hold a change back; at the round limit premise asks the operator to give more rounds or land it as it is.
+- As built ([0186](../decisions/0186-how-build-check-and-run-are-built.md)): a check judges the items the milestone's tasks serve plus the must items of milestones already landed; "could not check" does not hold a change back once something was verified (see above); at the round limit premise asks the operator to give more rounds or land it as it is.
 
 ### 5.8 Waiting
 

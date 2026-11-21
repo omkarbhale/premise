@@ -17,7 +17,7 @@ import { RunPanel } from "./RunPanel";
 
 /** The three phases with their steps, where the software is, and the controls that move it. */
 export function Line({ software }: { software: SoftwareDetail }) {
-  const { api, notCurrent, refresh } = useSession();
+  const { api, notCurrent, refresh, defaults } = useSession();
   const copyNotReady =
     software.existing?.status === "copying" || software.existing?.status === "copy-failed";
   const [confirming, setConfirming] = useState<StageId | null>(null);
@@ -243,7 +243,9 @@ export function Line({ software }: { software: SoftwareDetail }) {
         </label>
         <p className="muted small">
           It picks the starting choice when premise asks how much to build, and how long the steps
-          before building may take. New softwares get softwares.default_effort (see Settings).
+          before building may take.{" "}
+          {defaults &&
+            `New softwares start on ${defaults.effort}; the Settings page says how to change that.`}
         </p>
       </section>
 
@@ -269,10 +271,13 @@ export function Line({ software }: { software: SoftwareDetail }) {
             {software.budget.minutes} minutes; about {software.budget.usedMinutes} minutes are used.
           </p>
         )}
-        <p className="muted small">
-          New softwares get their priority and whether to stop after milestones from the settings
-          softwares.default_priority and softwares.default_milestone_waits (see Settings).
-        </p>
+        {defaults && (
+          <p className="muted small">
+            New softwares start on priority {defaults.priority} and{" "}
+            {defaults.milestoneWaits ? "stop" : "do not stop"} after each milestone; the Settings
+            page says how to change that.
+          </p>
+        )}
       </section>
 
       <section className="card">

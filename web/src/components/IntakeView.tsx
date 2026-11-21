@@ -107,7 +107,7 @@ export function IntakeView({
               onChange={(e) => setText(e.target.value)}
             />
             <button type="submit" className="primary" disabled={busy || !text.trim()}>
-              Report
+              Send
             </button>
           </div>
         </form>
@@ -120,7 +120,7 @@ export function IntakeView({
       )}
 
       <section aria-label="Open items">
-        <h2>Open</h2>
+        <h2>Open: still being worked on</h2>
         {open.length === 0 ? (
           <p className="empty-line">Nothing is being worked on from intake right now.</p>
         ) : (
@@ -206,7 +206,7 @@ export function IntakeView({
       />
 
       <section aria-label="Every item">
-        <h2>Everything taken in</h2>
+        <h2>Done or decided</h2>
         {v.items.length === 0 ? (
           <Empty>
             Nothing has come in yet. Say something in the conversation, or report a problem or a

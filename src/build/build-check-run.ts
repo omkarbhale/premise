@@ -82,6 +82,8 @@ interface CheckState {
   commit: string;
   status: CheckView["status"];
   when: string;
+  /** Judged by a scripted agent, which cannot judge software; absent in older notes. */
+  scripted?: boolean;
 }
 
 interface BuildState {
@@ -157,12 +159,20 @@ const TASK_STOPPED = ["Try the stopped tasks again", "Check what was built"] as 
 const CHECK_STOPPED = ["Give it more rounds", "Land it as it is"] as const;
 const CHECK_PROBLEM = ["Check again", "Build again"] as const;
 const LAND_PROBLEM = ["Try landing again", "Build again"] as const;
+/** How a landed change's last check ended, as the milestone's report line says it. */
+const CHECK_LANDED_WORDS: Partial<Record<CheckView["status"], string>> = {
+  passed: "checked, everything it had to check is met",
+  "not-fully-verified": "no failure found, not fully verified",
+  "not-verified": "not verified: nothing could be checked",
+};
+const NOTHING_VERIFIED = ["Land it unverified", "Stop here"] as const;
 
 const PURPOSES = [
   "build-task-stopped",
   "build-check-stopped",
   "build-check-problem",
   "build-land-problem",
+  "build-nothing-verified",
 ] as const;
 type Purpose = (typeof PURPOSES)[number];
 
@@ -1155,15 +1165,8 @@ export class BuildCheckRun implements LaterStages {
       { met: 0, "not-met": 0, "could-not-check": 0 },
     );
     const tally = `${counts.met} met, ${counts["not-met"]} not met, ${counts["could-not-check"]} could not check`;
-    const notChecked = [...verdicts.entries()].filter(([, v]) => v.verdict === "could-not-check");
     if (failing.length === 0 && blocking.length === 0) {
-      check.status = "passed";
-      this.save(id, state);
-      this.say(
-        id,
-        `The check of commit ${short(check.commit)} passed: ${tally}.${notChecked.length ? ` Not checked: ${notChecked.map(([i, v]) => `${i} (${v.evidence})`).join("; ")}.` : ""} It lands next.`,
-      );
-      return { kind: "next" };
+      return this.noFailureFound(job, state, check, verdicts, tally);
     }
     for (const [item] of failing) state.failures[item] = (state.failures[item] ?? 0) + 1;
     if (blocking.length) state.failures["finding"] = (state.failures["finding"] ?? 0) + 1;
@@ -1206,6 +1209,94 @@ export class BuildCheckRun implements LaterStages {
       `The check of commit ${short(check.commit)} did not pass (${tally}). It goes back to the builder with the checker's evidence; round ${state.round} of ${limit}.`,
     );
     return { kind: "back-to-build", evidence };
+  }
+
+  /**
+   * No must item failed and nothing blocks (decision 0197). It has passed only when every must item
+   * was met. When some were met and others could not be checked, it lands and runs, marked not fully
+   * verified. When none could be verified, premise asks the person once (or lands it unverified, as
+   * line.when_nothing_verified says).
+   */
+  private noFailureFound(
+    job: Job,
+    state: BuildState,
+    check: CheckState,
+    verdicts: Map<string, { verdict: VerdictValue; evidence: string }>,
+    tally: string,
+  ): LaterOutcome {
+    const id = job.softwareId;
+    const all = [...verdicts.keys()];
+    const musts = all.filter((item) => this.isMust(id, item));
+    const required = musts.length > 0 ? musts : all;
+    const unverified = required.filter((item) => verdicts.get(item)?.verdict !== "met");
+    const verified = required.length - unverified.length;
+    const scripted = this.checkedByScript(job.id);
+    check.scripted = scripted;
+    const scriptNote = scripted
+      ? " The agents are scripted: they cannot judge software, so this check proves nothing about whether it works."
+      : "";
+    const which = unverified
+      .map((item) => `${item} (${verdicts.get(item)?.evidence ?? "no reason given"})`)
+      .join("; ");
+    const about = `The check of commit ${short(check.commit)}`;
+    if (unverified.length === 0) {
+      check.status = "passed";
+      this.save(id, state);
+      this.say(
+        id,
+        `${about} passed: all ${required.length} ${required.length === 1 ? "thing" : "things"} it had to check ${required.length === 1 ? "is" : "are"} met (${tally}). It lands next.`,
+      );
+      return { kind: "next" };
+    }
+    if (verified > 0) {
+      check.status = "not-fully-verified";
+      this.save(id, state);
+      this.say(
+        id,
+        `${about} found no failure, but ${unverified.length} of ${required.length} ${required.length === 1 ? "thing" : "things"} could not be verified (${tally}). Not verified: ${which}. It lands and runs, marked not fully verified; the report says what is needed to check the rest.${scriptNote}`,
+      );
+      return { kind: "next" };
+    }
+    check.status = "not-verified";
+    if (this.config.line.when_nothing_verified === "land") {
+      this.save(id, state);
+      this.say(
+        id,
+        `${about} found no failure, but could verify none of the ${required.length} ${required.length === 1 ? "thing" : "things"} you asked for (${tally}): ${which}. It lands unverified, because the settings say to land without asking; the report says how to try it yourself.${scriptNote}`,
+      );
+      return { kind: "next" };
+    }
+    this.save(id, state);
+    this.say(
+      id,
+      `${about} found no failure, but could verify none of the things you asked for (${tally}). premise does not land it without asking you: see Waiting on you.${scriptNote}`,
+    );
+    createAsk(this.db, {
+      softwareId: id,
+      role: "operator",
+      kind: "question",
+      stage: "check",
+      title: "Nothing could be checked: land it anyway?",
+      instruction: [
+        `premise could not check any of the ${required.length} ${required.length === 1 ? "thing" : "things"} you asked for, so it does not know whether this version works.${scriptNote}`,
+        `What could not be checked, and why: ${which}.`,
+        `To try it yourself: ${this.howToRun(id)} (the built version is commit ${short(check.commit)}; once landed, the Report says exactly how to start it).`,
+        `Land it unverified (it starts, and the report says it is not verified), or stop here. Or write what the checker needs, such as how to start it or a test account, and premise checks again.`,
+      ].join("\n"),
+      extra: {
+        choices: [...NOTHING_VERIFIED],
+        meta: { purpose: "build-nothing-verified" satisfies Purpose },
+      },
+    });
+    return { kind: "wait" };
+  }
+
+  /** Whether the checker that judged this job was a scripted agent, which judges nothing. */
+  private checkedByScript(jobId: number): boolean {
+    const row = this.db
+      .prepare("SELECT runtime FROM agent_sessions WHERE job_id = ? ORDER BY id DESC LIMIT 1")
+      .get(jobId) as { runtime: string } | undefined;
+    return row?.runtime === "scripted";
   }
 
   private fixRound(state: BuildState, evidence: string, items: string[]): void {
@@ -1326,6 +1417,27 @@ export class BuildCheckRun implements LaterStages {
         this.fixRound(state, "The operator asked for the change to be built again.", []);
         this.save(id, state);
         return { kind: "back-to-build", evidence: "the operator asked to build again" };
+      case "build-nothing-verified": {
+        if (text === NOTHING_VERIFIED[0]) {
+          this.say(
+            id,
+            "You said: land it unverified. It lands and starts; the report marks it not verified and says how to try it.",
+          );
+          return { kind: "next" };
+        }
+        if (text === NOTHING_VERIFIED[1]) {
+          this.say(
+            id,
+            "Stopped: nothing lands, and what runs now stays as it is. To go on, say in chat what the checker needs, or send the software back to Build or Plan from the Line tab.",
+          );
+          return { kind: "wait" };
+        }
+        state.checkNotes = [...state.checkNotes, `From the operator: ${text}`].slice(-5);
+        if (!state.head) return { kind: "wait" };
+        this.say(id, "Thanks: the checker gets that, and checks the same version again.");
+        this.startCheck(id, state);
+        return { kind: "wait" };
+      }
       case "build-land-problem":
         if (text === LAND_PROBLEM[0]) {
           if (!state.head) return { kind: "wait" };
@@ -1647,7 +1759,7 @@ export class BuildCheckRun implements LaterStages {
     const check = state ? [...state.checks].reverse().find((c) => c.job !== null) : undefined;
     if (state?.landed) {
       lines.push(
-        `${about}: commit ${short(state.landed.commit)} is built, checked and landed${check ? ` (check round ${check.round}, ${check.status === "passed" ? "passed" : "landed as it was"})` : ""}.`,
+        `${about}: commit ${short(state.landed.commit)} is built and landed${check ? ` (check round ${check.round}: ${CHECK_LANDED_WORDS[check.status] ?? "landed as it was, with what the check found still open"})` : ""}.`,
       );
     } else {
       lines.push(`${about}, but nothing landed.`);
@@ -1677,6 +1789,7 @@ export class BuildCheckRun implements LaterStages {
       round: c.round,
       commit: c.commit,
       status: c.status,
+      ...(c.scripted && { scripted: true }),
       when: c.when,
       verdicts: c.job
         ? [...this.verdictsOf(c.job).entries()].map(([item, v]) => ({

@@ -153,14 +153,27 @@ describe("repository host", () => {
     expect(existsSync(join(created.url, "HEAD"))).toBe(true);
   });
 
-  it("does not create a GitHub repository: that step is not approved, and says so plainly", async () => {
+  it("does not create a GitHub repository: that step is not built yet, and says so plainly", async () => {
     const host = new GitHubRepositoryHost();
     await expect(
       host.createRepository({ softwareId: "s", name: "tasks", visibility: "private" }),
-    ).rejects.toMatchObject({ code: "NOT_YET_APPROVED" });
-    await expect(
-      host.createRepository({ softwareId: "s", name: "tasks", visibility: "private" }),
-    ).rejects.toThrowError(/stays on this machine/);
+    ).rejects.toMatchObject({ code: "NOT_AVAILABLE" });
+    const error = (await host
+      .createRepository({ softwareId: "s", name: "tasks", visibility: "private" })
+      .catch((e: Error) => e)) as Error;
+    expect(error.message).toMatch(/stays on this machine/);
+    expect(error.message).toMatch(/not built/);
+    // Never "not approved": the person may well have approved it.
+    expect(error.message).not.toMatch(/not been approved/);
+  });
+
+  it("says it is waiting for an answer while the gate's question is open, not that it was refused", async () => {
+    const host = new GitHubRepositoryHost({ request: async () => ({ status: "asked" }) });
+    const error = (await host
+      .createRepository({ softwareId: "s", name: "tasks", visibility: "public" })
+      .catch((e: RepositoryHostError) => e)) as RepositoryHostError;
+    expect(error).toMatchObject({ code: "WAITING" });
+    expect(error.message).toMatch(/Waiting for your answer/);
   });
 
   it("asks the gate before making a repository public, and stops when refused", async () => {

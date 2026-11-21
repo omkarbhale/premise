@@ -337,14 +337,19 @@ describe("the gate on the line", () => {
     return { app, id, approval: approvals[0]! };
   }
 
-  it("asks before creating the repository on GitHub; approved, it says the step is not approved yet and nothing is lost", async () => {
+  it("asks before creating the repository on GitHub; approved, it says the approval is recorded but the step is not available yet", async () => {
     const { app, id, approval } = await toGate();
-    expect(approval.title).toBe("Allow premise to act in your name outside this machine?");
+    expect(approval.title).toMatch(/^Create a private repository on GitHub for /);
     expect(approval.approval!.action).toMatch(
       /^Create a private repository named .* on your GitHub account/,
     );
     expect(approval.approval!.floor).toContain("never does without asking");
-    expect(approval.approval!.kindLabel).toBe("creating and publishing on outside services");
+    // The standing approval covers only this kind of action, and the card says nothing will happen.
+    expect(approval.approval!.kindLabel).toBe("creating private repositories on GitHub");
+    expect(approval.approval!.real).toBe(false);
+    expect(approval.approval!.reality).toMatch(
+      /^Nothing is created on GitHub whichever you choose/,
+    );
     // Building went on meanwhile: only the work that depends on the answer waits.
     expect((await app.call("GET", `/api/softwares/${id}`)).body.stage).toBe("intake");
 
@@ -353,18 +358,29 @@ describe("the gate on the line", () => {
     });
     await app.settle();
     const said = await chat(app, id);
+    // Never "not approved" after the person approved it: approved, but not available, and why.
     expect(said.at(-1)).toMatch(
-      /^Not done: premise cannot create the GitHub repository .* stays on this machine, and nothing is lost/,
+      /^Approved, but this step is not available yet: premise cannot create the GitHub repository .* not built.* stays on this machine, and nothing is lost/,
     );
+    expect(said.join("\n")).not.toMatch(/not been approved/);
     const requests = app.session.gate.list(id);
-    expect(requests[0]).toMatchObject({ status: "failed", kind: "publish" });
+    expect(requests[0]).toMatchObject({
+      status: "unavailable",
+      kind: "publish",
+      act: "create-repository",
+    });
     // Every request and outcome is an event, for the reporter.
     const kinds = (
       app.db.prepare("SELECT kind FROM events WHERE module = 'gate' ORDER BY id").all() as {
         kind: string;
       }[]
     ).map((e) => e.kind);
-    expect(kinds).toEqual(["gate-requested", "approval-given", "gate-approved", "gate-failed"]);
+    expect(kinds).toEqual([
+      "gate-requested",
+      "approval-given",
+      "gate-approved",
+      "gate-unavailable",
+    ]);
   });
 
   it("records a refusal and goes on, leaving the software on this machine", async () => {
@@ -449,7 +465,8 @@ describe("the gate on the line", () => {
     });
     expect(later.status).toBe("approved");
     await app.settle();
-    expect(app.session.gate.get(later.id)!.status).toBe("done");
+    // premise cannot carry out posting itself yet: approved, recorded, and said to be unavailable.
+    expect(app.session.gate.get(later.id)!.status).toBe("unavailable");
     // Withdrawn, it asks again.
     await app.call("POST", `/api/approvals/${detail.body.approvals[0].id}/withdraw`);
     expect(

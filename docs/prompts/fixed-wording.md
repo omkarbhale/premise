@@ -25,7 +25,10 @@ Some moments matter too much, or happen too often, to be worded by a model each 
 | `{{role}}` | The role whose call it is, as named in the software's record |
 | `{{software_name}}` | The software |
 | `{{action}}` | Exactly what will happen, from the gate request: the command, the target, the amount |
-| `{{floor_kind}}` | losing data, security, spending money, or acting publicly |
+| `{{floor_kind}}` | losing data, security, spending money, acting publicly, or changing a repository of the person's |
+| `{{card_title}}` | The card's own title for the kind of action, such as "Add premise's record to your repository?" |
+| `{{reality}}` | What really happens if approved, for that kind of action, in every mode |
+| `{{why_now}}` | Why premise asks at this moment, for that kind of action |
 | `{{reason}}` | Why the work needs it, from the request |
 | `{{waiting}}` | The work that waits on the answer |
 | `{{kind_label}}` | For an approval of a kind of action: the kind, for example "status comments on this software's issues" |
@@ -41,19 +44,30 @@ Some moments matter too much, or happen too often, to be worded by a model each 
 | `{{stage}}` | A stage of the line |
 | `{{effort}}` | A software's effort level: low, medium or high |
 | `{{alternative}}` | The researcher's one line to use instead of building, such as an alias |
+| `{{version}}` | The short commit of the version the runner started last |
+| `{{minutes}}` | Minutes from an intake item arriving to its change running |
+| `{{how_to_try}}` | From the latest run: open its link, or type its command in a terminal in its folder |
+| `{{milestone}}` | A milestone's title |
+| `{{next_milestone}}` | The title of the milestone after the one just reached |
 
 ## Full text: gate approval card
 
 ````text
+{{card_title}}
 For {{role}} · {{software_name}}
 
+{{reality}}
 premise wants to: {{action}}
 This is on the floor: {{floor_kind}}.
 Why: {{reason}}
-Waiting on this: {{waiting}}. Everything else goes on.
+Why now: {{why_now}} Waiting on this: {{waiting}}. Everything else goes on.
 
-[Approve this once] [Approve {{kind_label}} for {{software_name}}] [Decline]
-````
+[Approve once] [Approve {{kind_label}} for {{software_name}} from now on] [Decline…]
+
+
+- Each kind of action has its own title and standing-approval wording ([0220](../decisions/0220-approvals-and-verdicts-tell-the-truth.md)), for example "Add premise's record to your repository?" with "adding and updating premise's record in your repository", or "Create a private repository on GitHub for {{software_name}}?" with "creating private repositories on GitHub".
+- `{{reality}}` is "This is real." or "Nothing happens yet." followed by the server's line for that kind of action, in every mode: for the record, "Even when the agents are scripted, approving writes a branch named premise with a premise/ folder to your repository on this machine. Nothing leaves this machine."; for GitHub, "Nothing is created on GitHub whichever you choose: premise cannot create GitHub repositories yet ...".
+- After the answer the session says one of: "Approved and done: ...", "Approved, but this step is not available yet: ...", "Approved, but it failed: ...", or "Declined: ...".````
 
 - The second button is not shown for deleting data or spending money: those are always asked one at a time.
 - An approval is recorded with the time and can be withdrawn from the "needed" list.
@@ -77,8 +91,10 @@ Shown in the session for items said there. For a GitHub issue, the same line bec
 ````
 
 ````text
-{{item_id}}: done. It is in the running software.
+{{item_id}}: its fix is running in version {{version}}, {{minutes}} minutes after it came in. Try it: {{how_to_try}}. If the problem is still there, say so here.
 ````
+
+For a wish or other change, "its change is running …" and "If it is not what you wanted, say so here." It never says "fixed": the check may not have judged it. The Intake tab shows the same, starting "Done: its change runs in version …".
 
 ````text
 {{item_id}}: closed. {{close_reason}}
@@ -115,8 +131,10 @@ The scope check after What ([record 0191](../decisions/0191-scope-check-effort-a
 
 ````text
 How much to build?
-premise sorted what it must do into what you asked for, what premise recommends adding, and what it could also add. Pick how much to build; it starts on the choice your effort level ({{effort}}) gives. You can move any item. The first version is what you asked for; what premise adds comes in a later milestone, after you have tried the first. What you leave out stays in the record and is not built.
+premise sorted what it must do into what you asked for, what premise recommends adding, and what it could also add. Pick how much to build; the choice already picked follows premise's usual effort ({{effort}}). You can move any item. The first version is what you asked for; what premise adds comes in a later milestone, after you have tried the first. What you leave out stays in the record and is not built; to have it built later, ask for it in the conversation.
 ````
+
+When the software's effort is not premise's usual one, the second sentence says "the choice already picked follows the effort you set for this software ({{effort}})": a person who never chose an effort is not told they did. Each choice shows its rough time first and agent sessions second; a choice that costs the same as the one above it says why ("premise has nothing more to add here", or "what it adds fits in the same builds").
 
 A change from intake to what the software must do, and a "do not build" recommendation ([record 0192](../decisions/0192-effort-in-proportion-to-what-was-asked.md)):
 
@@ -128,6 +146,27 @@ These lines are what changes in what the software must do. Strike or edit any th
 ````text
 premise recommends not building it: something already does this
 Instead: {{alternative}}. Something that already exists does the job, which is the cheapest outcome: nothing to build, check or keep running. Pick "Do not build it" to stop here with a short report, or another choice to build it anyway. What was found is listed below.
+````
+
+## Full text: a milestone that stops
+
+When the operator asked premise to stop after a milestone ([record 0191](../decisions/0191-scope-check-effort-and-milestones.md)). The card also shows how to try the software: "Open it" only when there is a link to open; for command-line software, the command and its folder; otherwise "Show me how to try it", which opens the report. "Go on" is the main button; "Go back to Why" is the quiet one.
+
+````text
+Milestone reached: {{milestone}}. Go on?
+You asked premise to stop after this milestone. Try the software and read the report. "Go on" builds the next milestone, "{{next_milestone}}". If it is solving the wrong problem, "Go back to Why" redoes the work from Why with what you say then.
+````
+
+For the last milestone the middle sentence is: This is the last milestone, so "Go on" builds nothing more: premise finishes, and then takes in any problem or wish you send in the conversation.
+
+After "Go on", in the conversation:
+
+````text
+You said go on. Next: premise builds the next milestone, "{{next_milestone}}".
+````
+
+````text
+You said go on. That was the last milestone, so nothing more is built: premise finishes the line, then takes in any problem or wish you send here.
 ````
 
 ## Full text: notices

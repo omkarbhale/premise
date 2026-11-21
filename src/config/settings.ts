@@ -55,10 +55,15 @@ export const FLOOR_KINDS = [
   "make-public",
   "publish",
   "post",
+  "write-repository",
 ] as const;
 export type FloorKind = (typeof FLOOR_KINDS)[number];
 /** Always asked one action at a time; never approved as a kind (decision 0101). */
 export const NEVER_AS_KIND: readonly FloorKind[] = ["delete-data", "spend"];
+
+/** What premise does when a check could verify nothing that was asked for (decision 0197). */
+export const UNVERIFIED_CHOICES = ["ask", "land"] as const;
+export type UnverifiedChoice = (typeof UNVERIFIED_CHOICES)[number];
 
 /** Where a software's repository goes besides this machine, once the gate allows it. */
 export const REMOTES = ["github", "local", "none"] as const;
@@ -463,6 +468,14 @@ export const SETTINGS: readonly Setting[] = [
     record: "0186",
   },
   {
+    key: "line.when_nothing_verified",
+    default: "ask",
+    check: summarised(oneOf(UNVERIFIED_CHOICES), '"ask" or "land"'),
+    meaning:
+      '"ask": when the check could verify none of the things you asked for (nothing failed, but nothing could be checked either), premise does not land the change silently: it asks you once whether to land it unverified, tell the checker what it needs, or stop. "land": it lands such a change unverified without asking and says so, for unattended use. A change where some things were verified and others could not be checked always lands, marked not fully verified.',
+    record: "0220",
+  },
+  {
     key: "line.remote",
     default: "github",
     check: summarised(oneOf(REMOTES), `"github", "local" or "none"`),
@@ -629,10 +642,18 @@ export const SETTINGS: readonly Setting[] = [
   },
   {
     key: "gate.kind_approvals_allowed",
-    default: ["credentials", "expose", "access", "make-public", "publish", "post"],
+    default: [
+      "credentials",
+      "expose",
+      "access",
+      "make-public",
+      "publish",
+      "post",
+      "write-repository",
+    ],
     check: kindApprovals,
     meaning:
-      "Floor kinds you may approve for one software as a whole kind, so later requests of that kind go through without asking. Deleting data and spending money are always asked one at a time.",
+      "Floor kinds you may approve for one software as a whole kind, so later requests of that kind go through without asking. A standing approval covers only the one kind of action it was given for, such as adding premise's record to your repository, never other actions of the same floor kind. Deleting data and spending money are always asked one at a time.",
     record: "0101",
   },
   {
@@ -913,6 +934,7 @@ export interface PremiseConfig {
     why_items_max: number;
     check_rounds_before_stop: number;
     remote: Remote;
+    when_nothing_verified: UnverifiedChoice;
     splitting: boolean;
     split_max_parts: number;
     agents_per_stage: number;

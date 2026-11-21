@@ -266,6 +266,11 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
         },
         usage: { mode: deps.ledger.mode, mocked: deps.ledger.mocked, weekly },
         softwares,
+        defaults: {
+          effort: deps.config.softwares.default_effort,
+          priority: deps.config.softwares.default_priority,
+          milestoneWaits: deps.config.softwares.default_milestone_waits,
+        },
         roles: services.roles(),
         archivedSoftwares: archived.length,
         softwareUsage: await Promise.all(

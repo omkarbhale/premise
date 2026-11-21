@@ -16,7 +16,11 @@ import { getSoftware } from "../storage/softwares.js";
  * outcome is stored and is an event.
  */
 
-export type GateStatus = "asked" | "approved" | "refused" | "done" | "failed";
+/**
+ * "unavailable": approved, but premise cannot carry this kind of action out yet, so nothing was done.
+ * It is stored as "done" with the unavailable flag, and read back as its own status.
+ */
+export type GateStatus = "asked" | "approved" | "refused" | "done" | "failed" | "unavailable";
 
 /** What each floor kind is, in the words the gate card uses (docs/prompts/fixed-wording.md). */
 export const FLOOR_WORDS: Record<FloorKind, string> = {
@@ -28,6 +32,7 @@ export const FLOOR_WORDS: Record<FloorKind, string> = {
   "make-public": "acting publicly in your name: making something public",
   publish: "acting publicly in your name: creating or publishing something on an outside service",
   post: "acting publicly in your name: posting a comment or message",
+  "write-repository": "changing a repository of yours: premise writes to it only with your say",
 };
 
 /** The kind of action, as a button label: "Approve {label} for {software}". */
@@ -40,7 +45,25 @@ export const KIND_LABELS: Record<FloorKind, string> = {
   "make-public": "making things public",
   publish: "creating and publishing on outside services",
   post: "posting comments and messages",
+  "write-repository": "writing to your repository",
 };
+
+/**
+ * How a card reads for one kind of action. Every kind of action has its own title, its own
+ * standing-approval wording, and a plain line on what really happens, so a card never says nothing
+ * real happens when something does (and the other way round).
+ */
+export interface GateCard {
+  title: string;
+  /** The standing approval, as "Approve {standingLabel} for {software}"; only this kind of action. */
+  standingLabel: string;
+  /** The rule behind asking, as a sentence. */
+  floor: string;
+  /** What really happens if approved: real, or nothing (and why). Shown on the card in every mode. */
+  reality: { real: boolean; text: string };
+  /** Why premise asks at this moment; a default is used when absent. */
+  whyNow?: string;
+}
 
 export interface GateRequestInput {
   softwareId: string;
@@ -61,6 +84,14 @@ export interface GateRequestInput {
   role?: string;
   /** The stage the ask belongs to on the page. */
   stage?: string | null;
+  /**
+   * The kind of action, such as "add-record" or "create-repository". A standing approval covers
+   * only this kind of action. Defaults to {@link perform}; none for an agent's request, which is
+   * covered by approvals of its floor kind given to other agent requests.
+   */
+  act?: string | null;
+  /** The card's own words for this kind of action; the floor kind's words when absent. */
+  card?: Partial<GateCard>;
 }
 
 export interface GateRequest {
@@ -73,6 +104,8 @@ export interface GateRequest {
   requestedBy: string;
   jobId: number | null;
   perform: string | null;
+  act: string | null;
+  card: GateCard;
   role: string;
   askId: number | null;
   status: GateStatus;
@@ -88,6 +121,9 @@ export interface Approval {
   scope: "once" | "kind";
   kind: FloorKind;
   requestId: number | null;
+  act: string | null;
+  /** The kind of action in plain words, from the card it was given on. */
+  label: string;
   role: string;
   given: string;
   withdrawn: string | null;
@@ -106,7 +142,8 @@ export class GateError extends Error {
 }
 
 /** What performing an approved action gave. */
-export type PerformResult = { ok: true; outcome: string } | { ok: false; outcome: string };
+export type PerformResult =
+  { ok: true; outcome: string } | { ok: false; outcome: string; unavailable?: boolean };
 
 /** A server act the gate can carry out once approved. */
 export type Performer = (request: GateRequest) => Promise<PerformResult>;
@@ -124,6 +161,9 @@ interface RequestRow {
   requested_by: string;
   job_id: number | null;
   perform: string | null;
+  act: string | null;
+  card: string | null;
+  unavailable: number;
   role_asked: string;
   ask_id: number | null;
   status: GateStatus;
@@ -139,9 +179,11 @@ interface ApprovalRow {
   scope: "once" | "kind";
   floor_kind: FloorKind;
   request_id: number | null;
+  act: string | null;
   role: string;
   given: string;
   withdrawn: string | null;
+  label?: string | null;
 }
 
 function fromRequestRow(row: RequestRow): GateRequest {
@@ -155,9 +197,11 @@ function fromRequestRow(row: RequestRow): GateRequest {
     requestedBy: row.requested_by,
     jobId: row.job_id,
     perform: row.perform,
+    act: row.act,
+    card: row.card ? (JSON.parse(row.card) as GateCard) : defaultCard(row.floor_kind, row.perform),
     role: row.role_asked,
     askId: row.ask_id,
-    status: row.status,
+    status: row.status === "done" && row.unavailable ? "unavailable" : row.status,
     approvalUsed: row.approval_used,
     outcome: row.outcome,
     created: row.created,
@@ -172,6 +216,8 @@ function fromApprovalRow(row: ApprovalRow): Approval {
     scope: row.scope,
     kind: row.floor_kind,
     requestId: row.request_id,
+    act: row.act,
+    label: row.label || KIND_LABELS[row.floor_kind],
     role: row.role,
     given: row.given,
     withdrawn: row.withdrawn,
@@ -206,6 +252,19 @@ export class Gate {
     this.listeners.push(listener);
   }
 
+  /**
+   * The card for a request: its own words where it gives them, the floor kind's otherwise. A
+   * request whose act premise cannot carry out says so, whatever words it gave: a card never says
+   * something real happens when nothing will.
+   */
+  private cardFor(input: GateRequestInput): GateCard {
+    const performable = !!input.perform && this.performers.has(input.perform);
+    const base = defaultCard(input.kind, input.perform ?? null, performable);
+    const card = { ...base, ...input.card };
+    if (!performable) card.reality = base.reality;
+    return card;
+  }
+
   /** Whether a kind may be approved as a whole kind for one software. */
   kindApprovable(kind: FloorKind): boolean {
     return (
@@ -234,13 +293,15 @@ export class Gate {
     if (!software) throw new GateError("NOT_FOUND", "That software is not in premise.");
 
     const role = input.role?.trim() || "operator";
+    const act = input.act === undefined ? (input.perform ?? null) : input.act;
+    const card = this.cardFor(input);
     const created = transaction(this.db, () => {
-      const standing = this.coveringApproval(input.softwareId, input.kind);
+      const standing = this.coveringApproval(input.softwareId, input.kind, act);
       const row = this.db
         .prepare(
           `INSERT INTO gate_requests (software_id, floor_kind, action, why, items, requested_by, job_id,
-             perform, role_asked, status, approval_used, created, decided)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             perform, act, card, role_asked, status, approval_used, created, decided)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           input.softwareId,
@@ -251,6 +312,8 @@ export class Gate {
           input.requestedBy,
           input.jobId ?? null,
           input.perform ?? null,
+          act,
+          JSON.stringify(card),
           role,
           standing ? "approved" : "asked",
           standing?.id ?? null,
@@ -272,16 +335,19 @@ export class Gate {
           role,
           kind: "approval",
           stage: input.stage ?? software.currentStage,
-          title: gateTitle(input.kind),
-          instruction: `${software.name} waits on this: ${input.waiting ?? "the work that asked for it"}. Everything else goes on. Approve it once${kindApprovable ? `, approve ${KIND_LABELS[input.kind]} for ${software.name} from now on,` : ""} or decline.`,
+          title: card.title,
+          instruction: `${software.name} waits on this: ${input.waiting ?? "the work that asked for it"}. Everything else goes on. Approve it once${kindApprovable ? `, approve ${card.standingLabel} for ${software.name} from now on,` : ""} or decline.`,
           waitingJob: input.jobId ?? null,
           extra: {
             approval: {
               action: input.action.trim(),
               why: input.why.trim(),
               ...(input.waiting && { waiting: input.waiting }),
-              floor: `This is on the floor, the things premise never does without asking: ${FLOOR_WORDS[input.kind]}.`,
-              ...(kindApprovable && { kindLabel: KIND_LABELS[input.kind] }),
+              floor: card.floor,
+              real: card.reality.real,
+              reality: card.reality.text,
+              ...(card.whyNow && { whyNow: card.whyNow }),
+              ...(kindApprovable && { kindLabel: card.standingLabel }),
             },
             meta: { gateRequest: id },
           },
@@ -291,7 +357,7 @@ export class Gate {
         addChatMessage(this.db, {
           softwareId: input.softwareId,
           author: "premise",
-          text: `Went ahead without asking, because you approved ${KIND_LABELS[input.kind]} for ${software.name}: ${input.action.trim()}`,
+          text: `Went ahead without asking, because you approved ${standing.label} for ${software.name}: ${input.action.trim()}`,
         });
       }
       return this.get(id)!;
@@ -335,7 +401,7 @@ export class Gate {
     if (decision === "approve-kind" && !this.kindApprovable(request.kind)) {
       throw new GateError(
         "NOT_APPROVABLE_AS_KIND",
-        `${KIND_LABELS[request.kind][0]!.toUpperCase()}${KIND_LABELS[request.kind].slice(1)} is always asked one action at a time. Approve this one once, or decline.`,
+        `${request.card.standingLabel[0]!.toUpperCase()}${request.card.standingLabel.slice(1)} is always asked one action at a time. Approve this one once, or decline.`,
       );
     }
     return transaction(this.db, () => {
@@ -343,14 +409,15 @@ export class Gate {
       if (decision !== "refuse") {
         const row = this.db
           .prepare(
-            `INSERT INTO approvals (software_id, scope, floor_kind, request_id, role, given)
-             VALUES (?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO approvals (software_id, scope, floor_kind, request_id, act, role, given)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
           )
           .run(
             request.softwareId,
             decision === "approve-kind" ? "kind" : "once",
             request.kind,
             request.id,
+            request.act,
             request.role,
             now(),
           );
@@ -437,9 +504,10 @@ export class Gate {
     const performer = request.perform ? this.performers.get(request.perform) : undefined;
     if (!performer) {
       this.finish(request.id, {
-        ok: true,
+        ok: false,
+        unavailable: true,
         outcome:
-          "Approved and recorded. premise has no way to carry out this kind of action itself yet, so nothing more was done.",
+          "premise has no way to carry out this kind of action itself yet, so nothing was done. Your approval is recorded.",
       });
       return;
     }
@@ -502,14 +570,15 @@ export class Gate {
   private finish(id: number, result: PerformResult): void {
     const request = this.get(id);
     if (!request) return;
+    const unavailable = !result.ok && result.unavailable === true;
     transaction(this.db, () => {
       this.db
-        .prepare("UPDATE gate_requests SET status = ?, outcome = ? WHERE id = ?")
-        .run(result.ok ? "done" : "failed", result.outcome, id);
+        .prepare("UPDATE gate_requests SET status = ?, unavailable = ?, outcome = ? WHERE id = ?")
+        .run(result.ok || unavailable ? "done" : "failed", unavailable ? 1 : 0, result.outcome, id);
       recordEvent(this.db, {
         softwareId: request.softwareId,
         module: "gate",
-        kind: result.ok ? "gate-done" : "gate-failed",
+        kind: result.ok ? "gate-done" : unavailable ? "gate-unavailable" : "gate-failed",
         reference: String(id),
         detail: { outcome: result.outcome },
       });
@@ -528,14 +597,19 @@ export class Gate {
 
   // ---- Approvals -----------------------------------------------------------------------------
 
-  private coveringApproval(softwareId: string, kind: FloorKind): Approval | undefined {
+  /** A standing approval covers only the same kind of action: same floor kind and same act. */
+  private coveringApproval(
+    softwareId: string,
+    kind: FloorKind,
+    act: string | null,
+  ): Approval | undefined {
     if (!this.kindApprovable(kind)) return undefined;
     const row = this.db
       .prepare(
-        `SELECT * FROM approvals WHERE software_id = ? AND floor_kind = ? AND scope = 'kind'
-           AND withdrawn IS NULL ORDER BY id DESC LIMIT 1`,
+        `${APPROVAL_SELECT} WHERE a.software_id = ? AND a.floor_kind = ? AND a.act IS ? AND a.scope = 'kind'
+           AND a.withdrawn IS NULL ORDER BY a.id DESC LIMIT 1`,
       )
-      .get(softwareId, kind) as ApprovalRow | undefined;
+      .get(softwareId, kind, act) as ApprovalRow | undefined;
     return row ? fromApprovalRow(row) : undefined;
   }
 
@@ -544,14 +618,14 @@ export class Gate {
     return (
       this.db
         .prepare(
-          "SELECT * FROM approvals WHERE software_id = ? AND scope = 'kind' AND withdrawn IS NULL ORDER BY id",
+          `${APPROVAL_SELECT} WHERE a.software_id = ? AND a.scope = 'kind' AND a.withdrawn IS NULL ORDER BY a.id`,
         )
         .all(softwareId) as unknown as ApprovalRow[]
     ).map(fromApprovalRow);
   }
 
   getApproval(id: number): Approval | undefined {
-    const row = this.db.prepare("SELECT * FROM approvals WHERE id = ?").get(id) as
+    const row = this.db.prepare(`${APPROVAL_SELECT} WHERE a.id = ?`).get(id) as
       ApprovalRow | undefined;
     return row ? fromApprovalRow(row) : undefined;
   }
@@ -611,5 +685,33 @@ function gateTitle(kind: FloorKind): string {
     case "publish":
     case "post":
       return "Allow premise to act in your name outside this machine?";
+    case "write-repository":
+      return "Allow premise to write to your repository?";
   }
 }
+
+/** The rule behind asking, as the card says it. */
+export function floorSentence(kind: FloorKind): string {
+  return `This is on the floor, the things premise never does without asking: ${FLOOR_WORDS[kind]}.`;
+}
+
+/** What is said when nothing will be carried out, whichever the answer. */
+const NOTHING_CARRIED_OUT =
+  "Nothing is done whichever you choose: premise cannot carry out this kind of action itself yet. Your answer is recorded, and the work that asked is told.";
+
+/** The floor kind's own card, for a request that gives none of its own words. */
+function defaultCard(kind: FloorKind, perform: string | null, performable = false): GateCard {
+  return {
+    title: gateTitle(kind),
+    standingLabel: KIND_LABELS[kind],
+    floor: floorSentence(kind),
+    reality:
+      perform && performable
+        ? { real: true, text: "If you approve, premise carries it out." }
+        : { real: false, text: NOTHING_CARRIED_OUT },
+  };
+}
+
+/** Approvals with the plain words of the card each was given on. */
+const APPROVAL_SELECT = `SELECT a.*, json_extract(g.card, '$.standingLabel') AS label
+  FROM approvals a LEFT JOIN gate_requests g ON g.id = a.request_id`;

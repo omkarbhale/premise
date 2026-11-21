@@ -1,6 +1,6 @@
 # 0182. How the gate asks, approves and acts; creating any GitHub repository is gated
 
-- Status: Accepted; points 5 to 7 chosen for the owner, open to the owner's correction
+- Status: Accepted; points 5 to 7 chosen for the owner, open to the owner's correction. Partly superseded by [0220](0220-approvals-and-verdicts-tell-the-truth.md): what an approved GitHub step says, and standing approvals scoped to one kind of action
 - Scope: Making premise
 - Date: 2026-11-21
 - Decided by: The builders, while building the gate. Points 5 to 7 are chosen for the owner, on the owner's instruction "choose for me" ([0136](0136-open-questions-chosen-for-the-owner.md)).

@@ -42,8 +42,19 @@ describe("intake in a thin form", () => {
       routedBy: "triager",
       status: "running",
     });
-    expect(bug.where).toMatch(/^Running: its change runs, [\d.]+ minutes after it came in\.$/);
+    expect(bug.where).toMatch(
+      /^Done: its change runs(?: in version [0-9a-f]{7})?, [\d.]+ minutes after it came in\.(?: Try it: .+\.)? If the problem is still there, say so in the conversation\.$/,
+    );
     expect(bug.minutesToRunning).not.toBeNull();
+    // Once a version has run, it says which, and how to try it.
+    app.db
+      .prepare(
+        "INSERT INTO runs (software_id, commit_sha, kind, status, command, started) VALUES (?, ?, 'command', 'finished', 'node list.mjs', ?)",
+      )
+      .run(id, "f13cf6d0a1b2c3d4", new Date().toISOString());
+    expect((await item(app, id, "I-1")).where).toMatch(
+      /^Done: its change runs in version f13cf6d, .+ Try it: type node list\.mjs in a terminal, in .+\. If the problem is still there, say so in the conversation\.$/,
+    );
 
     // Its work went through only the steps a bug needs, and the line rests at Intake again.
     const detail = await softwareDetail(app, id);
@@ -72,7 +83,13 @@ describe("intake in a thin form", () => {
     expect(JSON.parse(event.detail).minutesToRunning).toBeTypeOf("number");
     const said = await chat(app, id);
     expect(said.some((t) => t.startsWith("I-1: understood as a bug."))).toBe(true);
-    expect(said.some((t) => t.startsWith("I-1: its change is running"))).toBe(true);
+    expect(
+      said.some((t) =>
+        /^I-1: its fix is running(?: in version [0-9a-f]{7})?, .+ If the problem is still there, say so here\.$/.test(
+          t,
+        ),
+      ),
+    ).toBe(true);
     expect(said.at(-1)).toContain("Back at Intake");
   });
 

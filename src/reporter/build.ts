@@ -51,9 +51,18 @@ interface Section {
 }
 
 export function buildReport(facts: Facts, options: BuildOptions): ReportView {
-  const verdictOf = new Map(facts.verdicts.map((v) => [v.item, v]));
-  const itemById = new Map(facts.items.map((i) => [i.id, i]));
   const current = options.commit ?? facts.commits[0]?.sha;
+  const latest0 = facts.commits[0]?.sha;
+  // A verdict on a commit with the same code as the latest holds for the latest version too.
+  const verdictOf = new Map(
+    facts.verdicts.map((v) => [
+      v.item,
+      v.sameCodeAsLatest && current && latest0 && sameVersion(current, latest0)
+        ? { ...v, commit: current }
+        : v,
+    ]),
+  );
+  const itemById = new Map(facts.items.map((i) => [i.id, i]));
   const lastDay = facts.lastReport?.slice(0, 10) ?? null;
 
   // ---- Decided -----------------------------------------------------------------------------
@@ -360,22 +369,42 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
       section.lines = section.lines.slice(0, keep);
     }
   }
-  const met = mustCheck.filter((i) => {
+  // ---- The first line: a plain verdict a newcomer can act on (decision 0197) -----------------
+  const at = (i: (typeof mustCheck)[number]) => {
     const v = verdictOf.get(i.id);
-    return v?.verdict === "met" && checkedAt(v.commit, current);
-  }).length;
+    return v && checkedAt(v.commit, current) ? v : undefined;
+  };
+  const met = mustCheck.filter((i) => at(i)?.verdict === "met").length;
+  const notMet = mustCheck.filter((i) => at(i)?.verdict === "not-met").length;
+  const unchecked = mustCheck.length - met - notMet;
+  const things = (n: number) => `${n} ${n === 1 ? "thing" : "things"}`;
+  const tryIt = runningBlock ? " How to try it is just below." : "";
   const headline = !latest
     ? mustCheck.length > 0
-      ? `Nothing has been built or checked yet. ${mustCheck.length} ${mustCheck.length === 1 ? "thing" : "things"} you asked for ${mustCheck.length === 1 ? "is" : "are"} still to do.`
+      ? `Nothing has been built or checked yet. ${things(mustCheck.length)} you asked for ${mustCheck.length === 1 ? "is" : "are"} still to do.`
       : "Nothing has been built or checked yet."
     : mustCheck.length === 0
-      ? "Built, but nothing in the record says what it must do, so nothing could be checked against it."
-      : met === mustCheck.length
-        ? `Built and checked: all ${mustCheck.length} ${mustCheck.length === 1 ? "thing" : "things"} you asked for ${mustCheck.length === 1 ? "is" : "are"} met.`
-        : `Built and checked: ${met} of ${mustCheck.length} things you asked for ${met === 1 ? "is" : "are"} met; ${mustCheck.length - met} not met or not checked.`;
+      ? `Not verified: nothing in the record says what it must do, so premise could not check it.${runningBlock ? " Try it yourself: how is just below." : ""}`
+      : notMet > 0
+        ? `Does not work yet: ${notMet} of ${things(mustCheck.length)} you asked for failed ${notMet === 1 ? "its" : "their"} check. "Failed or not checked" says what is wrong.${tryIt}`
+        : met === mustCheck.length
+          ? `Works: all ${things(mustCheck.length)} you asked for ${mustCheck.length === 1 ? "was" : "were"} checked and ${mustCheck.length === 1 ? "is" : "are"} met.${tryIt}`
+          : met > 0
+            ? `Partly verified: ${met} of ${things(mustCheck.length)} you asked for ${met === 1 ? "was" : "were"} checked and ${met === 1 ? "works" : "work"}; ${unchecked} could not be checked. "Failed or not checked" says which, and what is needed to check ${unchecked === 1 ? "it" : "them"}.${tryIt}`
+            : `Not verified: premise could not check this, so it does not know whether it works.${runningBlock ? " Try it yourself: how is just below." : ""}`;
+  const counts =
+    latest && mustCheck.length > 0
+      ? `Of the ${things(mustCheck.length)} you asked for: ${met} met, ${notMet} not met, ${unchecked} not checked.`
+      : null;
+  const scripted =
+    latest && facts.verdicts.some((v) => v.scripted)
+      ? "The checks were made by scripted agents, which cannot judge software: at most they run fixed steps and compare what is printed. Take what they found as a demonstration, not a verdict."
+      : null;
   return {
     softwareId: facts.softwareId,
     headline,
+    ...(counts && { counts }),
+    ...(scripted && { scripted }),
     source: options.source ?? "reporter",
     written: options.written ?? null,
     detail: options.detail,
@@ -410,7 +439,11 @@ export function draftReleaseNotes(facts: Facts, commit: string): string | null {
       i.kind === "W" &&
       served.has(i.id) &&
       facts.verdicts.some(
-        (v) => v.item === i.id && v.verdict === "met" && checkedAt(v.commit, commit),
+        (v) =>
+          v.item === i.id &&
+          v.verdict === "met" &&
+          (checkedAt(v.commit, commit) ||
+            (v.sameCodeAsLatest === true && sameVersion(commit, facts.commits[0]?.sha ?? ""))),
       ),
   );
   if (met.length === 0) return null;

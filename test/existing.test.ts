@@ -238,6 +238,38 @@ describe("taking on existing software, in a thin form", () => {
     expect(git(folder, ["branch", "--list", "premise"]).trim()).toBe("");
   });
 
+  it("asks how to start it, under Waiting on you, when the code does not say, and takes the answer in", async () => {
+    const folder = commandLineProject(join(tempFolder(), "wordcount"));
+    const noStart: ScriptRule = {
+      ...recoverCommandLine,
+      behave: (request, call) =>
+        recoverCommandLine.behave!(request, (tool, args) =>
+          call(
+            tool,
+            tool === "recovery_submit"
+              ? { ...args, run: { build: "Nothing to build.", check: "npm test" } }
+              : args,
+          ),
+        ),
+    };
+    const app = await testApp({}, { script: script(noStart) });
+    const { id, sayBack } = await toSayBack(app, folder);
+    // Nothing asks for the command before the recovered list is gone through.
+    expect((await openAsks(app, id)).some((a) => a.title.startsWith("How do you start"))).toBe(
+      false,
+    );
+    await goThrough(app, sayBack);
+
+    const start = (await openAsks(app, id)).find((a) => a.title === "How do you start Wordcount?");
+    expect(start, JSON.stringify(await chat(app, id))).toBeDefined();
+    expect(start!.instruction).toContain("did not find in the code how to start it");
+    expect((await detail(app, id)).existing!.run.canStart).toBe(false);
+
+    await answer(app, start!, { kind: "text", text: "node wc.js notes.txt" });
+    const said = await chat(app, id);
+    expect(said.some((t) => /^Taken as I-1\b/.test(t))).toBe(true);
+  });
+
   it("adds the record to the operator's repository on a branch of its own once approved", async () => {
     const folder = commandLineProject(join(tempFolder(), "wordcount"));
     const head = git(folder, ["rev-parse", "HEAD"]).trim();
@@ -246,10 +278,23 @@ describe("taking on existing software, in a thin form", () => {
     await goThrough(app, sayBack);
 
     const ask = approval(await openAsks(app, id))!;
-    expect(ask.title).toBeTruthy();
-    expect(ask.approval!.action).toContain("on a branch named premise");
-    expect(ask.approval!.action).toContain("working folder are not touched");
+    // Its own card: a local write to the person's repository, said to be real even with scripted
+    // agents, never "outside this machine" or "nothing will be created".
+    expect(ask.title).toBe("Add premise's record to your repository?");
+    expect(ask.approval!.action).toContain("Create a branch named premise");
+    expect(ask.approval!.action).toContain("a new premise/ folder");
+    expect(ask.approval!.action).toContain("other branches and your working folder are left alone");
+    expect(ask.approval!.real).toBe(true);
+    expect(ask.approval!.reality).toMatch(/^Even when the agents are scripted, approving writes/);
+    expect(ask.approval!.reality).toContain("Nothing leaves this machine");
+    expect(ask.approval!.floor).toContain("changing a repository of yours");
+    expect(ask.approval!.kindLabel).toBe("adding and updating premise's record in your repository");
+    const card = JSON.stringify(ask);
+    expect(card).not.toMatch(
+      /not real|outside this machine|outside services|Nothing will be created/,
+    );
     await answer(app, ask, { kind: "approval", decision: "approve-once" });
+    expect((await chat(app, id)).some((t) => t.startsWith("Approved and done: "))).toBe(true);
 
     expect(git(folder, ["branch", "--list", "premise"]).trim()).toContain("premise");
     expect(git(folder, ["show", "premise:premise/what.md"])).toContain("Count the words");
@@ -352,7 +397,9 @@ describe("taking on existing software, in a thin form", () => {
     expect(software.stage).toBe("intake");
     // Pushing the change to the operator's repository asks again (it was approved once).
     const push = approval(await openAsks(app, id))!;
+    expect(push.title).toBe("Update premise's branch in your repository?");
     expect(push.approval!.action).toContain("latest change of Wordcount (I-1)");
+    expect(push.approval!.real).toBe(true);
   });
 
   it("goes on recovering after premise restarts in the middle of it", async () => {
