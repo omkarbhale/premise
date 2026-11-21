@@ -300,8 +300,30 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
     api.get<{ Params: { id: string } }>(
       "/api/softwares/:id/report",
       { schema: { params: idParam } },
-      async (request) => services.reports.view(request.params.id),
+      async (request) =>
+        services.reports.view(request.params.id, {
+          detail: (request.query as { detail?: string }).detail === "1",
+        }),
     );
+
+    if (services.runs) {
+      const runs = services.runs;
+      api.get<{ Params: { id: string } }>(
+        "/api/softwares/:id/run",
+        { schema: { params: idParam } },
+        async (request) => runs.view(request.params.id),
+      );
+      api.post<{ Params: { id: string } }>(
+        "/api/softwares/:id/run/start",
+        { schema: { params: idParam } },
+        async (request) => runs.start(request.params.id),
+      );
+      api.post<{ Params: { id: string } }>(
+        "/api/softwares/:id/run/stop",
+        { schema: { params: idParam } },
+        async (request) => runs.stop(request.params.id),
+      );
+    }
 
     api.post<{ Params: { id: string }; Body: { stage: StageId } }>(
       "/api/softwares/:id/send-back",

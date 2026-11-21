@@ -123,7 +123,8 @@ export async function start(
     db.close();
     throw error;
   }
-  const { queue, services } = createSession({ db, config, ledger, runner });
+  const { queue, services, runner: runs } = createSession({ db, config, ledger, runner });
+  runs.recoverStale();
   made.queue = queue;
   const recovered = queue.recover();
   if (recovered.length > 0) {
@@ -185,6 +186,7 @@ export async function start(
     link,
     close: async () => {
       await app.close();
+      await runs.close();
       await queue.close();
       db.close();
     },

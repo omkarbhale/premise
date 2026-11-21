@@ -43,6 +43,17 @@ A wrong setting stops premise at start with a message naming the setting and why
 | `record.default_branch` | `"main"` | a branch name with letters, digits, dots, dashes, underscores or slashes | Branch name a new software's repository starts on. | [0159](../decisions/README.md) |
 | `record.commit_author_name` | `"premise"` | a name | Name on the commits premise makes in a software's repository. | [0159](../decisions/README.md) |
 | `record.commit_author_email` | `"premise@localhost"` | an address | Address on the commits premise makes in a software's repository. The repository may be public, so keep it free of personal addresses. | [0159](../decisions/README.md) |
+| `runner.restart_limit` | `3` | 0 to 50 | How many times a crashed software is started again within the window below before premise stops trying and reports it. 0 never restarts. | [0162](../decisions/README.md) |
+| `runner.restart_window_minutes` | `10` | 1 to 1440 | The window, in minutes, in which restarts count towards the limit. | [0162](../decisions/README.md) |
+| `runner.restart_delay_seconds` | `2` | 0 to 600 | How long to wait before starting a crashed software again. | [0162](../decisions/README.md) |
+| `runner.port_range` | `"4700-4799"` | two ports joined by a dash, such as "4700-4799" | Ports on this machine that running web software may use. Software is only ever reachable from this machine. | [0162](../decisions/README.md) |
+| `runner.start_timeout_seconds` | `30` | 1 to 600 | How long a web software has to start answering before the start is called failed. | [0162](../decisions/README.md) |
+| `runner.sample_timeout_seconds` | `30` | 1 to 600 | How long a command-line software's sample run may take. | [0162](../decisions/README.md) |
+| `runner.stop_grace_seconds` | `5` | 0 to 120 | When running software is stopped, how long it gets to end by itself before it is ended forcibly. | [0162](../decisions/README.md) |
+| `runner.output_lines` | `200` | 10 to 5000 | How many of the latest lines of a running software's output the page can show. | [0162](../decisions/README.md) |
+| `runner.confinement` | `"bubblewrap"` | "bubblewrap" or "none" | "bubblewrap": running software sees only its own copy of the code, not your files or premise's data. "none": no confinement, only for a machine where bubblewrap cannot work; premise says so on the page. | [0163](../decisions/README.md) |
+| `runner.read_only_paths` | `[]` | a list of folder paths | Extra folders running software may read but not change, such as where Node.js or Python is installed when that is under your home folder. | [0163](../decisions/README.md) |
+| `reports.max_lines` | `15` | 3 to 200 | How many lines a short report holds before the rest is behind the page's 'Show more detail' control. | [0164](../decisions/README.md) |
 | `doctor.command_timeout_seconds` | `10` | 1 to 120 | How long the setup check waits for each program to answer. |  |
 
 ## Per type of task

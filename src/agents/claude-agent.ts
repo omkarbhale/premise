@@ -183,6 +183,7 @@ class ClaudeSession implements AgentSession {
     const transcript = createWriteStream(
       join(transcriptFolder, `job-${request.jobId}-${request.attempt}.jsonl`),
     );
+    transcript.on("error", () => {}); // a transcript that cannot be written must not crash premise
 
     // The agent's own account of how it ended (task_finish) is recorded as an event by the tool
     // server and never decides the outcome (decision 0097): the outcome comes from the session.
@@ -247,7 +248,10 @@ class ClaudeSession implements AgentSession {
       return outcome;
     } finally {
       tools.revoke(token);
-      transcript.end();
+      await new Promise<void>((done) => {
+        transcript.once("error", () => done());
+        transcript.end(() => done());
+      });
       rmSync(join(sessionFolder, "mcp.json"), { force: true });
     }
   }

@@ -149,6 +149,44 @@ export const MIGRATIONS: readonly Migration[] = [
       CREATE INDEX record_changes_software ON record_changes(software_id);
     `,
   },
+  {
+    version: 4,
+    name: "runs-and-reports",
+    sql: `
+      CREATE TABLE runs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        software_id TEXT NOT NULL REFERENCES softwares(id),
+        commit_sha TEXT NOT NULL,
+        kind TEXT NOT NULL CHECK (kind IN ('web', 'command', 'program')),
+        status TEXT NOT NULL
+          CHECK (status IN ('starting', 'running', 'finished', 'built', 'crashed', 'failed', 'stopped')),
+        command TEXT,
+        port INTEGER,
+        link TEXT,
+        pid INTEGER,
+        restarts INTEGER NOT NULL DEFAULT 0,
+        exit_code INTEGER,
+        confined INTEGER NOT NULL DEFAULT 1,
+        failure TEXT,
+        sample_output TEXT,
+        log_file TEXT,
+        started TEXT NOT NULL,
+        ended TEXT
+      );
+      CREATE INDEX runs_software ON runs(software_id, id);
+
+      CREATE TABLE reports (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        software_id TEXT NOT NULL REFERENCES softwares(id),
+        trigger TEXT NOT NULL,
+        reference TEXT,
+        written TEXT NOT NULL,
+        view TEXT NOT NULL,
+        release_notes TEXT
+      );
+      CREATE INDEX reports_software ON reports(software_id, id);
+    `,
+  },
 ];
 
 export const CURRENT_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

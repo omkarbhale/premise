@@ -5,6 +5,7 @@ import type {
   ChatMessage,
   RecordView,
   ReportView,
+  RunView,
   SoftwareDetail,
   SoftwareSummary,
 } from "../shared/api-types.js";
@@ -67,7 +68,16 @@ export interface RecordService {
 }
 
 export interface ReportService {
-  view(softwareId: string): Promise<ReportView>;
+  /** The report, always current. With detail, every line; without, the short default. */
+  view(softwareId: string, options?: { detail?: boolean }): Promise<ReportView>;
+}
+
+/** The software's running copy: what the page shows, and the two things a person can do to it. */
+export interface RunService {
+  view(softwareId: string): Promise<RunView>;
+  /** Start the latest built commit (or start it again). */
+  start(softwareId: string): Promise<RunView>;
+  stop(softwareId: string): Promise<RunView>;
 }
 
 export interface ActivityService {
@@ -81,5 +91,7 @@ export interface SessionServices {
   asks: AskService;
   records: RecordService;
   reports: ReportService;
+  /** Absent until the runner is wired in. */
+  runs?: RunService;
   activity: ActivityService;
 }

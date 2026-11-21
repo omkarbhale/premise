@@ -227,7 +227,15 @@ describe("the whole line, with the stand-in", () => {
     const report = await call("GET", `/api/softwares/${sw.id}/report`);
     expect(report.body.written).not.toBeNull();
     expect(report.body.cost.mocked).toBe(true);
-    expect(report.body.running.where).toContain("Nothing was really built");
+    // The stand-in starts nothing, and the report says so rather than claiming a run.
+    expect(report.body.running).toBeNull();
+    const runningLines = report.body.sections.find((x: { title: string }) => x.title === "Running");
+    expect(runningLines.lines[0].text).toBe("Nothing has been started yet.");
+    const run = await call("GET", `/api/softwares/${sw.id}/run`);
+    expect(run.body).toMatchObject({ state: "none", canStart: false });
+    const started = await call("POST", `/api/softwares/${sw.id}/run/start`);
+    expect(started.status).toBe(422);
+    expect(started.body.error).toContain("Nothing has been built");
     const titles = report.body.sections.map((s: { title: string }) => s.title);
     expect(titles).toEqual(["Decided", "Running", "Needed", "Failed or not checked"]);
 

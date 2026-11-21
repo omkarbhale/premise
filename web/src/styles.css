@@ -824,3 +824,13 @@ td.changed {
 .facts {
   padding-left: 1.2rem;
 }
+
+pre.output {
+  background: var(--surface-2, rgba(127, 127, 127, 0.12));
+  padding: 0.75rem;
+  border-radius: 6px;
+  overflow-x: auto;
+  max-height: 16rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

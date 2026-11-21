@@ -134,10 +134,43 @@ export interface ReportView {
   softwareId: string;
   source: "stand-in" | "reporter";
   written: string | null;
+  /** True when every line is shown; false for the short default. */
+  detail: boolean;
+  /** Lines left out of the short default, shown with "Show more detail". */
+  hiddenLines: number;
   sections: { title: string; plain: string; lines: ReportLine[] }[];
   /** How to open the running software, once it runs. */
   running: { how: string; where: string } | null;
   cost: { mocked: boolean; text: string };
+  /** Facts the report could not read, said plainly; empty when all were read. */
+  limits: string[];
+}
+
+export type RunState =
+  "none" | "starting" | "running" | "finished" | "built" | "crashed" | "failed" | "stopped";
+
+/** What the page shows about a software's running copy (docs/specs/runner.md 3). */
+export interface RunView {
+  softwareId: string;
+  state: RunState;
+  /** One plain sentence on where things stand and what to do next. */
+  plain: string;
+  kind: "web" | "command" | "program" | null;
+  commit: string | null;
+  /** For web software: the link to open it. It only works on this machine. */
+  link: string | null;
+  /** For command-line software: the command to try; for a desktop app: how to start it. */
+  command: string | null;
+  /** The latest lines of output, oldest first. For command-line software this is the sample run. */
+  output: string[];
+  outputIsSample: boolean;
+  restarts: number;
+  /** False when premise ran it without confinement because the owner switched that off. */
+  confined: boolean;
+  started: string | null;
+  ended: string | null;
+  canStart: boolean;
+  canStop: boolean;
 }
 
 export interface JobView {
