@@ -46,7 +46,7 @@ Each is a builders' choice, open to correction:
 ## Consequences
 
 - The record keeper's specification, the storage specification and the roadmap are updated to say so.
-- The table `record_changes` is added (schema 2). The table `reviews` is not: the review's verdict is kept on the change until the reviewer's own module exists.
+- The table `record_changes` is added (schema 3). The table `reviews` is not: the review's verdict is kept on the change until the reviewer's own module exists.
 
 ## Related
 
