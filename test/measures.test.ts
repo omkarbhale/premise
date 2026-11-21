@@ -256,6 +256,23 @@ describe("the measures, from a scripted history", () => {
     }
   });
 
+  it("counts a met item once however many bugs came back against it", () => {
+    const { db, measures, software } = setup({ PREMISE_MEASURES__MIN_EVENTS: "2" });
+    const id = software("Reading list", 0);
+    verdict(db, id, 10, "W-1", "met");
+    verdict(db, id, 10, "W-2", "met");
+    intakeItem(db, id, 1, { kind: "bug", received: 15, triaged: 20, touches: ["W-1"] });
+    intakeItem(db, id, 2, { kind: "bug", received: 16, triaged: 20, touches: ["W-1"] });
+
+    const view = measures.view(id);
+    expect(figure(view, "checker-misses").value).toBe("1 of 2 (50%)");
+    expect(view.misses).toHaveLength(2);
+    expect(view.misses.map((x) => [x.intake, x.item])).toEqual([
+      ["I-1", "W-1"],
+      ["I-2", "W-1"],
+    ]);
+  });
+
   it("counts a page's presence in stretches: a beat carries one on, a long silence ends it", () => {
     const { db, measures, setClock } = setup();
     setClock(0);
