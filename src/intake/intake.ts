@@ -1519,7 +1519,7 @@ export class Intake implements IntakeHooks {
     const comment = item
       ? (this.db
           .prepare(
-            "SELECT id, text FROM intake_comments WHERE item_id = ? AND request_id = ? AND status = 'asked'",
+            "SELECT id, text FROM intake_comments WHERE item_id = ? AND status = 'asked' AND (request_id = ? OR request_id IS NULL) ORDER BY request_id IS NULL LIMIT 1",
           )
           .get(item.id, request.id) as { id: number; text: string } | undefined)
       : undefined;
