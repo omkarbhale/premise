@@ -47,7 +47,7 @@ describe("setup check", () => {
     });
     expect(report.checks.find((c) => c.name === "bubblewrap")!.status).toBe("missing");
     expect(report.canRunRealAgents).toBe(false);
-    expect(formatDoctorReport(report)).toContain("real agents will not run");
+    expect(formatDoctorReport(report)).toContain("premise will not start until what is MISSING");
   });
 
   it("cannot start with an old Node.js, without git, or with wrong settings", async () => {

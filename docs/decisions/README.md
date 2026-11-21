@@ -208,6 +208,10 @@ How the decisions fit together is in the [architecture overview](../architecture
 | 0146 | [Configuration is one JSON file in the data folder, checked against one schema](0146-configuration-in-one-json-file.md) | builders | Accepted |
 | 0147 | [SQLite through Node.js's built-in module](0147-sqlite-through-nodes-built-in-module.md) | builders | Accepted |
 | 0148 | [A scripted agent, driven by a script file, stands in for Claude in every test](0148-scripted-agent-driven-by-a-script-file.md) | builders | Accepted |
+| 0150 | [Agent tools are served over MCP's plain HTTP form by premise itself; session tokens live in memory](0150-agent-tools-over-plain-http-mcp-tokens-in-memory.md) | builders | Accepted |
+| 0151 | [premise chooses each session's id, and carries a cut-off session on in the same working copy](0151-session-ids-chosen-by-premise-and-cut-off-sessions-carried-on.md) | builders | Accepted |
+| 0152 | [Until their module is built, agent tools record the call and say nothing more comes of it](0152-tools-of-unbuilt-modules-record-and-say-so.md) | builders | Accepted |
+| 0153 | [A session's confinement names the other folders that exist when it starts](0153-confinement-names-the-folders-that-exist-at-start.md) | builders | Accepted |
 
 ### Cost and the spending limit
 

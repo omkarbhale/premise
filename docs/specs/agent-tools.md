@@ -1,6 +1,6 @@
 # Agent tools specification
 
-Status: specification, being built ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Related: [agent runner](agent-runner.md), [record keeper](record-keeper.md), [gate](gate.md), [line engine](line-engine.md), [prompts](../prompts/README.md), [skills](../skills/README.md).
+Status: built in `src/agents/tool-server.ts`, served at `POST /mcp` ([0150](../decisions/0150-agent-tools-over-plain-http-mcp-tokens-in-memory.md)). `progress` and `task_finish` work fully; the other tools check and record every call but their modules are not built yet, so they answer that nothing more comes of it ([0152](../decisions/0152-tools-of-unbuilt-modules-record-and-say-so.md)). Related: [agent runner](agent-runner.md), [record keeper](record-keeper.md), [gate](gate.md), [line engine](line-engine.md), [prompts](../prompts/README.md), [skills](../skills/README.md).
 
 ## 1. Purpose
 
@@ -26,7 +26,7 @@ Not responsible for:
 
 ### 3.1 How a session gets its tools
 
-- The agent runner creates a random token for each session, stores its hash in `agent_sessions` ([storage](storage.md)), and passes the MCP server address and token in the session's MCP configuration.
+- The agent runner creates a random token for each session, keeps its hash in memory for as long as the session runs ([0150](../decisions/0150-agent-tools-over-plain-http-mcp-tokens-in-memory.md)), and passes the MCP server address and token in the session's MCP configuration (`Authorization: Bearer <token>`).
 - Every call carries the token. The token names one session, therefore one agent role, one software and one job ([0073](../decisions/0073-mcp-tools-with-session-tokens.md)).
 - A builder's token cannot call the checker's tools: the tool list served to a session is its role's list, and a call to any other tool fails with `NOT_ALLOWED`.
 - The token is revoked when the session ends.

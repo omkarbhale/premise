@@ -22,9 +22,15 @@ A wrong setting stops premise at start with a message naming the setting and why
 | `queue.max_agent_sessions` | `2` | 1 to 16 | How many agent sessions run at once. | [0074](../decisions/README.md) |
 | `queue.same_failure_limit` | `3` | 1 to 20 | How many times the same failure may happen before a job ends stuck. | [0088](../decisions/README.md) |
 | `queue.usage_pause_fallback_minutes` | `60` | 1 to 1440 | How long agent work pauses after a usage-limit event that gives no reset time. |  |
-| `agents.mode` | `"scripted"` | "scripted" or "claude" | "scripted": a stand-in agent that follows a script file and calls no AI. "claude": real Claude Code sessions on your login (not built yet). | [0134](../decisions/README.md) |
+| `agents.mode` | `"scripted"` | "scripted" or "claude" | "scripted": a stand-in agent that follows a script file and calls no AI. "claude": real Claude Code sessions on your Claude Code login, each confined by Claude Code's sandbox (needs bubblewrap and socat on Linux). | [0134](../decisions/README.md) |
 | `agents.claude_config_folder` | `null` | a folder path, or null | Claude Code configuration folder to use. null means your existing Claude Code login. | [0140](../decisions/README.md) |
+| `agents.claude.command` | `"claude"` | a program name or path | The Claude Code program to run for real agents. "claude" means the one found on your PATH. | [0071](../decisions/README.md) |
+| `agents.claude.stop_grace_seconds` | `10` | 1 to 300 | When a real agent session is stopped, how long it gets to end by itself before it is ended forcibly. |  |
+| `agents.network.allowed_domains` | `["registry.npmjs.org","pypi.org","files.pythonhosted.org","crates.io","static.crates.io","index.crates.io","proxy.golang.org","sum.golang.org"]` | a list of host names | Hosts that build, prototype and check sessions may reach (package registries). Other sessions reach no host. | [0087](../decisions/README.md) |
+| `agents.confinement.extra_denied_paths` | `[]` | a list of folder or file paths | More folders or files real agents may never read or write, besides premise's data folder and the usual credential files (SSH keys, GitHub and Claude Code logins, cloud credentials). | [0087](../decisions/README.md) |
 | `agents.scripted.script_file` | `null` | a file path, or null | JSON script the scripted agent follows. null means every job finishes at once as done. | [0148](../decisions/README.md) |
+| `tools.progress_max_chars` | `200` | 20 to 2000 | Longest progress line an agent may send; longer lines are cut. |  |
+| `tools.ask_max_items` | `10` | 1 to 50 | Most items an agent may put in one question to a person. |  |
 | `usage_ledger.mode` | `"mock-fixed"` | "mock-fixed", "mock-random" or "real" (not built yet) | Where usage figures come from. "mock-fixed": the same made-up figures every time. "mock-random": made-up figures from a seed. Mocked figures are labelled on the page. | [0133](../decisions/README.md) |
 | `usage_ledger.seed` | `null` | a whole number, or null | Seed for "mock-random". null means a new seed each time premise starts. | [0133](../decisions/README.md) |
 | `softwares.default_priority` | `3` | 1 (most important) to 5 | Priority a new software gets. The work queue starts the most important first. | [0138](../decisions/README.md) |

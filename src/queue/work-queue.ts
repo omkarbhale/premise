@@ -289,6 +289,11 @@ export class WorkQueue {
       const brief = [job.note, typeof job.payload.brief === "string" ? job.payload.brief : ""]
         .filter(Boolean)
         .join("\n");
+      const software = this.db
+        .prepare("SELECT repository FROM softwares WHERE id = ?")
+        .get(job.softwareId) as { repository: string | null } | undefined;
+      const ref = typeof job.payload.ref === "string" ? job.payload.ref : undefined;
+      const resumeSessionId = this.cutOffSession(job.id);
       const session = this.options.runner.start(
         {
           jobId: job.id,
@@ -300,6 +305,9 @@ export class WorkQueue {
           maxTurns: task.max_turns,
           maxMinutes: task.max_minutes,
           brief,
+          ...(software?.repository ? { repository: software.repository } : {}),
+          ...(ref ? { ref } : {}),
+          ...(resumeSessionId ? { resumeSessionId } : {}),
         },
         (progress) =>
           recordEvent(this.db, {
@@ -316,7 +324,22 @@ export class WorkQueue {
           `INSERT INTO agent_sessions (runtime_session_id, job_id, agent_role, runtime, model, effort, started)
            VALUES (?, ?, ?, ?, ?, ?, ?)`,
         )
-        .run(session.sessionId, job.id, job.kind, session.runtime, task.model, task.effort, now());
+        .run(
+          session.confirmed ? "" : session.sessionId,
+          job.id,
+          job.kind,
+          session.runtime,
+          task.model,
+          task.effort,
+          now(),
+        );
+      session.confirmed?.then((id) => {
+        this.db
+          .prepare(
+            "UPDATE agent_sessions SET runtime_session_id = ? WHERE job_id = ? AND ended IS NULL",
+          )
+          .run(id, job.id);
+      });
       outcome = session.outcome;
     }
     this.notify(job.id);
@@ -334,6 +357,26 @@ export class WorkQueue {
         this.tick();
       });
     this.settled.set(job.id, settled);
+  }
+
+  /**
+   * The session to carry on, when the job's last session was cut off rather than finished: paused
+   * for the usage limit, stopped for a pause, or cut off when premise stopped. Only a session of
+   * the same runtime can be carried on.
+   */
+  private cutOffSession(jobId: number): string | undefined {
+    const last = this.db
+      .prepare(
+        "SELECT runtime_session_id, runtime, end_reason FROM agent_sessions WHERE job_id = ? ORDER BY id DESC LIMIT 1",
+      )
+      .get(jobId) as
+      { runtime_session_id: string; runtime: string; end_reason: string | null } | undefined;
+    if (!last || !last.runtime_session_id || last.runtime !== this.options.runner.runtime) {
+      return undefined;
+    }
+    return ["usage-limit", "stopped", "premise-stopped"].includes(last.end_reason ?? "")
+      ? last.runtime_session_id
+      : undefined;
   }
 
   /** A pause with a resume time ends by itself: a timer ticks the queue when the time comes. */

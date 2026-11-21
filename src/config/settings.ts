@@ -1,4 +1,13 @@
-import { type Check, oneOf, orNone, summarised, text, wholeNumber, yesNo } from "./checks.js";
+import {
+  type Check,
+  oneOf,
+  orNone,
+  summarised,
+  text,
+  textList,
+  wholeNumber,
+  yesNo,
+} from "./checks.js";
 
 /** The kinds of task an agent does. Each has its own model, effort and limits. */
 export const AGENT_TASK_KINDS = [
@@ -152,7 +161,7 @@ export const SETTINGS: readonly Setting[] = [
     default: "scripted",
     check: summarised(oneOf(AGENT_MODES), `"scripted" or "claude"`),
     meaning:
-      '"scripted": a stand-in agent that follows a script file and calls no AI. "claude": real Claude Code sessions on your login (not built yet).',
+      '"scripted": a stand-in agent that follows a script file and calls no AI. "claude": real Claude Code sessions on your Claude Code login, each confined by Claude Code\'s sandbox (needs bubblewrap and socat on Linux).',
     record: "0134",
   },
   {
@@ -163,6 +172,46 @@ export const SETTINGS: readonly Setting[] = [
     record: "0140",
   },
   {
+    key: "agents.claude.command",
+    default: "claude",
+    check: summarised(text, "a program name or path"),
+    meaning:
+      'The Claude Code program to run for real agents. "claude" means the one found on your PATH.',
+    record: "0071",
+  },
+  {
+    key: "agents.claude.stop_grace_seconds",
+    default: 10,
+    check: summarised(wholeNumber(1, 300), "1 to 300"),
+    meaning:
+      "When a real agent session is stopped, how long it gets to end by itself before it is ended forcibly.",
+  },
+  {
+    key: "agents.network.allowed_domains",
+    default: [
+      "registry.npmjs.org",
+      "pypi.org",
+      "files.pythonhosted.org",
+      "crates.io",
+      "static.crates.io",
+      "index.crates.io",
+      "proxy.golang.org",
+      "sum.golang.org",
+    ],
+    check: summarised(textList, "a list of host names"),
+    meaning:
+      "Hosts that build, prototype and check sessions may reach (package registries). Other sessions reach no host.",
+    record: "0087",
+  },
+  {
+    key: "agents.confinement.extra_denied_paths",
+    default: [],
+    check: summarised(textList, "a list of folder or file paths"),
+    meaning:
+      "More folders or files real agents may never read or write, besides premise's data folder and the usual credential files (SSH keys, GitHub and Claude Code logins, cloud credentials).",
+    record: "0087",
+  },
+  {
     key: "agents.scripted.script_file",
     default: null,
     check: summarised(orNone(text), "a file path, or null"),
@@ -171,6 +220,18 @@ export const SETTINGS: readonly Setting[] = [
     record: "0148",
   },
   ...AGENT_TASK_KINDS.flatMap(taskSettings),
+  {
+    key: "tools.progress_max_chars",
+    default: 200,
+    check: summarised(wholeNumber(20, 2000), "20 to 2000"),
+    meaning: "Longest progress line an agent may send; longer lines are cut.",
+  },
+  {
+    key: "tools.ask_max_items",
+    default: 10,
+    check: summarised(wholeNumber(1, 50), "1 to 50"),
+    meaning: "Most items an agent may put in one question to a person.",
+  },
   {
     key: "usage_ledger.mode",
     default: "mock-fixed",
@@ -238,9 +299,13 @@ export interface PremiseConfig {
   agents: {
     mode: AgentMode;
     claude_config_folder: string | null;
+    claude: { command: string; stop_grace_seconds: number };
+    network: { allowed_domains: string[] };
+    confinement: { extra_denied_paths: string[] };
     scripted: { script_file: string | null };
     tasks: Record<AgentTaskKind, TaskSettings>;
   };
+  tools: { progress_max_chars: number; ask_max_items: number };
   usage_ledger: { mode: UsageLedgerMode; seed: number | null };
   softwares: {
     default_priority: number;

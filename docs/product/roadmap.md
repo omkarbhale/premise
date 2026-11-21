@@ -49,6 +49,7 @@ Thinnest means: one software at a time; only the operator; no taste claims; inta
 
 **Step 1: prove that premise can drive LLM work unattended through the owner's Claude subscription, on the owner's machine.** Done 2026-11-21, apart from what is named below: see the [test record](../record/subscription-sandbox-test-2026-11-21.md). It was a proof of concept; no code from it is kept in this repository.
 - Still untested: point 7 (the server creating and pushing to a private repository); point 1's premise-owned configuration folder (the test used the default login); point 6 beyond a simulated event; behaviour on the Sonnet and Opus tiers; process-level escapes from the sandbox.
+- Since built into premise: the real [agent runner](../specs/agent-runner.md), with what the test showed (generated per-session confinement, denied permission prompts, the session id, the usage-limit pause, `--resume`). It is tested against a stand-in `claude`; its one opt-in real session waits for socat on the owner's machine ([open questions](../open-questions.md)).
 - Built: a small TypeScript program, the start of the agent runner. On the owner's machine it must show each of these:
   1. It starts Claude Code headless as a child process, logged in with the owner's subscription in premise's own configuration folder, with no API key anywhere in its environment.
   2. The session finishes a multi-step coding task (write a tiny program, test it, commit it) with nobody answering anything. Whatever would need permission is denied and reported, not waited on.

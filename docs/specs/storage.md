@@ -74,7 +74,7 @@ All tables live in `premise.db`. Times are UTC. "Software" is a row in `software
 | `drafts` | Stage draft shown for correction | software, stage, items with marks (assumed or from a role), per-item state (kept, struck, edited, open), status |
 | `claims` | Area claimed for taste | software, role label, area in its own words, status (open, released) |
 | `jobs` | Unit of work in the queue ([work queue](work-queue.md)) | id, software, kind, stage, record items served, payload, status, attempts, failure signature, waiting ask, result, created, started, finished |
-| `agent_sessions` | Agent session started | id, job, agent role, tier, model alias, runtime session id, working copy, tool token hash, started, ended, end reason, turns |
+| `agent_sessions` | Agent session started | id, job, agent role, tier, model alias, runtime session id, working copy, started, ended, end reason, turns. The tool token is never stored ([0150](../decisions/0150-agent-tools-over-plain-http-mcp-tokens-in-memory.md)) |
 | `record_changes` | Proposed change to a lasting record | software, proposing session, operations, status (proposed, rejected, reviewing, at-say-back, accepted, committed), diagnostics, review, commit |
 | `reviews` | Reviewer verdict | record change or foundation decision, consistent or conflicting, conflicting item, agree or object, reasons |
 | `verdicts` | Item judged by a check | check job, commit, item, verdict (met, not-met, could-not-check), evidence paths, round |
