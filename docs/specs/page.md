@@ -38,7 +38,7 @@ None. The token from the link is kept in the page's memory only.
 | Area | Shows | People can |
 |---|---|---|
 | Softwares | Each software, its stage, its state (active, paused and why) | Start a software; open one |
-| Line | The three phases (Understand, Build, Running) with the eleven stages under each, where the software is ([0166](../decisions/0165-the-page-shows-three-phases.md)), each stage's budget used | Send it back to any stage; change the size class ([0117](../decisions/0117-size-classes-set-stage-budgets.md)) |
+| Line | The three phases (Understand, Build, Running) with the eleven stages under each, where the software is ([0165](../decisions/0165-the-page-shows-three-phases.md)), each stage's budget used | Send it back to any stage; change the size class ([0117](../decisions/0117-size-classes-set-stage-budgets.md)) |
 | Chat | The conversation, with premise's one-line acknowledgements ("Taken as I-14") | Write; corrections go to the open draft ([0118](../decisions/0118-how-chat-messages-are-routed.md)) |
 | Needed | Every open ask, grouped by role label, each saying exactly what to do | Answer any of them |
 | Record | Each record file as items, with their marks, what they replaced, struck items with reasons, and the commits that name them | Ask "more" on any item |
