@@ -1,4 +1,5 @@
 import { mkdtempSync, rmSync } from "node:fs";
+import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach } from "vitest";
@@ -13,6 +14,23 @@ export function tempFolder(): string {
   const folder = mkdtempSync(join(tmpdir(), "premise-test-"));
   folders.push(folder);
   return folder;
+}
+
+/**
+ * A range of ports for software the runner starts, unique to this test: it begins at a free port the
+ * operating system hands out, so tests running at the same time on one machine never share ports.
+ * Never use the default range in a test.
+ */
+export async function uniquePortRange(size = 50): Promise<{ range: string; first: number }> {
+  const first = await new Promise<number>((resolve, reject) => {
+    const server = createServer();
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const { port } = server.address() as { port: number };
+      server.close(() => resolve(port));
+    });
+  });
+  return { range: `${first}-${Math.min(first + size - 1, 65535)}`, first };
 }
 
 afterEach(() => {

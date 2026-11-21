@@ -4,7 +4,7 @@ import { join, resolve } from "node:path";
 import { type Browser, type Page, chromium } from "playwright";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { defaultWebRoot, start } from "../../src/server/start.js";
-import { tempFolder } from "../helpers.js";
+import { tempFolder, uniquePortRange } from "../helpers.js";
 
 /**
  * The first-run path in a real (headless) browser, against the stand-in line and scripted agents:
@@ -38,6 +38,7 @@ beforeAll(async () => {
     dataFolder: tempFolder(),
     env: {
       PREMISE_SERVER__PORT: String(port),
+      PREMISE_RUNNER__PORT_RANGE: JSON.stringify((await uniquePortRange()).range),
       PREMISE_AGENTS__SCRIPTED__STEP_SECONDS: "1",
     },
     print: () => {},

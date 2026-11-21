@@ -15,19 +15,19 @@ import {
   makeSoftware,
   runBlock,
 } from "./fixtures/fixture-software.js";
-import { tempFolder, testConfig } from "./helpers.js";
+import { tempFolder, testConfig, uniquePortRange } from "./helpers.js";
 
 let db: Database;
 let runner: Runner;
 let dataFolder: string;
 let config: ReturnType<typeof testConfig>;
 
-function setup(env: NodeJS.ProcessEnv = {}) {
+function setup(env: NodeJS.ProcessEnv = {}, range = testRange) {
   dataFolder = tempFolder();
   config = testConfig(dataFolder, {
     PREMISE_RUNNER__CONFINEMENT: "none",
     PREMISE_RUNNER__READ_ONLY_PATHS: JSON.stringify([dirname(dirname(process.execPath))]),
-    PREMISE_RUNNER__PORT_RANGE: '"4710-4779"',
+    PREMISE_RUNNER__PORT_RANGE: JSON.stringify(range),
     PREMISE_RUNNER__RESTART_DELAY_SECONDS: "0",
     PREMISE_RUNNER__STOP_GRACE_SECONDS: "2",
     PREMISE_RUNNER__START_TIMEOUT_SECONDS: "10",
@@ -42,7 +42,11 @@ function setup(env: NodeJS.ProcessEnv = {}) {
   });
 }
 
-beforeEach(() => setup());
+let testRange = "";
+beforeEach(async () => {
+  testRange = (await uniquePortRange()).range;
+  setup();
+});
 afterEach(async () => {
   await runner.close();
   db.close();
@@ -129,7 +133,10 @@ describe("a web software", () => {
     const s = makeSoftware(db, config, "Pages", WEB);
     const view = await runner.start(s.id);
     expect(view.state).toBe("running");
-    expect(view.link).toMatch(/^http:\/\/127\.0\.0\.1:47\d\d\/$/);
+    expect(view.link).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/$/);
+    const port = Number(new URL(view.link!).port);
+    expect(port).toBeGreaterThanOrEqual(Number(testRange.split("-")[0]));
+    expect(port).toBeLessThanOrEqual(Number(testRange.split("-")[1]));
     expect(await fetchText(view.link!)).toBe("hello from the fixture web app");
     expect(view.commit).toBe(s.git.headCommit(s.repo)!.slice(0, 7));
     expect(runner.view(s.id).output.join("\n")).toContain("listening on 127.0.0.1:");
@@ -168,15 +175,77 @@ describe("a web software", () => {
   });
 
   it("gives each software its own port from the configured range", async () => {
-    setup({ PREMISE_RUNNER__PORT_RANGE: '"4780-4783"' });
+    const { first } = await uniquePortRange(4);
+    setup({}, `${first}-${first + 3}`);
     const a = makeSoftware(db, config, "A", WEB);
     const b = makeSoftware(db, config, "B", WEB);
     const [va, vb] = [await runner.start(a.id), await runner.start(b.id)];
     expect(va.link).not.toBe(vb.link);
     for (const v of [va, vb]) {
       const port = Number(new URL(v.link!).port);
-      expect(port).toBeGreaterThanOrEqual(4780);
-      expect(port).toBeLessThanOrEqual(4783);
+      expect(port).toBeGreaterThanOrEqual(first);
+      expect(port).toBeLessThanOrEqual(first + 3);
+    }
+  });
+
+  it("moves to the next port when the first port of the range is taken", async () => {
+    const { createServer } = await import("node:net");
+    const { first } = await uniquePortRange(4);
+    setup({}, `${first}-${first + 3}`);
+    const blocker = createServer();
+    await new Promise<void>((ok) => blocker.listen(first, "127.0.0.1", ok));
+    try {
+      const s = makeSoftware(db, config, "Second", WEB);
+      const view = await runner.start(s.id);
+      expect(Number(new URL(view.link!).port)).toBe(first + 1);
+    } finally {
+      await new Promise((ok) => blocker.close(ok));
+    }
+  });
+
+  it("tries the next port when another program takes it just before the start, without counting a crash", async () => {
+    const { first } = await uniquePortRange(4);
+    setup({}, `${first}-${first + 3}`);
+    // The software itself claims the first port, as another program would between check and start.
+    const s = makeSoftware(db, config, "Raced", {
+      "server.js": `
+const net = require("node:net");
+const http = require("node:http");
+const first = ${first};
+const port = Number(process.env.PORT);
+if (port === first) {
+  // Pretend it is taken by someone else: fail the way a busy port does.
+  console.error("Error: listen EADDRINUSE: address already in use 127.0.0.1:" + port);
+  process.exit(1);
+}
+http.createServer((q, r) => r.end("ok")).listen(port, process.env.HOST);
+`,
+      "premise/run.md": runBlock(["kind: web", "start: node server.js"]),
+    });
+    const view = await runner.start(s.id);
+    expect(Number(new URL(view.link!).port)).toBe(first + 1);
+    expect(view.restarts).toBe(0);
+    const kinds = (
+      db.prepare("SELECT kind FROM events WHERE module = 'runner' ORDER BY id").all() as {
+        kind: string;
+      }[]
+    ).map((e) => e.kind);
+    expect(kinds).not.toContain("crashed");
+  });
+
+  it("says which setting to change when every port of the range is taken", async () => {
+    const { createServer } = await import("node:net");
+    const { first } = await uniquePortRange(2);
+    setup({}, `${first}-${first + 1}`);
+    const blockers = [createServer(), createServer()];
+    await Promise.all(
+      blockers.map((b, i) => new Promise<void>((ok) => b.listen(first + i, "127.0.0.1", ok))),
+    );
+    try {
+      const s = makeSoftware(db, config, "Crowded", WEB);
+      await expect(runner.start(s.id)).rejects.toThrow(/runner\.port_range/);
+    } finally {
+      await Promise.all(blockers.map((b) => new Promise((ok) => b.close(ok))));
     }
   });
 
