@@ -178,18 +178,29 @@ describe("the other views", () => {
     expect(screen.getByText("Nothing is waiting on you.")).toBeTruthy();
   });
 
-  it("shows the eleven stages and asks before sending back", async () => {
+  it("shows three phases with the steps under them, and asks before sending back", async () => {
     const user = userEvent.setup();
     const sendBack = vi.fn(() => Promise.resolve(software()));
     inSession(<Line software={software()} />, fakeApi({ sendBack }));
+    expect(screen.getByText("Understanding what you want: drafting what it must do")).toBeTruthy();
+    for (const name of ["Understand", "Build", "Running"]) {
+      expect(screen.getAllByText(name, { selector: ".phase summary strong" })).toBeTruthy();
+    }
     expect(
-      screen.getAllByRole("listitem").filter((li) => li.className.startsWith("stage")).length,
+      screen.getAllByRole("listitem").filter((li) => li.className.startsWith("stage ")).length,
     ).toBe(11);
-    expect(screen.getByText("Here now")).toBeTruthy();
+    expect(screen.getAllByText("Here now").length).toBe(2);
     await user.click(screen.getAllByRole("button", { name: "Send back here" })[0]!);
     expect(sendBack).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Send back" }));
     expect(sendBack).toHaveBeenCalledWith("s1", "why");
+  });
+
+  it("never shows a step that is not reached as failed or pending", () => {
+    inSession(<Line software={software()} />);
+    const labels = [...document.querySelectorAll(".chip, .sr-only")].map((e) => e.textContent);
+    expect(labels.join(" ")).not.toMatch(/pending|failed|skipped/i);
+    expect(screen.getAllByText("Comes later").length).toBe(2);
   });
 
   it("shows struck record items with their reason", async () => {

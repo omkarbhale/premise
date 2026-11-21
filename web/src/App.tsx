@@ -11,7 +11,7 @@ import { Usage } from "./components/Usage";
 import { Welcome } from "./components/Welcome";
 import { SessionContext, type Session } from "./context";
 import { type Connection, useEventStream, useLoad } from "./hooks";
-import { stageName, stageNumber } from "../../src/shared/stages";
+import { stageName, whereNow } from "../../src/shared/stages";
 import { plural } from "./words";
 
 type View =
@@ -217,7 +217,8 @@ function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) 
                       >
                         <span className="name">{s.name}</span>
                         <span className="small muted">
-                          {stageNumber(s.stage)} of 11: {stageName(s.stage)}
+                          {whereNow(s.stage)}
+                          <span className="sr-only"> (step: {stageName(s.stage)})</span>
                         </span>
                         <span className={`small ${s.openAsks > 0 ? "needs-you" : "muted"}`}>
                           {s.status}

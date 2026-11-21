@@ -50,3 +50,62 @@ export function stageName(id: string): string {
 
 export const SIZE_CLASSES = ["small", "medium", "large"] as const;
 export type SizeClass = (typeof SIZE_CLASSES)[number];
+
+/** The three phases a person sees; the eleven stages are the detail under each. */
+export const PHASES = [
+  {
+    id: "understand",
+    name: "Understand",
+    now: "Understanding what you want",
+    plain: "premise works out what you want: why, for whom, what exists already, and the plan.",
+    stages: ["why", "who", "exists", "what", "say-back", "plan"],
+  },
+  {
+    id: "build",
+    name: "Build",
+    now: "Building it",
+    plain: "Agents write the software and a separate agent checks it. Nobody needs to watch.",
+    stages: ["build", "check"],
+  },
+  {
+    id: "running",
+    name: "Running",
+    now: "Running",
+    plain:
+      "The software runs on this machine, with a report, and what you say next becomes new work.",
+    stages: ["run", "report", "intake"],
+  },
+] as const;
+
+export type PhaseId = (typeof PHASES)[number]["id"];
+
+/** Which phase a stage belongs to. Unknown stage names fall back to the first phase. */
+export function phaseOf(stage: string): PhaseId {
+  return PHASES.find((p) => (p.stages as readonly string[]).includes(stage))?.id ?? "understand";
+}
+
+export function phaseName(id: PhaseId): string {
+  return PHASES.find((p) => p.id === id)?.name ?? id;
+}
+
+/** What is happening at a stage, in a few plain words that follow "Understanding what you want:". */
+const DOING: Record<StageId, string> = {
+  why: "drafting why it is worth building",
+  who: "drafting who it is for",
+  exists: "looking at what already exists",
+  what: "drafting what it must do",
+  "say-back": "checking what it understood with you",
+  plan: "planning the work",
+  build: "writing the software",
+  check: "checking it against what you asked for",
+  run: "starting the software",
+  report: "writing the report",
+  intake: "waiting for what you say next",
+};
+
+/** "Understanding what you want: drafting who it is for". Stage names are not needed to read it. */
+export function whereNow(stage: string): string {
+  const phase = PHASES.find((p) => p.id === phaseOf(stage))!;
+  const doing = DOING[stage as StageId];
+  return doing ? `${phase.now}: ${doing}` : phase.now;
+}

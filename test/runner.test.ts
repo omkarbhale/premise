@@ -27,6 +27,7 @@ function setup(env: NodeJS.ProcessEnv = {}) {
   config = testConfig(dataFolder, {
     PREMISE_RUNNER__CONFINEMENT: "none",
     PREMISE_RUNNER__READ_ONLY_PATHS: JSON.stringify([dirname(dirname(process.execPath))]),
+    PREMISE_RUNNER__PORT_RANGE: '"4710-4779"',
     PREMISE_RUNNER__RESTART_DELAY_SECONDS: "0",
     PREMISE_RUNNER__STOP_GRACE_SECONDS: "2",
     PREMISE_RUNNER__START_TIMEOUT_SECONDS: "10",

@@ -91,7 +91,10 @@ describe("first run, in a browser", () => {
     const why = card(page, "Why build it: is this right?");
     await why.waitFor();
     await expect(page.title()).resolves.toBe("(1) premise");
-    await page.getByText("Stage 1 of 11: Why").waitFor();
+    await page
+      .getByText("Understanding what you want: drafting why it is worth building")
+      .first()
+      .waitFor();
     await shot(page, "03-first-draft");
 
     // Strike one item, edit another, keep the rest.
@@ -143,7 +146,10 @@ describe("first run, in a browser", () => {
     await shot(page, "07-activity");
 
     await page.getByRole("button", { name: /^Softwares/ }).click();
-    await page.getByText("Stage 11 of 11: Intake").waitFor({ timeout: 20_000 });
+    await page
+      .getByText("Running: waiting for what you say next")
+      .first()
+      .waitFor({ timeout: 20_000 });
     await expect(page.title()).resolves.toBe("premise");
     await shot(page, "08-end-of-line-conversation");
 
@@ -184,7 +190,7 @@ describe("first run, in a browser", () => {
       colorScheme: "dark",
     });
     await page.goto(running.link);
-    await page.getByText("Stage 11 of 11: Intake").waitFor();
+    await page.getByText("Running: waiting for what you say next").first().waitFor();
     // Runs in the page; written as text because this file is type-checked for Node, not a browser.
     const overflow = (await page.evaluate(
       "document.documentElement.scrollWidth - document.documentElement.clientWidth",
