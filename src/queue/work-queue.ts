@@ -384,16 +384,16 @@ export class WorkQueue {
         .run(now(), outcome.kind, id);
       switch (outcome.kind) {
         case "done":
-          this.close(job, "done", outcome.summary);
+          this.closeJob(job, "done", outcome.summary);
           break;
         case "stuck":
-          this.close(job, "stuck", outcome.summary);
+          this.closeJob(job, "stuck", outcome.summary);
           break;
         case "stopped":
           if (this.stoppedForPause.delete(id)) {
             this.requeue(job, null);
           } else {
-            this.close(job, "stopped", "Stopped by a person.");
+            this.closeJob(job, "stopped", "Stopped by a person.");
           }
           break;
         case "failed": {
@@ -403,7 +403,7 @@ export class WorkQueue {
             .prepare("UPDATE jobs SET failure_signature = ?, same_failure_count = ? WHERE id = ?")
             .run(outcome.failureSignature, same, id);
           if (same >= this.options.config.queue.same_failure_limit) {
-            this.close(job, "stuck", `The same failure happened ${same} times: ${outcome.summary}`);
+            this.closeJob(job, "stuck", `The same failure happened ${same} times: ${outcome.summary}`);
           } else {
             this.requeue(job, `The previous attempt failed: ${outcome.summary}`);
           }
@@ -419,7 +419,7 @@ export class WorkQueue {
     this.notify(id);
   }
 
-  private close(job: Job, status: JobStatus, result: string): void {
+  private closeJob(job: Job, status: JobStatus, result: string): void {
     this.db
       .prepare("UPDATE jobs SET status = ?, result = ?, finished = ? WHERE id = ?")
       .run(status, result, now(), job.id);
@@ -457,7 +457,7 @@ export class WorkQueue {
     }
     const job = this.get(id);
     if (job && ["queued", "waiting", "paused"].includes(job.status)) {
-      this.close(job, "stopped", "Stopped by a person.");
+      this.closeJob(job, "stopped", "Stopped by a person.");
       this.notify(id);
     }
   }
