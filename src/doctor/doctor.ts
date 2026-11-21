@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
-import { accessSync, constants, existsSync, mkdirSync } from "node:fs";
+import { accessSync, constants, existsSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { ConfigError, loadConfig } from "../config/load.js";
 import type { PremiseConfig } from "../config/settings.js";
 
@@ -166,10 +167,26 @@ export async function runDoctor(options: DoctorOptions): Promise<DoctorReport> {
         },
   );
 
+  // The check never creates the folder: it says whether it exists, and whether premise could
+  // create it (or write to it) when it starts.
   try {
-    if (!existsSync(options.dataFolder)) mkdirSync(options.dataFolder, { recursive: true });
-    accessSync(options.dataFolder, constants.W_OK);
-    checks.push({ name: "Data folder", status: "ok", detail: options.dataFolder });
+    if (existsSync(options.dataFolder)) {
+      accessSync(options.dataFolder, constants.W_OK);
+      checks.push({
+        name: "Data folder",
+        status: "ok",
+        detail: `${options.dataFolder} (exists, and can be written to)`,
+      });
+    } else {
+      let parent = dirname(resolve(options.dataFolder));
+      while (!existsSync(parent) && dirname(parent) !== parent) parent = dirname(parent);
+      accessSync(parent, constants.W_OK);
+      checks.push({
+        name: "Data folder",
+        status: "ok",
+        detail: `${options.dataFolder} (does not exist yet; this check did not create it, premise creates it when it starts)`,
+      });
+    }
   } catch (error) {
     checks.push({
       name: "Data folder",

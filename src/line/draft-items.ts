@@ -141,7 +141,10 @@ export function readDraftItems(
       text = p.rest;
       priority ??= "should";
     }
-    const suggestion = from === "suggestion" || value.suggestion === true;
+    // "Suggestion: ..." is the mark, not part of the sentence: it is shown once, as the mark.
+    const suggestionLead = /^suggestion\s*:\s*/i.exec(text);
+    if (suggestionLead) text = text.slice(suggestionLead[0].length);
+    const suggestion = from === "suggestion" || value.suggestion === true || !!suggestionLead;
     if (!from || from === "suggestion" || from === "premise") from = "assumed";
     from = from.toLowerCase().replace(/\s+/g, "-");
     if (!FROM_PATTERN.test(from)) from = "assumed";

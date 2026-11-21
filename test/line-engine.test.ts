@@ -185,6 +185,10 @@ describe("the line engine, Why to Plan", () => {
     expect(sayBack.items.length).toBeGreaterThan(0);
     expect(sayBack.items.length).toBeLessThanOrEqual(10);
     expect(sayBack.items.every((i) => i.refs && i.refs.length === 1)).toBe(true);
+    // No sentence twice, and no "Suggestion:" repeated inside a labelled item.
+    const texts = sayBack.items.map((i) => i.text.toLowerCase());
+    expect(new Set(texts).size).toBe(texts.length);
+    expect(texts.some((t) => t.includes("suggestion:"))).toBe(false);
   });
 
   it("strikes a say-back assumption in the record, redoes its stage, and says back again", async () => {
@@ -213,7 +217,12 @@ describe("the line engine, Why to Plan", () => {
     // The drafter is told what was struck, and why.
     expect(app.runner.requests.at(-1)!.brief).toContain("That is not why I want it");
 
-    await keepAll(app, await lineAsk(app, id)); // why, redrafted
+    // The redone list shows what was struck and why, so the person sees they were heard.
+    const redone = await lineAsk(app, id);
+    expect(redone.struckBefore).toEqual([
+      { text: expect.any(String), reason: "That is not why I want it" },
+    ]);
+    await keepAll(app, redone); // why, redrafted
     const again = await lineAsk(app, id);
     expect(again.kind).toBe("say-back");
     expect(again.items.flatMap((i) => i.refs ?? [])).not.toContain(ref);
@@ -253,7 +262,9 @@ describe("the line engine, Why to Plan", () => {
       { id: "M-2", position: "ahead" },
     ]);
     const goOn = await lineAsk(app, id);
-    expect(goOn.title).toBe("M-1 reached: go on?");
+    expect(goOn.title).toMatch(/^Milestone reached: .+\. Go on\?$/);
+    expect(goOn.milestone).toMatchObject({ id: "M-1" });
+    expect(goOn.instruction).not.toMatch(/\.\./);
     expect(goOn.choices).toEqual(["Go on", "Go back to Why"]);
     // No new job starts while it waits.
     expect(app.session.queue.list("queued").filter((j) => j.softwareId === id)).toHaveLength(0);
@@ -288,6 +299,14 @@ describe("the line engine, Why to Plan", () => {
     await say(app, await lineAsk(app, id), "Do not build it");
     const detail = await app.call("GET", `/api/softwares/${id}`);
     expect(detail.body).toMatchObject({ state: "ended", stage: "report" });
+    // Building, checking and running never happened: they show as skipped, never done or passed.
+    const position = (id: string) =>
+      detail.body.stages.find((s: { id: string }) => s.id === id).position;
+    expect(["build", "check", "run"].map(position)).toEqual(["skipped", "skipped", "skipped"]);
+    expect(detail.body.stages.find((s: { id: string }) => s.id === "build").why).toMatch(
+      /decided not to build/,
+    );
+    expect(detail.body.status).toMatch(/nothing was built/);
     // The reporter writes the report from recorded facts.
     await app.settle();
     const report = await app.call("GET", `/api/softwares/${id}/report`);

@@ -8,6 +8,7 @@ import {
   NotCurrentLink,
 } from "../api";
 import { useSession } from "../context";
+import { useLoad } from "../hooks";
 import { whereNow } from "../../../src/shared/stages";
 import { ASK_KIND_LABEL, TERMS, markLabel, plural } from "../words";
 import { Problem, Term } from "./Badges";
@@ -27,10 +28,15 @@ interface ItemState {
 
 /** One ask, answerable in place. Every kind says its role, what to do, and what happens after. */
 export function AskCard({ ask, showSoftware = false }: { ask: AskView; showSoftware?: boolean }) {
-  const { api, notCurrent, refresh } = useSession();
+  const { api, notCurrent, refresh, softwares } = useSession();
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const titleId = useId();
+  // An approval can be asked long after its stage began: say where the software is now.
+  const nowStage =
+    ask.kind === "approval" && ask.status === "open"
+      ? (softwares?.find((sw) => sw.id === ask.softwareId)?.stage ?? ask.stage)
+      : ask.stage;
 
   async function send(answer: AskAnswer) {
     setBusy(true);
@@ -61,10 +67,11 @@ export function AskCard({ ask, showSoftware = false }: { ask: AskView; showSoftw
         </span>
         <span className="chip">{ASK_KIND_LABEL[ask.kind]}</span>
         {showSoftware && <span className="chip chip-software">{ask.softwareName}</span>}
-        {ask.stage && (
+        {nowStage && (
           <span className="muted small">
+            {ask.kind === "approval" ? "Now: " : ""}
             {whereNow(
-              ask.stage,
+              nowStage,
               ask.items.some((i) => i.mark === "recovered"),
             )}
           </span>
@@ -75,6 +82,17 @@ export function AskCard({ ask, showSoftware = false }: { ask: AskView; showSoftw
         <>
           <p className="instruction">{ask.instruction}</p>
           {ask.kind === "say-back" && <Term term="sayBack">What is a say back?</Term>}
+          {ask.struckBefore && ask.struckBefore.length > 0 && (
+            <div className="struck-before" role="note">
+              {ask.struckBefore.map((st) => (
+                <p key={`${st.text}-${st.reason}`} className="small">
+                  <strong>You struck:</strong> {st.text} <strong>because:</strong> {st.reason}
+                </p>
+              ))}
+              <p className="muted small">This list was redone with that in mind.</p>
+            </div>
+          )}
+          {ask.milestone && <TryIt softwareId={ask.softwareId} />}
           {(ask.kind === "draft" || ask.kind === "say-back") && (
             <ItemsAnswer ask={ask} busy={busy} onSend={send} />
           )}
@@ -279,9 +297,43 @@ function ItemsAnswer({ ask, busy, onSend }: AnswerProps) {
   );
 }
 
+/** Choosing "do not build it" ends the work, so it asks once more. */
+const ENDS_THE_WORK = /^do not build/i;
+
 function QuestionAnswer({ ask, busy, onSend }: AnswerProps) {
   const [text, setText] = useState("");
+  const [confirming, setConfirming] = useState<string | null>(null);
   const inputId = useId();
+  // One click answers; only an answer that ends the work asks once more.
+  const choose = (answer: string) => {
+    const clean = answer.trim();
+    if (!clean) return;
+    if (ENDS_THE_WORK.test(clean)) setConfirming(clean);
+    else onSend({ kind: "text", text: clean });
+  };
+  if (confirming) {
+    return (
+      <div className="confirm" role="group" aria-label="Are you sure?">
+        <p>
+          <strong>Do not build it?</strong> premise stops here and builds nothing. You can change
+          your mind later by sending it back to any stage.
+        </p>
+        <div className="actions">
+          <button
+            type="button"
+            className="danger"
+            disabled={busy}
+            onClick={() => onSend({ kind: "text", text: confirming })}
+          >
+            Yes, do not build it
+          </button>
+          <button type="button" onClick={() => setConfirming(null)}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
   return (
     <>
       {ask.items.length > 0 && (
@@ -296,20 +348,20 @@ function QuestionAnswer({ ask, busy, onSend }: AnswerProps) {
       {ask.bestAttempt && (
         <p className="best">
           premise's best guess: <strong>{ask.bestAttempt}</strong>{" "}
-          <button type="button" className="link" onClick={() => setText(ask.bestAttempt!)}>
-            Use this
+          <button
+            type="button"
+            className="link"
+            disabled={busy}
+            onClick={() => choose(ask.bestAttempt!)}
+          >
+            Go with this
           </button>
         </p>
       )}
       {ask.choices && ask.choices.length > 0 && (
         <div className="choices" role="group" aria-label="Pick an answer">
           {ask.choices.map((choice) => (
-            <button
-              type="button"
-              key={choice}
-              aria-pressed={text === choice}
-              onClick={() => setText(choice)}
-            >
+            <button type="button" key={choice} disabled={busy} onClick={() => choose(choice)}>
               {choice}
             </button>
           ))}
@@ -324,7 +376,7 @@ function QuestionAnswer({ ask, busy, onSend }: AnswerProps) {
           type="button"
           className="primary"
           disabled={busy || !text.trim()}
-          onClick={() => onSend({ kind: "text", text: text.trim() })}
+          onClick={() => choose(text)}
         >
           {busy ? "Sending…" : "Answer"}
         </button>
@@ -333,18 +385,57 @@ function QuestionAnswer({ ask, busy, onSend }: AnswerProps) {
   );
 }
 
+/** For a milestone that waits on you: how to try the software, and where its report is. */
+function TryIt({ softwareId }: { softwareId: string }) {
+  const { api, version, notCurrent, go } = useSession();
+  const run = useLoad(() => api.run(softwareId), [softwareId], version, notCurrent);
+  const link = run.state === "ready" ? run.data.link : null;
+  return (
+    <div className="actions try-it">
+      {link ? (
+        <a className="button-link primary" href={link} target="_blank" rel="noreferrer">
+          Open it
+        </a>
+      ) : (
+        <button type="button" className="primary" onClick={() => go?.(softwareId, "report")}>
+          Open it
+        </button>
+      )}
+      <button type="button" onClick={() => go?.(softwareId, "report")}>
+        See the report
+      </button>
+    </div>
+  );
+}
+
 function ApprovalAnswer({ ask, busy, onSend }: AnswerProps) {
+  const { agentsMode } = useSession();
   const [refusing, setRefusing] = useState(false);
   const [reason, setReason] = useState("");
   return (
     <>
+      {agentsMode === "scripted" && (
+        <p className="note small" role="note">
+          <strong>This is a demo, so it is not real.</strong> Nothing will be created on GitHub or
+          anywhere else, whichever you choose; a folder on this machine stands in. The card is shown
+          so you can see what premise would ask.
+        </p>
+      )}
       {ask.approval && (
         <dl className="approval">
           <dt>What will happen</dt>
           <dd>{ask.approval.action}</dd>
           <dt>Why</dt>
           <dd>{ask.approval.why}</dd>
-          <dt>Why premise asks</dt>
+          <dt>Why premise asks now</dt>
+          <dd>
+            {ask.approval.waiting
+              ? `This is waiting on your answer: ${ask.approval.waiting}. `
+              : "The work reached a step that acts outside this machine. "}
+            Nothing outside this machine happens without your say; everything else carries on
+            meanwhile.
+          </dd>
+          <dt>The rule behind it</dt>
           <dd>{ask.approval.floor}</dd>
         </dl>
       )}

@@ -597,7 +597,7 @@ export class Intake implements IntakeHooks {
       this.say(
         item.softwareId,
         item,
-        `its change is running, ${minutes === null ? "" : `${minutes} minutes after it came in`}.`,
+        `its change is running, ${minutes === null ? "" : `${minutes} ${minutes === 1 ? "minute" : "minutes"} after it came in`}.`,
       );
     }
     if (where === "done") {
@@ -867,7 +867,7 @@ export class Intake implements IntakeHooks {
       }
       case "running": {
         const minutes = minutesToRunning(item);
-        return `Running: its change runs${minutes === null ? "" : `, ${minutes} minutes after it came in`}.`;
+        return `Running: its change runs${minutes === null ? "" : `, ${minutes} ${minutes === 1 ? "minute" : "minutes"} after it came in`}.`;
       }
       case "answered":
         return "Answered from the record; nothing was built.";

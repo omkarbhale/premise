@@ -215,9 +215,15 @@ export interface AskView {
     action: string;
     why: string;
     floor: string;
+    /** What is waiting on the answer, in plain words. */
+    waiting?: string;
     /** When this kind of action may be approved for the software as a whole kind. */
     kindLabel?: string;
   };
+  /** For a milestone's "go on?" question: which milestone, by its title. */
+  milestone?: { id: string; title: string };
+  /** For a redone list: what the person struck before, with the reason, so they see they were heard. */
+  struckBefore?: { text: string; reason: string }[];
   status: "open" | "answered" | "withdrawn";
   answerSummary?: string;
   asked: string;
@@ -306,7 +312,9 @@ export interface ReportView {
   hiddenLines: number;
   sections: { title: string; plain: string; lines: ReportLine[] }[];
   /** How to open the running software, once it runs. */
-  running: { how: string; where: string } | null;
+  running: { how: string; where: string; folder?: string } | null;
+  /** One plain sentence first: what was built and checked, out of what was asked. */
+  headline: string;
   cost: { mocked: boolean; text: string };
   /** Facts the report could not read, said plainly; empty when all were read. */
   limits: string[];
@@ -327,6 +335,8 @@ export interface RunView {
   link: string | null;
   /** For command-line software: the command to try; for a desktop app: how to start it. */
   command: string | null;
+  /** The folder a command is typed in; null when there is none to say. */
+  folder: string | null;
   /** The latest lines of output, oldest first. For command-line software this is the sample run. */
   output: string[];
   outputIsSample: boolean;

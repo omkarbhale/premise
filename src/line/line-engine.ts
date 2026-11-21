@@ -435,15 +435,15 @@ export class LineEngine implements IntakeLine {
       return "Stopped: you decided it is no longer needed. Send it back to any stage to pick it up again.";
     }
     if (software.state === "ended") {
-      return "Ended: you decided not to build it. Send it back to any stage to pick it up again.";
+      return "Ended: you decided not to build it, so nothing was built. Send it back to any stage to pick it up again.";
     }
     if (software.state === "waiting-milestone") {
-      return "Stopped after a milestone. Try it, then say go on under Waiting on you.";
+      return "Stopped after a milestone. Try it, then say go on.";
     }
     if (software.state === "paused-budget") return "Paused: its effort budget is used up.";
     if (software.state === "paused-usage") return "Paused until the usage limit resets.";
     if (openAsks > 0) {
-      return `Waiting on you: ${openAsks === 1 ? "1 thing" : `${openAsks} things`} to answer under Waiting on you.`;
+      return `Waiting on you: ${openAsks === 1 ? "1 thing" : `${openAsks} things`} to answer.`;
     }
     const running = jobs.find((j) => j.status === "running");
     if (running) return `Agents are working: ${jobWords(running)}.`;
@@ -558,6 +558,7 @@ export class LineEngine implements IntakeLine {
     };
     const takingOn = this.isRecovery(chain.at(-1) ?? active) && active.kind !== "intake";
     const allowed = allowedStages(active);
+    const ended = this.require(id).state === "ended";
     return STAGES.map((s) => {
       const view =
         takingOn && s.id === "why"
@@ -567,6 +568,14 @@ export class LineEngine implements IntakeLine {
               plain: "Recover the record from the code: why, who, what and its decisions",
             }
           : { id: s.id, name: s.name, plain: s.plain };
+      // Not built, so Build, Check and Run never happened: they are skipped, not done or passed.
+      if (ended && ["build", "check", "run"].includes(s.id)) {
+        return {
+          ...view,
+          position: "skipped" as const,
+          why: "You decided not to build it, so this never happened.",
+        };
+      }
       if (
         takingOn &&
         !allowed.includes(s.id) &&
@@ -2314,11 +2323,15 @@ export class LineEngine implements IntakeLine {
         role: OPERATOR,
         kind: "question",
         stage: "report",
-        title: `${milestone!.id} reached: go on?`,
-        instruction: `You asked premise to stop after this milestone. Try the software and read the report, then say go on${nextMilestone ? ` to ${nextMilestone.id}: ${nextMilestone.text}` : " to the end of the line"}. If it is solving the wrong problem, go back to Why.`,
+        title: `Milestone reached: ${milestone!.text.replace(/\.+$/, "")}. Go on?`,
+        instruction: `You asked premise to stop after this milestone. Try the software and read the report, then say go on${nextMilestone ? ` to the next milestone, "${nextMilestone.text.replace(/\.+$/, "")}"` : " to the end of the line"}. If it is solving the wrong problem, go back to Why.`,
         extra: {
           choices: [...MILESTONE_CHOICES],
-          meta: { purpose: "milestone-reached", milestone: milestone!.id },
+          meta: {
+            purpose: "milestone-reached",
+            milestone: milestone!.id,
+            milestoneTitle: milestone!.text.replace(/\.+$/, ""),
+          },
         },
       });
       return;
@@ -2724,11 +2737,66 @@ export class LineEngine implements IntakeLine {
       ...(ask.extra.bestAttempt !== undefined && { bestAttempt: ask.extra.bestAttempt }),
       ...(ask.extra.choices !== undefined && { choices: ask.extra.choices }),
       ...(ask.extra.approval !== undefined && { approval: ask.extra.approval }),
+      ...(typeof ask.extra.meta?.milestone === "string" && {
+        milestone: {
+          id: ask.extra.meta.milestone,
+          title:
+            typeof ask.extra.meta.milestoneTitle === "string"
+              ? ask.extra.meta.milestoneTitle
+              : ask.extra.meta.milestone,
+        },
+      }),
+      ...(ask.status === "open" && ask.kind === "draft" && ask.stage ? this.struckBefore(ask) : {}),
       status: ask.status,
       ...(ask.answerSummary !== null && { answerSummary: ask.answerSummary }),
       asked: ask.asked,
       ...(ask.answered !== null && { answered: ask.answered }),
     };
+  }
+
+  /**
+   * The say-back is where a person checks premise understood: no sentence twice, and a "must" is
+   * still a "must" here when the What list said so.
+   */
+  private settleSayBack(id: string, items: DraftItem[]): DraftItem[] {
+    const record = this.recordLines(id);
+    const plain = (text: string) =>
+      text
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim();
+    const seen = new Set<string>();
+    const out: DraftItem[] = [];
+    for (const item of items) {
+      const key = plain(item.text);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      if (item.kind === "W") {
+        const known =
+          item.refs?.map((r) => record.find((i) => i.id === r)).find((i) => i?.kind === "W") ??
+          record.find((i) => i.kind === "W" && plain(i.text) === key);
+        const priority = known?.marks.priority;
+        if (priority) {
+          out.push({ ...item, priority });
+          continue;
+        }
+      }
+      out.push(item);
+    }
+    return out;
+  }
+
+  /** What the person struck before this list was redone, so they can see they were heard. */
+  private struckBefore(ask: Ask): { struckBefore?: { text: string; reason: string }[] } {
+    if (!ask.stage || !(ask.stage in STAGE_KINDS)) return {};
+    const kinds = STAGE_KINDS[ask.stage as keyof typeof STAGE_KINDS].allowed;
+    const struck = this.recordLines(ask.softwareId, { includeStruck: true })
+      .filter((i) => i.struck && kinds.includes(i.kind))
+      .map((i) => ({
+        text: i.text,
+        reason: i.struck!.reason.replace(/^Struck at the say back:\s*/i, ""),
+      }));
+    return struck.length > 0 ? { struckBefore: struck } : {};
   }
 
   private softwareNames(): Map<string, string> {
@@ -3552,12 +3620,15 @@ export class LineEngine implements IntakeLine {
     }
 
     if (stage === "say-back") {
-      const items = readDraftItems(args.items, {
-        defaultKind: "Y",
-        allowed: ["Y", "U", "R", "E", "W", "D", "M"],
-        allowSize: true,
-        max: this.config.line.say_back_max_items,
-      });
+      const items = this.settleSayBack(
+        id,
+        readDraftItems(args.items, {
+          defaultKind: "Y",
+          allowed: ["Y", "U", "R", "E", "W", "D", "M"],
+          allowSize: true,
+          max: this.config.line.say_back_max_items,
+        }),
+      );
       const ask = createAsk(this.db, {
         softwareId: id,
         role: OPERATOR,

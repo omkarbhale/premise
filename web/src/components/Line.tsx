@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ApiError, NotCurrentLink, type SoftwareDetail } from "../api";
 import { useSession } from "../context";
 import { PHASES, whereNow, type StageId } from "../../../src/shared/stages";
-import { Problem } from "./Badges";
+import { Define, Problem } from "./Badges";
 import { WorkItems } from "./WorkItems";
 import { BuildPanel } from "./BuildPanel";
 import { RunPanel } from "./RunPanel";
@@ -34,12 +34,16 @@ export function Line({ software }: { software: SoftwareDetail }) {
   return (
     <div className="line-view">
       <p className="muted">
-        Every piece of work goes through three phases. Open a phase to see its steps. Steps the work
-        being done now does not need are marked "Not needed", with the reason. You can send the work
-        back to any step it has reached.
+        Every piece of work goes through three phases, <Define term="line">the line</Define>. Open a
+        phase to see its steps. Steps that were not needed, or that never happened, are marked
+        "Skipped", with the reason. You can send the work back to any step it has reached.
       </p>
       <p className="where-now">
-        <strong>{whereNow(software.stage, software.takingOn)}</strong>
+        <strong>
+          {software.state === "ended"
+            ? "Ended: you decided not to build it"
+            : whereNow(software.stage, software.takingOn)}
+        </strong>
       </p>
       <ol className="phases">
         {PHASES.map((phase, n) => {
@@ -71,7 +75,7 @@ export function Line({ software }: { software: SoftwareDetail }) {
                       : state === "current"
                         ? "Here now"
                         : state === "skipped"
-                          ? "Not needed"
+                          ? "Skipped"
                           : "Comes later"}
                   </span>
                 </summary>
@@ -96,7 +100,7 @@ export function Line({ software }: { software: SoftwareDetail }) {
                             : stage.position === "current"
                               ? " (here now)"
                               : stage.position === "skipped"
-                                ? " (not needed)"
+                                ? " (skipped)"
                                 : " (comes later)"}
                         </span>
                         {stage.position === "current" && (
@@ -104,12 +108,12 @@ export function Line({ software }: { software: SoftwareDetail }) {
                         )}
                         {stage.position === "skipped" && (
                           <span className="chip" aria-hidden="true">
-                            Not needed
+                            Skipped
                           </span>
                         )}
                         <p className="muted small">{stage.plain}</p>
                         {stage.position === "skipped" && stage.why && (
-                          <p className="small">Not needed here: {stage.why}</p>
+                          <p className="small">Skipped: {stage.why}</p>
                         )}
                         {stage.position === "current" && <p className="small">{software.status}</p>}
                       </div>
@@ -165,7 +169,9 @@ export function Line({ software }: { software: SoftwareDetail }) {
       <WorkItems software={software} busy={busy} act={act} api={api} />
 
       <section className="card">
-        <h2>Milestones</h2>
+        <h2>
+          <Define term="milestone">Milestones</Define>
+        </h2>
         {software.milestones.length === 0 ? (
           <p className="muted small">
             premise proposes milestones at Plan. Each ends with running software and a report.

@@ -6,7 +6,7 @@ import { when } from "../words";
 import { Problem } from "./Badges";
 
 const STATE_NAME: Record<RunView["state"], string> = {
-  none: "Not started",
+  none: "Nothing to open yet",
   starting: "Starting",
   running: "Running",
   finished: "Ran once on a sample",
@@ -57,8 +57,13 @@ export function RunPanel({ softwareId }: { softwareId: string }) {
       )}
       {r.command && (
         <p>
-          {r.kind === "command" ? "Type this in a terminal: " : "How to start it: "}
-          <code>{r.command}</code>
+          {r.kind === "command" ? "Type this in a terminal" : "How to start it"}
+          {r.folder ? (
+            <>
+              , in <code>{r.folder}</code>
+            </>
+          ) : null}
+          : <code>{r.command}</code>
         </p>
       )}
       {r.restarts > 0 && (
@@ -74,14 +79,14 @@ export function RunPanel({ softwareId }: { softwareId: string }) {
       )}
       {problem && <Problem>{problem}</Problem>}
       <p>
-        {r.canStart && (
+        {r.canStart && r.state !== "none" && (
           <button
             type="button"
             className="primary"
             disabled={busy}
             onClick={() => void act("start")}
           >
-            {r.state === "none" ? "Start it" : "Start it again"}
+            Start it again
           </button>
         )}{" "}
         {r.canStop && (

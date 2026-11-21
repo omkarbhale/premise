@@ -12,7 +12,7 @@ export type AskStatus = "open" | "answered" | "withdrawn";
 export interface AskExtra {
   bestAttempt?: string;
   choices?: string[];
-  approval?: { action: string; why: string; floor: string; kindLabel?: string };
+  approval?: { action: string; why: string; floor: string; waiting?: string; kindLabel?: string };
   /** Free use by whoever made the ask, for example the stand-in line's bookkeeping. */
   meta?: Record<string, unknown>;
 }

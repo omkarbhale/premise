@@ -53,7 +53,8 @@ None. The token from the link is kept in the page's memory only.
 - With no software yet, the page says what premise is, gives one box to describe a software ("What should the software do, and for whom?"), a second to bring in software that already exists ("Bring in software you already have", with what happens after), says what happens next, and says what is not real yet (the stand-in for the later stages, scripted agents when in use, mocked usage), and, when real agents cannot start, what is missing and a "look around with scripted agents (not real)" button ([0180](../decisions/0180-premise-uses-real-agents-by-default.md)) ([0135](../decisions/0135-the-experience-works-without-the-guide.md)).
 - Every empty view says what will appear there and when. Every error says what to do next.
 - premise's own words (the record, say back, the floor, roles, intake) are explained where they appear, in a few words; the Help view lists them all.
-- Navigation: Softwares (each with Conversation, Line, Record and Report), Waiting on you, Activity, Usage, Settings (read only, with where to change each setting) and Help.
+- Navigation: Softwares, Waiting on you (once something is waiting or a software exists) and Help; Activity, Usage and Settings under "More" (they stay open while one is the page shown). Each software shows Conversation and Report; Line, Record and Intake are under "More views". The open software is kept in the link so a refresh returns to it ([0190](../decisions/0190-how-the-first-visit-is-made-clear.md)).
+- The first-screen note matches the mode (scripted agents: a demo, nothing real is built; real agents: the work is real). The page follows a changed link token without a reload and says "This link is old" after a restart.
 
 ### 5.2 Asks
 

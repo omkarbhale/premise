@@ -23,6 +23,7 @@ The owner asked the assistant to choose an answer to every question that was ope
 | What happens when a check keeps failing, or a build task keeps stopping | premise stops and asks: more rounds or land it as it is; try the stopped tasks again or check what was built | [0186](decisions/0186-how-build-check-and-run-are-built.md) |
 | Which branch of the operator's repository an existing software's record goes to | A branch of its own, `premise` (a setting), never the one the operator works on; the operator merges it | [0189](decisions/0189-how-taking-on-existing-software-is-built.md) |
 | Whether a repository that already has a `premise/` folder can be taken on | Not in the thin form: premise asks to rename or remove it; picking up an existing record is later | [0189](decisions/0189-how-taking-on-existing-software-is-built.md) |
+| What a first visit shows, and which tabs wait under "More" | Softwares, Waiting on you and Help at first; Conversation and Report on a software; the rest one click away | [0190](decisions/0190-how-the-first-visit-is-made-clear.md) |
 | If bubblewrap or socat is missing | The setup check names what is missing and how to install it; premise refuses to start real agents without them | [0142](decisions/0142-setup-check-names-bubblewrap-and-socat.md) |
 | The other Premise project, and the name | The name stays premise | [0143](decisions/0143-the-name-stays-premise.md) |
 | Being reached from other machines | Stays off by default; no setting opens it | [0144](decisions/0144-reach-from-other-machines-stays-off.md) |

@@ -208,6 +208,7 @@ export class Runner {
       commit: null,
       link: null,
       command: null,
+      folder: null,
       output: [],
       outputIsSample: false,
       restarts: 0,
@@ -246,6 +247,10 @@ export class Runner {
       commit: short,
       link: row.status === "running" ? row.link : null,
       command: row.command,
+      folder:
+        row.command && row.kind !== "web"
+          ? join(this.deps.config.data.folder, "work", softwareId, "run")
+          : null,
       output,
       outputIsSample: row.kind === "command",
       restarts: row.restarts,

@@ -35,6 +35,8 @@ The data folder defaults to ~/.premise. Settings live in config.json inside it;
 see docs/reference/configuration.md.`;
 
 interface Parsed {
+  help: boolean;
+  unknownFlags: string[];
   command: string | undefined;
   rest: string[];
   data: string | undefined;
@@ -46,6 +48,8 @@ interface Parsed {
 
 function parse(argv: string[]): Parsed {
   const parsed: Parsed = {
+    help: false,
+    unknownFlags: [],
     command: undefined,
     rest: [],
     data: undefined,
@@ -61,6 +65,9 @@ function parse(argv: string[]): Parsed {
     else if (arg === "--scripted") parsed.scripted = true;
     else if (arg === "--confirm") parsed.confirm = true;
     else if (arg === "--minutes") parsed.minutes = argv[++i];
+    else if (arg === "--help" || arg === "-h") parsed.help = true;
+    else if (arg === "--version") parsed.command ??= "--version";
+    else if (arg.startsWith("-") && arg !== "-") parsed.unknownFlags.push(arg);
     else if (parsed.command === undefined) parsed.command = arg;
     else parsed.rest.push(arg);
   }
@@ -69,6 +76,19 @@ function parse(argv: string[]): Parsed {
 
 async function main(argv: string[]): Promise<number> {
   const args = parse(argv);
+  // Asking for help never does anything else, wherever the flag is, and a flag premise does not
+  // know is an error: it never starts a server by accident.
+  if (args.help) {
+    console.log(HELP);
+    return 0;
+  }
+  if (args.unknownFlags.length > 0) {
+    const flag = args.unknownFlags[0]!;
+    console.error(
+      `premise does not know the option "${flag}". Nothing was started.\nRun "premise --help" to see what it can do.`,
+    );
+    return 2;
+  }
   const env = { ...process.env };
   if (args.port !== undefined) env[envNameFor("server.port")] = args.port;
   if (args.scripted) env[envNameFor("agents.mode")] = "scripted";
@@ -151,7 +171,16 @@ async function trial(args: Parsed, env: NodeJS.ProcessEnv): Promise<number> {
         `Check round ${check.round} of version ${check.commit.slice(0, 7)}: ${check.status}; ${check.verdicts.map((v) => `${v.item} ${v.verdict}`).join(", ")}`,
       );
     }
-    console.log(`Running: ${result.run.link ?? result.run.command ?? result.run.state}`);
+    if (result.run.link) {
+      console.log(
+        `It ran at ${result.run.link} while the demo went. The demo has stopped it, so that link no longer opens.`,
+      );
+      console.log(
+        "To click around a scripted software yourself, run `npm run demo` and open the link it prints.",
+      );
+    } else {
+      console.log(`Running: ${result.run.command ?? result.run.state}`);
+    }
     for (const line of result.run.output.slice(-10)) console.log(`  ${line}`);
     return result.stage === "intake" ? 0 : 1;
   }

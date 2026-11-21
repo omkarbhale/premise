@@ -91,12 +91,10 @@ describe("a report from recorded facts", () => {
     const view = await reporter.view(s.id, { detail: true });
 
     const failed = section(view, "Failed or not checked");
-    expect(failed.some((t) => t.startsWith("Not met: W-2") && t.includes("did nothing"))).toBe(
-      true,
-    );
-    expect(failed.some((t) => t.startsWith("Not checked: W-3"))).toBe(true);
-    expect(failed.some((t) => t.includes("W-1"))).toBe(false);
-    expect(section(view, "Decided").join("\n")).toContain("W-1 (must): People can open the page");
+    expect(failed.some((t) => t.startsWith("Not met:") && t.includes("did nothing"))).toBe(true);
+    expect(failed.some((t) => t.startsWith("Not checked:"))).toBe(true);
+    expect(failed.some((t) => t.includes("People can open the page"))).toBe(false);
+    expect(section(view, "Decided").join("\n")).toContain("must: People can open the page");
     expect(view.limits.join(" ")).toContain("same kind of AI");
     expect(view.cost.mocked).toBe(true);
   });
@@ -106,7 +104,7 @@ describe("a report from recorded facts", () => {
     verdict(s.id, "W-1", "could-not-check", "No browser was available.");
     const view = await reporter.view(s.id);
     expect(section(view, "Failed or not checked").join("\n")).toContain(
-      "Could not be checked: W-1",
+      "Could not be checked: People can open the page",
     );
   });
 
@@ -145,7 +143,7 @@ describe("a report from recorded facts", () => {
     const view1 = await runner.start(s.id);
     s.commit({ "notes.txt": "more" });
     const view = await reporter.view(s.id);
-    expect(section(view, "Running")[0]).toContain(`Running at commit ${view1.commit}`);
+    expect(section(view, "Running")[0]).toContain("Running. Open");
     expect(view.running?.where).toBe(view1.link);
     expect(section(view, "Running").join("\n")).toContain("1 newer change has been made since");
   });
@@ -213,9 +211,9 @@ describe("a report from recorded facts", () => {
     s.commit({ "extra.txt": "x" }, ["W-1"]);
     const view = await reporter.view(s.id);
     const lines = section(view, "Failed or not checked");
-    const stale = lines.find((l) => l.includes("W-1"))!;
+    const stale = lines.find((l) => l.includes("People can open the page"))!;
     expect(stale).toContain("Not checked at this version");
-    expect(stale).toContain(`last checked at version ${first.slice(0, 7)}`);
+    expect(stale).toContain("last checked at an earlier version");
     expect(stale).toContain("met");
     const after = await gatherFacts(
       {
@@ -239,10 +237,16 @@ describe("a report from recorded facts", () => {
     await runner.start(s.id, first);
     const view = await reporter.view(s.id);
     const failed = section(view, "Failed or not checked");
-    expect(failed.some((l) => l.includes("W-1"))).toBe(false);
+    expect(failed.some((l) => l.includes("People can open the page"))).toBe(false);
     const running = section(view, "Running").join("\n");
-    expect(running).toContain(`version ${head.slice(0, 7)}`);
-    expect(running).toContain(`version ${first.slice(0, 7)}`);
+    expect(running).toContain("newer version than the one last started");
+    // The version hashes sit behind the line's details, as its evidence.
+    const evidence = view.sections
+      .find((x) => x.title === "Running")!
+      .lines.map((l) => l.evidence ?? "")
+      .join("\n");
+    expect(evidence).toContain(`version ${head.slice(0, 7)}`);
+    expect(evidence).toContain(`version ${first.slice(0, 7)}`);
   });
 
   it("refuses an unknown software with a plain message", async () => {
@@ -276,7 +280,7 @@ describe("writing reports", () => {
     });
     const written = await reporter.write(s.id, "milestone", "M-1");
     expect(written.view.sections[0]!.lines[0]!.text).toBe(
-      "Milestone M-1 is reached: A page that greets people.",
+      "This milestone is reached: A page that greets people.",
     );
   });
 
