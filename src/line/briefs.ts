@@ -20,6 +20,9 @@ export type BriefName =
   | "plan brief"
   | "foundation revision brief"
   | "contradiction review brief"
+  | "build task brief"
+  | "scenario brief"
+  | "check brief"
   | "sizing brief"
   | "triage brief"
   | "reading brief";
@@ -37,6 +40,9 @@ export const BRIEF_ROLE: Record<BriefName, AgentRole> = {
   "sizing brief": "sizer",
   "triage brief": "triager",
   "reading brief": "reader",
+  "build task brief": "builder",
+  "scenario brief": "checker",
+  "check brief": "checker",
 };
 
 export class BriefError extends Error {

@@ -14,11 +14,12 @@ import {
 import { standInScript } from "../demo/stand-in-script.js";
 import type { WorkQueue } from "../queue/work-queue.js";
 import { RecordKeeper } from "../record/record-keeper.js";
-import { openDatabase, recordEvent } from "../storage/database.js";
+import { type Database, openDatabase, recordEvent } from "../storage/database.js";
 import { createUsageLedger } from "../usage-ledger/mock-usage-ledger.js";
 import { createApp } from "./app.js";
 import { issueSessionToken } from "./session-token.js";
 import { docsFolder, packageRoot } from "./package-root.js";
+import type { SessionServices } from "./services.js";
 import { createSession } from "./wiring.js";
 
 /** Where the built page is: dist/web, next to dist/server. */
@@ -35,9 +36,11 @@ export function toolsUrl(config: PremiseConfig): string {
 /** The scripted agent: for tests and demos, and the look-around when real agents cannot start. */
 export function scriptedRunner(config: PremiseConfig): ScriptedAgentRunner {
   const file = config.agents.scripted.script_file;
-  return new ScriptedAgentRunner(
+  const runner = new ScriptedAgentRunner(
     file ? loadScriptFile(file) : standInScript(config.agents.scripted.step_seconds),
   );
+  runner.useWorkingCopies(config.data.folder, config.data.keep_finished_working_copies);
+  return runner;
 }
 
 /**
@@ -112,9 +115,16 @@ export interface StartOptions {
 }
 
 /** Start premise: check the machine, open the database, resume the queue, serve the page. */
-export async function start(
-  options: StartOptions,
-): Promise<{ close: () => Promise<void>; link: string }> {
+export interface Running {
+  link: string;
+  close: () => Promise<void>;
+  /** What the page uses, for a scripted operator driving premise in this process. */
+  services: SessionServices;
+  db: Database;
+  config: PremiseConfig;
+}
+
+export async function start(options: StartOptions): Promise<Running> {
   const print = options.print ?? ((line: string) => console.log(line));
   const setup = await runDoctor({
     dataFolder: options.dataFolder,
@@ -232,6 +242,9 @@ export async function start(
 
   return {
     link,
+    services,
+    db,
+    config,
     close: async () => {
       intake.close();
       await app.close();

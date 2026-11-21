@@ -9,7 +9,7 @@ export function overview(change: Partial<Overview> = {}): Overview {
     version: "0.1.0",
     dataFolder: "/data",
     agents: { mode: "scripted", ready: true, unavailable: null, scriptedDemo: false },
-    line: { mode: "engine", standInStages: ["build", "check", "run", "report"] },
+    line: { mode: "engine", standInStages: [] },
     page: { notifications: "offer" },
     usage: {
       mode: "mock-fixed",
@@ -64,6 +64,7 @@ export function software(change: Partial<SoftwareDetail> = {}): SoftwareDetail {
     openAsks: 1,
     created: "2026-11-21T10:00:00Z",
     idea: "A reading list",
+    build: null,
     stages: STAGES.map((s, i) => ({
       ...s,
       position: i < 3 ? "done" : i === 3 ? "current" : "ahead",

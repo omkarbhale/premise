@@ -9,8 +9,8 @@ import {
   rmSync,
 } from "node:fs";
 import { createServer, connect } from "node:net";
-import { networkInterfaces } from "node:os";
-import { join } from "node:path";
+import { homedir, networkInterfaces } from "node:os";
+import { dirname, join, relative, sep } from "node:path";
 import type { AgentOutcome } from "../agents/agent-runner.js";
 import { type PremiseConfig, parsePortRange } from "../config/settings.js";
 import { Git } from "../git/git.js";
@@ -25,6 +25,17 @@ import { type RunInstructions, parseRunInstructions } from "./run-instructions.j
  * a commit, by the run instructions in its record; keeps it up while premise runs; restarts it a
  * few times when it crashes; stops it; and tells the page how to open it.
  */
+
+/**
+ * The folder holding the Node.js premise runs on, or null when sharing it would expose more than
+ * Node.js: the home folder, a folder above it, a filesystem root, or /usr (already readable).
+ */
+export function nodePrefix(execPath = process.execPath, home = homedir()): string | null {
+  const own = dirname(dirname(execPath));
+  const fromOwn = relative(own, home);
+  const exposesHome = fromOwn === "" || !(fromOwn === ".." || fromOwn.startsWith(`..${sep}`));
+  return own === "/usr" || own === dirname(own) || exposesHome ? null : own;
+}
 
 export class RunnerError extends Error {
   constructor(
@@ -464,8 +475,18 @@ export class Runner {
     }
   }
 
+  /**
+   * Folders running software may read: the setting's, plus the Node.js premise itself runs on, so
+   * software written for Node.js starts even when Node.js is installed under the home folder.
+   */
+  private readOnlyPaths(): string[] {
+    const own = nodePrefix();
+    const listed = this.deps.config.runner.read_only_paths;
+    return own === null || listed.includes(own) ? listed : [...listed, own];
+  }
+
   private environment(live: Live): NodeJS.ProcessEnv {
-    const readOnly = this.deps.config.runner.read_only_paths;
+    const readOnly = this.readOnlyPaths();
     const path = [
       ...readOnly.map((p) => join(p, "bin")),
       "/usr/local/bin",
@@ -490,7 +511,7 @@ export class Runner {
       copy: live.copy,
       shellCommand,
       network,
-      readOnlyPaths: config.runner.read_only_paths,
+      readOnlyPaths: this.readOnlyPaths(),
     });
     const child = spawn(command.file, command.args, {
       cwd: live.copy,

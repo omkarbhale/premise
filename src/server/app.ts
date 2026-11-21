@@ -225,7 +225,7 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
           unavailable: agents.unavailable(),
           scriptedDemo: agents.scriptedDemo(),
         },
-        line: { mode: "engine", standInStages: ["build", "check", "run", "report"] },
+        line: { mode: "engine", standInStages: [] },
         page: { notifications: deps.config.page.notifications },
         usage: { mode: deps.ledger.mode, mocked: deps.ledger.mocked, weekly },
         softwares,

@@ -253,6 +253,77 @@ describe("the other views", () => {
     expect(sendBack).toHaveBeenCalledWith("s1", "why");
   });
 
+  it("shows what is being built and checked, with each verdict's evidence and what waits on you", async () => {
+    const user = userEvent.setup();
+    const stages = software().stages.map((st, i) => ({
+      ...st,
+      position: i < 7 ? ("done" as const) : i === 7 ? ("current" as const) : ("ahead" as const),
+    }));
+    inSession(
+      <Line
+        software={software({
+          stage: "check",
+          stages,
+          build: {
+            milestone: { id: "M-1", text: "A command that counts words" },
+            round: 2,
+            roundsAllowed: 3,
+            scenarios: 3,
+            tasks: [
+              {
+                number: 1,
+                title: "Fix what the check found",
+                items: ["W-2"],
+                status: "built",
+                commit: "abcdef1234",
+                note: null,
+                fix: true,
+              },
+            ],
+            checks: [
+              {
+                round: 1,
+                commit: "1234567890",
+                status: "not-passed",
+                when: "2026-11-21T10:00:00Z",
+                verdicts: [
+                  { item: "W-1", text: "It counts lines.", verdict: "met", evidence: "lines: 3" },
+                  {
+                    item: "W-2",
+                    text: "It counts words.",
+                    verdict: "not-met",
+                    evidence: 'expected "words: 4", saw: words: 7',
+                  },
+                ],
+                findings: [],
+              },
+              {
+                round: 2,
+                commit: "abcdef1234",
+                status: "checking",
+                when: "2026-11-21T10:05:00Z",
+                verdicts: [],
+                findings: [],
+              },
+            ],
+            landed: null,
+            waiting: ["Should a hyphenated word count as one?"],
+          },
+        })}
+      />,
+    );
+    expect(screen.getByText("M-1: A command that counts words")).toBeTruthy();
+    expect(screen.getByText("Tasks (round 2 of 3)")).toBeTruthy();
+    expect(screen.getByText("Built")).toBeTruthy();
+    expect(screen.getByText("Should a hyphenated word count as one?")).toBeTruthy();
+    expect(screen.getByText(/3 check scenarios were written from your record/)).toBeTruthy();
+    expect(screen.getByText("Not passed: back to the builder with what was wrong")).toBeTruthy();
+    expect(screen.getByText("Being checked now")).toBeTruthy();
+    expect(screen.getByText("Not met")).toBeTruthy();
+    await user.click(screen.getAllByText("What the checker saw")[1]!);
+    expect(screen.getByText('expected "words: 4", saw: words: 7')).toBeTruthy();
+  });
+
   it("never shows a step that is not reached as failed or pending", () => {
     inSession(<Line software={software()} />);
     const labels = [...document.querySelectorAll(".chip, .sr-only")].map((e) => e.textContent);

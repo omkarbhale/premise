@@ -88,10 +88,19 @@ const TOOLS: ToolDefinition[] = [
   {
     name: "draft_submit",
     description: "Submit a draft of a stage as a short list for people to strike, keep or edit.",
-    inputSchema: obj({ stage: { type: "string" }, items: { type: "array", items: anyObject } }, [
-      "stage",
-      "items",
-    ]),
+    inputSchema: obj(
+      {
+        stage: { type: "string" },
+        items: { type: "array", items: anyObject },
+        milestones: { type: "array", items: anyObject },
+        tasks: { type: "array", items: anyObject },
+        kind: { type: "string" },
+        how_to_run: { type: "string" },
+        outcome: { type: "string" },
+        reason: { type: "string" },
+      },
+      ["stage", "items"],
+    ),
     notBuilt: "the line engine",
   },
   {
@@ -156,9 +165,14 @@ const TOOLS: ToolDefinition[] = [
     name: "verdict_submit",
     description:
       "Submit the check's verdicts: met, not-met or could-not-check per item, each with evidence.",
-    inputSchema: obj({ verdicts: { type: "array", items: anyObject }, findings: textList }, [
-      "verdicts",
-    ]),
+    inputSchema: obj(
+      {
+        verdicts: { type: "array", items: anyObject },
+        findings: { type: "array", items: {} },
+        run_notes: { type: "string" },
+      },
+      ["verdicts"],
+    ),
     notBuilt: "the line engine",
   },
   {

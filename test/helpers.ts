@@ -1,7 +1,8 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import type { LaterStages } from "../src/line/later-stages.js";
 import { afterEach } from "vitest";
 import { loadConfig } from "../src/config/load.js";
 import type { PremiseConfig } from "../src/config/settings.js";
@@ -55,10 +56,19 @@ import { MockUsageLedger } from "../src/usage-ledger/mock-usage-ledger.js";
 /** A page server on a fresh data folder, with the line engine and scripted agents that finish at once. */
 export async function testApp(
   env: NodeJS.ProcessEnv = {},
-  options: { script?: AgentScript; folder?: string } = {},
+  options: { script?: AgentScript; folder?: string; later?: LaterStages } = {},
 ) {
   const folder = options.folder ?? tempFolder();
-  const config = testConfig(folder, { PREMISE_AGENTS__SCRIPTED__STEP_SECONDS: "0", ...env });
+  // Software the line starts runs unconfined in tests (bubblewrap may be missing), on ports of
+  // this test's own.
+  const ports = await uniquePortRange(20);
+  const config = testConfig(folder, {
+    PREMISE_AGENTS__SCRIPTED__STEP_SECONDS: "0",
+    PREMISE_RUNNER__CONFINEMENT: "none",
+    PREMISE_RUNNER__READ_ONLY_PATHS: JSON.stringify([dirname(dirname(process.execPath))]),
+    PREMISE_RUNNER__PORT_RANGE: ports.range,
+    ...env,
+  });
   const { db, schemaVersion } = openDatabase(folder);
   const ledger = new MockUsageLedger("mock-fixed", 1);
   const tools = new AgentToolServer({ db, config });
@@ -71,6 +81,7 @@ export async function testApp(
     runner,
     tools,
     record,
+    later: options.later,
   });
   const setup = await runDoctor({
     dataFolder: folder,

@@ -4,6 +4,8 @@ import { useSession } from "../context";
 import { PHASES, whereNow, type StageId } from "../../../src/shared/stages";
 import { Problem } from "./Badges";
 import { WorkItems } from "./WorkItems";
+import { BuildPanel } from "./BuildPanel";
+import { RunPanel } from "./RunPanel";
 
 /** The three phases with their steps, where the software is, and the controls that move it. */
 export function Line({ software }: { software: SoftwareDetail }) {
@@ -146,6 +148,10 @@ export function Line({ software }: { software: SoftwareDetail }) {
                     </li>
                   ))}
                 </ol>
+                {phase.id === "build" && software.build && <BuildPanel build={software.build} />}
+                {phase.id === "running" && (software.build?.landed || state !== "ahead") && (
+                  <RunPanel softwareId={software.id} />
+                )}
               </details>
             </li>
           );

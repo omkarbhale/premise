@@ -409,6 +409,14 @@ export const SETTINGS: readonly Setting[] = [
     meaning: "Most items the Why draft may have; a longer draft is sent back to the drafter.",
   },
   {
+    key: "line.check_rounds_before_stop",
+    default: 3,
+    check: summarised(wholeNumber(1, 20), "1 to 20"),
+    meaning:
+      "How many check rounds a must item may fail before premise stops building it and asks you what to do. Each failed round sends the change back to the builder with the checker's evidence.",
+    record: "0186",
+  },
+  {
     key: "line.remote",
     default: "github",
     check: summarised(oneOf(REMOTES), `"github", "local" or "none"`),
@@ -608,7 +616,7 @@ export const SETTINGS: readonly Setting[] = [
     default: [],
     check: summarised(textList, "a list of folder paths"),
     meaning:
-      "Extra folders running software may read but not change, such as where Node.js or Python is installed when that is under your home folder.",
+      "Extra folders running software may read but not change, such as where Python is installed when that is under your home folder. The Node.js premise runs on is normally included; when it is installed in your home folder or above it, add its folder here yourself.",
     record: "0163",
   },
   {
@@ -674,6 +682,7 @@ export interface PremiseConfig {
     say_back_max_items: number;
     why_items_min: number;
     why_items_max: number;
+    check_rounds_before_stop: number;
     remote: Remote;
     splitting: boolean;
     split_max_parts: number;

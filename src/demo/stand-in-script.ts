@@ -2,6 +2,14 @@ import type { AgentRequest } from "../agents/agent-runner.js";
 import type { AgentScript, ScriptBehaviour, ScriptRule } from "../agents/scripted-agent.js";
 import { AGENT_TASK_KINDS, type AgentTaskKind } from "../config/settings.js";
 import { shortIdea } from "./drafts.js";
+import {
+  commitAll,
+  itemsOf,
+  readRecord,
+  runScenario,
+  taskOf,
+  writeFiles,
+} from "./scripted-work.js";
 
 /** What each scripted job says it is doing, so the page's activity reads like real work. */
 const PROGRESS: Record<AgentTaskKind, string> = {
@@ -9,9 +17,9 @@ const PROGRESS: Record<AgentTaskKind, string> = {
   research: "Looking at what already exists (scripted: no search is made)",
   review: "Reviewing the plan's costly choices (scripted)",
   plan: "Planning the work, smallest running version first (scripted)",
-  build: "Writing the code (scripted: nothing is written)",
+  build: "Writing a placeholder program (scripted: no real code is written)",
   prototype: "Making a quick prototype (scripted)",
-  check: "Checking the build against the record (scripted: nothing is checked)",
+  check: "Checking the build against the record (scripted: it only starts the program)",
   triage: "Reading new items (scripted)",
   reading: "Reading held items together (scripted)",
   report: "Writing the report (scripted)",
@@ -180,6 +188,76 @@ const review: ScriptBehaviour = (request, call) => {
   });
 };
 
+/** The run instructions the scripted builder writes: a command premise runs once as a sample. */
+const TRIAL_RUN = [
+  "# How to run it",
+  "",
+  "This is a scripted trial: the program only says so. A real builder writes real instructions here.",
+  "",
+  "```premise-run",
+  "kind: command",
+  "command: node trial.mjs",
+  "```",
+  "",
+  "## How to check",
+  "",
+  "Run `node trial.mjs`; it prints one line saying it is a scripted trial.",
+  "",
+].join("\n");
+
+/**
+ * The scripted builder of a trial: it writes a placeholder program that says it is a trial, and
+ * run.md, and commits them naming the task's items. It writes no real code.
+ */
+const trialBuild: ScriptBehaviour = (request, call) => {
+  const copy = request.workingCopy;
+  if (!copy) return;
+  const task = taskOf(request);
+  const items = task.items.length
+    ? task.items
+    : readRecord(call)
+        .slice(0, 1)
+        .map((l) => l.id);
+  const name = typeof request.context?.name === "string" ? request.context.name : "this software";
+  writeFiles(copy, {
+    "trial.mjs": `// A scripted trial of premise: no real code was written for this software.\nconsole.log(${JSON.stringify(`${name}: a scripted trial. Task ${task.number} (${task.title}) was walked through; nothing real was built.`)});\n`,
+    "premise/run.md": TRIAL_RUN,
+  });
+  commitAll(copy, `Task ${task.number}: ${task.title} (scripted trial)`, items);
+};
+
+/** The scripted checker of a trial writes one scenario per item, from the record's words. */
+const trialScenarios: ScriptBehaviour = (request, call) => {
+  const record = readRecord(call);
+  for (const item of itemsOf(request)) {
+    const line = record.find((l) => l.id === item)?.line ?? item;
+    call("scenario_write", {
+      name: `Use it for ${item}`,
+      items: [item],
+      steps: ["Use the software as a user would, for what the item asks."],
+      expected: line.replace(/^- \[[A-Z]-\d+\]\s*/, ""),
+    });
+  }
+};
+
+/**
+ * The scripted checker of a trial starts the placeholder program, and says honestly that it could
+ * not check any item: nothing real was built, and a scripted checker judges nothing.
+ */
+const trialJudge: ScriptBehaviour = async (request, call) => {
+  const copy = request.workingCopy;
+  const started = copy
+    ? await runScenario(copy, { steps: ["run: node trial.mjs"], expected: "scripted trial" })
+    : { met: false, seen: "no working copy", problem: null };
+  call("verdict_submit", {
+    verdicts: itemsOf(request).map((item) => ({
+      item,
+      verdict: "could-not-check",
+      evidence: `This is a scripted trial, so nothing real was built and nothing was judged. The placeholder program ${started.met ? `ran and printed: ${started.seen}` : `did not run: ${started.seen}`}`,
+    })),
+  });
+};
+
 /**
  * The scripted sizer: every piece is small, goes through every stage it may have, and stays whole.
  * A real sizer leaves out what a piece does not need; this one never guesses.
@@ -280,6 +358,9 @@ export function standInScript(stepSeconds: number): AgentScript {
       rule("size", { behave: size }),
       rule("triage", { behave: triage }),
       rule("reading", { behave: reading }),
+      rule("build", { behave: trialBuild }),
+      rule("check", { when: { purpose: "scenarios" }, behave: trialScenarios }),
+      rule("check", { when: { purpose: "check" }, behave: trialJudge }),
       ...AGENT_TASK_KINDS.map((task) => rule(task)),
     ],
   };

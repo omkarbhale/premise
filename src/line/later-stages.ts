@@ -1,13 +1,15 @@
 import type { AgentOutcome } from "../agents/agent-runner.js";
 import type { EnqueueInput, Job } from "../queue/work-queue.js";
+import type { AskAnswer, BuildView } from "../shared/api-types.js";
+import type { Ask } from "../storage/asks.js";
 
 /**
- * The hand-off between the line engine and the stages built next: Build, Check, Run and Report
+ * The hand-off between the line engine and the stages after Plan: Build, Check, Run and Report
  * (docs/specs/line-engine.md 5.3, rows 7 to 10). Intake has its own hand-off (intake-hooks.ts). The line engine owns the order of the
  * stages and the milestones; a LaterStages implementation owns what happens inside each.
  *
- * Until those stages exist, {@link StandInLaterStages} completes them with scripted jobs that build,
- * check and start nothing. Everything it does is labelled as a stand-in on the page.
+ * Build, Check and Run are done by src/build (docs/architecture/build-check-run.md); each
+ * milestone's report is written by the reporter; Intake is done by src/intake.
  */
 
 export type LaterStageId = "build" | "check" | "run" | "report";
@@ -17,66 +19,50 @@ export interface MilestoneRef {
   text: string;
 }
 
-/** What a later stage's job ending means for the line. */
+/** What a later stage's job ending, or an answer, means for the line. */
 export type LaterOutcome =
   /** The stage is done; the line goes to the next stage. */
   | { kind: "next" }
   /** Back to Build with this evidence (a must item not met; docs/specs/line-engine.md 5.7). */
   | { kind: "back-to-build"; evidence: string }
-  /** Nothing to do yet: more jobs of the stage are still running. */
+  /** Nothing to do yet: more jobs of the stage are running, or a person is asked. */
   | { kind: "wait" };
+
+/** A later stage being entered for one milestone. */
+export interface LaterEntry {
+  softwareId: string;
+  stage: LaterStageId;
+  milestone: MilestoneRef | null;
+  /** The stage run the jobs belong to (stage_runs.id). */
+  run: number;
+  /** Why the stage is entered, in a few words ("check not passed", "plan confirmed"). */
+  why: string;
+}
 
 export interface LaterStages {
   /** True while these stages are a stand-in; the page says so. */
   readonly standIn: boolean;
-  /** The jobs that open a stage for one milestone. None means the stage is done at once. */
-  jobs(softwareId: string, stage: LaterStageId, milestone: MilestoneRef | null): EnqueueInput[];
-  /** A job of the stage ended done. */
+  /**
+   * The jobs that open a stage for one milestone; the line engine queues them. An empty list means
+   * the stage is done at once. Null means the stage is under way already (the implementation
+   * queued its own jobs, or asked a person), and ends through finished() or answered().
+   */
+  jobs(entry: LaterEntry): EnqueueInput[] | null;
+  /** A job of the stage ended, whatever its status. */
   finished(job: Job): LaterOutcome;
   /** The server's own part of Run (job kind "run"). */
   runServerJob(job: Job): Promise<AgentOutcome>;
   /** The report written at the end of a milestone, as plain lines for the session. */
   reportLines(softwareId: string, milestone: MilestoneRef | null): string[];
-}
-
-/** Scripted Build, Check, Run and Report: they do nothing, and say so. */
-export class StandInLaterStages implements LaterStages {
-  readonly standIn = true;
-
-  constructor(private readonly stepSeconds: () => number) {}
-
-  jobs(softwareId: string, stage: LaterStageId, milestone: MilestoneRef | null): EnqueueInput[] {
-    const about = milestone ? ` (${milestone.id}: ${milestone.text})` : "";
-    const brief = `Stand-in ${stage} for this software${about}. Nothing is really ${stage === "build" ? "built" : stage === "check" ? "checked" : "started"}.`;
-    switch (stage) {
-      case "build":
-        return [{ softwareId, kind: "build", stage, payload: { standIn: true, brief } }];
-      case "check":
-        return [{ softwareId, kind: "check", stage, payload: { standIn: true, brief } }];
-      case "run":
-        return [{ softwareId, kind: "run", stage, payload: { standIn: true, brief } }];
-      case "report":
-        return [];
-    }
-  }
-
-  finished(): LaterOutcome {
-    return { kind: "next" };
-  }
-
-  runServerJob(): Promise<AgentOutcome> {
-    const seconds = this.stepSeconds();
-    return new Promise((resolve) =>
-      setTimeout(
-        () => resolve({ kind: "done", summary: "Stand-in: nothing was started on this machine." }),
-        seconds * 1000,
-      ),
-    );
-  }
-
-  reportLines(_softwareId: string, milestone: MilestoneRef | null): string[] {
-    return [
-      `${milestone ? `${milestone.id} reached` : "Reached the end of the plan"} (stand-in): building, checking and running are not built into premise yet, so nothing was really built, checked or started.`,
-    ];
-  }
+  /**
+   * An ask was answered that belongs to these stages: one they made, or an agent's question from
+   * one of their jobs. Null when the ask is not theirs.
+   */
+  answered?(ask: Ask, answer: AskAnswer): LaterOutcome | null;
+  /** What the page shows under Build and Running. */
+  view?(softwareId: string): BuildView | null;
+  /** The software was sent back before these stages: forget the work in progress. */
+  reset?(softwareId: string): void;
+  /** An agent of these stages proposed a record change the record keeper accepted for review. */
+  proposed?(softwareId: string, changeId: number): void;
 }

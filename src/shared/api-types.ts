@@ -99,6 +99,50 @@ export interface SoftwareDetail extends SoftwareSummary {
   work: WorkItemView[];
   /** True while the check of a split piece as a whole is a stand-in that checks nothing. */
   wholeCheckStandIn: boolean;
+  /** What is being built and checked, and what landed; null before Build. */
+  build: BuildView | null;
+}
+
+/** One task of a milestone's working plan, as the page shows it under Build. */
+export interface BuildTaskView {
+  number: number;
+  title: string;
+  /** Record items the task serves. */
+  items: string[];
+  status: "waiting-to-start" | "building" | "built" | "waiting-on-person" | "stopped";
+  /** The commit it made, when built. */
+  commit: string | null;
+  /** Why it stopped, or what it waits on, in plain words. */
+  note: string | null;
+  /** A task made from the checker's evidence, to fix what the check found. */
+  fix: boolean;
+}
+
+export type VerdictValue = "met" | "not-met" | "could-not-check";
+
+/** One check of one exact commit. */
+export interface CheckView {
+  round: number;
+  commit: string;
+  status: "writing-scenarios" | "checking" | "passed" | "not-passed" | "stopped" | "did-not-finish";
+  verdicts: { item: string; text: string; verdict: VerdictValue; evidence: string }[];
+  findings: { text: string; blocking: boolean }[];
+  when: string;
+}
+
+/** Build, Check and Run for the milestone being worked on (docs/specs/page.md). */
+export interface BuildView {
+  milestone: { id: string; text: string } | null;
+  /** The check round, from 1; a failed check starts the next round. */
+  round: number;
+  roundsAllowed: number;
+  scenarios: number;
+  tasks: BuildTaskView[];
+  checks: CheckView[];
+  /** The last commit that passed its check and was merged, with when. */
+  landed: { commit: string; when: string; milestone: string | null } | null;
+  /** What waits on a person in Build and Check, in plain words. */
+  waiting: string[];
 }
 
 export type AskKind = "question" | "draft" | "say-back" | "proposal" | "approval" | "needed";
@@ -322,10 +366,7 @@ export interface Overview {
     /** The operator chose a look around with scripted agents (not real) until premise restarts. */
     scriptedDemo: boolean;
   };
-  /**
-   * The line engine runs Why to Plan. Build, Check, Run, Report and Intake are a labelled stand-in
-   * until their own modules exist.
-   */
+  /** The line engine runs every stage; the stages listed in standInStages are a labelled stand-in. */
   line: { mode: "engine"; standInStages: StageId[] };
   page: { notifications: "offer" | "off" };
   usage: {

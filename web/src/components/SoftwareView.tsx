@@ -4,7 +4,7 @@ import { useSession } from "../context";
 import { useLoad } from "../hooks";
 import { stageName, whereNow } from "../../../src/shared/stages";
 import { percent } from "../words";
-import { MockedBadge, Problem, StandInBadge } from "./Badges";
+import { MockedBadge, Problem } from "./Badges";
 import { Conversation } from "./Conversation";
 import { IntakeView } from "./IntakeView";
 import { Line } from "./Line";
@@ -69,9 +69,6 @@ export function SoftwareView({
             Usage: {s.usage.sessions} sessions, ${s.usage.costUsd.toFixed(2)},{" "}
             {percent(s.usage.weeklyShare)} of the week {s.usage.mocked && <MockedBadge />}
           </span>
-          {(["build", "check", "run", "report"] as const).includes(s.stage as "build") && (
-            <StandInBadge />
-          )}
         </div>
         <details className="idea">
           <summary>What you asked for</summary>

@@ -21,7 +21,7 @@ import { LineSplitter, parseStreamLine, type StreamEvent } from "./claude-stream
 import { assembleInstructions } from "./instructions.js";
 import { accessFor } from "./roles.js";
 import type { AgentToolServer } from "./tool-server.js";
-import { prepareWorkingCopy, removeWorkingCopy } from "./working-copy.js";
+import { prepareWorkingCopy, removeWorkingCopy, saveEvidence } from "./working-copy.js";
 
 /**
  * Real agents: Claude Code run headless as a child process, one per session (decisions 0071,
@@ -238,6 +238,9 @@ class ClaudeSession implements AgentSession {
       this.say(resuming ? "Carrying on the earlier session" : `Starting the ${access.role}`);
       const ended = await this.watch(args, copy.path, transcript);
       const outcome = this.decide(ended);
+      if (access.role === "checker") {
+        saveEvidence(dataFolder, request.softwareId, request.jobId, copy.path);
+      }
       if (
         ["done", "failed", "stuck"].includes(outcome.kind) &&
         !copy.branch &&
