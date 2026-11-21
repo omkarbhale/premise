@@ -109,11 +109,13 @@ class ClaudeSession implements AgentSession {
     private readonly onProgress: (progress: AgentProgress) => void,
   ) {
     this.currentId = request.resumeSessionId ?? randomUUID();
-    this.confirmed = Boolean(request.resumeSessionId);
+    this.confirmed = new Promise((resolve) => (this.confirm = resolve));
+    if (request.resumeSessionId) this.confirm(request.resumeSessionId);
     this.outcome = new Promise((resolve) => (this.resolveOutcome = resolve));
   }
 
-  confirmed: boolean;
+  readonly confirmed: Promise<string>;
+  private confirm!: (id: string) => void;
 
   get sessionId(): string {
     return this.currentId;
@@ -288,7 +290,7 @@ class ClaudeSession implements AgentSession {
         switch (event.kind) {
           case "init":
             this.currentId = event.sessionId;
-            this.confirmed = true;
+            this.confirm(event.sessionId);
             if (event.apiKeySource && event.apiKeySource !== "none") {
               this.limitHit = {
                 kind: "failed",

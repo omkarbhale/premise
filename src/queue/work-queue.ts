@@ -325,7 +325,7 @@ export class WorkQueue {
            VALUES (?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
-          session.confirmed === false ? "" : session.sessionId,
+          session.confirmed ? "" : session.sessionId,
           job.id,
           job.kind,
           session.runtime,
@@ -333,6 +333,13 @@ export class WorkQueue {
           task.effort,
           now(),
         );
+      session.confirmed?.then((id) => {
+        this.db
+          .prepare(
+            "UPDATE agent_sessions SET runtime_session_id = ? WHERE job_id = ? AND ended IS NULL",
+          )
+          .run(id, job.id);
+      });
       outcome = session.outcome;
     }
     this.notify(job.id);
@@ -344,15 +351,6 @@ export class WorkQueue {
         failureSignature: "session-error",
       }))
       .then((result) => {
-        const session = this.running.get(job.id);
-        // A runtime may confirm its session id only once the session started.
-        if (session) {
-          this.db
-            .prepare(
-              "UPDATE agent_sessions SET runtime_session_id = ? WHERE job_id = ? AND ended IS NULL",
-            )
-            .run(session.confirmed === false ? "" : session.sessionId, job.id);
-        }
         this.running.delete(job.id);
         this.settled.delete(job.id);
         this.finish(job.id, result);

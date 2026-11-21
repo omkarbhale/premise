@@ -229,14 +229,14 @@ describe("real agent runner, against a fake claude", () => {
     const early = runner.start(request({ brief: "scenario:hang" }), () => {});
     early.stop();
     expect(await early.outcome).toEqual({ kind: "stopped" });
-    expect(early.confirmed).toBe(false);
+    expect(await Promise.race([early.confirmed, Promise.resolve("never")])).toBe("never");
 
     const finished = runner.start(request(), () => {});
     await finished.outcome;
-    expect(finished.confirmed).toBe(true);
+    expect(await finished.confirmed).toBe(finished.sessionId);
     const carried = runner.start(request({ resumeSessionId: "earlier" }), () => {});
     await carried.outcome;
-    expect(carried.confirmed).toBe(true);
+    expect(await carried.confirmed).toBe("earlier");
   });
 
   it("stops a session that uses an API key", async () => {

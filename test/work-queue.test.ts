@@ -297,7 +297,7 @@ describe("work queue", () => {
       runtime: hanging.runtime,
       start: (...args: Parameters<ScriptedAgentRunner["start"]>) => ({
         ...hanging.start(...args),
-        confirmed: false,
+        confirmed: new Promise<string>(() => {}),
       }),
     };
     const first = openDatabase(folder);
@@ -315,6 +315,35 @@ describe("work queue", () => {
     await after.idle();
     expect(after.get(id)).toMatchObject({ status: "done" });
     expect(runner.requests[0]!.resumeSessionId).toBeUndefined();
+    second.close();
+  });
+  it("keeps a confirmed session id across a restart, and carries the session on", async () => {
+    const folder = tempFolder();
+    const config: PremiseConfig = testConfig(folder);
+    const hanging = new ScriptedAgentRunner(parseScript(hangBuilds));
+    const confirming = {
+      runtime: hanging.runtime,
+      start: (...args: Parameters<ScriptedAgentRunner["start"]>) => ({
+        ...hanging.start(...args),
+        confirmed: Promise.resolve("claude-confirmed-1"),
+      }),
+    };
+    const first = openDatabase(folder);
+    const before = new WorkQueue({ db: first.db, config, runner: confirming });
+    const software = createSoftware(first.db, { name: "sample" }, config.softwares);
+    const id = before.enqueue({ softwareId: software.id, kind: "build" });
+    before.tick();
+    await Promise.resolve();
+    first.db.close();
+
+    const second = openDatabase(folder).db;
+    const runner = new ScriptedAgentRunner();
+    const after = new WorkQueue({ db: second, config, runner });
+    after.recover();
+    after.tick();
+    await after.idle();
+    expect(runner.requests[0]!.resumeSessionId).toBe("claude-confirmed-1");
+    expect(after.get(id)).toMatchObject({ status: "done" });
     second.close();
   });
 });
