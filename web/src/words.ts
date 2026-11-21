@@ -70,7 +70,6 @@ export const JOB_LABEL: Record<string, string> = {
   reading: "Reading held items",
   report: "Writing a report",
   run: "Starting the software",
-  size: "Sizing the work",
   recover: "Recovering a record from the code",
 };
 
