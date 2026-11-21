@@ -233,7 +233,8 @@ describe("a web software", () => {
 
   it("keeps a deliberate stop while starting as stopped, not failed", async () => {
     const s = makeSoftware(db, config, "Slow", {
-      "server.js": "setTimeout(() => require('http').createServer((q, r) => r.end('ok')).listen(Number(process.env.PORT), '127.0.0.1'), 5000);",
+      "server.js":
+        "setTimeout(() => require('http').createServer((q, r) => r.end('ok')).listen(Number(process.env.PORT), '127.0.0.1'), 5000);",
       "premise/run.md": runBlock(["kind: web", "start: node server.js"]),
     });
     const starting = runner.start(s.id);
@@ -244,7 +245,11 @@ describe("a web software", () => {
     await runner.stop(s.id);
     await starting.catch(() => undefined);
     expect(runner.view(s.id).state).toBe("stopped");
-    const kinds = (db.prepare("SELECT kind FROM events WHERE module = 'runner' ORDER BY id").all() as { kind: string }[]).map((e) => e.kind);
+    const kinds = (
+      db.prepare("SELECT kind FROM events WHERE module = 'runner' ORDER BY id").all() as {
+        kind: string;
+      }[]
+    ).map((e) => e.kind);
     expect(kinds).not.toContain("failed");
   });
 

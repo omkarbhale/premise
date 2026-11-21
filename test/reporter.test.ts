@@ -199,7 +199,13 @@ describe("a report from recorded facts", () => {
     verdictAt(s.id, "W-1", "met", first);
     verdictAt(s.id, "W-2", "met", first);
     const before = await gatherFacts(
-      { db, config, records: new RecordKeeper({ db, config }), runner, ledger: new MockUsageLedger("mock-fixed", 1) },
+      {
+        db,
+        config,
+        records: new RecordKeeper({ db, config }),
+        runner,
+        ledger: new MockUsageLedger("mock-fixed", 1),
+      },
       s.id,
     );
     expect(draftReleaseNotes(before, first)).toContain("People can open the page");
@@ -211,7 +217,13 @@ describe("a report from recorded facts", () => {
     expect(stale).toContain(`last checked at version ${first.slice(0, 7)}`);
     expect(stale).toContain("met");
     const after = await gatherFacts(
-      { db, config, records: new RecordKeeper({ db, config }), runner, ledger: new MockUsageLedger("mock-fixed", 1) },
+      {
+        db,
+        config,
+        records: new RecordKeeper({ db, config }),
+        runner,
+        ledger: new MockUsageLedger("mock-fixed", 1),
+      },
       s.id,
     );
     const head = s.git.headCommit(s.repo)!;
