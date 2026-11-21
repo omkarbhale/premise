@@ -12,7 +12,7 @@
 
 ## Decision
 
-1. **The receipt page shows the sender's own words and a plain status.** The statuses are: being understood, being built, running, held, closed.
+1. **The receipt page shows the sender's own words and a plain status.** The statuses are: Received, Being considered, Kept for now, Accepted, Being worked on, Done, Answered, Merged, Closed, Set aside.
 2. **When the item was joined to another,** the page says it was joined with an earlier report of the same thing and shows that item's plain status.
 3. **Answer text is shown only when the sender's own item is the answered one.** Text written for or by another sender or the operator is never shown.
 
