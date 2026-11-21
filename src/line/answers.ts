@@ -139,7 +139,11 @@ function validateScope(ask: Ask, answer: AskAnswer): string {
 }
 
 /** An answer in words, for the agent that asked. `builder` adds the builder's guidance. */
-export function answerWords(ask: Ask, answer: AskAnswer, to: "agent" | "builder" = "agent"): string {
+export function answerWords(
+  ask: Ask,
+  answer: AskAnswer,
+  to: "agent" | "builder" = "agent",
+): string {
   if (answer.kind === "text") return answer.text;
   if (answer.kind === "needed") {
     const who = roleWords(ask.role);
