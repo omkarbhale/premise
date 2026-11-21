@@ -117,6 +117,26 @@ export interface SoftwareDetail extends SoftwareSummary {
   build: BuildView | null;
   /** For software premise took on from an existing repository (decision 0189). */
   existing?: ExistingView;
+  /** Areas claimed for taste, open ones first (decision 0102). */
+  claims: ClaimView[];
+}
+
+/** An area of a software a role claimed for its taste: premise shows a proposal before building it. */
+export interface ClaimView {
+  id: number;
+  softwareId: string;
+  /** The role label, in plain words ("designer"). */
+  role: string;
+  /** The area in the claimer's own words ("the look of the main screen"). */
+  area: string;
+  /**
+   * Where the claim stands: waiting for the next build; a proposal is being made or waits for the
+   * role's answer; decided (what the role kept or said); or released.
+   */
+  state: "waiting" | "proposing" | "proposal-open" | "decided" | "released";
+  /** What the role decided, in their terms. */
+  decision?: string;
+  created: string;
 }
 
 /** One task of a milestone's working plan, as the page shows it under Build. */
@@ -260,6 +280,10 @@ export interface AskView {
   };
   /** For a milestone's "go on?" question: which milestone, by its title. */
   milestone?: { id: string; title: string };
+  /** For a proposal: the claimed area it is for (decision 0102). */
+  claim?: { id: number; area: string };
+  /** For something only a person can do that ends in a secret: the file and key to write it as. */
+  secret?: { file: string; key: string };
   /** For a redone list: what the person struck before, with the reason, so they see they were heard. */
   struckBefore?: { text: string; reason: string }[];
   status: "open" | "answered" | "withdrawn";
@@ -279,7 +303,8 @@ export type AskAnswer =
   | { kind: "text"; text: string }
   | { kind: "approval"; decision: "approve-once" | "approve-kind" | "refuse"; reason?: string }
   | { kind: "needed"; decision: "done" | "cannot"; reason?: string }
-  | { kind: "proposal"; decision: "accept" | "change"; text?: string }
+  /** For a proposal: keep one of its options (`choice`, an item's key), or say what to change. */
+  | { kind: "proposal"; decision: "accept" | "change"; text?: string; choice?: string }
   | { kind: "scope"; items: { key: string; place: ScopePlace }[] };
 
 export interface ChatMessage {
@@ -319,6 +344,8 @@ export interface RecordView {
 export interface ReportLine {
   text: string;
   evidence?: string;
+  /** premise's own assumption or choice, not a person's: the page folds these under a disclosure. */
+  premises?: boolean;
 }
 
 /** A standing approval for a kind of floor action, for one software. */
@@ -465,6 +492,11 @@ export interface Overview {
     weekly: { mocked: boolean; utilization: number; windowStart: string; resetsAt: string };
   };
   softwares: SoftwareSummary[];
+  /**
+   * The role labels in use besides the operator: from what was asked, and from open claims. When it
+   * is empty only the operator is asked anything, and the page shows no role labels at all.
+   */
+  roles: string[];
   /** Each software's usage, from usage-ledger (mocked until it exists). */
   softwareUsage: (UsageFigures & { softwareId: string })[];
   openAsks: number;
@@ -554,7 +586,13 @@ export interface IntakeView {
 // ---- Measures (decision 0172, docs/specs/measures.md) ------------------------------------------
 
 export type MeasureKey =
-  "attention" | "answer-time" | "idea-to-running" | "intake-to-fix" | "checker-misses" | "sessions";
+  | "attention"
+  | "asks-by-role"
+  | "answer-time"
+  | "idea-to-running"
+  | "intake-to-fix"
+  | "checker-misses"
+  | "sessions";
 
 /** One measure, worked out from recorded events only. Never mocked: these are real. */
 export interface MeasureFigure {

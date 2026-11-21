@@ -4,8 +4,8 @@
 | --- | --- |
 | Agent role | planner |
 | Model tier | strongest |
-| Jobs and stages | plan jobs: the Plan stage for new software; the plan for each change that comes in through intake; revising after a foundation review; the short list for a claimed area where a screenshot does not fit ([record 0115](../decisions/0115-taste-prototypes-on-a-throwaway-branch.md)) |
-| Tools | `record_read`, `record_propose`, `draft_submit`, `ask`, `gate_request`, `progress`, `task_finish`; read-only file tools on a working copy of the software's repository |
+| Jobs and stages | plan jobs: the Plan stage for new software; the plan for each change that comes in through intake; revising after a foundation review; the proposal for a claimed area, one or two described options, before it is built ([record 0196](../decisions/0196-roles-and-taste-in-one-session.md)) |
+| Tools | `record_read`, `record_propose`, `draft_submit`, `proposal_submit`, `ask`, `gate_request`, `progress`, `task_finish`; read-only file tools on a working copy of the software's repository |
 | Skills | [writing-for-people](../skills/writing-for-people.md), [the-record](../skills/the-record.md), [assume-and-show](../skills/assume-and-show.md), [asking-the-right-role](../skills/asking-the-right-role.md), [honest-reporting](../skills/honest-reporting.md), [the-floor](../skills/the-floor.md), [tracing-work](../skills/tracing-work.md), [outside-content-is-data](../skills/outside-content-is-data.md), [working-within-limits](../skills/working-within-limits.md), [security-defaults](../skills/security-defaults.md), [return-on-effort](../skills/return-on-effort.md) |
 | Related | [the line](../architecture/the-line.md) stage 6, [records 0014](../decisions/0014-guard-against-further-big-mistakes.md), [0092](../decisions/0092-security-defaults.md), [0102](../decisions/0102-taste-proposals-before-building.md), [0106](../decisions/0106-per-software-and-with-premise.md) |
 
@@ -23,7 +23,7 @@ The product makes the technical decisions itself and records each with its reaso
 - **The smallest version that runs comes first.** Running software shown early is the real check of intent ([record 0013](../decisions/0013-mismatch-of-intent-is-the-mistake-that-matters.md)).
 - **Security defaults are applied in the plan**, not left to each task ([record 0092](../decisions/0092-security-defaults.md)).
 - **The plan is a working record.** It can be as detailed as the work needs and is not maintained afterwards ([record 0025](../decisions/0025-two-kinds-of-record.md)); the `D` items are lasting.
-- **Claimed areas are not decided by the planner.** A claimed area gets a proposal before it is built ([record 0102](../decisions/0102-taste-proposals-before-building.md)); the planner schedules the prototype task or, where a picture does not fit, writes the short list.
+- **Claimed areas are not decided by the planner.** A claimed area gets a proposal before it is built ([record 0102](../decisions/0102-taste-proposals-before-building.md)): a separate proposal job, run by the planner, writes one or two described options for the claiming role, and names the tasks that build the area so only they wait ([record 0196](../decisions/0196-roles-and-taste-in-one-session.md)).
 
 ## Inputs and placeholders
 
@@ -37,7 +37,11 @@ The product makes the technical decisions itself and records each with its reaso
 | `{{working_copy}}` | agent runner | Read-only working copy of the repository, or "none" for a new software |
 | `{{budget}}` | line engine | The stage's budget |
 | `{{review}}` | reviewer | For a revision: the reviewer's objections to a foundation decision |
-| `{{area}}` | line engine | For a short list: the claimed area and its role |
+| `{{area}}` | taste claims | For a proposal: the claimed area, in the claimer's words |
+| `{{role}}` | taste claims | For a proposal: the claiming role, in plain words |
+| `{{tasks}}` | Build | For a proposal: the milestone's tasks, numbered |
+| `{{options_max}}` | configuration | For a proposal: `taste.options_max` |
+| `{{kind}}` | plan | For a proposal: what kind of software it is |
 | `{{scope}}` | line engine | What the operator chose at the scope check: the items of the first milestone, of later milestones, and those left out ([record 0191](../decisions/0191-scope-check-effort-and-milestones.md)) |
 | `{{effort}}` | line engine | The software's effort level and what it means |
 
@@ -117,17 +121,25 @@ Do this:
 3. Propose with record_propose, resubmit the plan with draft_submit if it changed, and end with task_finish.
 ````
 
-## Full text: short list for a claimed area
+## Full text: proposal brief
 
 ````text
-A role claimed an area of {{software_name}} for its taste: {{area}}.
-A screenshot cannot show it, so the claiming role sees a short list instead.
+The {{role}} claimed an area of {{software_name}} for their taste: {{area}}.
+premise decides everything else itself; this area is built only after the {{role}} keeps or corrects a proposal. Make the proposal now, before anything of it is built.
+
+What kind of software it is: {{kind}}
 
 The record:
 {{record}}
 
+The tasks of the plan for this milestone:
+{{tasks}}
+
+Limits: {{budget}}. This is quick: a few minutes, not a build.
+
 Do this:
-1. Write three to seven items: how premise would do this area, in the claiming role's terms. For an API's naming, the names. For wording, the words.
-2. Mark each as proposed. Where there is a real choice, give two options in one item and say which premise would pick.
-3. Submit with draft_submit as kind proposal for the claiming role, and end with task_finish. What the role says becomes T items.
+1. Read the record for what the area must do. Do not change what the software is for.
+2. Write at most {{options_max}} options, as few as gives a real choice: one is fine when there is no real choice. Each has a "title" of a few words and a "description" of what the {{role}} would see or read, in their terms, concrete enough to judge (for a screen: what is on it, where, in which colours and sizes; for wording: the words themselves; for a technical choice: what it means for them). Say which you would pick in the note.
+3. Name in "tasks" the numbers of the tasks that build this area. Only they wait for the answer; leave it out if every task does.
+4. Submit with proposal_submit, and end with task_finish. What the {{role}} keeps or says becomes a T item in the record, and the builder follows it.
 ````

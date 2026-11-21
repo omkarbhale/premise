@@ -153,8 +153,9 @@ Applied to every decision a stage meets ([0084](../decisions/0084-who-has-the-la
 
 - An area is claimed in the session under a role, in its own words ("the look of the main screen", "the API's naming") ([0022](../decisions/0022-people-can-put-in-their-taste.md)).
 - By default premise decides; a person claims the areas they want to see before they are built.
-- Before a claimed area is built, a proposal is shown in the session under the claiming role: a screenshot of a quick prototype, or a short list. It is decided there; other tasks go on ([0102](../decisions/0102-taste-proposals-before-building.md)). The builder builds the prototype on a throwaway branch and the server takes the screenshot ([0115](../decisions/0115-taste-prototypes-on-a-throwaway-branch.md)).
-- What the role says becomes `T` items. Those that can be checked go into the checker's scenarios.
+- Before a claimed area is built, a proposal is shown in the session under the claiming role. It is decided there; other tasks go on ([0102](../decisions/0102-taste-proposals-before-building.md)). As built ([0196](../decisions/0196-roles-and-taste-in-one-session.md)): when Build starts a milestone, each open claim not yet decided gets a `prototype` job run by the planner, which submits one or two described options with `proposal_submit` and names the plan's tasks that build the area. No task starts until the proposals are made; then only the named tasks wait for the role's answer. If no proposal comes, the role is asked in plain words. A claim made while a milestone is being built applies from the next one. Screenshots of a quick prototype ([0115](../decisions/0115-taste-prototypes-on-a-throwaway-branch.md)) are left for later.
+- What the role keeps or says becomes a `T` item under the role, and the held tasks start with it in their brief. Those that can be checked go into the checker's scenarios. A correction (the role says what to change) is read into the taste lessons ([learning](learning.md)).
+- A claim can be released: a proposal still waiting is withdrawn, and the tasks it held go on with premise deciding the area.
 - Small wishes come in as intake.
 
 ### 5.7 Check outcomes
@@ -267,7 +268,7 @@ Stage budgets, in agent turns and minutes per stage, by size class ([0117](../de
 ## 11. Milestones
 
 - Milestone 1 step 2 (Why to Plan built; later stages stand in): stages Why to Plan in their thinnest form: one draft per stage, corrections in chat, a strike-out say-back, a short look at what exists. Only the operator; no taste claims; one software at a time. Milestones and waits (5.8a).
-- Milestone 3: roles as labels on every ask; questions in each role's terms; taste claims and proposals before building.
+- Milestone 3: roles as labels on every ask; questions in each role's terms; taste claims and proposals before building. Built ([0196](../decisions/0196-roles-and-taste-in-one-session.md)).
 - Milestone 4: the way back to Why from intake ([intake](intake.md)).
 - Milestone 6: existing software (5.10). Its first part, the thin form, is built ([0189](../decisions/0189-how-taking-on-existing-software-is-built.md)); conflicts settled with people inside the take-on, reading issues, and pruning best-guess links stay for the rest of milestone 6.
 - Milestone 7: several softwares at once.

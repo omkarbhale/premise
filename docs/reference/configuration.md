@@ -114,6 +114,8 @@ A wrong setting stops premise at start with a message naming the setting and why
 | `learning.taste_lines_max` | `10` | 1 to 100 | The most lines kept in the operator's taste, which every software's agents read. When a new one would go over, the least-used line is dropped, with a note. | [0194](../decisions/README.md) |
 | `learning.line_max_chars` | `200` | 40 to 1000 | The longest a lesson line may be. Longer lines are cut at a word. | [0194](../decisions/README.md) |
 | `learning.read_with_agent` | `true` | true or false | Whether an agent (the triager, on the triage task's model) reads each correction to say what kind of mistake it was and propose a lesson. When false, or when the agent gives no answer, premise's fixed rules decide. | [0194](../decisions/README.md) |
+| `taste.options_max` | `2` | 1 to 5 | The most options a proposal for a claimed area offers. One or two keeps it quick to judge: the role keeps one, or says what to change. | [0196](../decisions/README.md) |
+| `taste.claims_max` | `10` | 1 to 100 | The most areas that can be claimed at once for one software. Each claim adds a proposal to look at before building, so a long list slows every build. | [0196](../decisions/README.md) |
 | `doctor.command_timeout_seconds` | `10` | 1 to 120 | How long the setup check waits for each program to answer. |  |
 
 ## Per type of task

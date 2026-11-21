@@ -63,6 +63,11 @@ export interface LaterStages {
   view?(softwareId: string): BuildView | null;
   /** The software was sent back before these stages: forget the work in progress. */
   reset?(softwareId: string): void;
+  /**
+   * A claim on an area was released: work that waited on its proposal goes on. Null when nothing
+   * of these stages waited on it.
+   */
+  claimReleased?(softwareId: string, claimId: number): LaterOutcome | null;
   /** An agent of these stages proposed a record change the record keeper accepted for review. */
   proposed?(softwareId: string, changeId: number): void;
 }

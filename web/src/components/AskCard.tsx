@@ -31,7 +31,7 @@ interface ItemState {
 
 /** One ask, answerable in place. Every kind says its role, what to do, and what happens after. */
 export function AskCard({ ask, showSoftware = false }: { ask: AskView; showSoftware?: boolean }) {
-  const { api, notCurrent, refresh, softwares } = useSession();
+  const { api, notCurrent, refresh, softwares, roles } = useSession();
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const titleId = useId();
@@ -79,9 +79,11 @@ export function AskCard({ ask, showSoftware = false }: { ask: AskView; showSoftw
       aria-labelledby={titleId}
     >
       <header className="ask-head">
-        <span className="chip chip-role" title={TERMS.role}>
-          For the {ask.role}
-        </span>
+        {(roles?.length ?? 0) > 0 && (
+          <span className="chip chip-role" title={TERMS.role}>
+            For the {ask.role}
+          </span>
+        )}
         <span className="chip">{ASK_KIND_LABEL[ask.kind]}</span>
         {showSoftware && <span className="chip chip-software">{ask.softwareName}</span>}
         {nowStage && (
@@ -115,7 +117,7 @@ export function AskCard({ ask, showSoftware = false }: { ask: AskView; showSoftw
           )}
           {ask.kind === "question" && <QuestionAnswer ask={ask} busy={busy} onSend={send} />}
           {ask.kind === "approval" && <ApprovalAnswer ask={ask} busy={busy} onSend={send} />}
-          {ask.kind === "needed" && <NeededAnswer busy={busy} onSend={send} />}
+          {ask.kind === "needed" && <NeededAnswer ask={ask} busy={busy} onSend={send} />}
           {ask.kind === "proposal" && <ProposalAnswer ask={ask} busy={busy} onSend={send} />}
           {ask.kind === "scope" && <ScopeAnswer ask={ask} busy={busy} onSend={send} />}
           {problem && <Problem>{problem}</Problem>}
@@ -519,10 +521,70 @@ function ApprovalAnswer({ ask, busy, onSend }: AnswerProps) {
   );
 }
 
-function NeededAnswer({ busy, onSend }: Omit<AnswerProps, "ask">) {
+/** Something only a person can do: the exact steps, then done or not (decision 0196). */
+function NeededAnswer({ ask, busy, onSend }: AnswerProps) {
   const [cannot, setCannot] = useState(false);
   const [reason, setReason] = useState("");
+  const steps =
+    ask.items.length > 0 ? (
+      <ol className="steps">
+        {ask.items.map((i) => (
+          <li key={i.key}>{i.text}</li>
+        ))}
+      </ol>
+    ) : null;
   return cannot ? (
+    <>
+      {steps}
+      <NeededCannot
+        busy={busy}
+        reason={reason}
+        setReason={setReason}
+        onSend={onSend}
+        back={() => setCannot(false)}
+      />
+    </>
+  ) : (
+    <>
+      {steps}
+      {ask.secret && (
+        <p className="note small" role="note">
+          premise never takes the secret on this page. After you mark this done it looks for{" "}
+          <code>{ask.secret.key}</code> in <code>{ask.secret.file}</code>, without reading the value
+          out.
+        </p>
+      )}
+      <div className="actions">
+        <button
+          type="button"
+          className="primary"
+          disabled={busy}
+          onClick={() => onSend({ kind: "needed", decision: "done" })}
+        >
+          It is done
+        </button>
+        <button type="button" disabled={busy} onClick={() => setCannot(true)}>
+          I cannot do this…
+        </button>
+      </div>
+    </>
+  );
+}
+
+function NeededCannot({
+  busy,
+  reason,
+  setReason,
+  onSend,
+  back,
+}: {
+  busy: boolean;
+  reason: string;
+  setReason: (r: string) => void;
+  onSend: (answer: AskAnswer) => void;
+  back: () => void;
+}) {
+  return (
     <>
       <input
         aria-label="Why it cannot be done"
@@ -538,44 +600,50 @@ function NeededAnswer({ busy, onSend }: Omit<AnswerProps, "ask">) {
         >
           Send
         </button>
-        <button type="button" onClick={() => setCannot(false)}>
+        <button type="button" onClick={back}>
           Back
         </button>
       </div>
     </>
-  ) : (
-    <div className="actions">
-      <button
-        type="button"
-        className="primary"
-        disabled={busy}
-        onClick={() => onSend({ kind: "needed", decision: "done" })}
-      >
-        Mark done
-      </button>
-      <button type="button" disabled={busy} onClick={() => setCannot(true)}>
-        I cannot do this…
-      </button>
-    </div>
   );
 }
 
+/**
+ * A proposal for a claimed area (decision 0102): one or two options to keep, or say what to change.
+ * What the role decides goes into the record as taste, and the area is built that way.
+ */
 function ProposalAnswer({ ask, busy, onSend }: AnswerProps) {
   const [changing, setChanging] = useState(false);
   const [text, setText] = useState("");
+  const [choice, setChoice] = useState<string | null>(
+    ask.items.length === 1 ? ask.items[0]!.key : null,
+  );
+  const several = ask.items.length > 1;
   return (
     <>
-      {ask.items.length > 0 && (
-        <ul className="items plain">
+      {several ? (
+        <fieldset className="proposal-options">
+          <legend>Pick the one to keep</legend>
           {ask.items.map((i) => (
-            <li key={i.key}>{i.text}</li>
+            <label key={i.key} className={`proposal-option ${choice === i.key ? "chosen" : ""}`}>
+              <input
+                type="radio"
+                name={`proposal-${ask.id}`}
+                checked={choice === i.key}
+                onChange={() => setChoice(i.key)}
+              />
+              <span>{i.text}</span>
+            </label>
           ))}
-        </ul>
+        </fieldset>
+      ) : (
+        ask.items.length === 1 && <p className="proposal-one">{ask.items[0]!.text}</p>
       )}
       {changing ? (
         <>
           <textarea
             aria-label="What to change"
+            placeholder="Say how you want it, in your own words"
             rows={2}
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -587,7 +655,7 @@ function ProposalAnswer({ ask, busy, onSend }: AnswerProps) {
               disabled={busy || !text.trim()}
               onClick={() => onSend({ kind: "proposal", decision: "change", text: text.trim() })}
             >
-              Ask for these changes
+              Build it this way
             </button>
             <button type="button" onClick={() => setChanging(false)}>
               Back
@@ -599,13 +667,25 @@ function ProposalAnswer({ ask, busy, onSend }: AnswerProps) {
           <button
             type="button"
             className="primary"
-            disabled={busy}
-            onClick={() => onSend({ kind: "proposal", decision: "accept" })}
+            disabled={busy || (ask.items.length > 0 && choice === null)}
+            onClick={() =>
+              onSend(
+                choice
+                  ? { kind: "proposal", decision: "accept", choice }
+                  : { kind: "proposal", decision: "accept" },
+              )
+            }
           >
-            Accept
+            {ask.items.length === 0
+              ? "Let premise decide"
+              : several
+                ? choice
+                  ? "Keep this one"
+                  : "Pick one to keep"
+                : "Keep it"}
           </button>
           <button type="button" disabled={busy} onClick={() => setChanging(true)}>
-            Change something…
+            {ask.items.length === 0 ? "Say how I want it…" : "Change something…"}
           </button>
         </div>
       )}

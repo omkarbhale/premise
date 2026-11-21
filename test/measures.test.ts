@@ -318,7 +318,7 @@ describe("the measures, from a scripted history", () => {
 
     const measures = await app.call("GET", `/api/softwares/${body.id}/measures`);
     expect(measures.status).toBe(200);
-    expect((measures.body as MeasuresView).figures).toHaveLength(6);
+    expect((measures.body as MeasuresView).figures).toHaveLength(7);
     expect((await app.call("GET", "/api/softwares/nope/measures")).status).toBe(404);
 
     // The report carries the block, real and not mocked.

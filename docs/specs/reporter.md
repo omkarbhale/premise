@@ -53,7 +53,7 @@ Always current, for each software ([0012](../decisions/0012-reporting-with-a-pro
 |---|---|
 | Decided | Record items and decisions since the last report; items the operator left out at the scope check are named as left out, not built |
 | Running | What runs, which commit, and where to open it |
-| Needed | What is needed and from which role, each with exactly what to do |
+| Needed | What is needed and from which role, each with exactly what to do; grouped by role, with a count per role, when another role than the operator is waited on, and with no role label while only the operator is ([0196](../decisions/0196-roles-and-taste-in-one-session.md)) |
 | Effort | premise's own measures ([0192](../decisions/0192-effort-in-proportion-to-what-was-asked.md)): the time from the idea to the first running version and the agent sessions it took, and the agent sessions in all. From premise's agent sessions and runs, not from usage-ledger |
 | Failed or not checked | Every item not met or not checked, except what the operator left out |
 | Cost | From usage-ledger, once it is usable (milestone 2). Until then: "Cost is not tracked yet." |
@@ -123,7 +123,7 @@ The report's default form stays with premise ([0012](../decisions/0012-reporting
 ## 10. Observability
 
 - Every report is stored with its lines and links.
-- Milestone reports count what each milestone asks: questions per role (milestone 3), counts per route (milestone 4), points where setup needed a person (milestone 5), how much of the original record was recovered (milestone 6).
+- Milestone reports count what each milestone asks: questions per role (milestone 3, built: the measures' "Questions asked, by role" in "How premise is doing"), counts per route (milestone 4), points where setup needed a person (milestone 5), how much of the original record was recovered (milestone 6).
 
 ## 11. Milestones
 

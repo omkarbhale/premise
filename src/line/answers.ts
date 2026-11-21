@@ -84,7 +84,7 @@ export function validateAnswer(ask: Ask, answer: AskAnswer): string {
       return answer.decision === "done" ? "Marked done." : "Cannot be done.";
     case "proposal":
       if (answer.kind !== "proposal" || !["accept", "change"].includes(answer.decision)) {
-        return invalid("Accept the proposal, or say what to change.");
+        return invalid("Keep the proposal, or say what to change.");
       }
       if (
         answer.decision === "change" &&
@@ -92,7 +92,17 @@ export function validateAnswer(ask: Ask, answer: AskAnswer): string {
       ) {
         return invalid("Say what to change.");
       }
-      return answer.decision === "accept" ? "Accepted." : "Asked for changes.";
+      if (answer.decision === "accept") {
+        if (answer.choice !== undefined) {
+          const chosen = ask.items.find((i) => i.key === answer.choice);
+          if (!chosen) return invalid("That option is not on this proposal. Reload the page.");
+          return `Kept: ${short(chosen.text)}`;
+        }
+        if (ask.items.length > 1) return invalid("Pick the option to keep, or say what to change.");
+        return ask.items.length === 1 ? `Kept: ${short(ask.items[0]!.text)}` : "Kept.";
+      }
+      if (answer.text!.length > 2000) invalid("Keep what to change under 2000 characters.");
+      return `Asked for changes: ${short(answer.text!)}`;
   }
 }
 

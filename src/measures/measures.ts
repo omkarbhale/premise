@@ -8,6 +8,7 @@ import type {
   ReportLine,
   SessionsShare,
 } from "../shared/api-types.js";
+import { roleWords } from "../shared/roles.js";
 import { type Database, now } from "../storage/database.js";
 
 /**
@@ -378,13 +379,34 @@ export class Measures {
           : `About ${duration(totalMs)} spent on ${plural(spent.length, "question")} while premise's page was open in front of someone.`,
       how: "Counted from the time each question stood open while the page was in front of someone (the page tells premise every half minute or so while it is visible). A minute with several questions open is shared among them, so nothing is counted twice. Time spent away from the page, or thinking elsewhere, is not counted.",
     });
+    // Questions asked, by the role each was for (milestone 3): every ask, shown or not.
+    const asked = this.asks().filter((a) => mine(a.software_id) && a.status !== "withdrawn");
+    const perRole = new Map<string, number>();
+    for (const a of asked) perRole.set(a.role, (perRole.get(a.role) ?? 0) + 1);
+    const roleList = [...perRole.entries()]
+      .sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0]))
+      .map(([role, n]) => `the ${roleWords(role)} ${n}`)
+      .join(", ");
+    figures.push({
+      key: "asks-by-role",
+      label: "Questions asked, by role",
+      value: asked.length === 0 ? "none yet" : roleList,
+      enough: true,
+      events: asked.length,
+      counts:
+        asked.length === 0
+          ? "premise has asked nothing yet."
+          : `${plural(asked.length, "question")} asked: ${roleList}.`,
+      how: "Every question premise asked in the session, counted under the role it was for; withdrawn questions are not counted. In one session one person answers for every role.",
+    });
     const byRole = new Map<string, AttentionShare>();
     const byChange = new Map<string, AttentionShare>();
     for (const a of spent) {
-      const role = byRole.get(a.ask.role) ?? { name: a.ask.role, minutes: 0, asks: 0 };
+      const roleName = roleWords(a.ask.role);
+      const role = byRole.get(roleName) ?? { name: roleName, minutes: 0, asks: 0 };
       role.minutes += a.ms;
       role.asks += 1;
-      byRole.set(a.ask.role, role);
+      byRole.set(roleName, role);
       const name = changeAt(a.ask.software_id, a.ask.asked);
       const key = softwareId === null ? `${names.get(a.ask.software_id) ?? "?"}: ${name}` : name;
       const change = byChange.get(key) ?? { name: key, minutes: 0, asks: 0 };

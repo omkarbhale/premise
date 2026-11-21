@@ -249,6 +249,7 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
         },
         usage: { mode: deps.ledger.mode, mocked: deps.ledger.mocked, weekly },
         softwares,
+        roles: services.roles(),
         softwareUsage: await Promise.all(
           softwares.map(async (s) => {
             const u = await deps.ledger.softwareUsage(s.id);
@@ -589,6 +590,34 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
       { schema: { params: numberIdParam } },
       async (request) =>
         workItem(request.params.id, () => services.workItems.undoSplit(request.params.id)),
+    );
+
+    api.post<{ Params: { id: string }; Body: { area: string; role?: string } }>(
+      "/api/softwares/:id/claims",
+      {
+        schema: {
+          params: idParam,
+          body: {
+            type: "object",
+            properties: {
+              area: { type: "string", maxLength: 1000 },
+              role: { type: "string", maxLength: 200 },
+            },
+            required: ["area"],
+          },
+        },
+      },
+      async (request, reply) => {
+        const claim = await services.softwares.claim(request.params.id, request.body);
+        reply.code(201);
+        return claim;
+      },
+    );
+
+    api.post<{ Params: { id: number } }>(
+      "/api/claims/:id/release",
+      { schema: { params: numberIdParam } },
+      async (request) => services.softwares.releaseClaim(request.params.id),
     );
 
     api.post<{ Params: { id: number } }>(

@@ -18,7 +18,11 @@ import { RunnerService } from "../runner/service.js";
 import { getSoftware } from "../storage/softwares.js";
 import type { Database } from "../storage/database.js";
 import type { UsageLedger } from "../usage-ledger/usage-ledger.js";
+import { RecordWriter } from "../line/record-writer.js";
+import { RecordError } from "../record/record-keeper.js";
+import { Taste } from "../taste/taste.js";
 import { QueueActivity } from "./activity.js";
+import { ServiceError } from "./services.js";
 import { docsFolder } from "./package-root.js";
 import type { SessionServices } from "./services.js";
 
@@ -49,6 +53,8 @@ export interface Session {
   measures: Measures;
   /** Learning from corrections (src/learning). */
   learning: Learning;
+  /** Taste claims and their proposals (src/taste). */
+  taste: Taste;
 }
 
 /**
@@ -117,7 +123,40 @@ export function createSession(options: {
     { db, config, records: record, runner: runs, ledger, measures },
     config,
   );
-  const build = new BuildCheckRun({ db, queue, config, keeper: record, briefs, runner: runs });
+  const writer = new RecordWriter(record);
+  const taste = new Taste({
+    db,
+    config,
+    land: (softwareId, operations, reason) => {
+      let landed;
+      try {
+        landed = writer.land(softwareId, operations, reason);
+      } catch (error) {
+        if (error instanceof RecordError) {
+          throw new ServiceError(
+            "INVALID",
+            `premise could not put this into the record: ${error.message}`,
+          );
+        }
+        throw error;
+      }
+      if (!landed.ok) {
+        throw new ServiceError(
+          "INVALID",
+          `premise could not put this into the record: ${landed.diagnostics.map((d) => d.message).join(" ")} Say it again in other words.`,
+        );
+      }
+    },
+  });
+  const build = new BuildCheckRun({
+    db,
+    queue,
+    config,
+    keeper: record,
+    briefs,
+    runner: runs,
+    taste,
+  });
   const later: LaterStages = options.later ?? build;
   line = new LineEngine({
     db,
@@ -129,6 +168,7 @@ export function createSession(options: {
     briefs,
     later,
     intake: taker,
+    taste,
     agentsReady: () => agents.ready(),
     reporter,
   });
@@ -144,6 +184,7 @@ export function createSession(options: {
         gate_request: (b, a) => engine.gateRequest(b, a),
         review_submit: (b, a) => engine.reviewSubmit(b, a),
         sizing_submit: (b, a) => engine.sizingSubmit(b, a),
+        proposal_submit: (b, a) => engine.proposalSubmit(b, a),
         recovery_submit: (b, a) => engine.recoverySubmit(b, a),
         triage_submit: (b, a) => taker.triageSubmit(b, a),
         lesson_submit: (b, a) => learner.lessonSubmit(b, a),
@@ -171,7 +212,10 @@ export function createSession(options: {
       setEffort: (id, effort) => engine.setEffort(id, effort),
       setMilestoneWait: (id, milestone, wait) => engine.setMilestoneWait(id, milestone, wait),
       withdrawApproval: (id) => engine.withdrawApproval(id),
+      claim: (id, input) => engine.claimArea(id, input),
+      releaseClaim: (id) => engine.releaseClaim(id),
     },
+    roles: () => engine.rolesInUse(),
     workItems: {
       setSize: (id, size) => engine.setItemSize(id, size),
       setStages: (id, stages) => engine.setItemStages(id, stages),
@@ -209,5 +253,6 @@ export function createSession(options: {
     intake: taker,
     measures,
     learning: learner,
+    taste,
   };
 }

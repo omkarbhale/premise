@@ -1,3 +1,4 @@
+import type { ReportLine } from "../api";
 import { useSession } from "../context";
 import { useLoad } from "../hooks";
 import { when } from "../words";
@@ -57,19 +58,7 @@ export function ReportView({ softwareId }: { softwareId: string }) {
           {section.lines.length === 0 ? (
             <p className="empty-line">Nothing here.</p>
           ) : (
-            <ul>
-              {section.lines.map((line, i) => (
-                <li key={i}>
-                  {line.text}
-                  {line.evidence && (
-                    <details className="evidence">
-                      <summary className="small muted">details</summary>
-                      <span className="muted small">{line.evidence}</span>
-                    </details>
-                  )}
-                </li>
-              ))}
-            </ul>
+            <ReportLines lines={section.lines} />
           )}
         </section>
       ))}
@@ -126,5 +115,54 @@ export function ReportView({ softwareId }: { softwareId: string }) {
         </section>
       )}
     </div>
+  );
+}
+
+/**
+ * A section's lines: what people said first; premise's own assumptions and choices folded under a
+ * disclosure, so the person sees their own decisions without reading premise's.
+ */
+function ReportLines({ lines }: { lines: ReportLine[] }) {
+  const people = lines.filter((l) => !l.premises);
+  const own = lines.filter((l) => l.premises);
+  return (
+    <>
+      {people.length > 0 ? (
+        <ul>
+          {people.map((line, i) => (
+            <Line key={i} line={line} />
+          ))}
+        </ul>
+      ) : (
+        own.length > 0 && <p className="empty-line">Nothing you decided yet.</p>
+      )}
+      {own.length > 0 && (
+        <details className="premises-own">
+          <summary>
+            What premise assumed or chose itself ({own.length}). Strike anything wrong at the next
+            say back, or say so in chat.
+          </summary>
+          <ul>
+            {own.map((line, i) => (
+              <Line key={i} line={line} />
+            ))}
+          </ul>
+        </details>
+      )}
+    </>
+  );
+}
+
+function Line({ line }: { line: ReportLine }) {
+  return (
+    <li>
+      {line.text}
+      {line.evidence && (
+        <details className="evidence">
+          <summary className="small muted">details</summary>
+          <span className="muted small">{line.evidence}</span>
+        </details>
+      )}
+    </li>
   );
 }

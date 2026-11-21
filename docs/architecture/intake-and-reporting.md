@@ -60,6 +60,6 @@ Carved from section 6 of the plan (the floor, from the same section, is in [the 
 - [0102](../decisions/0102-taste-proposals-before-building.md) (P36): before a claimed area is built, a proposal is shown in the session under the claiming role: a screenshot of a quick prototype, or a short list. It is decided there; other tasks go on.
   - Why: something to look at is the cheapest way to catch a mismatch ([0013](../decisions/0013-mismatch-of-intent-is-the-mistake-that-matters.md)). Review points exist only where someone claimed an area ([0022](../decisions/0022-people-can-put-in-their-taste.md)).
   - Rejected: a written description to approve; review of every area by default ([0022](../decisions/0022-people-can-put-in-their-taste.md)).
-  - How the prototype is made and captured: [0115](../decisions/0115-taste-prototypes-on-a-throwaway-branch.md).
+  - How the prototype is made and captured: [0115](../decisions/0115-taste-prototypes-on-a-throwaway-branch.md). As built for now, the proposal is one or two described options written by the planner before the milestone's tasks start, and only the tasks that build the area wait ([0196](../decisions/0196-roles-and-taste-in-one-session.md)).
 - What they say becomes `T` items. Those that can be checked go into the checker's scenarios.
 - Small wishes come in as intake.

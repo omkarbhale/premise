@@ -86,7 +86,7 @@ export function SoftwareView({
             <>
               <strong>{whereNow(s.stage, s.takingOn)}</strong>{" "}
               <span className="muted small">
-                (<Define term="step">step</Define>: {stageName(s.stage)})
+                · the {stageName(s.stage)} <Define term="step">step</Define>
               </span>
             </>
           )}

@@ -28,6 +28,9 @@ export interface CorrectionFacts {
   stage: string | null;
 }
 
+/** How a claimer's correction of a proposal for their area begins (decision 0196). */
+export const TASTE_CORRECTION = "You corrected the proposal for";
+
 /** Kinds no agent needs to read: what they teach is plain from the facts. */
 export const RULE_ONLY: readonly CorrectionKind[] = ["undo-split", "bug-after-met"];
 
@@ -77,6 +80,16 @@ export function ruleReading(facts: CorrectionFacts): Reading {
         topic: null,
       };
     case "reject-draft":
+      if (facts.what.startsWith(TASTE_CORRECTION) && facts.said?.trim()) {
+        return {
+          mistake: "premise's proposal for a claimed area was not to the claimer's taste",
+          destination: "taste",
+          reason:
+            "A person claimed this area to have it their way, and said how they want it, so it is taste.",
+          line: `For ${subject}: ${facts.said.trim().replace(/[.\s]+$/, "")}.`,
+          topic: null,
+        };
+      }
       return facts.said?.trim()
         ? {
             mistake: "premise's proposal missed what was wanted",

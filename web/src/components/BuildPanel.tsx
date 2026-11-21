@@ -43,7 +43,7 @@ export function BuildPanel({ build }: { build: BuildView }) {
     <section className="build-panel" aria-label="What is being built and checked">
       <h3>
         {build.milestone
-          ? `${build.milestone.id}: ${build.milestone.text}`
+          ? `Milestone: ${build.milestone.text.trim().replace(/\.+$/, "")}`
           : "Building what the plan says"}
       </h3>
       <p className="muted small">

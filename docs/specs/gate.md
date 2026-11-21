@@ -55,7 +55,7 @@ Leaving it to each agent to judge what is risky was rejected ([0100](../decision
 ### 5.2 Asking
 
 - The gate asks in the session, under the role whose call it is, saying exactly what will happen and why ([0101](../decisions/0101-the-gate-asks-in-the-session.md)). The card's wording is fixed text filled from the request, with no model writing it ([fixed wording](../prompts/fixed-wording.md)).
-- The role is the operator unless the record names another role for that call (for example, a role that holds an outside account).
+- The role is the operator unless the record names another role for that call (for example, a role that holds an outside account); an agent names it in `gate_request` (`role`), and the card is asked under it ([0196](../decisions/0196-roles-and-taste-in-one-session.md)).
 - Only the work that depends on the answer waits. The requesting job is `waiting`; other jobs go on.
 
 ### 5.3 Approvals
@@ -110,6 +110,6 @@ The floor and the gate stay with premise; they are not set per software ([0106](
 ## 11. Milestones
 
 - Milestone 1 step 2: the gate, asking the operator; one-action approvals, and approvals for a kind of action for one software, never for deleting data or spending money ([0182](../decisions/0182-how-the-gate-is-built.md)). Creating any repository on GitHub is gated: private is kind `publish`, public is `make-public`; until the step is approved ([0161](../decisions/0161-github-repository-step-not-approved.md)) the software stays on this machine. The agent tool `gate_request` goes to the gate.
-- Milestone 3: asking under the right role.
+- Milestone 3: asking under the right role. Built ([0196](../decisions/0196-roles-and-taste-in-one-session.md)).
 - Milestone 4: comments on GitHub issues through the gate.
 - Milestone 7: every first deployment to a public host is public-facing and may spend money, so it is asked.

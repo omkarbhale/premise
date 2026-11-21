@@ -1,5 +1,6 @@
 import type { ReportLine, ReportView } from "../shared/api-types.js";
 import { stageName } from "../shared/stages.js";
+import { roleWords } from "../shared/roles.js";
 import type { Facts } from "./facts.js";
 
 function plural(n: number, word: string): string {
@@ -66,10 +67,14 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
   const sinceLast = facts.items.filter(
     (i) => options.detail || !lastDay || i.marks.date >= lastDay,
   );
-  for (const item of sinceLast) {
+  // What people decided leads; premise's own assumptions and choices follow, folded on the page.
+  const byPeople = (i: (typeof sinceLast)[number]) =>
+    i.marks.from !== "assumed" && i.marks.from !== "recovered" ? 0 : 1;
+  for (const item of [...sinceLast].sort((x, y) => byPeople(x) - byPeople(y))) {
     const priority = item.marks.priority ? `${item.marks.priority}: ` : "";
     const tag = item.marks.priority ? ` (${item.marks.priority})` : "";
     decided.push({
+      ...(byPeople(item) === 1 && { premises: true }),
       text: item.marks.leftOut
         ? `Left out, not built: ${item.id}${tag}: ${sentence(item.text)} To build it after all, send the software back to What on the Line tab; premise asks how much to build again.`
         : `${priority}${sentence(item.text)}`,
@@ -163,10 +168,22 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
   }
 
   // ---- Needed ------------------------------------------------------------------------------
-  const needed: ReportLine[] = facts.asks.map((a) => ({
-    text: `From the ${a.role}: ${a.title}. ${a.instruction}`,
-    evidence: `question ${a.id}`,
-  }));
+  // Grouped by role, each saying exactly what to do; with only the operator, no label at all.
+  const onlyOperator = facts.asks.every((a) => a.role === "operator");
+  const needed: ReportLine[] = [...facts.asks]
+    .sort((x, y) => x.role.localeCompare(y.role) || x.id - y.id)
+    .map((a) => ({
+      text: `${onlyOperator ? "" : `For the ${roleWords(a.role)}: `}${sentence(a.title)} ${a.instruction}`,
+      evidence: `question ${a.id}`,
+    }));
+  if (!onlyOperator) {
+    const counts = new Map<string, number>();
+    for (const a of facts.asks) counts.set(a.role, (counts.get(a.role) ?? 0) + 1);
+    needed.unshift({
+      text: `Waiting on ${[...counts.entries()].map(([role, n]) => `the ${roleWords(role)} (${n})`).join(", ")}. In one session you answer for every role.`,
+      evidence: `${plural(facts.asks.length, "open question")}`,
+    });
+  }
 
   // ---- Failed or not checked ---------------------------------------------------------------
   const failed: ReportLine[] = [];
@@ -274,7 +291,8 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
   const sections: Section[] = [
     {
       title: "Decided",
-      plain: "What was decided: the items now in this software's record.",
+      plain:
+        "What was decided, from this software's record: what people said first, then what premise assumed or chose itself.",
       lines: decided,
       rank: 3,
     },

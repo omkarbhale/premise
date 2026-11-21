@@ -269,7 +269,7 @@ describe("answering an ask in place", () => {
     const user = userEvent.setup();
     const api = fakeApi();
     inSession(<AskCard ask={ask({ kind: "needed", items: [] })} />, api);
-    await user.click(screen.getByRole("button", { name: "Mark done" }));
+    await user.click(screen.getByRole("button", { name: "It is done" }));
     expect(api.answer).toHaveBeenCalledWith(1, { kind: "needed", decision: "done" });
   });
 });
@@ -369,7 +369,7 @@ describe("the other views", () => {
         })}
       />,
     );
-    expect(screen.getByText("M-1: A command that counts words")).toBeTruthy();
+    expect(screen.getByText("Milestone: A command that counts words")).toBeTruthy();
     expect(screen.getByText("Tasks (round 2 of 3)")).toBeTruthy();
     expect(screen.getByText("Built")).toBeTruthy();
     expect(screen.getByText("Should a hyphenated word count as one?")).toBeTruthy();

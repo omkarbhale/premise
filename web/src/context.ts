@@ -18,6 +18,11 @@ export interface Session {
   softwares?: SoftwareSummary[];
   /** Whether agents are scripted (a demo) or real. */
   agentsMode?: "claude" | "scripted";
+  /**
+   * Role labels in use besides the operator. Empty when only the operator is asked anything: the
+   * page then shows no role labels at all.
+   */
+  roles?: string[];
   /** Terms already explained on this page, so each is explained once, where it first appears. */
   explained?: Set<string>;
 }
