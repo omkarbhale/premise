@@ -341,3 +341,24 @@ function getSoftwareShare(usage: Usage, id: string): number | null {
   const db = (usage as unknown as { options: { db: Database } }).options.db;
   return getSoftware(db, id)!.weeklySharePercent;
 }
+
+describe("concurrent checks", () => {
+  it("record a single overrun when several checks race for the same software", async () => {
+    const { db, usage, software, build, settle } = setup();
+    const sw = software("racy");
+    await usage.setBudget(sw.id, { kind: "amount", usd: 0.01 });
+    build(sw.id, rootItem(db, sw.id).id);
+    await settle();
+    // Put it back as it was just before the pause, then let three checks race.
+    db.prepare("DELETE FROM budget_overruns WHERE software_id = ?").run(sw.id);
+    db.prepare("DELETE FROM events WHERE software_id = ? AND kind = 'budget-overrun'").run(sw.id);
+    db.prepare("UPDATE softwares SET state = 'active' WHERE id = ?").run(sw.id);
+    await Promise.all([usage.check(sw.id), usage.check(sw.id), usage.check(sw.id)]);
+    const count = (sql: string) => (db.prepare(sql).get(sw.id) as { n: number }).n;
+    expect(getSoftware(db, sw.id)!.state).toBe("paused-budget");
+    expect(count("SELECT COUNT(*) AS n FROM budget_overruns WHERE software_id = ?")).toBe(1);
+    expect(
+      count("SELECT COUNT(*) AS n FROM events WHERE software_id = ? AND kind = 'budget-overrun'"),
+    ).toBe(1);
+  });
+});

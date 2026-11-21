@@ -47,7 +47,7 @@ Errors are in plain words and say what to do (a bad number, nothing to answer, n
 
 ### 5.2 Setting a budget
 
-- By share of a week's usage (1 to 100) or by an amount in dollars a week at list prices, from the Usage view, or the settings for a new software. Setting one replaces the other; "no budget" removes it.
+- By share of a week's usage (1 to 100) or by an amount in dollars a week at list prices (at least one cent), from the Usage view, or the settings for a new software. Setting one replaces the other; "no budget" removes it.
 - premise tells usage-ledger at once, and again for every software each time it starts.
 
 ### 5.3 An overrun
