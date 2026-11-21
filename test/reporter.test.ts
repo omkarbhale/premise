@@ -183,8 +183,14 @@ describe("a report from recorded facts", () => {
   });
 
   it("reports a left-out item as decided, with the way back, and not as failed", async () => {
-    const what = WHAT.replace("(could; from: assumed; 2026-11-22)", "(should; from: operator; left-out; 2026-11-22)");
-    const s = makeSoftware(db, config, "Greeter", { ...FILES, "premise/what.md": what }, ["W-1", "W-2"]);
+    const what = WHAT.replace(
+      "(could; from: assumed; 2026-11-22)",
+      "(should; from: operator; left-out; 2026-11-22)",
+    );
+    const s = makeSoftware(db, config, "Greeter", { ...FILES, "premise/what.md": what }, [
+      "W-1",
+      "W-2",
+    ]);
     const view = await reporter.view(s.id, { detail: true });
     const line = section(view, "Decided").find((t) => t.startsWith("Left out, not built:"))!;
     expect(line).toContain("Left out, not built: W-3 (should): The page works on a phone.");

@@ -23,7 +23,16 @@ export type WorkItemKind = "software" | "milestone" | "module" | "intake";
  * what the software is for, which the operator confirmed).
  */
 export type WorkItemOrigin =
-  "start" | "split" | "plan" | "fix" | "intake" | "purpose" | "existing" | "recover" | "bug" | "change";
+  | "start"
+  | "split"
+  | "plan"
+  | "fix"
+  | "intake"
+  | "purpose"
+  | "existing"
+  | "recover"
+  | "bug"
+  | "change";
 
 /** Who decided a part of an item's sizing. */
 export type SizedBy = "sizer" | "operator" | "default";
