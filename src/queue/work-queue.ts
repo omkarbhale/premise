@@ -324,7 +324,15 @@ export class WorkQueue {
           `INSERT INTO agent_sessions (runtime_session_id, job_id, agent_role, runtime, model, effort, started)
            VALUES (?, ?, ?, ?, ?, ?, ?)`,
         )
-        .run(session.sessionId, job.id, job.kind, session.runtime, task.model, task.effort, now());
+        .run(
+          session.confirmed === false ? "" : session.sessionId,
+          job.id,
+          job.kind,
+          session.runtime,
+          task.model,
+          task.effort,
+          now(),
+        );
       outcome = session.outcome;
     }
     this.notify(job.id);

@@ -289,4 +289,32 @@ describe("work queue", () => {
     ]);
     second.close();
   });
+  it("does not carry on a session the runtime never confirmed, even after a restart", async () => {
+    const folder = tempFolder();
+    const config: PremiseConfig = testConfig(folder);
+    const hanging = new ScriptedAgentRunner(parseScript(hangBuilds));
+    const unconfirmed = {
+      runtime: hanging.runtime,
+      start: (...args: Parameters<ScriptedAgentRunner["start"]>) => ({
+        ...hanging.start(...args),
+        confirmed: false,
+      }),
+    };
+    const first = openDatabase(folder);
+    const before = new WorkQueue({ db: first.db, config, runner: unconfirmed });
+    const software = createSoftware(first.db, { name: "sample" }, config.softwares);
+    const id = before.enqueue({ softwareId: software.id, kind: "build" });
+    before.tick();
+    first.db.close();
+
+    const second = openDatabase(folder).db;
+    const runner = new ScriptedAgentRunner();
+    const after = new WorkQueue({ db: second, config, runner });
+    after.recover();
+    after.tick();
+    await after.idle();
+    expect(after.get(id)).toMatchObject({ status: "done" });
+    expect(runner.requests[0]!.resumeSessionId).toBeUndefined();
+    second.close();
+  });
 });
