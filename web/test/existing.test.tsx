@@ -103,7 +103,9 @@ describe("bringing in software you already have", () => {
       });
       inSession(<SoftwareView softwareId="s1" tab="line" onTab={() => {}} asks={[]} />, api);
       await screen.findByRole("tab", { name: /Line/ });
-      expect(screen.queryByRole("button", { name: /Send back here|Start this step again/ })).toBeNull();
+      expect(
+        screen.queryByRole("button", { name: /Send back here|Start this step again/ }),
+      ).toBeNull();
       cleanup();
       inSession(<SoftwareView softwareId="s1" tab="intake" onTab={() => {}} asks={[]} />, api);
       expect(await screen.findByText(/nothing to report/)).toBeTruthy();

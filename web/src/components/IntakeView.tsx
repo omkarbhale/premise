@@ -73,8 +73,8 @@ export function IntakeView({
 
       {copyNotReady ? (
         <p className="note" role="status">
-          premise is still copying this software, or could not copy it, so there is nothing to report
-          a problem against yet. This box opens once the copy is ready.
+          premise is still copying this software, or could not copy it, so there is nothing to
+          report a problem against yet. This box opens once the copy is ready.
         </p>
       ) : (
         <form

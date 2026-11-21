@@ -149,7 +149,6 @@ export interface BuildView {
   waiting: string[];
 }
 
-
 /** Taking on an existing software: where it came from, how far it got, and its record. */
 export interface ExistingView {
   /** The folder or clone address, as the operator gave it. */
