@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { dirname } from "node:path";
+import { nodePrefix } from "../runner/runner.js";
 import type { AgentScript, ScriptBehaviour, ScriptRule } from "../agents/scripted-agent.js";
 import { ScriptedAgentRunner } from "../agents/scripted-agent.js";
 import { AgentToolServer } from "../agents/tool-server.js";
@@ -224,7 +224,7 @@ export async function runDemo(
       PREMISE_SOFTWARES__DEFAULT_MILESTONE_WAITS: String(demo.waitAfterMilestone),
       PREMISE_RUNNER__CONFINEMENT:
         options.confinement ?? (bubblewrapWorks() ? "bubblewrap" : "none"),
-      PREMISE_RUNNER__READ_ONLY_PATHS: JSON.stringify([dirname(dirname(process.execPath))]),
+      PREMISE_RUNNER__READ_ONLY_PATHS: JSON.stringify(nodePrefix() ? [nodePrefix()] : []),
       ...(options.portRange && { PREMISE_RUNNER__PORT_RANGE: options.portRange }),
       ...options.env,
     },

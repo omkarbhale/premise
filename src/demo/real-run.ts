@@ -1,7 +1,8 @@
 import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { createServer } from "node:net";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
+import { nodePrefix } from "../runner/runner.js";
 import { AGENT_TASK_KINDS } from "../config/settings.js";
 import { envNameFor } from "../config/load.js";
 import { type Running, start } from "../server/start.js";
@@ -27,7 +28,7 @@ export function realRunEnv(port: number): Record<string, string> {
     [envNameFor("line.remote")]: "local",
     [envNameFor("queue.max_agent_sessions")]: "1",
     [envNameFor("runner.confinement")]: "bubblewrap",
-    [envNameFor("runner.read_only_paths")]: JSON.stringify([dirname(dirname(process.execPath))]),
+    [envNameFor("runner.read_only_paths")]: JSON.stringify(nodePrefix() ? [nodePrefix()] : []),
     [envNameFor("server.port")]: String(port),
     [envNameFor("softwares.default_milestone_waits")]: "false",
   };

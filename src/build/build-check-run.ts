@@ -972,7 +972,7 @@ export class BuildCheckRun implements LaterStages {
       this.save(id, state);
       this.say(
         id,
-        `The check of commit ${short(check.commit)} did not pass for the ${limit === 1 ? "first" : `${limit}th`} round, so building stops here: ${tally}.`,
+        `The check of commit ${short(check.commit)} did not pass after ${limit} ${limit === 1 ? "round" : "rounds"}, so building stops here: ${tally}.`,
       );
       createAsk(this.db, {
         softwareId: id,
@@ -1396,18 +1396,13 @@ export class BuildCheckRun implements LaterStages {
   private verdictsOf(jobId: number): Map<string, { verdict: VerdictValue; evidence: string }> {
     const rows = this.db
       .prepare(
-        "SELECT reference, detail FROM events WHERE module = 'checker' AND kind = 'verdict' ORDER BY id",
+        "SELECT reference, detail FROM events WHERE module = 'checker' AND kind = 'verdict' AND json_extract(detail, '$.job') = ? ORDER BY id",
       )
-      .all() as { reference: string; detail: string }[];
+      .all(jobId) as { reference: string; detail: string }[];
     const found = new Map<string, { verdict: VerdictValue; evidence: string }>();
     for (const row of rows) {
-      const detail = JSON.parse(row.detail) as {
-        verdict: VerdictValue;
-        evidence: string;
-        job?: number;
-      };
-      if (detail.job === jobId)
-        found.set(row.reference, { verdict: detail.verdict, evidence: detail.evidence });
+      const detail = JSON.parse(row.detail) as { verdict: VerdictValue; evidence: string };
+      found.set(row.reference, { verdict: detail.verdict, evidence: detail.evidence });
     }
     return found;
   }
