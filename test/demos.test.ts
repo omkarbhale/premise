@@ -95,3 +95,28 @@ describe.each(["cli", "web"] as const)("the %s demo", (which) => {
     else expect(wait).toBeUndefined();
   }, 60_000);
 });
+
+describe("the budget demo", () => {
+  it("overruns a deliberately small budget, pauses the software and says what was spent on what", async () => {
+    const dataFolder = tempFolder();
+    const { range } = await uniquePortRange(20);
+    const result = await runDemo("cli", {
+      dataFolder,
+      confinement: "none",
+      portRange: range,
+      smallBudgetUsd: 0.5,
+    });
+    // It stopped partway, paused for its budget, instead of reaching running software.
+    expect(result.stage).not.toBe("intake");
+    const overrun = result.usage.budget.overrun!;
+    expect(overrun.message).toContain("used up its budget of $0.50 a week");
+    expect(overrun.mocked).toBe(true);
+    expect(overrun.spentByStage.length).toBeGreaterThan(0);
+    expect(result.usage.total.cost.mocked).toBe(true);
+    expect(result.usage.total.measured.sessions).toBeGreaterThan(0);
+    // The report puts it first under Needed, with every cost line marked mocked.
+    const needed = result.report.sections.find((s) => s.title === "Needed")!;
+    expect(needed.lines[0]!.text).toContain("used up its budget");
+    expect(result.report.cost.lines!.every((l) => l.mocked)).toBe(true);
+  }, 60_000);
+});

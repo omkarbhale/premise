@@ -1,5 +1,16 @@
 import type { UsageLedgerMode } from "../config/settings.js";
-import type { SessionTaskRecord, SoftwareUsage, UsageLedger, WeeklyUsage } from "./usage-ledger.js";
+import type {
+  Budget,
+  BudgetStatus,
+  SessionSource,
+  SessionTaskRecord,
+  SoftwareUsage,
+  UsageBreakdown,
+  UsageFigures,
+  UsageGroup,
+  UsageLedger,
+  WeeklyUsage,
+} from "./usage-ledger.js";
 
 /** A small seeded random number generator (mulberry32): the same seed gives the same figures. */
 export function seededRandom(seed: number): () => number {
@@ -23,21 +34,68 @@ function hash(text: string): number {
 
 const DAY = 24 * 60 * 60 * 1000;
 
+/** Made-up list prices in dollars per million tokens, by model tier (input, output). */
+const PRICES = { haiku: [1, 5], sonnet: [3, 15], opus: [5, 25] } as const;
+/** How much more a session uses at a higher effort. */
+const EFFORT_FACTOR: Record<string, number> = {
+  low: 0.6,
+  medium: 1,
+  high: 1.6,
+  xhigh: 2.2,
+  max: 3,
+};
+
+export interface MockOptions {
+  /** What a whole week's usage is worth in dollars, in the mock. */
+  weeklyAllowanceUsd?: number;
+  /** Makes every session cost this many times more (or less): a way to reach an overrun fast. */
+  costScale?: number;
+  clock?: () => Date;
+}
+
 /**
- * Stands in for usage-ledger until it exists (decision 0133).
- * - "mock-fixed": the same figures every time.
- * - "mock-random": figures drawn from a seed; the same seed gives the same figures.
+ * Stands in for usage-ledger until it exists (decision 0133). It works from the session records
+ * premise gives it, as the real one will, and invents the figures:
+ * - "mock-fixed": a session's figures depend only on its model, effort and type of task.
+ * - "mock-random": figures also vary by session, drawn from a seed; the same seed gives the same
+ *   figures.
  * Every result says mocked: true.
  */
 export class MockUsageLedger implements UsageLedger {
   readonly mocked = true;
-  readonly sessions: SessionTaskRecord[] = [];
+  private source: SessionSource = () => [];
+  private readonly budgets = new Map<string, Budget>();
+  private readonly scripted = new Map<string, number>();
+  private readonly allowance: number;
+  private readonly scale: number;
+  private readonly clock: () => Date;
 
   constructor(
     readonly mode: Exclude<UsageLedgerMode, "real">,
     readonly seed: number,
-    private readonly clock: () => Date = () => new Date(),
-  ) {}
+    options: MockOptions | (() => Date) = {},
+  ) {
+    const opts = typeof options === "function" ? { clock: options } : options;
+    this.allowance = opts.weeklyAllowanceUsd ?? 100;
+    this.scale = opts.costScale ?? 1;
+    this.clock = opts.clock ?? (() => new Date());
+  }
+
+  attach(source: SessionSource): void {
+    this.source = source;
+  }
+
+  /**
+   * For tests and kept demos: from this many recorded sessions on, report this software's budget as
+   * overrun, whatever the figures are (and whether or not a budget is set).
+   */
+  scriptOverrun(softwareId: string, afterSessions: number): void {
+    this.scripted.set(softwareId, afterSessions);
+  }
+
+  clearScriptedOverrun(softwareId: string): void {
+    this.scripted.delete(softwareId);
+  }
 
   private window(): { windowStart: string; resetsAt: string } {
     // Weeks start on Monday 00:00 UTC in the mock.
@@ -57,36 +115,134 @@ export class MockUsageLedger implements UsageLedger {
     return Promise.resolve({ mocked: true, utilization, ...this.window() });
   }
 
-  softwareUsage(softwareId: string): Promise<SoftwareUsage> {
-    if (this.mode === "mock-fixed") {
-      return Promise.resolve({
-        mocked: true,
-        softwareId,
-        sessions: 12,
-        inputTokens: 480_000,
-        outputTokens: 96_000,
-        costUsd: 8.4,
-        weeklyShare: 0.15,
-      });
-    }
-    const random = seededRandom(this.seed ^ hash(softwareId));
-    const sessions = 1 + Math.floor(random() * 40);
-    const inputTokens = sessions * (10_000 + Math.floor(random() * 60_000));
-    const outputTokens = Math.floor(inputTokens * (0.1 + random() * 0.2));
-    return Promise.resolve({
+  /** What one session used, as the mock invents it. */
+  private figures(session: SessionTaskRecord): UsageFigures {
+    const tier = /haiku/i.test(session.model)
+      ? "haiku"
+      : /opus/i.test(session.model)
+        ? "opus"
+        : "sonnet";
+    const [inPrice, outPrice] = PRICES[tier];
+    const factor = EFFORT_FACTOR[session.effort] ?? 1;
+    const wobble =
+      this.mode === "mock-fixed"
+        ? 1
+        : 0.5 + seededRandom(this.seed ^ hash(session.sessionId || String(session.jobId)))();
+    const inputTokens = Math.round((60_000 * factor * wobble * this.scale) / 100) * 100;
+    const outputTokens = Math.round((12_000 * factor * wobble * this.scale) / 100) * 100;
+    const costUsd = (inputTokens * inPrice + outputTokens * outPrice) / 1_000_000;
+    return {
       mocked: true,
-      softwareId,
-      sessions,
       inputTokens,
       outputTokens,
-      costUsd: Math.round((inputTokens * 3 + outputTokens * 15) / 10_000) / 100,
-      weeklyShare: Math.round(random() * 1000) / 1000,
+      costUsd: Math.round(costUsd * 10_000) / 10_000,
+      weeklyShare: costUsd / this.allowance,
+    };
+  }
+
+  private total(figures: UsageFigures[]): UsageFigures {
+    const costUsd = figures.reduce((n, f) => n + f.costUsd, 0);
+    return {
+      mocked: true,
+      inputTokens: figures.reduce((n, f) => n + f.inputTokens, 0),
+      outputTokens: figures.reduce((n, f) => n + f.outputTokens, 0),
+      costUsd: Math.round(costUsd * 10_000) / 10_000,
+      weeklyShare: costUsd / this.allowance,
+    };
+  }
+
+  private group(entries: { key: string; figures: UsageFigures; counts: boolean }[]): UsageGroup[] {
+    const groups = new Map<string, { figures: UsageFigures[]; sessions: number }>();
+    for (const entry of entries) {
+      const at = groups.get(entry.key) ?? { figures: [], sessions: 0 };
+      at.figures.push(entry.figures);
+      if (entry.counts) at.sessions += 1;
+      groups.set(entry.key, at);
+    }
+    return [...groups.entries()]
+      .map(([key, at]) => ({ key, sessions: at.sessions, ...this.total(at.figures) }))
+      .sort((a, b) => b.costUsd - a.costUsd || a.key.localeCompare(b.key));
+  }
+
+  softwareUsage(softwareId: string): Promise<SoftwareUsage> {
+    const sessions = this.source(softwareId);
+    return Promise.resolve({
+      softwareId,
+      sessions: sessions.length,
+      ...this.total(sessions.map((s) => this.figures(s))),
     });
   }
 
-  recordSession(record: SessionTaskRecord): Promise<void> {
-    this.sessions.push(record);
+  usageBreakdown(softwareId: string): Promise<UsageBreakdown> {
+    const sessions = this.source(softwareId);
+    const each = sessions.map((session) => ({ session, figures: this.figures(session) }));
+    const byItem = each.flatMap(({ session, figures }) => {
+      const keys = session.items.length > 0 ? session.items : ["none"];
+      return keys.map((key) => ({
+        key,
+        counts: true,
+        figures: {
+          mocked: true,
+          inputTokens: figures.inputTokens / keys.length,
+          outputTokens: figures.outputTokens / keys.length,
+          costUsd: figures.costUsd / keys.length,
+          weeklyShare: figures.weeklyShare / keys.length,
+        },
+      }));
+    });
+    return Promise.resolve({
+      mocked: true,
+      softwareId,
+      total: {
+        softwareId,
+        sessions: sessions.length,
+        ...this.total(each.map((e) => e.figures)),
+      },
+      byStage: this.group(
+        each.map((e) => ({ key: e.session.stage ?? "none", figures: e.figures, counts: true })),
+      ),
+      byChange: this.group(
+        each.map((e) => ({
+          key: e.session.workItem === null ? "none" : String(e.session.workItem),
+          figures: e.figures,
+          counts: true,
+        })),
+      ),
+      byItem: this.group(byItem).map((g) => ({
+        ...g,
+        inputTokens: Math.round(g.inputTokens),
+        outputTokens: Math.round(g.outputTokens),
+      })),
+    });
+  }
+
+  setBudget(softwareId: string, budget: Budget | null): Promise<void> {
+    if (budget) this.budgets.set(softwareId, budget);
+    else this.budgets.delete(softwareId);
     return Promise.resolve();
+  }
+
+  budgetStatus(softwareId: string): Promise<BudgetStatus> {
+    const budget = this.budgets.get(softwareId) ?? null;
+    const { windowStart } = this.window();
+    const week = this.source(softwareId).filter((s) => s.started >= windowStart);
+    const spent = this.total(week.map((s) => this.figures(s)));
+    const scriptedAfter = this.scripted.get(softwareId);
+    const reached =
+      budget === null
+        ? false
+        : budget.kind === "share"
+          ? spent.weeklyShare * 100 >= budget.percent
+          : spent.costUsd >= budget.usd;
+    return Promise.resolve({
+      mocked: true,
+      softwareId,
+      budget,
+      spentUsd: spent.costUsd,
+      spentShare: spent.weeklyShare,
+      overrun:
+        reached || (scriptedAfter !== undefined && this.source(softwareId).length >= scriptedAfter),
+    });
   }
 }
 
@@ -94,6 +250,8 @@ export class MockUsageLedger implements UsageLedger {
 export function createUsageLedger(config: {
   mode: UsageLedgerMode;
   seed: number | null;
+  mock_weekly_allowance_usd?: number;
+  mock_cost_scale?: number;
 }): UsageLedger {
   if (config.mode === "real") {
     throw new Error(
@@ -101,5 +259,10 @@ export function createUsageLedger(config: {
     );
   }
   const seed = config.seed ?? Math.floor(Math.random() * 2 ** 31);
-  return new MockUsageLedger(config.mode, seed);
+  return new MockUsageLedger(config.mode, seed, {
+    ...(config.mock_weekly_allowance_usd !== undefined && {
+      weeklyAllowanceUsd: config.mock_weekly_allowance_usd,
+    }),
+    ...(config.mock_cost_scale !== undefined && { costScale: config.mock_cost_scale }),
+  });
 }

@@ -81,10 +81,11 @@ Anything that must survive a crash goes through the work queue's table ([archite
 
 ### 5.5 Pausing for a budget overrun
 
-- Once usage-ledger is usable (milestone 2), premise sets per-software budgets in usage-ledger. When usage-ledger reports one overrun, premise pauses that software's queue and tells the operator ([0064](../decisions/0064-cost-and-spending-limit-from-usage-ledger.md)).
-- The software's state becomes `paused-budget`. Its asks stay answerable; no new agent job starts for it.
-- The operator resumes it, after raising the budget in usage-ledger or deciding to stop.
-- Until usage-ledger is usable, there are no budgets. The turn and time limits ([0088](../decisions/0088-turn-and-time-limits.md)) still stop runaway sessions; they are not cost tracking.
+- premise sets per-software budgets in usage-ledger, which is a mock until it exists ([0133](../decisions/0133-usage-ledger-is-mocked-until-it-exists.md)). When usage-ledger reports one overrun, premise pauses that software's queue and tells the operator ([0064](../decisions/0064-cost-and-spending-limit-from-usage-ledger.md), [usage and budgets](usage.md)).
+- The software's state becomes `paused-budget`. Its asks stay answerable; no new agent job starts for it, and a session already running finishes. Other softwares keep running.
+- While a software's budget is being looked at after a job changed, the queue starts nothing for it (so no extra job slips in).
+- The operator answers: raise the budget (the software is active again), let it finish the current change (only jobs of that piece of work start), or leave it paused ([0200](../decisions/0200-how-cost-and-the-spending-limit-are-built.md)).
+- The paused state survives a restart. If usage-ledger cannot be read, nothing is paused for want of an answer; the turn and time limits ([0088](../decisions/0088-turn-and-time-limits.md)) still stop runaway sessions and are not cost tracking.
 
 ### 5.6 Working copies
 

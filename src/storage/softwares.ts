@@ -14,6 +14,8 @@ export interface Software {
   /** How much effort the operator wants put into it (decision 0191). */
   effort: SoftwareEffort;
   weeklySharePercent: number | null;
+  /** What it may use in a week, in dollars at list prices (decision 0200). */
+  budgetUsd: number | null;
   state: SoftwareState;
   currentStage: string;
   sizeClass: string;
@@ -34,6 +36,7 @@ interface SoftwareRow {
   milestone_waits: number;
   effort: string;
   weekly_share_percent: number | null;
+  budget_usd: number | null;
   state: SoftwareState;
   current_stage: string;
   size_class: string;
@@ -52,6 +55,7 @@ function fromRow(row: SoftwareRow): Software {
     milestoneWaits: row.milestone_waits === 1,
     effort: isEffort(row.effort) ? row.effort : "medium",
     weeklySharePercent: row.weekly_share_percent,
+    budgetUsd: row.budget_usd,
     state: row.state,
     currentStage: row.current_stage,
     sizeClass: row.size_class,
@@ -70,6 +74,7 @@ export interface NewSoftware {
   milestoneWaits?: boolean;
   effort?: SoftwareEffort;
   weeklySharePercent?: number | null;
+  budgetUsd?: number | null;
 }
 
 export function isEffort(value: unknown): value is SoftwareEffort {
@@ -92,8 +97,8 @@ export function createSoftware(
     throw new Error(`A software's effort is low, medium or high; it is ${String(effort)}.`);
   }
   db.prepare(
-    `INSERT INTO softwares (id, name, idea, priority, milestone_waits, effort, weekly_share_percent, created)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO softwares (id, name, idea, priority, milestone_waits, effort, weekly_share_percent, budget_usd, created)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     id,
     input.name,
@@ -104,6 +109,7 @@ export function createSoftware(
     input.weeklySharePercent === undefined
       ? defaults.default_weekly_share_percent
       : input.weeklySharePercent,
+    input.budgetUsd === undefined ? defaults.default_weekly_budget_usd : input.budgetUsd,
     now(),
   );
   recordEvent(db, { softwareId: id, module: "softwares", kind: "software-added", reference: id });
@@ -215,5 +221,31 @@ export function setSoftwareArchived(db: Database, id: string, archived: boolean)
     softwareId: id,
     module: "softwares",
     kind: archived ? "software-archived" : "software-restored",
+  });
+}
+
+/** What a software may use in a week: a share of the week's usage, or an amount; null for none. */
+export type SoftwareBudgetSetting = { percent: number } | { usd: number } | null;
+
+export function setSoftwareBudget(db: Database, id: string, budget: SoftwareBudgetSetting): void {
+  if (budget && "percent" in budget) {
+    if (!Number.isInteger(budget.percent) || budget.percent < 1 || budget.percent > 100) {
+      throw new Error(
+        `A share of weekly usage is a whole number from 1 to 100; it is ${budget.percent}.`,
+      );
+    }
+  } else if (budget && !(budget.usd > 0 && Number.isFinite(budget.usd))) {
+    throw new Error(`A budget in dollars must be more than 0; it is ${budget.usd}.`);
+  }
+  db.prepare("UPDATE softwares SET weekly_share_percent = ?, budget_usd = ? WHERE id = ?").run(
+    budget && "percent" in budget ? budget.percent : null,
+    budget && "usd" in budget ? Math.round(budget.usd * 100) / 100 : null,
+    id,
+  );
+  recordEvent(db, {
+    softwareId: id,
+    module: "softwares",
+    kind: "budget-changed",
+    detail: { budget },
   });
 }

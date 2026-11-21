@@ -6,9 +6,10 @@ import type { RecordItem } from "../record/format.js";
 import { parseRecord } from "../record/parse.js";
 import { readTrailer } from "../record/trace.js";
 import type { Runner } from "../runner/runner.js";
-import type { ReportLine, RunView } from "../shared/api-types.js";
+import type { ReportCostLine, ReportLine, RunView, UsageRowView } from "../shared/api-types.js";
 import { listAsks } from "../storage/asks.js";
 import type { Database } from "../storage/database.js";
+import type { Usage } from "../usage/usage.js";
 import type { UsageLedger } from "../usage-ledger/usage-ledger.js";
 
 /**
@@ -72,7 +73,18 @@ export interface UsageFact {
   sessions: number;
   costUsd: number;
   weeklyShare: number;
+  /** Per stage, per change and per record item (src/usage): premise's counts beside the cost. */
+  groups?: ReportCostLine[];
+  /** The budget in words, and whether the software is paused for it. */
+  budget?: { words: string; paused: boolean; overrunMessage: string | null };
 }
+
+const minutesWords = (n: number): string =>
+  n < 1
+    ? "under a minute"
+    : n < 90
+      ? `${Math.round(n)} minutes`
+      : `${Math.round(n / 6) / 10} hours`;
 
 /**
  * Proportion, as premise measures it itself (decision 0192; not usage-ledger's figures): agent
@@ -160,6 +172,8 @@ export interface FactSources {
   ledger: UsageLedger;
   /** premise's own return (src/measures); the block is left out when not given. */
   measures?: { reportBlock(softwareId: string): { plain: string; lines: ReportLine[] } };
+  /** Cost per stage, change and item, and the budget (src/usage); only totals when not given. */
+  usage?: Pick<Usage, "view">;
 }
 
 interface EventRow {
@@ -267,6 +281,27 @@ export async function gatherFacts(
       costUsd: u.costUsd,
       weeklyShare: u.weeklyShare,
     };
+    if (sources.usage) {
+      const view = await sources.usage.view(softwareId);
+      const line = (group: ReportCostLine["group"], row: UsageRowView): ReportCostLine => ({
+        group,
+        label: row.label,
+        measured: `${row.measured.sessions} agent session${row.measured.sessions === 1 ? "" : "s"}, ${minutesWords(row.measured.minutes)}`,
+        cost: `about $${row.cost.costUsd.toFixed(2)} at list prices`,
+        mocked: row.cost.mocked,
+      });
+      usage.groups = [
+        ...view.byStage.map((r) => line("stage", r)),
+        ...view.byChange.map((r) => line("change", r)),
+        ...view.byItem.filter((r) => r.key !== "none").map((r) => line("item", r)),
+      ];
+      usage.budget = {
+        words: view.budget.words,
+        paused: view.budget.overrun !== null,
+        overrunMessage: view.budget.overrun?.message ?? null,
+      };
+      if (view.problem) usageProblem = view.problem;
+    }
   } catch (error) {
     usageProblem = `The cost figures could not be read: ${(error as Error).message}`;
   }

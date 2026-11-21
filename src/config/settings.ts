@@ -5,6 +5,7 @@ import {
   summarised,
   text,
   textList,
+  positiveNumber,
   wholeNumber,
   yesNo,
 } from "./checks.js";
@@ -380,6 +381,30 @@ export const SETTINGS: readonly Setting[] = [
     check: summarised(orNone(wholeNumber(0, 2 ** 31 - 1)), "a whole number, or null"),
     meaning: 'Seed for "mock-random". null means a new seed each time premise starts.',
     record: "0133",
+  },
+  {
+    key: "usage_ledger.mock_weekly_allowance_usd",
+    default: 100,
+    check: summarised(positiveNumber(1, 1_000_000), "1 to 1000000"),
+    meaning:
+      "In the mock only: what a whole week's usage is worth in dollars. A budget set as a share of the week's usage is a share of this. The figures stay marked as mocked.",
+    record: "0200",
+  },
+  {
+    key: "usage_ledger.mock_cost_scale",
+    default: 1,
+    check: summarised(positiveNumber(0.001, 100_000), "0.001 to 100000"),
+    meaning:
+      "In the mock only: makes every agent session cost this many times more (or less) than the mock would say. A large number reaches a budget overrun quickly, to see what premise does then.",
+    record: "0200",
+  },
+  {
+    key: "softwares.default_weekly_budget_usd",
+    default: null,
+    check: summarised(orNone(positiveNumber(0.01, 1_000_000)), "a number of dollars, or null"),
+    meaning:
+      "Amount in dollars a new software may use in a week, at list prices. null means none is set. When a software uses it up, its queue pauses and you are asked what to do. A share of the week's usage (softwares.default_weekly_share_percent) is the other way to set it; if both are set, the amount is used.",
+    record: "0200",
   },
   {
     key: "softwares.default_priority",
@@ -844,12 +869,18 @@ export interface PremiseConfig {
     tasks: Record<AgentTaskKind, TaskSettings>;
   };
   tools: { progress_max_chars: number; ask_max_items: number };
-  usage_ledger: { mode: UsageLedgerMode; seed: number | null };
+  usage_ledger: {
+    mode: UsageLedgerMode;
+    seed: number | null;
+    mock_weekly_allowance_usd: number;
+    mock_cost_scale: number;
+  };
   softwares: {
     default_priority: number;
     default_milestone_waits: boolean;
     default_effort: SoftwareEffort;
     default_weekly_share_percent: number | null;
+    default_weekly_budget_usd: number | null;
   };
   page: { notifications: PageNotifications };
   line: {

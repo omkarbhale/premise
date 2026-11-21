@@ -246,10 +246,20 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
   ];
   let cost: ReportView["cost"];
   if (facts.usage) {
+    const budget = facts.usage.budget;
     cost = {
       mocked: facts.usage.mocked,
-      text: `${facts.usage.sessions} agent sessions, about $${facts.usage.costUsd.toFixed(2)} at list prices, ${Math.round(facts.usage.weeklyShare * 100)}% of this week's usage.`,
+      text:
+        `${facts.usage.sessions} agent sessions, about $${facts.usage.costUsd.toFixed(2)} at list prices, ${Math.round(facts.usage.weeklyShare * 100)}% of a week's usage.` +
+        (budget ? ` Budget: ${budget.words}.` : ""),
+      ...(facts.usage.groups && facts.usage.groups.length > 0 && { lines: facts.usage.groups }),
     };
+    if (budget?.paused && budget.overrunMessage) {
+      needed.unshift({
+        text: `${budget.overrunMessage} Choose what to do on the Usage page: raise the budget, let it finish the change it is on, or leave it paused.`,
+        evidence: "budget",
+      });
+    }
   } else {
     cost = { mocked: false, text: "Cost could not be read." };
     if (facts.usageProblem) limits.push(facts.usageProblem);

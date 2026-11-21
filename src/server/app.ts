@@ -21,6 +21,8 @@ import type { Learning } from "../learning/learning.js";
 import { registerLearningRoutes } from "../learning/routes.js";
 import type { Measures } from "../measures/measures.js";
 import { registerMeasureRoutes } from "../measures/routes.js";
+import type { Usage } from "../usage/usage.js";
+import { registerUsageRoutes } from "../usage/routes.js";
 import { registerRecordRoutes } from "../record/routes.js";
 import type { RecordKeeper } from "../record/record-keeper.js";
 import { type Database, recordEvent } from "../storage/database.js";
@@ -54,6 +56,8 @@ export interface AppDeps {
   measures?: Measures;
   /** Learning from corrections (src/learning); its routes are left out when not given. */
   learning?: Learning;
+  /** Cost and budgets (src/usage); its routes are left out when not given. */
+  usage?: Usage;
 }
 
 const NOT_BUILT_PAGE = `<!doctype html><html lang="en"><meta charset="utf-8"><title>premise</title>
@@ -226,6 +230,7 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
     if (deps.record) registerRecordRoutes(api, deps.record);
     if (deps.measures) registerMeasureRoutes(api, deps.measures);
     if (deps.learning) registerLearningRoutes(api, deps.learning);
+    if (deps.usage) registerUsageRoutes(api, deps.usage, deps.db);
 
     api.get("/api/overview", async (): Promise<Overview> => {
       const [softwares, archived, activity, weekly] = await Promise.all([

@@ -8,6 +8,11 @@ import type {
   LearningDestination,
   LearningView,
   MeasuresOverview,
+  BudgetInput,
+  BudgetView,
+  OverrunAnswerInput,
+  SoftwareUsageView,
+  UsageOverview,
   MeasuresView,
   Overview,
   RecordView,
@@ -89,6 +94,11 @@ export interface Api {
   activity(): Promise<ActivityView>;
   stopJob(id: number): Promise<ActivityView>;
   settings(): Promise<SettingsView>;
+  /** Usage per software, with budgets: figures from usage-ledger (mocked until it exists). */
+  usage(): Promise<UsageOverview>;
+  softwareUsage(id: string): Promise<SoftwareUsageView>;
+  setBudget(id: string, budget: BudgetInput): Promise<BudgetView>;
+  answerOverrun(id: string, answer: OverrunAnswerInput): Promise<BudgetView>;
   /** premise's own return: every software together, then each one. */
   measures(): Promise<MeasuresOverview>;
   softwareMeasures(id: string): Promise<MeasuresView>;
@@ -208,6 +218,10 @@ export function createApi(token: string): Api {
     activity: () => get("/api/activity"),
     stopJob: (id) => post(`/api/jobs/${id}/stop`),
     settings: () => get("/api/settings"),
+    usage: () => get("/api/usage"),
+    softwareUsage: (id) => get(`/api/softwares/${enc(id)}/usage`),
+    setBudget: (id, budget) => post(`/api/softwares/${enc(id)}/budget`, budget),
+    answerOverrun: (id, answer) => post(`/api/softwares/${enc(id)}/budget/answer`, answer),
     measures: () => get("/api/measures"),
     softwareMeasures: (id) => get(`/api/softwares/${enc(id)}/measures`),
     presence: (visible) => post("/api/presence", { visible }),

@@ -123,6 +123,12 @@ export interface WorkQueueOptions {
   onChange?: (job: Job) => void;
   /** For tests: the current time. */
   clock?: () => Date;
+  /**
+   * Budgets (src/usage). hold: a software's budget is being looked at, so nothing starts for it
+   * yet. allows: a software paused for its budget may still start this job, because the operator
+   * chose to let that change finish.
+   */
+  budgets?: { hold(softwareId: string): boolean; allows(job: Job): boolean };
 }
 
 const QUEUE_STATE_KEY = "queue.state";
@@ -239,12 +245,25 @@ export class WorkQueue {
     const rows = this.db
       .prepare(
         `SELECT j.* FROM jobs j JOIN softwares s ON s.id = j.software_id
-         WHERE j.status = 'queued' AND s.state = 'active'
+         WHERE j.status = 'queued' AND s.state IN ('active', 'paused-budget')
            AND s.paused_at IS NULL AND s.archived_at IS NULL
          ORDER BY ${KIND_ORDER_SQL}, j.created, j.id`,
       )
       .all() as unknown as JobRow[];
-    return rows.map(fromRow);
+    const budgets = this.options.budgets;
+    const paused = new Set(
+      (
+        this.db.prepare("SELECT id FROM softwares WHERE state = 'paused-budget'").all() as {
+          id: string;
+        }[]
+      ).map((r) => r.id),
+    );
+    return rows
+      .map(fromRow)
+      .filter(
+        (job) =>
+          !budgets?.hold(job.softwareId) && (!paused.has(job.softwareId) || budgets?.allows(job)),
+      );
   }
 
   /** When each software last had a job start, from the events (so it survives a restart). */
