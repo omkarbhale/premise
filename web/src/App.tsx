@@ -329,16 +329,11 @@ function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) 
           <>
             <section className="card narrow-card" aria-labelledby="start-title">
               <h1 id="start-title">Start another software</h1>
-              <StartForm
-                autoFocus
-                onStarted={(s) => openSoftware(s.id, "conversation")}
-              />
+              <StartForm autoFocus onStarted={(s) => openSoftware(s.id, "conversation")} />
             </section>
             <section className="card narrow-card" aria-labelledby="bring-in-title">
               <h2 id="bring-in-title">Or bring in software you already have</h2>
-              <BringInForm
-                onStarted={(s) => openSoftware(s.id, "conversation")}
-              />
+              <BringInForm onStarted={(s) => openSoftware(s.id, "conversation")} />
             </section>
           </>
         )}
