@@ -405,17 +405,32 @@ describe("taking on existing software, in a thin form", () => {
   it("goes on recovering after premise restarts in the middle of it", async () => {
     const folder = commandLineProject(join(tempFolder(), "wordcount"));
     const rules = script(
-      { when: { task: "recover", attempt: 1 }, end: { outcome: "hang" } },
+      { when: { task: "recover", attempt: 1 }, progress: ["Reading"], end: { outcome: "hang" } },
       recoverCommandLine,
     );
     const first = await testApp({}, { script: rules });
     const id = (await bringIn(first, { source: folder })).body.id as string;
     await first.session.line.idle();
-    for (let i = 0; i < 20 && first.session.queue.list("running")[0]?.kind !== "recover"; i++) {
+    // Cut once the session says it is under way: before that its clone is still being made, and
+    // would carry on in the stopped premise behind the new one's back.
+    const underWay = () => {
+      const job = first.session.queue.list("running")[0];
+      return (
+        job?.kind === "recover" &&
+        first.db
+          .prepare(
+            "SELECT 1 FROM events WHERE module = 'agent' AND kind = 'progress' AND reference = ?",
+          )
+          .get(String(job.id)) !== undefined
+      );
+    };
+    for (let i = 0; i < 200 && !underWay(); i++) {
+      // Not the queue's idle: the hanging session never ends.
       first.session.queue.tick();
-      await first.session.queue.idle().catch(() => undefined);
+      await first.session.line.idle();
       await new Promise((r) => setTimeout(r, 10));
     }
+    expect(underWay()).toBe(true);
     expect(first.session.queue.list("running").map((j) => j.kind)).toEqual(["recover"]);
     expect((await detail(first, id)).status).toContain("recovering the record");
 

@@ -51,7 +51,7 @@ Not responsible for:
    - planner, drafter, reviewer, sizer: a read-only clone at the default branch, where the job needs one;
    - researcher, triager, reader, reporter: none, or an empty scratch folder;
    - any role, when the software has no repository yet: an empty scratch folder.
-   - A job whose last session was cut off (usage limit, pause, premise stopped) keeps its working copy and carries that session on with `--resume`, but only if its id was confirmed by the session's first event; a session cut off before that starts afresh ([0151](../decisions/0151-session-ids-chosen-by-premise-and-cut-off-sessions-carried-on.md)).
+   - A job whose last session was cut off (usage limit, pause, premise stopped) keeps its working copy and carries that session on with `--resume`, but only if its id was confirmed by the session's first event; a session cut off before that starts afresh ([0151](../decisions/0151-session-ids-chosen-by-premise-and-cut-off-sessions-carried-on.md)). A clone is carried on only once premise finished setting it up (branch, commit identity, hook); one cut off while still being set up is made again.
 2. Assemble the instructions: the role's prompt from premise's repository, then every skill the role lists, in full, then the task brief with its placeholders filled ([0114](../decisions/0114-prompts-and-skills-as-files.md)).
 3. Create the session's tool token and MCP configuration ([agent tools](agent-tools.md)).
 4. Start Claude Code headless (`claude -p` with streamed JSON output) as a child process ([0071](../decisions/0071-headless-claude-code-agents.md)):
