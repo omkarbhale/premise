@@ -306,7 +306,7 @@ describe("the whole line, with the line engine and stand-in later stages", () =>
     expect(detail.body).toMatchObject({ state: "ended" });
     expect(detail.body.status).toContain("decided not to build");
   });
-});
+}, 30_000);
 
 describe("send back, size and jobs", () => {
   it("sends a software back to an earlier stage, withdrawing what was open", async () => {

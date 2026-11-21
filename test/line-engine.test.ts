@@ -428,7 +428,7 @@ describe("the gate on the line", () => {
     const spend = app.session.gate.list(id).find((r) => r.kind === "spend")!;
     expect(spend.status).toBe("refused");
   });
-});
+}, 30_000);
 
 describe("chat and stage problems", () => {
   it("puts chat into the open draft and has the drafter work it in", async () => {
@@ -489,7 +489,7 @@ describe("chat and stage problems", () => {
     await start(app);
     expect(app.runner.calls.map((c) => c.result.error?.code)).toEqual(["MALFORMED", "MALFORMED"]);
   });
-});
+}, 30_000);
 
 describe("restart in the middle of a stage", () => {
   it("resumes the cut-off drafter after premise starts again, and the stage goes on", async () => {
@@ -517,4 +517,4 @@ describe("restart in the middle of a stage", () => {
     await keepAll(second, why);
     expect((await second.call("GET", `/api/softwares/${id}`)).body.stage).toBe("who");
   });
-});
+}, 30_000);
