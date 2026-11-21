@@ -9,6 +9,7 @@ import type {
   SessionsShare,
 } from "../shared/api-types.js";
 import { roleWords } from "../shared/roles.js";
+import { intakeCounts } from "../intake/counts.js";
 import { type Database, now } from "../storage/database.js";
 
 /**
@@ -578,6 +579,7 @@ export class Measures {
         .map(([name, n]): SessionsShare => ({ name, sessions: n }))
         .sort((a, b) => b.sessions - a.sessions),
       misses: mineMisses,
+      intakeRoutes: intakeCounts(this.db, softwareId),
     };
   }
 

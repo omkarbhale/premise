@@ -3,6 +3,8 @@ import {
   INTAKE_ROUTES,
   type IntakeKind,
   type IntakeRoute,
+  type ShortLine,
+  type ShortList,
   type Touch,
 } from "./items.js";
 
@@ -201,23 +203,59 @@ export function readTriage(
   };
 }
 
-/** The short list a reading ends in, from reading_submit. */
-export function readShortList(args: Record<string, unknown>):
-  | { list: { wanted: string[]; recurring: string[]; purpose: string; backToWhy: boolean } }
-  | {
-      problems: string[];
-    } {
+/**
+ * The short list a reading ends in, from reading_submit. Every line names the items behind it, so
+ * the operator sees how many people are asking and can read them; items must be ones this
+ * reading read. Going back to Why must come with the items that are the evidence for it.
+ */
+export function readShortList(
+  args: Record<string, unknown>,
+  context: { read: ReadonlySet<number> },
+): { list: ShortList } | { problems: string[] } {
   const problems: string[] = [];
-  const lines = (value: unknown, name: string): string[] => {
+  const itemsOf = (value: unknown, where: string): number[] => {
     if (value === undefined || value === null) return [];
     if (!Array.isArray(value)) {
-      problems.push(`Give "${name}" as a list of short lines.`);
+      problems.push(`${where}: give "items" as a list of item numbers such as "I-3".`);
       return [];
     }
-    return value
-      .map((v) => text(v, 400))
-      .filter(Boolean)
-      .slice(0, 10);
+    const numbers: number[] = [];
+    for (const v of value) {
+      const n = itemNumber(v);
+      if (n === null)
+        problems.push(`${where}: "${String(v)}" is not an item number such as "I-3".`);
+      else if (!context.read.has(n))
+        problems.push(`${where}: I-${n} was not among the items read. Use only the items given.`);
+      else if (!numbers.includes(n)) numbers.push(n);
+    }
+    return numbers;
+  };
+  const lines = (value: unknown, name: string): ShortLine[] => {
+    if (value === undefined || value === null) return [];
+    if (!Array.isArray(value)) {
+      problems.push(`Give "${name}" as a list of lines, each { "line": "...", "items": ["I-3"] }.`);
+      return [];
+    }
+    return value.slice(0, 10).flatMap((v, index): ShortLine[] => {
+      const where = `${name} line ${index + 1}`;
+      if (typeof v === "string") {
+        const t = text(v, 400);
+        if (!t) return [];
+        problems.push(
+          `${where}: say which items are behind it: { "line": "...", "items": ["I-3"] }.`,
+        );
+        return [];
+      }
+      const o = (v ?? {}) as Record<string, unknown>;
+      const t = text(o.line ?? o.text, 400);
+      if (!t) {
+        problems.push(`${where}: give "line", the short sentence.`);
+        return [];
+      }
+      const items = itemsOf(o.items, where);
+      if (items.length === 0) problems.push(`${where}: name at least one item behind it.`);
+      return [{ text: t, items, decision: null }];
+    });
   };
   const wanted = lines(args.wanted, "wanted");
   const recurring = lines(args.recurring, "recurring");
@@ -229,9 +267,15 @@ export function readShortList(args: Record<string, unknown>):
   }
   const back = args.back_to_why === undefined ? false : yes(args.back_to_why);
   if (back === undefined) problems.push('Give "back_to_why" as yes or no.');
+  const notWanted = itemsOf(args.not_wanted, "not_wanted");
+  if (back === true && notWanted.length === 0) {
+    problems.push(
+      'Going back to Why needs its evidence: give "not_wanted", the items that say people do not want what the software does.',
+    );
+  }
   if (wanted.length === 0 && recurring.length === 0) {
     problems.push('Give at least one line under "wanted" or "recurring".');
   }
   if (problems.length > 0) return { problems };
-  return { list: { wanted, recurring, purpose, backToWhy: back === true } };
+  return { list: { wanted, recurring, purpose, backToWhy: back === true, notWanted } };
 }

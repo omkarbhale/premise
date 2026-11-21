@@ -708,6 +708,39 @@ export interface IntakeItemView {
   minutesToRunning: number | null;
   /** Merged, closed or held: the operator can take it in instead. */
   canUndo: boolean;
+  /** Whether and how its sender is told where it stands; null when it needs no telling. */
+  senderNote: string | null;
+}
+
+/** How many items went each way (docs/specs/intake.md 10). */
+export interface IntakeRouteCounts {
+  /** Items per route taken: in-normally, asked-at-once, held, merged-or-closed, not-routed. */
+  byRoute: Record<string, number>;
+  /** Items per source: session, page, premise, github, feedback. */
+  bySource: Record<string, number>;
+  total: number;
+  /** The counts in one plain sentence. */
+  words: string;
+  /** Per source, in plain words, most items first. */
+  sources: { source: string; name: string; count: number }[];
+}
+
+/** One line of a reading's short list, with the items behind it. */
+export interface ShortLineView {
+  text: string;
+  /** How many items are behind it. */
+  count: number;
+  items: { ref: string; text: string; status: IntakeItemView["status"] }[];
+  /** What the operator did with it; null until they decide. */
+  decision: { choice: "work" | "keep" | "close"; reason: string | null; at: string } | null;
+}
+
+/** Where one piece of feedback stands, for the person who sent it (the feedback page). */
+export interface FeedbackStanding {
+  text: string;
+  received: string;
+  headline: string;
+  detail: string;
 }
 
 export interface ReadingView {
@@ -716,7 +749,16 @@ export interface ReadingView {
   triggerWords: string;
   items: string[];
   status: "reading" | "done" | "failed";
-  shortList: { wanted: string[]; recurring: string[]; purpose: string; backToWhy: boolean } | null;
+  /** The operator has already gone back to Why from this reading. */
+  sentBack: boolean;
+  shortList: {
+    wanted: ShortLineView[];
+    recurring: ShortLineView[];
+    purpose: string;
+    backToWhy: boolean;
+    /** When going back to Why is suggested: what the items say, plainly, with the items. */
+    evidence: string | null;
+  } | null;
   created: string;
 }
 
@@ -733,6 +775,21 @@ export interface IntakeView {
   readings: ReadingView[];
   /** How many items are in each status. */
   counts: Record<string, number>;
+  /** How many items went each route, and came from each source. */
+  routes: IntakeRouteCounts;
+  /** The feedback page for this software's users; null when feedback pages are turned off. */
+  feedback: { path: string; created: string } | null;
+  /** GitHub issues as a source. */
+  github: {
+    /** "owner/name"; null until the software has a GitHub repository. */
+    repository: string | null;
+    everyMinutes: number;
+    lastRead: string | null;
+    /** Why the last reading failed, in plain words; null when it did not. */
+    problem: string | null;
+    /** How many items came from GitHub issues. */
+    taken: number;
+  };
 }
 
 // ---- Measures (decision 0172, docs/specs/measures.md) ------------------------------------------
@@ -793,6 +850,8 @@ export interface MeasuresView {
   attentionByChange: AttentionShare[];
   sessionsByChange: SessionsShare[];
   misses: CheckerMissView[];
+  /** How many intake items went each route, and from which source. */
+  intakeRoutes: IntakeRouteCounts;
 }
 
 /** The overall view: every software together, then each one. */

@@ -56,6 +56,7 @@ Always current, for each software ([0012](../decisions/0012-reporting-with-a-pro
 | Decided | Record items and decisions since the last report; items the operator left out at the scope check are named as left out, not built |
 | Running | What runs, which commit, and where to open it |
 | Needed | What is needed and from which role, each with exactly what to do; grouped by role, with a count per role, when another role than the operator is waited on, and with no role label while only the operator is ([0196](../decisions/0196-roles-and-taste-in-one-session.md)) |
+| Intake | How many intake items came in and where they went (in normally, asked, held, merged or closed), and from which source ([0243](../decisions/0243-duplicates-across-sources-and-counts-per-route.md)) |
 | Effort | premise's own measures ([0192](../decisions/0192-effort-in-proportion-to-what-was-asked.md)): the time from the idea to the first running version and the agent sessions it took, and the agent sessions in all. From premise's agent sessions and runs, not from usage-ledger |
 | Failed or not checked | Every item not met or not checked, except what the operator left out |
 | Cost | From usage-ledger, mocked until it exists and labelled so: the total, the software's budget, and under a fold lines per step, change and record item, each with premise's own count of sessions and minutes beside the figure (not labelled mocked). A software paused for its budget has it as the first line under Needed ([usage](usage.md)). |

@@ -31,6 +31,7 @@ function item(change: Partial<IntakeItemView> = {}): IntakeItemView {
     received: "2026-11-21T10:00:00Z",
     minutesToRunning: null,
     canUndo: false,
+    senderNote: null,
     ...change,
   };
 }
@@ -68,6 +69,15 @@ function view(change: Partial<View> = {}): View {
     reading: false,
     readings: [],
     counts: { working: 1, closed: 1, held: 1 },
+    routes: {
+      byRoute: { "in-normally": 1, "merged-or-closed": 1, held: 1 },
+      bySource: { session: 3 },
+      total: 3,
+      words: "3 items came in through intake.",
+      sources: [{ source: "session", name: "the session", count: 3 }],
+    },
+    feedback: { path: "/feedback/abc", created: "2026-11-21T10:00:00Z" },
+    github: { repository: null, everyMinutes: 10, lastRead: null, problem: null, taken: 0 },
     ...change,
   };
 }

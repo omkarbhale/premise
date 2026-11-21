@@ -4,6 +4,7 @@ import type {
   AskView,
   ChatMessage,
   ClaimView,
+  FeedbackStanding,
   IntakeItemView,
   IntakeView,
   RecordView,
@@ -124,6 +125,32 @@ export interface IntakeService {
   undo(itemId: number): Promise<IntakeItemView>;
   /** Read the held items together now. */
   readNow(softwareId: string): Promise<IntakeView>;
+  /** Turn a line of a reading's short list into work, keep its items held, or close them. */
+  decideLine(
+    readingId: number,
+    input: {
+      list: "wanted" | "recurring";
+      index: number;
+      choice: "work" | "keep" | "close";
+      reason?: string;
+    },
+  ): Promise<IntakeView>;
+  /** Go back to Why, after a reading says people may not want the software. */
+  backToWhy(readingId: number): Promise<IntakeView>;
+  /** Replace the software's feedback link; the old one stops working. */
+  newFeedbackLink(softwareId: string): Promise<IntakeView>;
+  /** Read the software's GitHub issues now. */
+  readIssuesNow(softwareId: string): Promise<IntakeView>;
+}
+
+/** The feedback page: reached by its own link, with no session behind it (decision 0119). */
+export interface FeedbackService {
+  /** What the page says, or null when the link does not work. */
+  page(token: string): { softwareName: string; limit: number } | null;
+  /** Take feedback in; the receipt opens where it stands. */
+  submit(token: string, text: string): { receipt: string };
+  /** Where the item behind a receipt stands; null when the receipt or the link is not right. */
+  standing(token: string, receipt: string): FeedbackStanding | null;
 }
 
 export interface RecordService {

@@ -67,6 +67,18 @@ export interface Api {
   reportIntake(id: string, text: string): Promise<IntakeItemView>;
   undoIntake(itemId: number): Promise<IntakeItemView>;
   readHeldNow(id: string): Promise<IntakeView>;
+  decideLine(
+    readingId: number,
+    input: {
+      list: "wanted" | "recurring";
+      index: number;
+      choice: "work" | "keep" | "close";
+      reason?: string;
+    },
+  ): Promise<IntakeView>;
+  backToWhy(readingId: number): Promise<IntakeView>;
+  newFeedbackLink(id: string): Promise<IntakeView>;
+  readIssuesNow(id: string): Promise<IntakeView>;
   run(id: string): Promise<RunView>;
   startRun(id: string): Promise<RunView>;
   stopRun(id: string): Promise<RunView>;
@@ -181,6 +193,10 @@ export function createApi(token: string): Api {
     reportIntake: (id, text) => post(`/api/softwares/${enc(id)}/intake`, { text }),
     undoIntake: (itemId) => post(`/api/intake/${itemId}/undo`),
     readHeldNow: (id) => post(`/api/softwares/${enc(id)}/intake/read-now`),
+    decideLine: (readingId, input) => post(`/api/readings/${readingId}/decide`, input),
+    backToWhy: (readingId) => post(`/api/readings/${readingId}/back-to-why`),
+    newFeedbackLink: (id) => post(`/api/softwares/${enc(id)}/intake/new-feedback-link`),
+    readIssuesNow: (id) => post(`/api/softwares/${enc(id)}/intake/read-issues`),
     run: (id) => get(`/api/softwares/${enc(id)}/run`),
     startRun: (id) => post(`/api/softwares/${enc(id)}/run/start`),
     stopRun: (id) => post(`/api/softwares/${enc(id)}/run/stop`),

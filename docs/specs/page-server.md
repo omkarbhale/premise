@@ -67,7 +67,9 @@ All routes are on localhost. Every request except the static page itself and the
 | `/api/softwares/:id/readings` | POST | Asks for a reading of held intake now | Intake |
 | `/api/working-records/delete` | POST | A person deletes a working record | Storage |
 | `/api/events` | GET (server-sent events) | Live updates: asks, progress lines, job changes, reports, notices | – |
-| `/feedback/:token` | GET, POST | A software's feedback page; submits an item; shows one's own item's status | Intake |
+| `/feedback/:token` | GET, POST | A software's feedback page; submits an item (a plain form, no scripts) | Intake |
+| `/feedback/:token/received/:receipt` | GET | Where one's own item stands, in words for the sender | Intake |
+| `/api/softwares/:id/intake/new-feedback-link`, `/api/softwares/:id/intake/read-issues`, `/api/readings/:id/decide`, `/api/readings/:id/back-to-why` | POST | Replace the feedback link; read GitHub issues now; decide a line of a short list; go back to Why after a reading | Intake |
 
 Errors are returned as an HTTP status with a short message that says what to do: 401 for a missing or wrong token, 403 for a bad Host or Origin, 404 for an unknown id, 409 for an ask already closed or a name already taken, 422 for an invalid request or answer.
 
@@ -152,5 +154,5 @@ Every setting is in the [configuration reference](../reference/configuration.md)
 
 - Milestone 1 step 2: the server; the session's link and token; the API and event stream; the prerequisite check.
 - Milestone 2 (against usage-ledger's mock until it exists, [0133](../decisions/0133-usage-ledger-is-mocked-until-it-exists.md)): usage-ledger in the prerequisite check.
-- Milestone 4: feedback pages.
+- Milestone 4: feedback pages (built, [0241](../decisions/0241-how-the-feedback-page-is-built.md)).
 - Milestone 5: one install command, and a setup check that names what is missing; premise hosted in a container on a host its operator chooses; accounts, decided then. Being reached from other machines is prepared, not decided: every step that exposes premise beyond one machine waits for the person running it; for the owner's own setup, the owner.

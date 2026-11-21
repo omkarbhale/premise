@@ -1,5 +1,12 @@
 import { useId, useState } from "react";
-import { ApiError, type IntakeItemView, NotCurrentLink } from "../api";
+import {
+  ApiError,
+  type IntakeItemView,
+  type IntakeView as IntakeData,
+  NotCurrentLink,
+  type ReadingView,
+  type ShortLineView,
+} from "../api";
 import { useSession } from "../context";
 import { useLoad } from "../hooks";
 import { plural, when } from "../words";
@@ -154,24 +161,49 @@ export function IntakeView({
               ? "Nothing is held."
               : `${plural(v.held, "item")} held.`}
         </p>
-        {v.readings.length > 0 && (
-          <details>
-            <summary>Earlier readings ({v.readings.length})</summary>
-            <ul>
-              {v.readings.map((r) => (
-                <li key={r.id}>
-                  {when(r.created)}, because {r.triggerWords}: {r.items.join(", ")}.{" "}
-                  {r.status === "failed"
-                    ? "It did not finish."
-                    : r.shortList
-                      ? [...r.shortList.wanted, ...r.shortList.recurring].join(" ")
-                      : "Under way."}
-                </li>
-              ))}
-            </ul>
-          </details>
-        )}
       </section>
+
+      {v.readings
+        .filter((r) => r.shortList)
+        .map((r, index) => (
+          <ReadingCard
+            key={r.id}
+            reading={r}
+            busy={busy}
+            latest={index === 0}
+            onDecide={(list, at, choice, reason) =>
+              void act(() => api.decideLine(r.id, { list, index: at, choice, reason }))
+            }
+            onBackToWhy={() =>
+              void act(
+                () => api.backToWhy(r.id),
+                "Going back to Why. The conversation tab asks you the first question.",
+              )
+            }
+          />
+        ))}
+      {v.readings.some((r) => r.status === "failed") && (
+        <p className="muted small">
+          An earlier reading did not finish. Its items stayed held, and the next reading takes them
+          in again.
+        </p>
+      )}
+
+      <FeedbackCard
+        view={v}
+        busy={busy}
+        onNewLink={() =>
+          void act(
+            () => api.newFeedbackLink(softwareId),
+            "Made a new feedback link. The old one no longer works.",
+          )
+        }
+      />
+      <GithubCard
+        view={v}
+        busy={busy}
+        onRead={() => void act(() => api.readIssuesNow(softwareId), "Read the GitHub issues.")}
+      />
 
       <section aria-label="Every item">
         <h2>Everything taken in</h2>
@@ -231,6 +263,7 @@ function Item({
         {item.routedBy === "default" && "; not read by an agent, so it went in normally"}
       </p>
       {item.answer && <p className="intake-answer">{item.answer}</p>}
+      {item.senderNote && <p className="muted small">{item.senderNote}</p>}
       {(item.reason || item.touches.length > 0) && (
         <details>
           <summary>Why it went there</summary>
@@ -254,5 +287,259 @@ function Item({
         </p>
       )}
     </li>
+  );
+}
+
+const CHOICE_WORDS = {
+  work: "You turned it into work.",
+  keep: "You kept its items held.",
+  close: "You closed its items.",
+} as const;
+
+/** One reading's short list: what people want, how many are asking, and the operator's say on each line. */
+function ReadingCard({
+  reading,
+  busy,
+  latest,
+  onDecide,
+  onBackToWhy,
+}: {
+  reading: ReadingView;
+  busy: boolean;
+  latest: boolean;
+  onDecide: (
+    list: "wanted" | "recurring",
+    index: number,
+    choice: "work" | "keep" | "close",
+    reason?: string,
+  ) => void;
+  onBackToWhy: () => void;
+}) {
+  const list = reading.shortList!;
+  const heading = `What ${plural(reading.items.length, "held item")} said together`;
+  const body = (
+    <>
+      <p className="muted small">
+        Read {when(reading.created)}, because {reading.triggerWords}. For each line you can turn it
+        into work, keep its items held, or close them. The people who sent them see the outcome.
+      </p>
+      {list.backToWhy && list.evidence && (
+        <div className="card note" role="alert">
+          <p>
+            <strong>People may not want what this software does.</strong> {list.evidence}
+          </p>
+          <p>
+            Going back to Why means asking again who this is for and which problem is worth solving:
+            the wrong problem may have been solved, or there may be other problems. Nothing changes
+            unless you choose it.
+          </p>
+          {reading.sentBack ? (
+            <p className="muted small">
+              You went back to Why from this reading. The conversation tab has the questions.
+            </p>
+          ) : (
+            <button type="button" className="primary" disabled={busy} onClick={onBackToWhy}>
+              Go back to Why
+            </button>
+          )}
+        </div>
+      )}
+      <Lines
+        title="What people seem to want"
+        lines={list.wanted}
+        which="wanted"
+        {...{ busy, onDecide }}
+      />
+      <Lines
+        title="What keeps coming up"
+        lines={list.recurring}
+        which="recurring"
+        {...{ busy, onDecide }}
+      />
+      <p>
+        <strong>Purpose and users:</strong> {list.purpose}
+      </p>
+    </>
+  );
+  return latest ? (
+    <section className="card" aria-label={heading}>
+      <h2>{heading}</h2>
+      {body}
+    </section>
+  ) : (
+    <details className="card">
+      <summary>{heading}</summary>
+      {body}
+    </details>
+  );
+}
+
+function Lines({
+  title,
+  lines,
+  which,
+  busy,
+  onDecide,
+}: {
+  title: string;
+  lines: ShortLineView[];
+  which: "wanted" | "recurring";
+  busy: boolean;
+  onDecide: (
+    list: "wanted" | "recurring",
+    index: number,
+    choice: "work" | "keep" | "close",
+    reason?: string,
+  ) => void;
+}) {
+  if (lines.length === 0) return null;
+  return (
+    <>
+      <h3>{title}</h3>
+      <ul className="short-lines">
+        {lines.map((line, index) => (
+          <li key={`${which}-${index}`} className="short-line">
+            <p>
+              {line.text} <strong>({plural(line.count, "item")})</strong>
+            </p>
+            <details>
+              <summary>Items behind it</summary>
+              <ul>
+                {line.items.map((i) => (
+                  <li key={i.ref}>
+                    <strong>{i.ref}</strong> {i.text}
+                  </li>
+                ))}
+              </ul>
+            </details>
+            {line.decision ? (
+              <p className="muted small">
+                {CHOICE_WORDS[line.decision.choice]}
+                {line.decision.reason ? ` Because: ${line.decision.reason}` : ""}
+              </p>
+            ) : (
+              <p className="line-actions">
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onDecide(which, index, "work")}
+                >
+                  Turn into work
+                </button>{" "}
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onDecide(which, index, "keep")}
+                >
+                  Keep holding
+                </button>{" "}
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onDecide(which, index, "close")}
+                >
+                  Close them
+                </button>
+              </p>
+            )}
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+/** The feedback page for the software's own users: its link, and who can reach it. */
+function FeedbackCard({
+  view,
+  busy,
+  onNewLink,
+}: {
+  view: IntakeData;
+  busy: boolean;
+  onNewLink: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const link = view.feedback ? `${window.location.origin}${view.feedback.path}` : null;
+  return (
+    <section className="card" aria-label="Feedback page">
+      <h2>Feedback page for this software's users</h2>
+      {link ? (
+        <>
+          <p className="muted small">
+            A plain page where anyone you give the link to can tell you what is wrong or what they
+            would like. What they write comes in here as intake, and they get a link that shows
+            where their feedback stands. Giving them the link is your choice; premise never sends
+            it.
+          </p>
+          <p>
+            <a href={link} target="_blank" rel="noreferrer">
+              {link}
+            </a>{" "}
+            <button
+              type="button"
+              onClick={() => {
+                void navigator.clipboard?.writeText(link).then(() => setCopied(true));
+              }}
+            >
+              {copied ? "Copied" : "Copy link"}
+            </button>
+          </p>
+          <p>
+            <strong>Who can reach it:</strong> only people using this computer, because premise
+            listens on this machine only. People elsewhere cannot open it; for them, GitHub issues
+            work once this software has a GitHub repository.
+          </p>
+          <p>
+            <button type="button" disabled={busy} onClick={onNewLink}>
+              Make a new link
+            </button>{" "}
+            <span className="muted small">The old link stops working. Use it if it leaked.</span>
+          </p>
+        </>
+      ) : (
+        <p className="muted small">Feedback pages are turned off in premise's settings.</p>
+      )}
+    </section>
+  );
+}
+
+/** GitHub issues as a source of intake. */
+function GithubCard({
+  view,
+  busy,
+  onRead,
+}: {
+  view: IntakeData;
+  busy: boolean;
+  onRead: () => void;
+}) {
+  const g = view.github;
+  return (
+    <section className="card" aria-label="GitHub issues">
+      <h2>GitHub issues</h2>
+      {g.repository ? (
+        <>
+          <p className="muted small">
+            premise reads the open issues of {g.repository} every {plural(g.everyMinutes, "minute")}{" "}
+            and takes each new one in. {plural(g.taken, "issue")} so far. When one is held, merged,
+            answered, closed or has a change running, premise asks you before it comments on the
+            issue, since a comment is public and in your name.
+          </p>
+          {g.problem && <Problem>{g.problem}</Problem>}
+          <p>
+            <button type="button" disabled={busy} onClick={onRead}>
+              Read the issues now
+            </button>{" "}
+            {g.lastRead && <span className="muted small">Last read {when(g.lastRead)}.</span>}
+          </p>
+        </>
+      ) : (
+        <p className="muted small">
+          This software has no GitHub repository yet, so there are no issues to read. Its code stays
+          on this machine until you ask premise to put it on GitHub; then its issues come in here.
+        </p>
+      )}
+    </section>
   );
 }

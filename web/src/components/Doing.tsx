@@ -104,6 +104,19 @@ function Figures({
           </ul>
         </>
       )}
+      {view.intakeRoutes.total > 0 && (
+        <>
+          <h3>Where intake items went</h3>
+          <p className="muted small">{view.intakeRoutes.words}</p>
+          <ul>
+            {view.intakeRoutes.sources.map((s) => (
+              <li key={s.source}>
+                {plural(s.count, "item")} from {s.name}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
       {view.misses.length > 0 && (
         <>
           <h3>Said to work, came back as a bug</h3>

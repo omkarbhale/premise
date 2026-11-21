@@ -50,6 +50,7 @@ import { standInScript } from "../src/demo/stand-in-script.js";
 import { runDoctor } from "../src/doctor/doctor.js";
 import { TOKEN_HEADER, createApp } from "../src/server/app.js";
 import { issueSessionToken } from "../src/server/session-token.js";
+import type { IssueSource } from "../src/intake/issues.js";
 import { createSession } from "../src/server/wiring.js";
 import { openDatabase } from "../src/storage/database.js";
 import { MockUsageLedger } from "../src/usage-ledger/mock-usage-ledger.js";
@@ -57,7 +58,12 @@ import { MockUsageLedger } from "../src/usage-ledger/mock-usage-ledger.js";
 /** A page server on a fresh data folder, with the line engine and scripted agents that finish at once. */
 export async function testApp(
   env: NodeJS.ProcessEnv = {},
-  options: { script?: AgentScript; folder?: string; later?: LaterStages } = {},
+  options: {
+    script?: AgentScript;
+    folder?: string;
+    later?: LaterStages;
+    issues?: IssueSource;
+  } = {},
 ) {
   const folder = options.folder ?? tempFolder();
   // Software the line starts runs unconfined in tests (bubblewrap may be missing), on ports of
@@ -83,6 +89,7 @@ export async function testApp(
     tools,
     record,
     later: options.later,
+    issues: options.issues,
   });
   const setup = await runDoctor({
     dataFolder: folder,
@@ -101,6 +108,7 @@ export async function testApp(
     measures: session.measures,
     learning: session.learning,
     usage: session.usage,
+    feedback: session.feedback,
     webRoot: tempFolder(),
   });
   const token = issueSessionToken(db, config.server.token_bytes);

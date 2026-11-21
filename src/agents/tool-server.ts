@@ -239,7 +239,8 @@ const TOOLS: ToolDefinition[] = [
   },
   {
     name: "reading_submit",
-    description: "Submit the short list from reading the held intake items.",
+    description:
+      'Submit the short list from reading the held intake items: "wanted" and "recurring" (lines, each { "line", "items": ["I-3"] }), "purpose", "back_to_why" (yes or no) and, when yes, "not_wanted" (the item IDs that are the evidence).',
     inputSchema: anyObject,
     notBuilt: "intake",
   },
