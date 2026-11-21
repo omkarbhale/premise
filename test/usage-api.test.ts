@@ -30,7 +30,7 @@ describe("usage and budgets through the page's API", () => {
     expect(set.body).toMatchObject({ kind: "share", percent: 25, words: "25% of a week's usage" });
     const bad = await call("POST", `/api/softwares/${sw.id}/budget`, { kind: "amount", usd: -1 });
     expect(bad.status).toBe(422);
-    expect(bad.body.error).toContain("number of dollars more than 0");
+    expect(bad.body.error).toContain("at least 1 cent");
   });
 
   it("pauses a software that overruns, tells the operator in its report, and takes the three answers", async () => {

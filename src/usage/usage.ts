@@ -16,6 +16,7 @@ import type {
 import { PHASES, stageName } from "../shared/stages.js";
 import { ServiceError } from "../server/services.js";
 import { type Database, now, recordEvent } from "../storage/database.js";
+import { addChatMessage } from "../storage/chat.js";
 import {
   getSoftware,
   listSoftwares,
@@ -93,11 +94,14 @@ export interface UsageOptions {
   onSettled?: () => void;
 }
 
+const RECHECK_MS = 5 * 60_000;
+
 export class Usage {
   private readonly checking = new Map<string, number>();
   /** Softwares whose jobs the queue was asked to hold back, so it is told to look again. */
   private readonly held = new Set<string>();
   private readonly pending = new Set<Promise<void>>();
+  private timer: ReturnType<typeof setInterval> | undefined;
   onSettled: () => void;
 
   constructor(private readonly options: UsageOptions) {
@@ -119,6 +123,20 @@ export class Usage {
       }
     }
     await this.checkAll();
+    this.timer ??= setInterval(() => void this.recheckPaused(), RECHECK_MS);
+    this.timer.unref?.();
+  }
+
+  close(): void {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = undefined;
+  }
+
+  /** A weekly budget resets with the week: look at what is paused for one, in case it has. */
+  private async recheckPaused(): Promise<void> {
+    for (const software of listSoftwares(this.db)) {
+      if (software.state === "paused-budget") await this.check(software.id).catch(() => {});
+    }
   }
 
   /** Wait for every check in flight. For tests and shutdown. */
@@ -178,8 +196,12 @@ export class Usage {
   /** Ask usage-ledger about one software; pause its queue when its budget is overrun. */
   async check(softwareId: string): Promise<void> {
     const software = getSoftware(this.db, softwareId);
-    if (!software || software.state !== "active") return;
+    if (!software || (software.state !== "active" && software.state !== "paused-budget")) return;
     const status = await this.options.ledger.budgetStatus(softwareId);
+    if (software.state === "paused-budget") {
+      if (!status.overrun) this.resumeAfterReset(softwareId);
+      return;
+    }
     if (!status.overrun) return;
     // Another check may have paused it while this one waited.
     if (getSoftware(this.db, softwareId)?.state !== "active") return;
@@ -194,6 +216,21 @@ export class Usage {
       kind: "budget-overrun",
       detail: { budget: status.budget, spentUsd: spent.spentUsd, mocked: spent.mocked },
     });
+  }
+
+  /** The week reset and the software is within budget again: resume it unless it was left paused on purpose. */
+  private resumeAfterReset(softwareId: string): void {
+    const software = getSoftware(this.db, softwareId);
+    if (software?.state !== "paused-budget") return;
+    if (this.latestOverrun(softwareId)?.answer === "left-paused") return;
+    setSoftwareState(this.db, softwareId, "active", "the week reset");
+    addChatMessage(this.db, {
+      softwareId,
+      author: "premise",
+      text: `The week reset; ${software.name} is within its budget again and has resumed`,
+    });
+    recordEvent(this.db, { softwareId, module: "usage", kind: "budget-reset" });
+    this.onSettled();
   }
 
   private latestOverrun(softwareId: string): OverrunRow | undefined {
@@ -466,8 +503,8 @@ export class Usage {
       }
       return { percent: input.percent };
     }
-    if (!(input.usd > 0) || !Number.isFinite(input.usd) || input.usd > 1_000_000) {
-      throw new ServiceError("INVALID", "An amount is a number of dollars more than 0, such as 5.");
+    if (!(input.usd >= 0.01) || !Number.isFinite(input.usd) || input.usd > 1_000_000) {
+      throw new ServiceError("INVALID", "An amount is at least 1 cent (0.01 dollars), such as 5.");
     }
     return { usd: input.usd };
   }

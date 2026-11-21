@@ -261,6 +261,7 @@ export async function start(options: StartOptions): Promise<Running> {
     close: async () => {
       intake.close();
       learning.close();
+      usage.close();
       await app.close();
       await runs.close();
       await queue.close();

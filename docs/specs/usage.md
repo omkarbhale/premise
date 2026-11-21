@@ -59,12 +59,14 @@ Errors are in plain words and say what to do (a bad number, nothing to answer, n
 5. The answers:
    - **Raise the budget.** A new budget, as a share or an amount. It must be above what was used, as usage-ledger judges it; otherwise the old budget stays, the software stays paused, and the error says how much was used. When accepted, the software is active again and its queue starts.
    - **Let it finish the current change.** The piece of work being worked on (the running job's, else the oldest waiting or queued one) and its parts are allowed to finish: only jobs of that piece start. When none are left, the software stays paused. With nothing being worked on, the error says so.
-   - **Leave it paused.** Nothing changes except that the answer is kept; the notice stays until the budget is raised.
+   - **Leave it paused.** Nothing changes except that the answer is kept; the notice stays until the budget is raised, even when the week resets.
 6. The software becomes `paused-budget` only from `active`; one waiting at a milestone is looked at again when it goes on.
 
 ### 5.4 Restarts
 
 The paused state, the budget and the operator's answer are in the database, so a restart keeps a paused software paused. At start premise tells usage-ledger every budget and looks for any overrun before the queue starts work. An overrun not yet answered is still asked.
+
+When the week resets and a software paused for its budget is within it again, it resumes by itself and says so in its conversation ("The week reset; <name> is within its budget again and has resumed"), unless the operator chose to leave it paused. Chosen for the owner, open to correction. Paused softwares are looked at again at start and every five minutes.
 
 ## 6. Configuration
 

@@ -3,6 +3,7 @@ import { ScriptedAgentRunner, parseScript } from "../src/agents/scripted-agent.j
 import { createWorkItem, rootItem } from "../src/line/work-items.js";
 import { WorkQueue } from "../src/queue/work-queue.js";
 import { type Database, openDatabase } from "../src/storage/database.js";
+import { listChatMessages } from "../src/storage/chat.js";
 import { createSoftware, getSoftware } from "../src/storage/softwares.js";
 import { readSessionTasks } from "../src/usage/session-tasks.js";
 import { Usage } from "../src/usage/usage.js";
@@ -203,6 +204,44 @@ describe("a budget overrun", () => {
     expect(getSoftware(db, sw.id)!.state).toBe("paused-budget");
   });
 
+  it("resumes by itself when the week resets and it is within budget again", async () => {
+    const { db, ledger, usage, queue, software, build, settle } = setup();
+    const sw = software("sample");
+    ledger.scriptOverrun(sw.id, 1);
+    const item = rootItem(db, sw.id).id;
+    build(sw.id, item);
+    const waiting = build(sw.id, item);
+    await settle();
+    expect(getSoftware(db, sw.id)!.state).toBe("paused-budget");
+    expect(statusOf(queue, waiting)).toBe("queued");
+
+    ledger.clearScriptedOverrun(sw.id);
+    await usage.checkAll();
+    await settle();
+    expect(getSoftware(db, sw.id)!.state).toBe("active");
+    expect(statusOf(queue, waiting)).toBe("done");
+    expect(listChatMessages(db, sw.id).map((m) => m.text)).toContain(
+      "The week reset; sample is within its budget again and has resumed",
+    );
+  });
+
+  it("stays paused through a reset when the operator chose to leave it paused", async () => {
+    const { db, ledger, usage, queue, software, build, settle } = setup();
+    const sw = software("sample");
+    ledger.scriptOverrun(sw.id, 1);
+    const item = rootItem(db, sw.id).id;
+    build(sw.id, item);
+    const waiting = build(sw.id, item);
+    await settle();
+    await usage.answer(sw.id, { answer: "leave-paused" });
+
+    ledger.clearScriptedOverrun(sw.id);
+    await usage.checkAll();
+    await settle();
+    expect(getSoftware(db, sw.id)!.state).toBe("paused-budget");
+    expect(statusOf(queue, waiting)).toBe("queued");
+  });
+
   it("stays paused over a restart, and the operator can still answer", async () => {
     const first = setup();
     const sw = first.software("sample");
@@ -285,9 +324,8 @@ describe("setting a budget", () => {
     await expect(usage.setBudget(sw.id, { kind: "share", percent: 0 })).rejects.toThrow(
       "whole number from 1 to 100",
     );
-    await expect(usage.setBudget(sw.id, { kind: "amount", usd: -3 })).rejects.toThrow(
-      "more than 0",
-    );
+    await expect(usage.setBudget(sw.id, { kind: "amount", usd: -3 })).rejects.toThrow("1 cent");
+    await expect(usage.setBudget(sw.id, { kind: "amount", usd: 0.004 })).rejects.toThrow("1 cent");
   });
 
   it("takes the default budget from the settings", () => {
