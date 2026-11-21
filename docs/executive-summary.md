@@ -1,6 +1,6 @@
 # Executive summary
 
-> **Status: being built.** The owner said to build the whole of premise ([0130](decisions/0130-the-build-starts-and-covers-all-of-premise.md)). The foundation comes first: the package, configuration, storage, the work queue, a scripted agent standing in for Claude, a mock of usage-ledger marked as mocked, and the setup check ([roadmap](product/roadmap.md)).
+> **Status: built, not yet used for real.** The owner said to build the whole of premise ([0130](decisions/0130-the-build-starts-and-covers-all-of-premise.md)), and the line from idea to running software, intake, existing software, roles, measures, several softwares at once, and cost on a mock of usage-ledger are built. One real run has been made (a tiny command-line tool, every agent on the fast tier at low effort); everything else was shown with scripted agents. The checker on a different model, tolerating commits made outside premise, and hosting for other people wait. See the [status page](status.md) and the [roadmap](product/roadmap.md).
 
 ## The problem
 

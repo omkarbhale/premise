@@ -2,6 +2,8 @@
 
 The milestones, carved from section 8 of the plan, and the build order agreed with the owner. No dates are given. **The build has started and covers every milestone below, in this order** ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md), which supersedes [0061](../decisions/0061-nothing-built-until-the-owner-says.md)).
 
+Where each milestone stands, and what has and has not been run with real agents, is on the [status page](../status.md).
+
 The vision states the vision only, with no now-or-later split ([0035](../decisions/0035-the-vision-states-the-vision-only.md)). The order is kept here.
 
 ## The order, plainly
