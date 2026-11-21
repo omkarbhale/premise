@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Loaded by | all ten agent roles |
+| Loaded by | every agent role except the sizer |
 | When | Always |
 | Related | [records 0015](../decisions/0015-a-floor-never-traded-for-speed.md), [0056](../decisions/0056-what-is-on-the-floor.md), [0100](../decisions/0100-floor-actions.md), [0101](../decisions/0101-the-gate-asks-in-the-session.md), [0087](../decisions/0087-agents-run-confined.md), [the floor and the gate](../architecture/the-floor-and-the-gate.md) |
 
