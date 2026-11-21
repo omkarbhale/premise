@@ -2,8 +2,8 @@ import type { AgentOutcome } from "../agents/agent-runner.js";
 import type { EnqueueInput, Job } from "../queue/work-queue.js";
 
 /**
- * The hand-off between the line engine and the stages built next: Build, Check, Run, Report and
- * Intake (docs/specs/line-engine.md 5.3, rows 7 to 11). The line engine owns the order of the
+ * The hand-off between the line engine and the stages built next: Build, Check, Run and Report
+ * (docs/specs/line-engine.md 5.3, rows 7 to 10). Intake has its own hand-off (intake-hooks.ts). The line engine owns the order of the
  * stages and the milestones; a LaterStages implementation owns what happens inside each.
  *
  * Until those stages exist, {@link StandInLaterStages} completes them with scripted jobs that build,
@@ -37,11 +37,9 @@ export interface LaterStages {
   runServerJob(job: Job): Promise<AgentOutcome>;
   /** The report written at the end of a milestone, as plain lines for the session. */
   reportLines(softwareId: string, milestone: MilestoneRef | null): string[];
-  /** A chat message at Intake, or when no draft is open. Returns premise's one-line answer. */
-  takeIn(softwareId: string, text: string, intakeNumber: number, atIntake: boolean): string;
 }
 
-/** Scripted Build, Check, Run, Report and Intake: they do nothing, and say so. */
+/** Scripted Build, Check, Run and Report: they do nothing, and say so. */
 export class StandInLaterStages implements LaterStages {
   readonly standIn = true;
 
@@ -80,9 +78,5 @@ export class StandInLaterStages implements LaterStages {
     return [
       `${milestone ? `${milestone.id} reached` : "Reached the end of the plan"} (stand-in): building, checking and running are not built into premise yet, so nothing was really built, checked or started.`,
     ];
-  }
-
-  takeIn(_softwareId: string, _text: string, n: number, atIntake: boolean): string {
-    return `Taken as I-${n}. ${atIntake ? "It goes into the line as new work." : "It is kept as new work for after this round reaches Intake."}`;
   }
 }

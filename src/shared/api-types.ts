@@ -44,8 +44,12 @@ export interface WorkItemView {
   /** 0 for the software, 1 for its milestones or parts, and so on. */
   depth: number;
   kind: "software" | "milestone" | "module" | "intake";
-  /** start: the software; split: a part the sizer made; plan: a milestone; fix: asked for by the check of the whole. */
-  origin: "start" | "split" | "plan" | "fix";
+  /**
+   * start: the software; split: a part the sizer made; plan: a milestone; fix: asked for by the
+   * check of the whole; intake: an intake item's work; purpose: a change of purpose the operator
+   * confirmed, which goes through Why.
+   */
+  origin: "start" | "split" | "plan" | "fix" | "intake" | "purpose";
   title: string;
   words: string | null;
   state: "sizing" | "working" | "waiting-on-parts" | "ahead" | "done" | "dropped" | "withdrawn";
@@ -344,4 +348,74 @@ export interface StreamEvent {
   softwareId: string | null;
   module: string;
   kind: string;
+}
+
+/** One intake item, as its sender and the operator see it (docs/specs/intake.md). */
+export interface IntakeItemView {
+  id: number;
+  /** I-n */
+  ref: string;
+  source: "session" | "page" | "premise" | "github" | "feedback";
+  /** Where it came from, in plain words. */
+  sourceWords: string;
+  sender: string;
+  text: string;
+  kind: string | null;
+  kindWords: string | null;
+  status:
+    | "taken"
+    | "triaging"
+    | "asked"
+    | "held"
+    | "read"
+    | "waiting"
+    | "working"
+    | "running"
+    | "answered"
+    | "merged"
+    | "closed"
+    | "dropped";
+  /** Where it stands, in plain words. */
+  where: string;
+  route: "in-normally" | "asked-at-once" | "held" | "merged-or-closed" | null;
+  reason: string | null;
+  routedBy: "triager" | "default" | "operator" | null;
+  /** Record items it touches, each with why. */
+  touches: { id: string; reason: string }[];
+  /** For a merged item: the item it joined. */
+  joins: string | null;
+  /** For a question: its answer. */
+  answer: string | null;
+  /** The piece of work it became on the line. */
+  workItemId: number | null;
+  received: string;
+  /** Minutes from arriving to its change running; null until then. */
+  minutesToRunning: number | null;
+  /** Merged, closed or held: the operator can take it in instead. */
+  canUndo: boolean;
+}
+
+export interface ReadingView {
+  id: number;
+  trigger: "count" | "time" | "operator";
+  triggerWords: string;
+  items: string[];
+  status: "reading" | "done" | "failed";
+  shortList: { wanted: string[]; recurring: string[]; purpose: string; backToWhy: boolean } | null;
+  created: string;
+}
+
+/** A software's intake: every item, held items and readings. */
+export interface IntakeView {
+  softwareId: string;
+  /** Newest first. */
+  items: IntakeItemView[];
+  held: number;
+  /** When held items are read together. */
+  readingWhen: { heldCount: number; days: number };
+  /** A reading is under way. */
+  reading: boolean;
+  readings: ReadingView[];
+  /** How many items are in each status. */
+  counts: Record<string, number>;
 }

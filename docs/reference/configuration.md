@@ -68,6 +68,10 @@ A wrong setting stops premise at start with a message naming the setting and why
 | `line.budgets.plan.medium.minutes` | `40` | 1 to 1440 | Minutes a medium software's Plan stage may take. | [0117](../decisions/README.md) |
 | `line.budgets.plan.large.turns` | `160` | 1 to 2000 | Agent turns a large software's Plan stage may use. | [0117](../decisions/README.md) |
 | `line.budgets.plan.large.minutes` | `80` | 1 to 1440 | Minutes a large software's Plan stage may take. | [0117](../decisions/README.md) |
+| `intake.reading_held_count` | `10` | 1 to 500 | How many held items of one software start a reading, where they are read together. | [0096](../decisions/README.md) |
+| `intake.reading_max_days` | `14` | 1 to 365 | Days an item may stay held before a reading starts, even with fewer held than the count above. | [0096](../decisions/README.md) |
+| `intake.max_text_chars` | `4000` | 100 to 20000 | Longest problem or wish the page's report box takes, in characters. | [0185](../decisions/README.md) |
+| `intake.recent_items_in_brief` | `30` | 0 to 500 | How many of a software's other open items the triager is shown, to spot duplicates. | [0185](../decisions/README.md) |
 | `runner.default_visibility` | `"private"` | "private" or "public" | Visibility of a new software's repository on GitHub. Public is acting publicly in your name, so the gate asks first. | [0059](../decisions/README.md) |
 | `gate.kind_approvals_allowed` | `["credentials","expose","access","make-public","publish","post"]` | a list of floor kinds, without delete-data and spend | Floor kinds you may approve for one software as a whole kind, so later requests of that kind go through without asking. Deleting data and spending money are always asked one at a time. | [0101](../decisions/README.md) |
 | `page.notifications` | `"offer"` | "offer" or "off" | "offer": the page offers browser notifications for new questions, and asks the browser only when you accept. "off": it never offers them. | [0157](../decisions/README.md) |
@@ -124,9 +128,9 @@ Each type of agent task has its own model, effort and limits. The types are: dra
 | `agents.tasks.check.max_turns` | `200` | 1 to 2000 | Turn limit for one check session; at the limit the job ends stuck. | [0088](../decisions/README.md) |
 | `agents.tasks.check.max_minutes` | `60` | 1 to 1440 | Time limit in minutes for one check session. | [0088](../decisions/README.md) |
 | `agents.tasks.triage.model` | `"sonnet"` | a model alias (opus, sonnet, haiku) or a full model name | Model for triage sessions. Fast tier by default. | [0104](../decisions/README.md) |
-| `agents.tasks.triage.effort` | `"medium"` | low, medium, high, xhigh, max | Reasoning effort for triage sessions. | [0132](../decisions/README.md) |
-| `agents.tasks.triage.max_turns` | `60` | 1 to 2000 | Turn limit for one triage session; at the limit the job ends stuck. | [0088](../decisions/README.md) |
-| `agents.tasks.triage.max_minutes` | `20` | 1 to 1440 | Time limit in minutes for one triage session. | [0088](../decisions/README.md) |
+| `agents.tasks.triage.effort` | `"low"` | low, medium, high, xhigh, max | Reasoning effort for triage sessions. | [0132](../decisions/README.md) |
+| `agents.tasks.triage.max_turns` | `20` | 1 to 2000 | Turn limit for one triage session; at the limit the job ends stuck. | [0088](../decisions/README.md) |
+| `agents.tasks.triage.max_minutes` | `5` | 1 to 1440 | Time limit in minutes for one triage session. | [0088](../decisions/README.md) |
 | `agents.tasks.reading.model` | `"opus"` | a model alias (opus, sonnet, haiku) or a full model name | Model for reading sessions. Strongest tier by default. | [0104](../decisions/README.md) |
 | `agents.tasks.reading.effort` | `"medium"` | low, medium, high, xhigh, max | Reasoning effort for reading sessions. | [0132](../decisions/README.md) |
 | `agents.tasks.reading.max_turns` | `60` | 1 to 2000 | Turn limit for one reading session; at the limit the job ends stuck. | [0088](../decisions/README.md) |

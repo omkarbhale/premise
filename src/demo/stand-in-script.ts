@@ -65,6 +65,18 @@ const draftWho: ScriptBehaviour = (_request, call) => {
 };
 
 const draftWhat: ScriptBehaviour = (request, call) => {
+  const piece = typeof request.context?.piece === "string" ? request.context.piece : null;
+  if (piece) {
+    // A piece of work, such as an intake item: one item in its own words.
+    submit(call, "what", [
+      {
+        priority: "must",
+        text: `It does what this asks: ${shortIdea(piece.replace(/^I-\d+:\s*/, ""), 100)}`,
+        from: "operator",
+      },
+    ]);
+    return;
+  }
   submit(call, "what", [
     {
       priority: "must",
@@ -174,15 +186,72 @@ const review: ScriptBehaviour = (request, call) => {
  */
 const size: ScriptBehaviour = (request, call) => {
   const allowed = Array.isArray(request.context?.allowed) ? request.context.allowed : [];
+  const intakeKind =
+    typeof request.context?.intakeKind === "string" ? request.context.intakeKind : null;
   call("sizing_submit", {
     size: "small",
     size_reason: "Scripted sizer: every piece is taken as small.",
-    stages: allowed,
-    stages_reason: "Scripted sizer: it goes through every step this kind of work can have.",
+    stages: intakeKind ? intakeStages(intakeKind, allowed) : allowed,
+    stages_reason:
+      intakeKind === "bug"
+        ? "Scripted sizer: a bug goes straight to building."
+        : intakeKind === "wish"
+          ? "Scripted sizer: a wish is first drafted at What."
+          : "Scripted sizer: it goes through every step this kind of work can have.",
     split: [],
     split_reason: "Scripted sizer: it never splits work.",
   });
 };
+
+/**
+ * The scripted triager: a few fixed words decide the kind, and everything else is a wish that goes
+ * in normally (premise's default). No AI reads the item; the page labels the run as scripted.
+ */
+const triage: ScriptBehaviour = (request, call) => {
+  const text = String(request.context?.text ?? "").toLowerCase();
+  const kind = /\b(bug|broken|error|crash|fails?|wrong)\b/.test(text)
+    ? "bug"
+    : /\?\s*$/.test(text)
+      ? "question"
+      : "wish";
+  call("triage_submit", {
+    kind,
+    touches: [],
+    size: "small",
+    touches_floor: "no",
+    route: "in-normally",
+    reason: `Scripted triager: read as ${kind === "bug" ? "a bug" : kind === "question" ? "a question" : "a wish"} from its words alone.`,
+    ...(kind === "question" && {
+      answer:
+        "Scripted triager: it cannot answer questions; read the Record tab, or ask again with real agents.",
+    }),
+  });
+};
+
+/** The scripted reader: lists the held items as they are. It reads no pattern into them. */
+const reading: ScriptBehaviour = (request, call) => {
+  const held = Array.isArray(request.context?.held)
+    ? (request.context.held as { number: number; text: string }[])
+    : [];
+  call("reading_submit", {
+    wanted: held.slice(0, 7).map((h) => `I-${h.number}: ${h.text.slice(0, 120)}`),
+    recurring: [],
+    purpose: "Scripted reader: it reads no pattern into the items, so it suggests no change.",
+    back_to_why: "no",
+  });
+};
+
+/**
+ * The scripted sizer for an intake item: a bug goes straight to Build; a wish is first drafted at
+ * What and said back. Every other piece is small, goes through every stage it may have, and stays
+ * whole.
+ */
+const intakeStages = (kind: string, allowed: unknown[]): unknown[] =>
+  kind === "bug"
+    ? ["build", "check", "run", "report"]
+    : kind === "wish"
+      ? ["what", "say-back", "build", "check", "run", "report"]
+      : allowed;
 
 /**
  * The scripted agent's script when no script file is set: every job says what it is doing, takes
@@ -209,6 +278,8 @@ export function standInScript(stepSeconds: number): AgentScript {
       rule("plan", { when: { purpose: "draft" }, behave: plan }),
       rule("review", { behave: review }),
       rule("size", { behave: size }),
+      rule("triage", { behave: triage }),
+      rule("reading", { behave: reading }),
       ...AGENT_TASK_KINDS.map((task) => rule(task)),
     ],
   };

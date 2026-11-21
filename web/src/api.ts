@@ -3,6 +3,8 @@ import type {
   AskAnswer,
   AskView,
   ChatMessage,
+  IntakeItemView,
+  IntakeView,
   Overview,
   RecordView,
   ReportView,
@@ -47,6 +49,10 @@ export interface Api {
   say(id: string, text: string): Promise<{ said: ChatMessage; reply: ChatMessage }>;
   record(id: string): Promise<RecordView>;
   report(id: string, detail?: boolean): Promise<ReportView>;
+  intake(id: string): Promise<IntakeView>;
+  reportIntake(id: string, text: string): Promise<IntakeItemView>;
+  undoIntake(itemId: number): Promise<IntakeItemView>;
+  readHeldNow(id: string): Promise<IntakeView>;
   run(id: string): Promise<RunView>;
   startRun(id: string): Promise<RunView>;
   stopRun(id: string): Promise<RunView>;
@@ -113,6 +119,10 @@ export function createApi(token: string): Api {
     record: (id) => get(`/api/softwares/${enc(id)}/record`),
     report: (id, detail = false) =>
       get(`/api/softwares/${enc(id)}/report${detail ? "?detail=1" : ""}`),
+    intake: (id) => get(`/api/softwares/${enc(id)}/intake`),
+    reportIntake: (id, text) => post(`/api/softwares/${enc(id)}/intake`, { text }),
+    undoIntake: (itemId) => post(`/api/intake/${itemId}/undo`),
+    readHeldNow: (id) => post(`/api/softwares/${enc(id)}/intake/read-now`),
     run: (id) => get(`/api/softwares/${enc(id)}/run`),
     startRun: (id) => post(`/api/softwares/${enc(id)}/run/start`),
     stopRun: (id) => post(`/api/softwares/${enc(id)}/run/stop`),

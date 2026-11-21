@@ -47,6 +47,12 @@ export function requiredStages(piece: Piece): readonly StageId[] {
     return ["why", "what", "say-back", "plan", "build", "check", "run", "report", "intake"];
   }
   if (piece.kind === "milestone") return MILESTONE;
+  if (piece.kind === "intake") {
+    // An intake item's change runs and is reported on (decision 0098); a change of purpose the
+    // operator confirmed goes back to Why, and is said back before it is built (decision 0185).
+    const runs: StageId[] = ["build", "check", "run", "report"];
+    return piece.origin === "purpose" ? ["why", "say-back", ...runs] : runs;
+  }
   // Every piece is checked by an agent that did not build it (decision 0030).
   return ["build", "check"];
 }
@@ -97,7 +103,7 @@ export function settleStages(
     if (!chosen.has(stage)) {
       chosen.add(stage);
       notes.push(
-        `${stageName(stage)} was added: ${REQUIRED_WHY[stage] ?? "this kind of work always has it."}`,
+        `${stageName(stage)} was added: ${(piece.kind === "intake" ? INTAKE_REQUIRED_WHY[stage] : undefined) ?? REQUIRED_WHY[stage] ?? "this kind of work always has it."}`,
       );
     }
   }
@@ -124,6 +130,14 @@ const REQUIRED_WHY: Partial<Record<StageId, string>> = {
   run: "the software runs on this machine at the end of its line.",
   report: "every software and every milestone ends with a report.",
   intake: "a software's line ends at Intake, where what you say becomes new work.",
+};
+
+/** Why an intake item's work always has a stage, when the reason differs from the general one. */
+const INTAKE_REQUIRED_WHY: Partial<Record<StageId, string>> = {
+  why: "a change of what the software is for goes back to Why with you.",
+  "say-back": "a change of what the software is for is said back before it is built.",
+  run: "an intake item's change runs on this machine, so you can see it fixed.",
+  report: "each change that reaches running gets a short report.",
 };
 
 const MAX_TITLE = 120;
@@ -229,7 +243,9 @@ export function pieceWords(piece: Piece): string {
     case "milestone":
       return "one milestone of a software's confirmed plan";
     case "intake":
-      return "one item of new work that came in after the software ran";
+      return piece.origin === "purpose"
+        ? "a change of what the software is for, which the operator confirmed; it goes back to Why"
+        : "one item of new work that came in through intake (a bug, a wish, or another change)";
     default:
       return piece.origin === "fix"
         ? "a fix for what the check of a whole piece found"
