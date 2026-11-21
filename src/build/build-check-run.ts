@@ -1244,7 +1244,7 @@ export class BuildCheckRun implements LaterStages {
       this.save(id, state);
       this.say(
         id,
-        `${about} passed: all ${required.length} ${required.length === 1 ? "thing" : "things"} it had to check ${required.length === 1 ? "is" : "are"} met (${tally}). It lands next.`,
+        `${about} passed: all ${required.length} ${required.length === 1 ? "thing" : "things"} it had to check ${required.length === 1 ? "is" : "are"} met (${tally}). It lands next.${scriptNote}`,
       );
       return { kind: "next" };
     }
