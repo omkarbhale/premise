@@ -616,7 +616,7 @@ export const SETTINGS: readonly Setting[] = [
     default: [],
     check: summarised(textList, "a list of folder paths"),
     meaning:
-      "Extra folders running software may read but not change, such as where Python is installed when that is under your home folder. The Node.js premise runs on is always included.",
+      "Extra folders running software may read but not change, such as where Python is installed when that is under your home folder. The Node.js premise runs on is normally included; when it is installed in your home folder or above it, add its folder here yourself.",
     record: "0163",
   },
   {

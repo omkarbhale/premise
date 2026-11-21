@@ -90,7 +90,7 @@ A wrong setting stops premise at start with a message naming the setting and why
 | `runner.stop_grace_seconds` | `5` | 0 to 120 | When running software is stopped, how long it gets to end by itself before it is ended forcibly. | [0162](../decisions/README.md) |
 | `runner.output_lines` | `200` | 10 to 5000 | How many of the latest lines of a running software's output the page can show. | [0162](../decisions/README.md) |
 | `runner.confinement` | `"bubblewrap"` | "bubblewrap" or "none" | "bubblewrap": running software sees only its own copy of the code, not your files or premise's data. "none": no confinement, only for a machine where bubblewrap cannot work; premise says so on the page. | [0163](../decisions/README.md) |
-| `runner.read_only_paths` | `[]` | a list of folder paths | Extra folders running software may read but not change, such as where Python is installed when that is under your home folder. The Node.js premise runs on is always included. | [0163](../decisions/README.md) |
+| `runner.read_only_paths` | `[]` | a list of folder paths | Extra folders running software may read but not change, such as where Python is installed when that is under your home folder. The Node.js premise runs on is normally included; when it is installed in your home folder or above it, add its folder here yourself. | [0163](../decisions/README.md) |
 | `reports.max_lines` | `15` | 3 to 200 | How many lines a short report holds before the rest is behind the page's 'Show more detail' control. | [0164](../decisions/README.md) |
 | `doctor.command_timeout_seconds` | `10` | 1 to 120 | How long the setup check waits for each program to answer. |  |
 
