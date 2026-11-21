@@ -17,7 +17,7 @@
 
 premise is one product that takes software from an idea to running software, and keeps taking work back in, with LLMs doing everything an LLM can do ([VISION.md](../VISION.md)).
 - It is for someone who knows what the software is for. That is all it requires of them ([0008](decisions/0008-operator-knows-the-purpose.md)).
-- Per software, the owner can decide how much effort it gets, as a share of weekly usage or by priority, and can make milestones and have premise wait after them ([0128](decisions/0128-effort-per-software-and-milestone-waits.md)).
+- Per software, the operator can decide how much effort it gets, as a share of weekly usage or by priority, and can make milestones and have premise wait after them ([0128](decisions/0128-effort-per-software-and-milestone-waits.md)).
 - Every other person the software needs is also a user, asked in their own terms at their step ([0009](decisions/0009-everyone-needed-is-a-user.md)).
 - If an LLM can do it, an LLM does it; return on effort decides, not perfection. If an LLM cannot reliably do it, it proposes and a person decides ([0006](decisions/0006-llm-does-what-it-can.md), [0007](decisions/0007-llm-does-not-decide-what-it-cannot.md)).
 
