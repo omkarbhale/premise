@@ -278,6 +278,41 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
       },
     );
 
+    api.post<{ Body: { source: string; name?: string; idea?: string } }>(
+      "/api/softwares/existing",
+      {
+        schema: {
+          body: {
+            type: "object",
+            properties: {
+              source: { type: "string", maxLength: 2000 },
+              name: { type: "string", maxLength: 200 },
+              idea: { type: "string", maxLength: 20000 },
+            },
+            required: ["source"],
+          },
+        },
+      },
+      async (request, reply) => {
+        const { source, name, idea } = request.body;
+        const started = await services.softwares.bringIn({
+          source,
+          ...(name ? { name } : {}),
+          ...(idea ? { idea } : {}),
+        });
+        return reply.code(201).send(started);
+      },
+    );
+
+    api.post<{ Params: { id: string } }>(
+      "/api/softwares/:id/existing/offer-record",
+      { schema: { params: idParam } },
+      async (request) => {
+        await services.softwares.offerRecord(request.params.id);
+        return services.softwares.get(request.params.id);
+      },
+    );
+
     api.get<{ Params: { id: string } }>(
       "/api/softwares/:id",
       { schema: { params: idParam } },

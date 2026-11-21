@@ -37,7 +37,8 @@ None. The token from the link is kept in the page's memory only.
 
 | Area | Shows | People can |
 |---|---|---|
-| Softwares | Each software, its stage, its state (active, paused and why) | Start a software; open one |
+| Softwares | Each software, its stage, its state (active, paused and why) | Start a software; bring in software that already exists, from a folder on this computer or a clone address; open one |
+| Existing software | For a software taken on from existing code ([0189](../decisions/0189-how-taking-on-existing-software-is-built.md)): where it came from, how far taking it on has got, how much was recovered and confirmed, how to run it, what premise could not check and what it needs, where its record stands in the operator's repository, and that hand edits outside premise make the record drift ([0188](../decisions/0188-existing-softwares-record-and-hand-edits.md)) | Offer adding the record to the repository again after declining |
 | Line | The three phases (Understand, Build, Running) with the eleven stages under each, where the software is ([0165](../decisions/0165-the-page-shows-three-phases.md)), each stage's budget used. Under Build: each task and where it is, each check of an exact version with its verdict per item and the evidence, what landed, and what waits on a person. Under Running: how to open the software, or the command and a sample run's output ([0186](../decisions/0186-how-build-check-and-run-are-built.md)) | Send it back to any stage; per piece of work (the software, each milestone, each part of a split piece): see its size, steps and split with their reasons, change its size or steps, undo a split until a part is built ([0117](../decisions/0117-size-classes-set-stage-budgets.md), [0184](../decisions/0184-how-sizing-of-work-is-built.md)). Steps the piece being worked on does not need show as "Not needed", with the reason |
 | Chat | The conversation, with premise's one-line acknowledgements ("Taken as I-14") | Write; corrections go to the open draft ([0118](../decisions/0118-how-chat-messages-are-routed.md)) |
 | Needed | Every open ask, grouped by role label, each saying exactly what to do | Answer any of them |
@@ -49,7 +50,7 @@ None. The token from the link is kept in the page's memory only.
 
 ### 5.1a First run and plain words
 
-- With no software yet, the page says what premise is, gives one box to describe a software ("What should the software do, and for whom?"), says what happens next, and says what is not real yet (the stand-in for Intake, scripted agents when in use, mocked usage), and, when real agents cannot start, what is missing and a "look around with scripted agents (not real)" button ([0180](../decisions/0180-premise-uses-real-agents-by-default.md)) ([0135](../decisions/0135-the-experience-works-without-the-guide.md)).
+- With no software yet, the page says what premise is, gives one box to describe a software ("What should the software do, and for whom?"), a second to bring in software that already exists ("Bring in software you already have", with what happens after), says what happens next, and says what is not real yet (the stand-in for the later stages, scripted agents when in use, mocked usage), and, when real agents cannot start, what is missing and a "look around with scripted agents (not real)" button ([0180](../decisions/0180-premise-uses-real-agents-by-default.md)) ([0135](../decisions/0135-the-experience-works-without-the-guide.md)).
 - Every empty view says what will appear there and when. Every error says what to do next.
 - premise's own words (the record, say back, the floor, roles, intake) are explained where they appear, in a few words; the Help view lists them all.
 - Navigation: Softwares (each with Conversation, Line, Record and Report), Waiting on you, Activity, Usage, Settings (read only, with where to change each setting) and Help.
@@ -62,7 +63,7 @@ Every ask shows its role label and its kind, and is written in that role's terms
 |---|---|---|
 | question | A short question, with premise's best attempt where it has one ([0007](../decisions/0007-llm-does-not-decide-what-it-cannot.md)) | Text |
 | draft | A short list; each item marked assumed or from a role | Strike, keep or edit each item, one at a time |
-| say-back | At most ten items of what premise understood and assumed, assumptions marked | Strike what is wrong |
+| say-back | At most ten items of what premise understood and assumed, assumptions marked. For a software taken on from existing code, every item recovered from the code, marked recovered, grouped by record file and in pages of twelve, still one list answered once ([0189](../decisions/0189-how-taking-on-existing-software-is-built.md)) | Strike what is wrong |
 | proposal | For a claimed area: a screenshot of a quick prototype, or a short list ([0102](../decisions/0102-taste-proposals-before-building.md), [0115](../decisions/0115-taste-prototypes-on-a-throwaway-branch.md)) | Accept, or say what to change |
 | approval | The gate's fixed card: exactly what will happen and why ([gate](gate.md)) | Approve once, approve this kind for this software (where allowed), or refuse |
 | needed | Something only a person can do or provide: an account, a licence, a payment, a secret written into a named file ([0120](../decisions/0120-secrets-stay-out-of-premise.md)) | Mark done, or say why not |

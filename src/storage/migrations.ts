@@ -324,6 +324,30 @@ export const MIGRATIONS: readonly Migration[] = [
       CREATE INDEX readings_software ON readings(software_id, id);
     `,
   },
+  {
+    version: 8,
+    name: "existing software, in a thin form",
+    sql: `
+      CREATE TABLE existing_softwares (
+        software_id TEXT PRIMARY KEY REFERENCES softwares(id),
+        source TEXT NOT NULL,
+        source_kind TEXT NOT NULL CHECK (source_kind IN ('folder', 'address')),
+        status TEXT NOT NULL
+          CHECK (status IN ('copying', 'copy-failed', 'recovering', 'taken-on', 'stopped')),
+        problem TEXT,
+        source_branch TEXT,
+        base_commit TEXT,
+        commits INTEGER NOT NULL DEFAULT 0,
+        run TEXT NOT NULL DEFAULT '{}',
+        could_not_check TEXT NOT NULL DEFAULT '[]',
+        record_status TEXT NOT NULL DEFAULT 'not-yet'
+          CHECK (record_status IN ('not-yet', 'asked', 'added', 'refused', 'failed')),
+        record_request INTEGER,
+        record_note TEXT,
+        created TEXT NOT NULL
+      );
+    `,
+  },
 ];
 
 export const CURRENT_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

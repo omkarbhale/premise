@@ -29,6 +29,7 @@ export const ASK_KIND_LABEL: Record<AskKind, string> = {
 export function markLabel(item: AskItem): string {
   if (item.mark === "assumed") return "premise assumed";
   if (item.mark === "suggestion") return "premise suggests";
+  if (item.mark === "recovered") return "recovered from the code";
   return item.from === "operator" ? "you said" : `from the ${item.from ?? "operator"}`;
 }
 
@@ -45,6 +46,8 @@ export const JOB_LABEL: Record<string, string> = {
   reading: "Reading held items",
   report: "Writing a report",
   run: "Starting the software",
+  size: "Sizing the work",
+  recover: "Recovering a record from the code",
 };
 
 export function plural(n: number, one: string, many = `${one}s`): string {

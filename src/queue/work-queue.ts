@@ -80,6 +80,7 @@ function fromRow(row: JobRow): Job {
 const KIND_RANK: Record<JobKind, number> = {
   size: 0,
   draft: 0,
+  recover: 1,
   report: 0,
   review: 1,
   research: 1,

@@ -13,7 +13,13 @@ const OPEN = new Set(["taken", "triaging", "asked", "waiting", "working"]);
  * stands in plain words, take a merged, closed or held item in after all, and read held items
  * together.
  */
-export function IntakeView({ softwareId }: { softwareId: string }) {
+export function IntakeView({
+  softwareId,
+  copyNotReady,
+}: {
+  softwareId: string;
+  copyNotReady?: boolean;
+}) {
   const { api, version, notCurrent, refresh } = useSession();
   const view = useLoad(() => api.intake(softwareId), [softwareId], version, notCurrent);
   const [text, setText] = useState("");
@@ -65,33 +71,40 @@ export function IntakeView({ softwareId }: { softwareId: string }) {
         anything below.
       </p>
 
-      <form
-        className="card say"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void report();
-        }}
-      >
-        <h2>
-          <label htmlFor={inputId}>Report a problem or a wish</label>
-        </h2>
-        <p id={hintId} className="muted small">
-          Say what is wrong, or what you would like, in your own words. One thing at a time works
-          best.
+      {copyNotReady ? (
+        <p className="note" role="status">
+          premise is still copying this software, or could not copy it, so there is nothing to
+          report a problem against yet. This box opens once the copy is ready.
         </p>
-        <div className="say-row">
-          <textarea
-            id={inputId}
-            rows={3}
-            value={text}
-            aria-describedby={hintId}
-            onChange={(e) => setText(e.target.value)}
-          />
-          <button type="submit" className="primary" disabled={busy || !text.trim()}>
-            Report
-          </button>
-        </div>
-      </form>
+      ) : (
+        <form
+          className="card say"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void report();
+          }}
+        >
+          <h2>
+            <label htmlFor={inputId}>Report a problem or a wish</label>
+          </h2>
+          <p id={hintId} className="muted small">
+            Say what is wrong, or what you would like, in your own words. One thing at a time works
+            best.
+          </p>
+          <div className="say-row">
+            <textarea
+              id={inputId}
+              rows={3}
+              value={text}
+              aria-describedby={hintId}
+              onChange={(e) => setText(e.target.value)}
+            />
+            <button type="submit" className="primary" disabled={busy || !text.trim()}>
+              Report
+            </button>
+          </div>
+        </form>
+      )}
       {problem && <Problem>{problem}</Problem>}
       {said && (
         <p className="note" role="status">

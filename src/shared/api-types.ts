@@ -19,6 +19,8 @@ export interface SoftwareSummary {
   milestoneWaits: boolean;
   openAsks: number;
   created: string;
+  /** True while premise is taking on this software from existing code (decision 0189). */
+  takingOn?: boolean;
 }
 
 export interface StageView {
@@ -49,7 +51,7 @@ export interface WorkItemView {
    * check of the whole; intake: an intake item's work; purpose: a change of purpose the operator
    * confirmed, which goes through Why.
    */
-  origin: "start" | "split" | "plan" | "fix" | "intake" | "purpose";
+  origin: "start" | "split" | "plan" | "fix" | "intake" | "purpose" | "existing" | "recover";
   title: string;
   words: string | null;
   state: "sizing" | "working" | "waiting-on-parts" | "ahead" | "done" | "dropped" | "withdrawn";
@@ -101,6 +103,8 @@ export interface SoftwareDetail extends SoftwareSummary {
   wholeCheckStandIn: boolean;
   /** What is being built and checked, and what landed; null before Build. */
   build: BuildView | null;
+  /** For software premise took on from an existing repository (decision 0189). */
+  existing?: ExistingView;
 }
 
 /** One task of a milestone's working plan, as the page shows it under Build. */
@@ -145,6 +149,34 @@ export interface BuildView {
   waiting: string[];
 }
 
+/** Taking on an existing software: where it came from, how far it got, and its record. */
+export interface ExistingView {
+  /** The folder or clone address, as the operator gave it. */
+  source: string;
+  sourceKind: "folder" | "address";
+  /** copying, then recovering (Why to say-back), then taken-on; or copy-failed, or stopped. */
+  status: "copying" | "copy-failed" | "recovering" | "taken-on" | "stopped";
+  /** What went wrong, in plain words, when the copy failed. */
+  problem: string | null;
+  commits: number;
+  /** Items recovered from the code that are still live; how many were confirmed and struck. */
+  recovered: number;
+  confirmed: number;
+  struck: number;
+  /** How to build, start and check it, as recovered. */
+  run: { build: string | null; start: string | null; check: string | null; canStart: boolean };
+  /** What premise would need to build, start or check it ("could not check"). */
+  couldNotCheck: string[];
+  /** The record in the operator's own repository, through the gate. */
+  record: {
+    status: "not-yet" | "asked" | "added" | "refused" | "failed";
+    branch: string;
+    note: string | null;
+    /** The operator can ask premise to offer it again. */
+    canOffer: boolean;
+  };
+}
+
 export type AskKind = "question" | "draft" | "say-back" | "proposal" | "approval" | "needed";
 
 export interface AskItem {
@@ -152,12 +184,15 @@ export interface AskItem {
   key: string;
   text: string;
   /** assumed: premise's guess; from: who said it (a role label); suggestion: premise's idea. */
-  mark: "assumed" | "suggestion" | "from-role";
+  /** recovered: read from an existing software's code, unconfirmed until the say-back passes. */
+  mark: "assumed" | "suggestion" | "from-role" | "recovered";
   from?: string;
   /** For a milestone: whether premise stops after it until the operator says go on. */
   wait?: boolean;
   /** Record items the item stands for (a say-back item), or sources (What exists). */
   refs?: string[];
+  /** The heading a long list is grouped under on the page, such as "Why". */
+  group?: string;
 }
 
 export interface AskView {

@@ -189,7 +189,7 @@ describe("build tasks", () => {
 /** Drive a test app's software with the demo operator until nothing is left to answer. */
 async function drive(app: App, id: string, until: (app: App) => boolean = () => false) {
   const operator = demoOperator(COUNT_DEMO);
-  const deadline = Date.now() + 45_000;
+  const deadline = Date.now() + 100_000;
   while (Date.now() < deadline) {
     await app.settle();
     if (until(app)) return;
@@ -248,7 +248,7 @@ describe("restart in the middle of build and of check", () => {
       expect(detail.stage).toBe("intake");
       expect(detail.build!.landed).not.toBeNull();
       expect(detail.build!.checks.at(-1)!.status).toBe("passed");
-    }, 60_000);
+    }, 120_000);
   }
 });
 

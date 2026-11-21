@@ -1,4 +1,5 @@
 import type { Overview, SoftwareSummary } from "../api";
+import { BringInForm } from "./BringInForm";
 import { StartForm } from "./StartForm";
 
 /** The first thing someone new sees: what premise is, what to type, and what happens next. */
@@ -18,6 +19,16 @@ export function Welcome({
           draft, plan, build and check it. premise asks you only where your answer matters.
         </p>
         <StartForm onStarted={onStarted} autoFocus />
+      </section>
+
+      <section className="card" aria-labelledby="bring-in-title">
+        <h2 id="bring-in-title">Bring in software you already have</h2>
+        <p>
+          Point premise at a repository and it drafts the record from the code: what it is for, who
+          it is for and what it does. You strike what is wrong, and from then on changes go through
+          premise.
+        </p>
+        <BringInForm onStarted={onStarted} />
       </section>
 
       <section className="card">

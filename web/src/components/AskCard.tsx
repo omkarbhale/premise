@@ -14,6 +14,9 @@ import { Problem, Term } from "./Badges";
 
 type Decision = ItemAnswer["decision"];
 
+/** Items shown at once in a long list; the rest are on further pages. */
+const PAGE_SIZE = 12;
+
 interface ItemState {
   decision: Decision;
   text: string;
@@ -58,7 +61,14 @@ export function AskCard({ ask, showSoftware = false }: { ask: AskView; showSoftw
         </span>
         <span className="chip">{ASK_KIND_LABEL[ask.kind]}</span>
         {showSoftware && <span className="chip chip-software">{ask.softwareName}</span>}
-        {ask.stage && <span className="muted small">{whereNow(ask.stage)}</span>}
+        {ask.stage && (
+          <span className="muted small">
+            {whereNow(
+              ask.stage,
+              ask.items.some((i) => i.mark === "recovered"),
+            )}
+          </span>
+        )}
       </header>
       <h3 id={titleId}>{ask.title}</h3>
       {open ? (
@@ -91,6 +101,7 @@ interface AnswerProps {
 
 function ItemsAnswer({ ask, busy, onSend }: AnswerProps) {
   const sayBack = ask.kind === "say-back";
+  const recovered = ask.items.some((i) => i.mark === "recovered");
   const [items, setItems] = useState<Record<string, ItemState>>(() =>
     Object.fromEntries(
       ask.items.map((i) => [
@@ -139,81 +150,125 @@ function ItemsAnswer({ ask, busy, onSend }: AnswerProps) {
     });
   }
 
+  // A long list (such as a record recovered from existing code) is grouped and paged, but stays
+  // one list answered once: items on pages not opened are kept.
+  const pages = Math.max(1, Math.ceil(ask.items.length / PAGE_SIZE));
+  const [page, setPage] = useState(0);
+  const [seen, setSeen] = useState(1);
+  const shown = ask.items.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const runs: { group: string | undefined; start: number; items: AskItem[] }[] = [];
+  shown.forEach((item, i) => {
+    const last = runs.at(-1);
+    if (last && last.group === item.group) last.items.push(item);
+    else runs.push({ group: item.group, start: page * PAGE_SIZE + i + 1, items: [item] });
+  });
+  const go = (to: number) => {
+    setPage(to);
+    setSeen((n) => Math.max(n, to + 1));
+  };
+
+  const renderItem = (item: AskItem) => {
+    const s = state(item);
+    return (
+      <li key={item.key} className={`item item-${s.decision}`}>
+        <div className="item-text">
+          {s.decision === "edit" ? (
+            <textarea
+              aria-label={`Edit: ${item.text}`}
+              value={s.text}
+              rows={2}
+              onChange={(e) => set(item.key, { text: e.target.value }, item)}
+            />
+          ) : (
+            <span className="text">{item.text}</span>
+          )}
+          <span className={`mark mark-${item.mark}`}>{markLabel(item)}</span>
+        </div>
+        <div className="item-actions" role="group" aria-label={`What to do with: ${item.text}`}>
+          <button
+            type="button"
+            aria-pressed={s.decision === "keep"}
+            onClick={() => set(item.key, { decision: "keep", text: item.text }, item)}
+          >
+            Keep
+          </button>
+          <button
+            type="button"
+            aria-pressed={s.decision === "strike"}
+            onClick={() => set(item.key, { decision: "strike" }, item)}
+          >
+            Strike
+          </button>
+          {!sayBack && (
+            <button
+              type="button"
+              aria-pressed={s.decision === "edit"}
+              onClick={() => set(item.key, { decision: "edit" }, item)}
+            >
+              Edit
+            </button>
+          )}
+        </div>
+        {item.wait !== undefined && s.decision !== "strike" && (
+          <label className="wait small">
+            <input
+              type="checkbox"
+              checked={s.wait ?? false}
+              onChange={(e) => set(item.key, { wait: e.target.checked }, item)}
+            />
+            Stop after this milestone until I say go on
+          </label>
+        )}
+        {s.decision === "strike" && (
+          <input
+            className="reason"
+            aria-label={`Why strike: ${item.text} (optional)`}
+            placeholder="Why is it wrong? (optional)"
+            value={s.reason}
+            onChange={(e) => set(item.key, { reason: e.target.value }, item)}
+          />
+        )}
+      </li>
+    );
+  };
+
   return (
     <>
-      <ol className="items">
-        {ask.items.map((item) => {
-          const s = state(item);
-          return (
-            <li key={item.key} className={`item item-${s.decision}`}>
-              <div className="item-text">
-                {s.decision === "edit" ? (
-                  <textarea
-                    aria-label={`Edit: ${item.text}`}
-                    value={s.text}
-                    rows={2}
-                    onChange={(e) => set(item.key, { text: e.target.value }, item)}
-                  />
-                ) : (
-                  <span className="text">{item.text}</span>
-                )}
-                <span className={`mark mark-${item.mark}`}>{markLabel(item)}</span>
-              </div>
-              <div
-                className="item-actions"
-                role="group"
-                aria-label={`What to do with: ${item.text}`}
-              >
-                <button
-                  type="button"
-                  aria-pressed={s.decision === "keep"}
-                  onClick={() => set(item.key, { decision: "keep", text: item.text }, item)}
-                >
-                  Keep
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={s.decision === "strike"}
-                  onClick={() => set(item.key, { decision: "strike" }, item)}
-                >
-                  Strike
-                </button>
-                {!sayBack && (
-                  <button
-                    type="button"
-                    aria-pressed={s.decision === "edit"}
-                    onClick={() => set(item.key, { decision: "edit" }, item)}
-                  >
-                    Edit
-                  </button>
-                )}
-              </div>
-              {item.wait !== undefined && s.decision !== "strike" && (
-                <label className="wait small">
-                  <input
-                    type="checkbox"
-                    checked={s.wait ?? false}
-                    onChange={(e) => set(item.key, { wait: e.target.checked }, item)}
-                  />
-                  Stop after this milestone until I say go on
-                </label>
-              )}
-              {s.decision === "strike" && (
-                <input
-                  className="reason"
-                  aria-label={`Why strike: ${item.text} (optional)`}
-                  placeholder="Why is it wrong? (optional)"
-                  value={s.reason}
-                  onChange={(e) => set(item.key, { reason: e.target.value }, item)}
-                />
-              )}
-            </li>
-          );
-        })}
-      </ol>
+      {runs.map((run) => (
+        <div key={`${run.group ?? ""}-${run.start}`} className="item-run">
+          {run.group && <h4 className="item-group">{run.group}</h4>}
+          <ol className="items" start={run.start}>
+            {run.items.map(renderItem)}
+          </ol>
+        </div>
+      ))}
+      {pages > 1 && (
+        <nav className="pager" aria-label="Pages of this list">
+          <button type="button" disabled={page === 0} onClick={() => go(page - 1)}>
+            Previous
+          </button>
+          <span className="small" aria-live="polite">
+            Page {page + 1} of {pages}
+          </span>
+          <button type="button" disabled={page === pages - 1} onClick={() => go(page + 1)}>
+            Next
+          </button>
+          {seen < pages && (
+            <span className="muted small">
+              Items on pages you have not opened are kept when you confirm.
+            </span>
+          )}
+        </nav>
+      )}
       <div className="actions">
         <button type="button" className="primary" disabled={busy} onClick={confirm}>
-          {busy ? "Sending…" : sayBack ? "Confirm what I understood" : "Confirm this list"}
+          {busy
+            ? "Sending…"
+            : recovered
+              ? "Confirm: the rest is right"
+              : sayBack
+                ? "Confirm what I understood"
+                : "Confirm this list"}
         </button>
         <span className="muted small" aria-live="polite">
           {plural(kept, "kept", "kept")}, {plural(struck, "struck", "struck")}

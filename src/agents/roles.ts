@@ -33,6 +33,7 @@ export const ROLE_FOR_TASK: Record<AgentTaskKind, AgentRole> = {
   reading: "reader",
   report: "reporter",
   size: "sizer",
+  recover: "drafter",
 };
 
 /**
@@ -130,6 +131,7 @@ export const PREMISE_TOOLS_BY_ROLE: Record<AgentRole, readonly string[]> = {
     "record_read",
     "record_propose",
     "draft_submit",
+    "recovery_submit",
     "ask",
     "gate_request",
     "progress",

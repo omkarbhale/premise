@@ -10,6 +10,8 @@ import { RunPanel } from "./RunPanel";
 /** The three phases with their steps, where the software is, and the controls that move it. */
 export function Line({ software }: { software: SoftwareDetail }) {
   const { api, notCurrent, refresh } = useSession();
+  const copyNotReady =
+    software.existing?.status === "copying" || software.existing?.status === "copy-failed";
   const [confirming, setConfirming] = useState<StageId | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -37,7 +39,7 @@ export function Line({ software }: { software: SoftwareDetail }) {
         back to any step it has reached.
       </p>
       <p className="where-now">
-        <strong>{whereNow(software.stage)}</strong>
+        <strong>{whereNow(software.stage, software.takingOn)}</strong>
       </p>
       <ol className="phases">
         {PHASES.map((phase, n) => {
@@ -111,7 +113,8 @@ export function Line({ software }: { software: SoftwareDetail }) {
                         )}
                         {stage.position === "current" && <p className="small">{software.status}</p>}
                       </div>
-                      {(stage.position === "done" || stage.position === "current") &&
+                      {!copyNotReady &&
+                        (stage.position === "done" || stage.position === "current") &&
                         (confirming === stage.id ? (
                           <div
                             className="confirm"

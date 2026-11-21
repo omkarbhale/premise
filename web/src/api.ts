@@ -45,6 +45,8 @@ export interface Api {
   softwares(): Promise<SoftwareSummary[]>;
   software(id: string): Promise<SoftwareDetail>;
   start(idea: string, name?: string): Promise<SoftwareSummary>;
+  bringIn(source: string, name?: string, idea?: string): Promise<SoftwareSummary>;
+  offerRecord(id: string): Promise<SoftwareDetail>;
   chat(id: string): Promise<ChatMessage[]>;
   say(id: string, text: string): Promise<{ said: ChatMessage; reply: ChatMessage }>;
   record(id: string): Promise<RecordView>;
@@ -114,6 +116,13 @@ export function createApi(token: string): Api {
     softwares: () => get("/api/softwares"),
     software: (id) => get(`/api/softwares/${enc(id)}`),
     start: (idea, name) => post("/api/softwares", name ? { idea, name } : { idea }),
+    bringIn: (source, name, idea) =>
+      post("/api/softwares/existing", {
+        source,
+        ...(name ? { name } : {}),
+        ...(idea ? { idea } : {}),
+      }),
+    offerRecord: (id) => post(`/api/softwares/${enc(id)}/existing/offer-record`),
     chat: (id) => get(`/api/softwares/${enc(id)}/chat`),
     say: (id, text) => post(`/api/softwares/${enc(id)}/chat`, { text }),
     record: (id) => get(`/api/softwares/${enc(id)}/record`),

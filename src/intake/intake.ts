@@ -13,6 +13,7 @@ import { STAGE_IDS, stageName } from "../shared/stages.js";
 import { type Ask, closeAsk, createAsk, getAsk } from "../storage/asks.js";
 import { addChatMessage } from "../storage/chat.js";
 import { type Database, now, recordEvent, transaction } from "../storage/database.js";
+import { copyNotReady, getExisting } from "../existing/store.js";
 import { getSoftware } from "../storage/softwares.js";
 import {
   type IntakeItem,
@@ -157,6 +158,8 @@ export class Intake implements IntakeHooks {
         "That software is not in premise. Pick one from the list.",
       );
     }
+    const notReady = copyNotReady(getExisting(this.db, softwareId));
+    if (notReady) throw new ServiceError("INVALID", notReady);
     const item = transaction(this.db, () => {
       const { item: taken, reply } = this.take(softwareId, "page", text);
       addChatMessage(this.db, {

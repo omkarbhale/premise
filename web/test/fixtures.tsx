@@ -135,6 +135,8 @@ export function fakeApi(change: Partial<Api> = {}): Api {
     softwares: vi.fn(() => Promise.resolve([])),
     software: vi.fn(() => Promise.resolve(software())),
     start: vi.fn(fail),
+    bringIn: vi.fn(fail),
+    offerRecord: vi.fn(fail),
     chat: vi.fn(() => Promise.resolve([])),
     say: vi.fn(fail),
     record: vi.fn(fail),

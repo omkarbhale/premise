@@ -160,6 +160,7 @@ export async function start(options: StartOptions): Promise<Running> {
     gate,
     runner: runs,
     intake,
+    line,
   } = createSession({
     db,
     config,
@@ -183,6 +184,9 @@ export async function start(options: StartOptions): Promise<Running> {
   made.queue = queue;
   gate.recoverInterrupted();
   const recovered = queue.recover();
+  const copies = line.resumeTakeOns();
+  if (copies > 0)
+    print(`Copying ${copies} existing software(s) again: premise stopped while copying.`);
   if (recovered.length > 0) {
     print(`Resumed ${recovered.length} job(s) that were cut off when premise last stopped.`);
   }
