@@ -49,6 +49,13 @@ describe("page server", () => {
     expect(response.json().error).toContain("Open the link premise printed");
   });
 
+  it("refuses the API without a token when the path is percent-encoded", async () => {
+    const { app, host } = await setup();
+    const response = await app.inject({ url: "/%61pi/overview", headers: { host } });
+    expect(response.statusCode).not.toBe(200);
+    expect(response.body).not.toContain("dataFolder");
+  });
+
   it("refuses a token once a newer link is issued", async () => {
     const { app, host, token, db } = await setup();
     issueSessionToken(db, 32);
