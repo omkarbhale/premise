@@ -1,6 +1,6 @@
 # 0033. Answers to the ten assumptions
 
-- Status: Partly superseded by [0049](0049-any-kind-of-software.md): item 8's "The first version proves itself on one kind the owner chooses"
+- Status: Partly superseded by [0049](0049-any-kind-of-software.md): item 8's "The first version proves itself on one kind the owner chooses"; and by [0178](0178-hosting-for-others-accounts-and-public-deployment-pushed-later.md): item 7's "sooner than fully deferred"
 - Scope: The product
 - Date: 2026-11-20
 - Decided by: The owner, answering the assistant's ten assumptions: "1. I agree. 2. I don't understand. ... 3. I agree. 4, 5, 6, I agree. 7. I agree, but sooner than fully deferred. 8, 9, 10, I agree."

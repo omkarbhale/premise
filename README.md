@@ -122,7 +122,7 @@ Details: [scope](docs/product/scope.md); order: [roadmap](docs/product/roadmap.m
 **Product**
 - [Scope](docs/product/scope.md): what is in, what is not the product's job, what is not yet worked out.
 - [Roles and use cases](docs/product/roles-and-use-cases.md): premise's roles and what each is asked.
-- [Roadmap](docs/product/roadmap.md): the build order agreed with the owner, and the seven milestones.
+- [Roadmap](docs/product/roadmap.md): the build order agreed with the owner, and the nine milestones.
 
 **Architecture and decisions**
 - [Architecture overview](docs/architecture/overview.md): the parts, how they talk, the risks.

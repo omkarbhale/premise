@@ -1,8 +1,22 @@
 # Roadmap
 
-The milestones in order, carved from section 8 of the plan, and the build order agreed with the owner. No dates are given. **The build has started and covers every milestone below, in this order** ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md), which supersedes [0061](../decisions/0061-nothing-built-until-the-owner-says.md)).
+The milestones, carved from section 8 of the plan, and the build order agreed with the owner. No dates are given. **The build has started and covers every milestone below, in this order** ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md), which supersedes [0061](../decisions/0061-nothing-built-until-the-owner-says.md)).
 
 The vision states the vision only, with no now-or-later split ([0035](../decisions/0035-the-vision-states-the-vision-only.md)). The order is kept here.
+
+## The order, plainly
+
+The order of building, after the owner's decisions of 2026-11-21 ([0179](../decisions/0179-the-roadmap-is-reordered.md)):
+
+1. **Milestone 1:** the thinnest line, now including work sized per piece and the three-phase page.
+2. **Intake, in a thin form** (the first part of milestone 4).
+3. **Existing software, in a thin form** (the first part of milestone 6).
+4. **The measures, and learning from corrections** (milestone 8).
+5. **Real use** (milestone 9).
+6. **Roles and taste** (milestone 3) **and cost, mocked** (milestone 2). The rest of milestones 4 and 6 is finished with them.
+7. **Last, after two real softwares have run through premise:** other people setting premise up, with hosting and accounts (milestone 5), and keeping software live on public hosts (milestone 7).
+
+Milestone numbers keep the numbers they had, so the milestones below are in this order, not in number order. Real use starts as soon as milestone 1 runs, whatever comes next in the list ([0175](../decisions/0175-premise-is-used-for-real-as-soon-as-milestone-1-runs.md)).
 
 ## Build order agreed with the owner
 
@@ -13,22 +27,28 @@ The vision states the vision only, with no now-or-later split ([0035](../decisio
 - Cost tracking and the spending limit come from usage-ledger ([0064](../decisions/0064-cost-and-spending-limit-from-usage-ledger.md)); until it exists premise uses a mock of its output, marked as mocked on the page ([0133](../decisions/0133-usage-ledger-is-mocked-until-it-exists.md)).
 - Tests, demos and continuous integration use the scripted agent, never the owner's Claude login; the login is used only when strictly necessary, on Haiku at low effort ([0134](../decisions/0134-the-owners-claude-login-only-when-strictly-necessary.md)).
 - Sensible things are configurable ([0132](../decisions/0132-sensible-things-are-configurable.md)), and premise is usable by someone who has not read the user guide ([0135](../decisions/0135-the-experience-works-without-the-guide.md)).
-- Existing software after the line works ([0034](../decisions/0034-first-proof-new-software.md)).
-- Other people setting premise up comes sooner than the other later items ([0033](../decisions/0033-answers-to-the-ten-assumptions.md), item 7; [0043](../decisions/0043-runs-on-the-owners-machine-first.md)).
-- Later: keeping software live for real users; several softwares at once; model providers other than Claude ([0046](../decisions/0046-claude-through-the-owners-subscription.md)). Finding out whether real people want the software is out of the vision, with an active version at most a later idea ([0036](../decisions/0036-finding-out-if-people-want-it-is-out.md)).
+- premise is for any software of any scale, adapts at runtime to each software, and sends any piece of work through the same line at its own size ([0166](../decisions/0166-any-software-of-any-scale.md)–[0170](../decisions/0170-what-may-be-split-is-decided-by-strong-prompting.md)). A first pass need not be perfect: intake fixes what is found ([0169](../decisions/0169-a-first-pass-need-not-be-perfect.md)).
+- Existing software comes much earlier, in a thin form, right after thin intake ([0171](../decisions/0171-existing-software-much-earlier-in-a-thin-form.md)); the measures and learning from corrections follow ([0172](../decisions/0172-premise-measures-its-own-return.md), [0173](../decisions/0173-premise-learns-from-corrections.md)); real use starts as soon as milestone 1 runs ([0175](../decisions/0175-premise-is-used-for-real-as-soon-as-milestone-1-runs.md)).
+- Later, with a GitHub issue each: the checker on a different model from the builder ([0176](../decisions/0176-the-checker-on-a-different-model-later.md), [issue 62](https://github.com/omkarbhale/premise/issues/62)); tolerating commits made outside premise ([0177](../decisions/0177-tolerating-commits-made-outside-premise-later.md), [issue 63](https://github.com/omkarbhale/premise/issues/63)).
+- Pushed to the end, until two real softwares have run through premise: other people setting premise up, hosting, accounts and public deployment ([0178](../decisions/0178-hosting-for-others-accounts-and-public-deployment-pushed-later.md), which adjusts [0033](../decisions/0033-answers-to-the-ten-assumptions.md) item 7 and [0043](../decisions/0043-runs-on-the-owners-machine-first.md)).
+- Later still: several softwares at once; model providers other than Claude ([0046](../decisions/0046-claude-through-the-owners-subscription.md)). Finding out whether real people want the software is out of the vision, with an active version at most a later idea ([0036](../decisions/0036-finding-out-if-people-want-it-is-out.md)).
 
 ```mermaid
 flowchart LR
-    M1[M1 The thinnest line<br/>step 1: unattended LLM work] --> M2[M2 Cost and spending limit<br/>usage-ledger mocked until it exists]
-    M1 --> M3[M3 Every role,<br/>in one session]
-    M2 --> M4[M4 Intake,<br/>automatic and held]
-    M3 --> M4
-    M4 --> M5[M5 Other people<br/>set premise up]
-    M5 --> M6[M6 Existing software]
-    M6 --> M7[M7 Kept live, and<br/>several softwares at once]
+    M1[M1 The thinnest line<br/>sized per piece, three-phase page] --> M4a[M4 first part<br/>Intake, thin]
+    M4a --> M6a[M6 first part<br/>Existing software, thin]
+    M6a --> M8[M8 Measures and<br/>learning from corrections]
+    M8 --> M9[M9 Real use]
+    M9 --> M3[M3 Roles and taste]
+    M9 --> M2[M2 Cost, mocked]
+    M3 --> M46[Rest of M4 and M6]
+    M2 --> M46
+    M46 --> G{Two real softwares<br/>have run}
+    G --> M5[M5 Other people set<br/>premise up]
+    G --> M7[M7 Kept live on public hosts,<br/>several softwares at once]
 ```
 
-Milestone 2 no longer waits for usage-ledger: it is built against the mock ([0133](../decisions/0133-usage-ledger-is-mocked-until-it-exists.md)).
+Use starts as soon as M1 runs; the chart is the order of building. Milestone 2 no longer waits for usage-ledger: it is built against the mock ([0133](../decisions/0133-usage-ledger-is-mocked-until-it-exists.md)).
 
 ## For every milestone
 
@@ -45,7 +65,7 @@ Milestone 2 no longer waits for usage-ledger: it is built against the mock ([013
 
 ## Milestone 1: the thinnest line, end to end, for any small software
 
-Thinnest means: one software at a time; only the operator; no taste claims; intake only from the operator's chat; no cost figures.
+Built first. Thinnest means: one software at a time; only the operator; no taste claims; intake only from the operator's chat; no cost figures.
 
 **Step 1: prove that premise can drive LLM work unattended through the owner's Claude subscription, on the owner's machine.** Done 2026-11-21, apart from what is named below: see the [test record](../record/subscription-sandbox-test-2026-11-21.md). It was a proof of concept; no code from it is kept in this repository.
 - Still untested: point 7 (the server creating and pushing to a private repository); point 1's premise-owned configuration folder (the test used the default login); point 6 beyond a simulated event; behaviour on the Sonnet and Opus tiers; process-level escapes from the sandbox.
@@ -73,7 +93,10 @@ Thinnest means: one software at a time; only the operator; no taste claims; inta
   - one builder and one checker, confined; the checker's scenarios out of the builder's reach; verdicts with evidence;
   - the server's merge and push; the runner, with a link or a command on the page;
   - a software's milestones, proposed by premise and edited by the operator, each ending at running software and a report, with a wait after any the operator sets: premise stops there until the operator says to go on ([0128](../decisions/0128-effort-per-software-and-milestone-waits.md), [0129](../decisions/0129-builders-reading-of-effort-and-milestone-waits.md));
-  - a report each time a change reaches running; things the operator says become intake that goes in normally.
+  - a report each time a change reaches running; things the operator says become intake that goes in normally;
+  - work sized per piece: any piece of work (a software, a milestone, a module, an intake item) goes through the same line at its own size, and sizing picks the stages and their depth ([0168](../decisions/0168-any-piece-of-work-goes-through-the-same-line-at-its-own-size.md), [0117](../decisions/0117-size-classes-set-stage-budgets.md)). What may be split is decided by the sizing prompt: completely separate parts or very long parts may be split, one heavy piece is not by itself a reason, there are no several agents per stage by default, and each split is recorded with its reason ([0170](../decisions/0170-what-may-be-split-is-decided-by-strong-prompting.md));
+  - the three-phase page: Understand, Build and Running, with the eleven stages as detail ([0174](../decisions/0174-the-page-shows-three-phases.md));
+  - for each software, how to build, run and check it, worked out by premise, kept in the record and corrected through intake; where premise cannot operate a software it says "could not check" and names what is needed ([0167](../decisions/0167-premise-adapts-at-runtime-to-the-software.md)).
 - Shown running:
   - [0110](../decisions/0110-two-sample-softwares.md) (P44): two small softwares of different kinds, each taken from a one-paragraph idea to running software with a scripted operator: a command-line utility and a small web app.
     - Why: two kinds keep the line from fitting one kind ([0049](../decisions/0049-any-kind-of-software.md)).
@@ -81,17 +104,58 @@ Thinnest means: one software at a time; only the operator; no taste claims; inta
   - In each run, one assumption is struck in the say-back and the record changes to match.
   - In one run, a wait is set after a milestone: premise stops there with running software and a report until the scripted operator says to go on ([0129](../decisions/0129-builders-reading-of-effort-and-milestone-waits.md)).
   - In each run, the checker catches a defect planted in the build that it was not told about.
-  - The samples stay as extra proof. The owner's own first software, one the owner needs, then goes through as early as possible, before milestone 2 onward is built ([0127](../decisions/0127-first-software-is-one-the-owner-needs.md), which adjusts [0110](../decisions/0110-two-sample-softwares.md)).
+  - The samples stay as extra proof. The owner's own first software, one the owner needs, then goes through as early as possible, as soon as milestone 1 runs ([0175](../decisions/0175-premise-is-used-for-real-as-soon-as-milestone-1-runs.md), [0127](../decisions/0127-first-software-is-one-the-owner-needs.md), which adjusts [0110](../decisions/0110-two-sample-softwares.md)).
 - Reported: the milestone report, and for each sample what failed and what could not be checked.
+- A first pass need not be perfect: what is found goes in as intake ([0169](../decisions/0169-a-first-pass-need-not-be-perfect.md)).
 
-## Milestone 2: cost and the spending limit, through usage-ledger
+## Milestone 4: intake (a thin form first, then the rest)
 
-- **usage-ledger is mocked until it exists** ([0133](../decisions/0133-usage-ledger-is-mocked-until-it-exists.md)). Building it is its own project ([0064](../decisions/0064-cost-and-spending-limit-from-usage-ledger.md)); it is also the first software chosen to go through premise ([0137](../decisions/0137-first-software-is-usage-ledger.md)). Every figure from the mock is marked as mocked on the page.
-- Built: premise's part of [models and cost](../architecture/models-and-cost.md#cost-and-the-spending-limit-0016-0048-0064): session-to-task records in usage-ledger's format; usage per software, stage, change and record item in reports; per-software budgets set in usage-ledger; pausing a software's queue and telling the operator when its budget is overrun; a software's effort as a share of weekly usage, read from usage-ledger and Claude Code's own stream ([0129](../decisions/0129-builders-reading-of-effort-and-milestone-waits.md)).
-- Shown running: milestone 1's demos run again, with usage per stage and per item in their reports; a deliberately small budget overrun that pauses the software and tells the operator.
-- Reported: as for every milestone, plus what milestone 1's demos cost.
+Built second, in two parts. After the thin part, the line works ([0034](../decisions/0034-first-proof-new-software.md)).
+
+**First part: intake, in a thin form.**
+- Built: intake from the operator and from premise's own findings; the triager reads every item against the record ([0094](../decisions/0094-triager-reads-every-item.md)); the in-normally, asked and merged-or-closed routes; each item sized and sent through the line at its own size ([0168](../decisions/0168-any-piece-of-work-goes-through-the-same-line-at-its-own-size.md)).
+- Shown running: planted items against a running demo software: bugs fixed through the line; a wish that changes purpose, asked of the operator; duplicates merged and noise closed.
+- Reported: as for every milestone, plus counts per route.
+
+**The rest, finished with milestones 3 and 2.**
+- Built: intake from every source (the software's users and other people); the held route and the readings; the way back to Why; telling senders where their item stands.
+- Shown running: opinions held and read together into a short list.
+- Reported: as for every milestone, plus counts per route.
+
+## Milestone 6: existing software (a thin form first, then the rest)
+
+Built third, in two parts ([0171](../decisions/0171-existing-software-much-earlier-in-a-thin-form.md)).
+
+**First part: existing software, in a thin form.**
+- Built: premise drafts the record from the code, people strike what is wrong, and changes come in as intake from there. Where premise cannot operate the software it says "could not check" and names what is needed ([0167](../decisions/0167-premise-adapts-at-runtime-to-the-software.md)). Detail: [existing software](../architecture/the-line.md#existing-software-milestone-6).
+- Shown running: one demo software taken on with its `premise/` folder removed; one assumption struck in the say-back; one intake item taken through the line.
+- Reported: as for every milestone, plus what people were asked.
+
+**The rest, finished with milestones 3 and 2.**
+- Built: everything in the existing-software architecture that the thin form leaves out: conflicts that need people, best-guess links from old code ([0121](../decisions/0121-recovered-trace-file.md)).
+- Shown running: the demo software's recovered record compared with the original; then one public open-source project.
+- Reported: as for every milestone, plus how much of the original record was recovered.
+
+## Milestone 8: the measures, and learning from corrections
+
+Built fourth. New in the order of 2026-11-21 ([0172](../decisions/0172-premise-measures-its-own-return.md), [0173](../decisions/0173-premise-learns-from-corrections.md)).
+- Built:
+  - premise's own return, shown in its reports: minutes of people's attention; time from idea to running software; time from a reported problem to a running fix; how often something reported as working came back as a bug. Each is worked out from recorded facts, and where one cannot be worked out the report says so;
+  - learning from corrections: a short list per software, and a short list of the operator's taste that carries across softwares. Each line is tied to the correction it came from, and each can be deleted. The operator's list is kept in premise's data, not in any software's repository ([0081](../decisions/0081-nothing-about-people-in-the-repository.md)).
+- Shown running: a scripted run where a correction adds a line to each list, the next draft follows it, the line is deleted, and the report shows the four measures.
+- Reported: as for every milestone, plus what could not be measured.
+
+## Milestone 9: real use
+
+Built fifth. New in the order of 2026-11-21 ([0175](../decisions/0175-premise-is-used-for-real-as-soon-as-milestone-1-runs.md)). Use starts as soon as milestone 1 runs; this step is where it is the main work.
+- Use: usage-ledger goes through premise first ([0137](../decisions/0137-first-software-is-usage-ledger.md)), then premise's own remaining work. Real agent work on the owner's Claude login waits for the owner's word and uses Haiku at low effort ([0134](../decisions/0134-the-owners-claude-login-only-when-strictly-necessary.md)); until then the scripted agent stands in.
+- What use shows comes in as intake against premise itself ([0169](../decisions/0169-a-first-pass-need-not-be-perfect.md)).
+- Ends when two real softwares have run through premise. Milestones 5 and 7 wait for that ([0178](../decisions/0178-hosting-for-others-accounts-and-public-deployment-pushed-later.md)).
+- Reported: as for every milestone, with the measures from milestone 8 for each software.
 
 ## Milestone 3: every role, in one session
+
+Built sixth, with milestone 2 ([roadmap order](#the-order-plainly)).
 
 - Built: roles as labels on every ask; questions in each role's terms; taste claims and proposals before building; the gate asking under the right role; approvals for a kind of action; the "needed" list grouped by role. All in the one session ([0065](../decisions/0065-one-open-session.md)).
 - Shown running: a scripted run in one session that answers the asks of three roles, each ask labelled with its role:
@@ -100,20 +164,18 @@ Thinnest means: one software at a time; only the operator; no taste claims; inta
   - a role that must do a real-world act, such as creating an account with an outside service.
 - Reported: as for every milestone, plus how many questions each role was asked.
 
-## Milestone 4: intake, automatic and held
+## Milestone 2: cost and the spending limit, through usage-ledger
 
-- Built: intake from every source; triage; the in-normally, asked, held, and merged-or-closed routes; readings; the way back to Why; telling senders where their item stands.
-- Shown running: planted items against a running demo software:
-  - bugs fixed through the line;
-  - a wish that changes purpose, asked of the operator;
-  - opinions held and read together into a short list;
-  - duplicates merged and noise closed.
-- Reported: as for every milestone, plus counts per route.
-- After this milestone the line works ([0034](../decisions/0034-first-proof-new-software.md)).
+Built sixth, with milestone 3. The figures are mocked until usage-ledger exists.
+
+- **usage-ledger is mocked until it exists** ([0133](../decisions/0133-usage-ledger-is-mocked-until-it-exists.md)). Building it is its own project ([0064](../decisions/0064-cost-and-spending-limit-from-usage-ledger.md)); it is also the first software chosen to go through premise ([0137](../decisions/0137-first-software-is-usage-ledger.md)). Every figure from the mock is marked as mocked on the page.
+- Built: premise's part of [models and cost](../architecture/models-and-cost.md#cost-and-the-spending-limit-0016-0048-0064): session-to-task records in usage-ledger's format; usage per software, stage, change and record item in reports; per-software budgets set in usage-ledger; pausing a software's queue and telling the operator when its budget is overrun; a software's effort as a share of weekly usage, read from usage-ledger and Claude Code's own stream ([0129](../decisions/0129-builders-reading-of-effort-and-milestone-waits.md)).
+- Shown running: milestone 1's demos run again, with usage per stage and per item in their reports; a deliberately small budget overrun that pauses the software and tells the operator.
+- Reported: as for every milestone, plus what milestone 1's demos cost.
 
 ## Milestone 5: other people set premise up
 
-Sooner than the other later items ([0033](../decisions/0033-answers-to-the-ten-assumptions.md), item 7; [0043](../decisions/0043-runs-on-the-owners-machine-first.md)).
+Built last, after two real softwares have run through premise ([0178](../decisions/0178-hosting-for-others-accounts-and-public-deployment-pushed-later.md), which adjusts [0033](../decisions/0033-answers-to-the-ten-assumptions.md) item 7). Hosting and accounts are part of it.
 - Built:
   - one install command, and a setup check that names what is missing;
   - each person's own model access ([0103](../decisions/0103-subscription-only-for-the-owner.md)); other providers if needed ([0107](../decisions/0107-one-part-knows-the-runtime.md));
@@ -124,13 +186,9 @@ Sooner than the other later items ([0033](../decisions/0033-answers-to-the-ten-a
 - Shown running: a clean machine (a fresh virtual machine) set up from the instructions alone, then milestone 1's demos run on it. No API key is used: the demos run with the scripted agent ([0145](../decisions/0145-no-api-key.md)).
 - Reported: as for every milestone, plus every point where setup needed a person.
 
-## Milestone 6: existing software
-
-- Built: [existing software](../architecture/the-line.md#existing-software-milestone-6).
-- Shown running: one demo software taken on with its `premise/` folder removed, so the recovered record can be compared with the original; then one public open-source project.
-- Reported: as for every milestone, plus how much of the original record was recovered, and what people were asked.
-
 ## Milestone 7: kept live, and several softwares at once
+
+Built last, with milestone 5, after two real softwares have run through premise ([0178](../decisions/0178-hosting-for-others-accounts-and-public-deployment-pushed-later.md)).
 
 - Built: running software for its real users on hosts the operator approves; keeping it up; incidents back as intake; several softwares at once, sharing the work queue fairly, with a report per software and one summary; priority between softwares already orders the work queue from milestone 1 ([0138](../decisions/0138-priority-is-a-field-from-milestone-1.md)).
 - Every first deployment to a public host is public-facing and may spend money, so it is asked ([0100](../decisions/0100-floor-actions.md)).
@@ -140,6 +198,7 @@ Sooner than the other later items ([0033](../decisions/0033-answers-to-the-ten-a
 ## Not on the roadmap
 
 - **Not the product's job** ([VISION.md](../../VISION.md#what-the-product-does-not-do)): acting in the real world (opening accounts, paying, signing; premise names the person and exactly what is needed); selling or supporting the software; finding out on its own whether real people want the software ([0033](../decisions/0033-answers-to-the-ten-assumptions.md), [0036](../decisions/0036-finding-out-if-people-want-it-is-out.md)).
+- **The checker on a different model from the builder; tolerating commits made outside premise:** later, one GitHub issue each ([0176](../decisions/0176-the-checker-on-a-different-model-later.md), [0177](../decisions/0177-tolerating-commits-made-outside-premise-later.md)).
 - **Model providers other than Claude:** later ([0046](../decisions/0046-claude-through-the-owners-subscription.md)); the agent runner is the one part that changes ([0107](../decisions/0107-one-part-knows-the-runtime.md)).
 - **Being reached from other machines:** off by default, and a security-sensitive decision for the owner when the owner asks for it ([0144](../decisions/0144-reach-from-other-machines-stays-off.md), [0079](../decisions/0079-localhost-only.md)).
 - **Email or chat notices:** rejected for now ([0099](../decisions/0099-notices-in-the-session.md)).

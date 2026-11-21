@@ -60,9 +60,17 @@ flowchart LR
 10. **Report.** [Intake and reporting](intake-and-reporting.md#reporting).
 11. **Intake.** [Intake and reporting](intake-and-reporting.md#intake-sources).
 
+## Work of any size
+
+Any piece of work goes through this same line at its own size: a software, a milestone, a module or an intake item ([0168](../decisions/0168-any-piece-of-work-goes-through-the-same-line-at-its-own-size.md)). Sizing picks the stages a piece needs and how deep each goes ([0117](../decisions/0117-size-classes-set-stage-budgets.md)).
+- A piece may be split into parts that go through the line separately only when the parts are completely separate, or a part is very long. One heavy piece of work is not by itself a reason. Each split is recorded with its reason, and there are no several agents per stage by default ([0170](../decisions/0170-what-may-be-split-is-decided-by-strong-prompting.md)).
+- For each software, premise works out how to build, run and check it, keeps that in the record, and corrects it through intake. Where it cannot operate the software it reports "could not check" and names what is needed ([0167](../decisions/0167-premise-adapts-at-runtime-to-the-software.md)).
+- A first pass need not be perfect; what is found comes back as intake ([0169](../decisions/0169-a-first-pass-need-not-be-perfect.md)).
+- Splitting into child items is not built yet ([issue 58](https://github.com/omkarbhale/premise/issues/58)).
+
 ## Existing software (milestone 6)
 
-Existing software enters the same line ([0019](../decisions/0019-existing-software-through-the-same-line.md)); it comes after the line works ([0034](../decisions/0034-first-proof-new-software.md)).
+Existing software enters the same line ([0019](../decisions/0019-existing-software-through-the-same-line.md)). It comes early, in a thin form: the record drafted from the code, people striking what is wrong, and changes from then on as intake ([0171](../decisions/0171-existing-software-much-earlier-in-a-thin-form.md)); the rest of what follows is built later ([roadmap](../product/roadmap.md)).
 
 - An agent drafts the record from the code, its documentation, its history and its issues. Every item is marked `recovered`. The agent is the drafter, with its recovery brief ([0113](../decisions/0113-agent-roles.md), [drafter prompt](../prompts/drafter.md)).
 - Parts that conflict, or cannot be inferred, become questions, each labelled with the role it is for ([0019](../decisions/0019-existing-software-through-the-same-line.md)).
