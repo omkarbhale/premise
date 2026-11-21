@@ -343,7 +343,7 @@ export class WorkQueue {
             .prepare(
               "UPDATE agent_sessions SET runtime_session_id = ? WHERE job_id = ? AND ended IS NULL",
             )
-            .run(session.sessionId, job.id);
+            .run(session.confirmed === false ? "" : session.sessionId, job.id);
         }
         this.running.delete(job.id);
         this.settled.delete(job.id);
@@ -365,7 +365,9 @@ export class WorkQueue {
       )
       .get(jobId) as
       { runtime_session_id: string; runtime: string; end_reason: string | null } | undefined;
-    if (!last || last.runtime !== this.options.runner.runtime) return undefined;
+    if (!last || !last.runtime_session_id || last.runtime !== this.options.runner.runtime) {
+      return undefined;
+    }
     return ["usage-limit", "stopped", "premise-stopped"].includes(last.end_reason ?? "")
       ? last.runtime_session_id
       : undefined;

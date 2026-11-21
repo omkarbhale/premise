@@ -59,6 +59,8 @@ export interface AgentSession {
    * may confirm it only once the session has started, so read it again when the session ends.
    */
   readonly sessionId: string;
+  /** False while the runtime has not confirmed the session, so it cannot be carried on. */
+  readonly confirmed?: boolean;
   runtime: string;
   /** Resolves once the session has ended. */
   outcome: Promise<AgentOutcome>;

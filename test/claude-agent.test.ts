@@ -224,6 +224,21 @@ describe("real agent runner, against a fake claude", () => {
     }
   }, 15_000);
 
+  it("confirms a session only once Claude Code has reported it", async () => {
+    const { runner } = setup();
+    const early = runner.start(request({ brief: "scenario:hang" }), () => {});
+    early.stop();
+    expect(await early.outcome).toEqual({ kind: "stopped" });
+    expect(early.confirmed).toBe(false);
+
+    const finished = runner.start(request(), () => {});
+    await finished.outcome;
+    expect(finished.confirmed).toBe(true);
+    const carried = runner.start(request({ resumeSessionId: "earlier" }), () => {});
+    await carried.outcome;
+    expect(carried.confirmed).toBe(true);
+  });
+
   it("stops a session that uses an API key", async () => {
     const { runner } = setup();
     const { outcome } = await run(runner, { brief: "scenario:api-key" });
