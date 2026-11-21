@@ -152,6 +152,40 @@ describe("work queue", () => {
     expect(queue.get(check)!.status).toBe("done");
   });
 
+  it("resumes by itself when the usage-limit pause ends, with no one calling tick", async () => {
+    const resetAt = new Date(Date.now() + 200).toISOString();
+    const { queue, software } = setup({
+      rules: [
+        { when: { task: "build", attempt: 1 }, end: { outcome: "usage-limit", reset_at: resetAt } },
+      ],
+    });
+    const id = queue.enqueue({ softwareId: software.id, kind: "build" });
+    queue.tick();
+    await queue.idle();
+    expect(queue.get(id)!.status).toBe("queued");
+    expect(queue.state().paused).toBe(true);
+
+    const deadline = Date.now() + 3000;
+    while (queue.get(id)!.status !== "done" && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    await queue.idle();
+    expect(queue.get(id)!.status).toBe("done");
+    expect(queue.state().paused).toBe(false);
+  });
+
+  it("on close stops running sessions, requeues them and starts nothing more", async () => {
+    const { queue, software } = setup(hangBuilds, { PREMISE_QUEUE__MAX_AGENT_SESSIONS: "1" });
+    const first = queue.enqueue({ softwareId: software.id, kind: "build" });
+    const second = queue.enqueue({ softwareId: software.id, kind: "build" });
+    queue.tick();
+    await queue.close();
+    expect(queue.get(first)!.status).toBe("queued");
+    expect(queue.get(second)!.status).toBe("queued");
+    expect(queue.runningAgentSessions()).toBe(0);
+    expect(queue.tick()).toEqual([]);
+  });
+
   it("waits a fixed time when a usage-limit event gives no reset time", async () => {
     const time = new Date("2026-11-21T10:00:00Z");
     const { queue, software } = setup(

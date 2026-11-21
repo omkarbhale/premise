@@ -132,6 +132,8 @@ export class WorkQueue {
   /** Jobs whose sessions were stopped because all work paused; they go back to the queue. */
   private readonly stoppedForPause = new Set<number>();
   private readonly clock: () => Date;
+  private resumeTimer: NodeJS.Timeout | null = null;
+  private closed = false;
 
   constructor(private readonly options: WorkQueueOptions) {
     this.db = options.db;
@@ -241,11 +243,13 @@ export class WorkQueue {
 
   /** Start every job that can start now. Returns the ids started. */
   tick(): number[] {
+    if (this.closed) return [];
     const state = this.state();
     if (state.paused) {
       if (state.resumeAt && this.clock().getTime() >= Date.parse(state.resumeAt)) {
         this.resumeAll();
       } else {
+        this.armResumeTimer(state);
         return [];
       }
     }
@@ -330,6 +334,36 @@ export class WorkQueue {
         this.tick();
       });
     this.settled.set(job.id, settled);
+  }
+
+  /** A pause with a resume time ends by itself: a timer ticks the queue when the time comes. */
+  private armResumeTimer(state: QueueState): void {
+    this.clearResumeTimer();
+    if (this.closed || !state.paused || !state.resumeAt) return;
+    const delay = Math.max(0, Date.parse(state.resumeAt) - this.clock().getTime());
+    this.resumeTimer = setTimeout(() => {
+      this.resumeTimer = null;
+      this.tick();
+    }, Math.min(delay, 2 ** 31 - 1));
+    this.resumeTimer.unref();
+  }
+
+  private clearResumeTimer(): void {
+    if (this.resumeTimer) clearTimeout(this.resumeTimer);
+    this.resumeTimer = null;
+  }
+
+  /** Shutdown: no more starts, running sessions stop and go back to the queue, then wait for them. */
+  async close(): Promise<void> {
+    this.closed = true;
+    this.clearResumeTimer();
+    for (const [id, session] of this.running) {
+      if (session) {
+        this.stoppedForPause.add(id);
+        session.stop();
+      }
+    }
+    await this.idle();
   }
 
   /** Wait until every running job has ended. For tests and shutdown. */
@@ -448,7 +482,9 @@ export class WorkQueue {
   private pauseAllInside(reason: string, resetAt: string | null): void {
     const fallback = this.options.config.queue.usage_pause_fallback_minutes;
     const resumeAt = resetAt ?? new Date(this.clock().getTime() + fallback * 60_000).toISOString();
-    this.setState({ paused: true, reason, resumeAt });
+    const state = { paused: true, reason, resumeAt };
+    this.setState(state);
+    this.armResumeTimer(state);
     recordEvent(this.db, { module: "queue", kind: "queue-paused", detail: { reason, resumeAt } });
     for (const [id, session] of this.running) {
       if (session) {
@@ -464,6 +500,7 @@ export class WorkQueue {
   }
 
   resumeAll(): void {
+    this.clearResumeTimer();
     this.setState({ paused: false, reason: null, resumeAt: null });
     recordEvent(this.db, { module: "queue", kind: "queue-resumed" });
   }

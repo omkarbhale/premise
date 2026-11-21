@@ -64,7 +64,6 @@ export async function start(
   if (recovered.length > 0) {
     print(`Resumed ${recovered.length} job(s) that were cut off when premise last stopped.`);
   }
-  queue.tick();
 
   const app = await createApp({
     config,
@@ -78,6 +77,7 @@ export async function start(
   try {
     await app.listen({ host: config.server.host, port: config.server.port });
   } catch (error) {
+    await queue.close();
     db.close();
     if ((error as NodeJS.ErrnoException).code === "EADDRINUSE") {
       throw new Error(
@@ -86,6 +86,7 @@ export async function start(
     }
     throw error;
   }
+  queue.tick();
   const token = issueSessionToken(db, config.server.token_bytes);
   recordEvent(db, { module: "page-server", kind: "started", detail: { port: config.server.port } });
   const link = `http://localhost:${config.server.port}/#token=${token}`;
@@ -116,6 +117,7 @@ export async function start(
     link,
     close: async () => {
       await app.close();
+      await queue.close();
       db.close();
     },
   };
