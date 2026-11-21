@@ -395,6 +395,8 @@ export interface Reading {
   status: "reading" | "done" | "failed";
   jobId: number | null;
   askId: number | null;
+  /** When the operator went back to Why from this reading, once that has started. */
+  sentBackAt: string | null;
   created: string;
   finished: string | null;
 }
@@ -408,6 +410,7 @@ interface ReadingRow {
   status: Reading["status"];
   job_id: number | null;
   ask_id: number | null;
+  sent_back_at: string | null;
   created: string;
   finished: string | null;
 }
@@ -422,6 +425,7 @@ function readingFromRow(row: ReadingRow): Reading {
     status: row.status,
     jobId: row.job_id,
     askId: row.ask_id,
+    sentBackAt: row.sent_back_at,
     created: row.created,
     finished: row.finished,
   };
@@ -459,6 +463,7 @@ export function setReading(
     shortList?: ShortList;
     jobId?: number;
     askId?: number;
+    sentBackAt?: string | null;
     finished?: string;
   },
 ): void {
@@ -473,6 +478,8 @@ export function setReading(
     db.prepare("UPDATE readings SET job_id = ? WHERE id = ?").run(change.jobId, id);
   if (change.askId !== undefined)
     db.prepare("UPDATE readings SET ask_id = ? WHERE id = ?").run(change.askId, id);
+  if (change.sentBackAt !== undefined)
+    db.prepare("UPDATE readings SET sent_back_at = ? WHERE id = ?").run(change.sentBackAt, id);
   if (change.finished)
     db.prepare("UPDATE readings SET finished = ? WHERE id = ?").run(change.finished, id);
 }

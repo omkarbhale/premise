@@ -498,6 +498,8 @@ export const MIGRATIONS: readonly Migration[] = [
         created TEXT NOT NULL
       );
       CREATE INDEX intake_comments_item ON intake_comments(item_id, id);
+
+      ALTER TABLE readings ADD COLUMN sent_back_at TEXT;
     `,
   },
 ];

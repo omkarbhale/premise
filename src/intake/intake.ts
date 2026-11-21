@@ -1114,40 +1114,40 @@ export class Intake implements IntakeHooks {
     }
     if (!this.line)
       throw new ServiceError("INVALID", "premise is not ready to go back to Why yet.");
-    const ask = reading.askId ? getAsk(this.db, reading.askId) : null;
-    if (reading.askId && ask?.status !== "open") {
-      throw new ServiceError("INVALID", "This reading was already answered or sent back to Why.");
+    if (!reading.shortList.backToWhy) {
+      throw new ServiceError("INVALID", "This reading does not suggest going back to Why.");
     }
-    transaction(this.db, () => {
-      if (ask) {
-        closeAsk(
-          this.db,
-          ask.id,
-          "withdrawn",
-          null,
-          "You chose to go back to Why on the Intake tab.",
-        );
-      }
-    });
-    this.startBackToWhy(reading.softwareId);
+    if (reading.sentBackAt) {
+      throw new ServiceError("INVALID", "You already went back to Why from this reading.");
+    }
+    this.startBackToWhy(reading);
     return this.view(reading.softwareId);
   }
 
-  private startBackToWhy(softwareId: string): void {
+  private startBackToWhy(reading: Reading): void {
+    const line = this.line;
+    if (!line) return;
+    const { softwareId } = reading;
+    transaction(this.db, () => {
+      setReading(this.db, reading.id, { sentBackAt: now() });
+      const ask = reading.askId ? getAsk(this.db, reading.askId) : undefined;
+      if (ask?.status === "open") {
+        closeAsk(this.db, ask.id, "withdrawn", null, "You chose to go back to Why.");
+      }
+    });
     addChatMessage(this.db, {
       softwareId,
       author: "premise",
       text: "Going back to Why with you, as you chose after the reading of held items.",
     });
-    const line = this.line;
-    if (!line) return;
     queueMicrotask(
       () =>
         void line.backToWhy(softwareId).catch((err: unknown) => {
+          setReading(this.db, reading.id, { sentBackAt: null });
           addChatMessage(this.db, {
             softwareId,
             author: "premise",
-            text: `Going back to Why did not start (${err instanceof Error ? err.message : String(err)}). Ask again from the Intake tab.`,
+            text: `Going back to Why did not start (${err instanceof Error ? err.message : String(err)}). Nothing changed; you can try again from the Intake tab.`,
           });
         }),
     );
@@ -1169,7 +1169,7 @@ export class Intake implements IntakeHooks {
     const reading = getReading(this.db, Number(ask.extra.meta?.reading));
     return () => {
       if (back) {
-        this.startBackToWhy(ask.softwareId);
+        if (reading && !reading.sentBackAt) this.startBackToWhy(reading);
         return;
       }
       // "Noted": every item behind a line nobody decided stays held, so nothing is lost.
@@ -1680,6 +1680,7 @@ export class Intake implements IntakeHooks {
       triggerWords: TRIGGER_WORDS[r.trigger],
       items: r.items.map((n) => `I-${n}`),
       status: r.status,
+      sentBack: r.sentBackAt !== null,
       shortList: r.shortList
         ? {
             ...r.shortList,

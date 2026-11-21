@@ -460,6 +460,46 @@ describe("readings that lead somewhere", () => {
     expect((await openAsks(app, id)).find((a) => a.stage === "why")).toBeDefined();
     // Going back to Why leaves the items as the evidence they are: read, not lost.
     expect((await item(app, id, "I-1")).status).toBe("read");
+    const sent = (await intake(app, id)).readings[0]!;
+    expect(sent.sentBack).toBe(true);
+    const again = await app.call("POST", `/api/readings/${sent.id}/back-to-why`);
+    expect(again.status).toBeGreaterThanOrEqual(400);
+    expect(JSON.stringify(again.body)).toContain("already went back to Why");
+  });
+
+  it("still goes back to Why from the tab after the question was answered Noted, and only once", async () => {
+    const app = await testApp(
+      { PREMISE_INTAKE__READING_HELD_COUNT: "2" },
+      {
+        script: script(
+          triager(() => routed("opinion", "held")),
+          reader((held) => ({
+            recurring: [{ line: "It is not useful", items: refs(held, () => true) }],
+            purpose: "People may not need it.",
+            back_to_why: "yes",
+            not_wanted: refs(held, () => true),
+          })),
+        ),
+      },
+    );
+    const id = await runningSoftware(app);
+    await say(app, id, "Not useful to me");
+    await say(app, id, "Not useful to anyone I know");
+    const ask = (await openAsks(app, id)).find((a) => a.title.includes("may not want this"))!;
+    await app.call("POST", `/api/asks/${ask.id}/answer`, {
+      answer: { kind: "text", text: "Noted" },
+    });
+    await app.settle();
+    const reading = (await intake(app, id)).readings[0]!;
+    expect(reading.sentBack).toBe(false);
+    const first = await app.call("POST", `/api/readings/${reading.id}/back-to-why`);
+    expect(first.status, JSON.stringify(first.body)).toBe(200);
+    await app.settle();
+    expect((await openAsks(app, id)).filter((a) => a.stage === "why")).toHaveLength(1);
+    const second = await app.call("POST", `/api/readings/${reading.id}/back-to-why`);
+    expect(second.status).toBeGreaterThanOrEqual(400);
+    await app.settle();
+    expect((await openAsks(app, id)).filter((a) => a.stage === "why")).toHaveLength(1);
   });
 });
 

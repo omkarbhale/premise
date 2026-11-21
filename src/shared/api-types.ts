@@ -749,6 +749,8 @@ export interface ReadingView {
   triggerWords: string;
   items: string[];
   status: "reading" | "done" | "failed";
+  /** The operator has already gone back to Why from this reading. */
+  sentBack: boolean;
   shortList: {
     wanted: ShortLineView[];
     recurring: ShortLineView[];

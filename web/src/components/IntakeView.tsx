@@ -333,9 +333,15 @@ function ReadingCard({
             the wrong problem may have been solved, or there may be other problems. Nothing changes
             unless you choose it.
           </p>
-          <button type="button" className="primary" disabled={busy} onClick={onBackToWhy}>
-            Go back to Why
-          </button>
+          {reading.sentBack ? (
+            <p className="muted small">
+              You went back to Why from this reading. The conversation tab has the questions.
+            </p>
+          ) : (
+            <button type="button" className="primary" disabled={busy} onClick={onBackToWhy}>
+              Go back to Why
+            </button>
+          )}
         </div>
       )}
       <Lines
