@@ -232,7 +232,7 @@ describe("first run, in a browser", () => {
   it("comes back to the software you were on after a refresh, or the one waiting on you", async () => {
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     await page.goto(running.link);
-    await page.getByRole("button", { name: "Start another" }).click();
+    await page.getByRole("button", { name: "Start or bring in" }).click();
     await page.keyboard.type("A tiny tool that counts the words in a file.");
     await page.keyboard.press("Control+Enter");
     const second = card(page, "Why build it: is this right?");
