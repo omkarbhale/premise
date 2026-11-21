@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { ConfigError, envNameFor, resolveDataFolder } from "./config/load.js";
 import { configurationReference } from "./config/reference.js";
+import { checkRecordFolder } from "./record/check-folder.js";
 import { formatDoctorReport, runDoctor } from "./doctor/doctor.js";
 import { newLink, start } from "./server/start.js";
 import { VERSION } from "./version.js";
@@ -11,6 +12,7 @@ Usage:
   premise start [--data <folder>] [--port <number>]   Start premise and print the link to open.
   premise new-link [--data <folder>]                  Print a new link; older links stop working.
   premise doctor [--data <folder>]                    Check this machine and the settings.
+  premise record check <folder>                       Check a software's record folder for mistakes.
   premise config reference                            Print every setting, as Markdown.
   premise --version
 
@@ -72,6 +74,14 @@ async function main(argv: string[]): Promise<number> {
         return 0;
       }
       console.error("Usage: premise config reference");
+      return 2;
+    case "record":
+      if (args.rest[0] === "check" && args.rest[1] !== undefined) {
+        const result = checkRecordFolder(args.rest[1]);
+        console.log(result.message);
+        return result.ok ? 0 : 1;
+      }
+      console.error("Usage: premise record check <folder>");
       return 2;
     case "--version":
     case "version":

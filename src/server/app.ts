@@ -10,6 +10,8 @@ import { type PremiseConfig, SETTINGS } from "../config/settings.js";
 import type { DoctorReport } from "../doctor/doctor.js";
 import type { AskAnswer, Overview, SettingsView } from "../shared/api-types.js";
 import { SIZE_CLASSES, STAGE_IDS, type SizeClass, type StageId } from "../shared/stages.js";
+import { registerRecordRoutes } from "../record/routes.js";
+import type { RecordKeeper } from "../record/record-keeper.js";
 import { type Database, recordEvent } from "../storage/database.js";
 import type { UsageLedger } from "../usage-ledger/usage-ledger.js";
 import { VERSION } from "../version.js";
@@ -25,6 +27,8 @@ export interface AppDeps {
   schemaVersion: number;
   services: SessionServices;
   ledger: UsageLedger;
+  /** Reads a software's lasting record for the page. */
+  record?: RecordKeeper;
   setup: DoctorReport;
   /** premise's tools for agents, served at /mcp; each call carries its session's own token. */
   tools?: AgentToolServer;
@@ -194,6 +198,8 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
         });
       }
     });
+
+    if (deps.record) registerRecordRoutes(api, deps.record);
 
     api.get("/api/overview", async (): Promise<Overview> => {
       const [softwares, activity, weekly] = await Promise.all([

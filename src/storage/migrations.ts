@@ -123,6 +123,32 @@ export const MIGRATIONS: readonly Migration[] = [
       ALTER TABLE softwares ADD COLUMN idea TEXT NOT NULL DEFAULT '';
     `,
   },
+  {
+    version: 3,
+    name: "record-changes",
+    sql: `
+      CREATE TABLE record_changes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        software_id TEXT NOT NULL REFERENCES softwares(id),
+        proposed_by TEXT,
+        reason TEXT NOT NULL,
+        operations TEXT NOT NULL,
+        status TEXT NOT NULL
+          CHECK (status IN ('rejected', 'reviewing', 'at-say-back', 'accepted', 'committed')),
+        diagnostics TEXT NOT NULL DEFAULT '[]',
+        base_hashes TEXT NOT NULL DEFAULT '{}',
+        new_files TEXT NOT NULL DEFAULT '{}',
+        assigned TEXT NOT NULL DEFAULT '[]',
+        touched TEXT NOT NULL DEFAULT '[]',
+        say_back_for TEXT NOT NULL DEFAULT '[]',
+        review TEXT,
+        commit_sha TEXT,
+        created TEXT NOT NULL,
+        updated TEXT NOT NULL
+      );
+      CREATE INDEX record_changes_software ON record_changes(software_id);
+    `,
+  },
 ];
 
 export const CURRENT_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

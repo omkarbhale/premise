@@ -23,7 +23,8 @@ Each software premise builds has a lasting record in its repository, in a `premi
 - `exists.md`: what already exists, with sources, and the outcome: do not build, build on something, or build something different. `E-n`.
 - `what.md`: what the software must do, each with priority must, should or could. `W-n`.
 - `taste.md`: what roles said about areas they claimed. `T-n`.
-- `decisions.md`: decisions, with reasons and rejected alternatives. `D-n`.
+- `decisions.md`: decisions, with reasons and rejected alternatives. `D-n`. Write each as the decision, then `Reason: ...`, then `Rejected: ...`.
+- `milestones.md`: the software's milestones, in order. `M-n`. A `wait` mark means premise stops there for the operator.
 - `run.md`: how to build, start and open the software.
 - Intake items are `I-n`. They live in premise's database, not in the repository.
 

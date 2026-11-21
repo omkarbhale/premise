@@ -8,7 +8,7 @@ One product that takes software from an idea to running software, and keeps taki
 
 The full statement is in [VISION.md](VISION.md).
 
-> **Status: being built.** The owner said to build the whole of premise ([0130](docs/decisions/0130-the-build-starts-and-covers-all-of-premise.md)). The foundation is in (configuration, storage, the work queue, a scripted agent that stands in for Claude, a mock of usage-ledger, the setup check), and so is the page with its server: start a software from an idea and walk it through all eleven stages. The real agent runner is in too: Claude Code run headless, each session confined by its sandbox, off unless you turn it on. Until the line engine is built, a stand-in walks the line with fixed drafts and the page labels it ([0154](docs/decisions/0154-a-stand-in-line-until-the-line-engine-exists.md), [roadmap](docs/product/roadmap.md)). Questions that were open with the owner were chosen for the owner and can be corrected ([open questions](docs/open-questions.md)).
+> **Status: being built.** The owner said to build the whole of premise ([0130](docs/decisions/0130-the-build-starts-and-covers-all-of-premise.md)). The foundation is in (configuration, storage, the work queue, a scripted agent that stands in for Claude, a mock of usage-ledger, the setup check), so is the record keeper (each software's lasting record, its trace trailers and its own git repository), and so is the page with its server: start a software from an idea and walk it through all eleven stages. The real agent runner is in too: Claude Code run headless, each session confined by its sandbox, off unless you turn it on. Until the line engine is built, a stand-in walks the line with fixed drafts and the page labels it ([0154](docs/decisions/0154-a-stand-in-line-until-the-line-engine-exists.md), [roadmap](docs/product/roadmap.md)). Questions that were open with the owner were chosen for the owner and can be corrected ([open questions](docs/open-questions.md)).
 
 ## Quick start
 
@@ -44,6 +44,8 @@ One TypeScript package ([0075](docs/decisions/0075-one-package.md)):
 | `src/queue/` | The work queue: jobs that survive a restart, the parallel limit, priority, the same-failure rule, the usage-limit pause | [work queue](docs/specs/work-queue.md) |
 | `src/agents/` | The agent runner's interface; the scripted agent used by every test; real Claude Code sessions (confinement, limits, stop and resume); the tools agents reach premise through | [agent runner](docs/specs/agent-runner.md), [agent tools](docs/specs/agent-tools.md) |
 | `src/usage-ledger/` | usage-ledger's interface, and its mock | [models and cost](docs/architecture/models-and-cost.md) |
+| `src/record/` | The record keeper: the record's format, proposed changes, trace trailers, the reading API; `premise record check <folder>` | [record keeper](docs/specs/record-keeper.md) |
+| `src/git/` | The one small module for git, and the repository host seam | [record keeper](docs/specs/record-keeper.md#54a-repositories) |
 | `src/doctor/` | The setup check | [page server](docs/specs/page-server.md#51-prerequisites) |
 | `src/server/` | The page server: the session token, Host and Origin checks, the API, the event stream, and the service interfaces the rest of premise answers | [page server](docs/specs/page-server.md) |
 | `src/demo/` | The stand-in line: walks a software through the eleven stages with fixed drafts until the line engine exists | [0154](docs/decisions/0154-a-stand-in-line-until-the-line-engine-exists.md) |

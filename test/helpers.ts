@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach } from "vitest";
 import { loadConfig } from "../src/config/load.js";
 import type { PremiseConfig } from "../src/config/settings.js";
+import { RecordKeeper } from "../src/record/record-keeper.js";
 
 const folders: string[] = [];
 
@@ -48,12 +49,14 @@ export async function testApp(env: NodeJS.ProcessEnv = {}) {
     env: {},
     run: () => Promise.resolve({ ok: true, output: "1.0" }),
   });
+  const record = new RecordKeeper({ db, config, today: () => "2026-11-22" });
   const app = await createApp({
     config,
     db,
     schemaVersion,
     services: session.services,
     ledger,
+    record,
     setup,
     webRoot: tempFolder(),
   });
@@ -83,5 +86,5 @@ export async function testApp(env: NodeJS.ProcessEnv = {}) {
       }
     }
   };
-  return { app, db, config, token, host, headers, call, settle, session, folder };
+  return { app, db, config, token, host, headers, call, settle, session, folder, record };
 }

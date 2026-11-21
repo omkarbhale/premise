@@ -139,3 +139,14 @@ export function setSoftwareSizeClass(db: Database, id: string, sizeClass: string
     detail: { sizeClass },
   });
 }
+
+/** Remember where a software's repository lives besides this machine. */
+export function setSoftwareRepository(db: Database, id: string, repository: string): void {
+  db.prepare("UPDATE softwares SET repository = ? WHERE id = ?").run(repository, id);
+  recordEvent(db, {
+    softwareId: id,
+    module: "softwares",
+    kind: "repository-set",
+    detail: { repository },
+  });
+}

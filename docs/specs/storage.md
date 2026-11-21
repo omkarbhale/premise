@@ -48,7 +48,8 @@ Storage is a module inside the one server process ([0067](../decisions/0067-one-
 | `premise.db` | The database (4.2) | The server only |
 | `config.json` | premise's settings ([0146](../decisions/0146-configuration-in-one-json-file.md), [configuration reference](../reference/configuration.md)) | The server at start |
 | `claude-config/` | Only if the settings point `agents.claude_config_folder` here; by default premise uses the owner's existing Claude Code login ([0140](../decisions/0140-the-owners-existing-claude-code-login.md)) | Claude Code, started by the agent runner |
-| `work/<software>/<job>/` | One working copy per agent session ([0086](../decisions/0086-working-copy-and-branch-per-change.md)) | The one agent confined to it |
+| `repos/<software>/` | The software's own repository on this machine, with its `premise/` record ([record keeper](record-keeper.md)) | The server only |
+| `work/<software>/<job>/` | One working copy per agent session ([0086](../decisions/0086-working-copy-and-branch-per-change.md)), cloned from `repos/<software>/` | The one agent confined to it |
 | `transcripts/<software>/<session>.jsonl` | Each agent session's streamed events | The server; people through the page |
 | `logs/<software>/` | Job logs, and the running software's logs ([runner](runner.md)) | The server |
 | `scenarios/<software>/` | The checker's scenarios ([0090](../decisions/0090-scenarios-out-of-the-builders-reach.md)) | Checker sessions only |
@@ -75,7 +76,7 @@ All tables live in `premise.db`. Times are UTC. "Software" is a row in `software
 | `claims` | Area claimed for taste | software, role label, area in its own words, status (open, released) |
 | `jobs` | Unit of work in the queue ([work queue](work-queue.md)) | id, software, kind, stage, record items served, payload, status, attempts, failure signature, waiting ask, result, created, started, finished |
 | `agent_sessions` | Agent session started | id, job, agent role, tier, model alias, runtime session id, working copy, started, ended, end reason, turns. The tool token is never stored ([0150](../decisions/0150-agent-tools-over-plain-http-mcp-tokens-in-memory.md)) |
-| `record_changes` | Proposed change to a lasting record | software, proposing session, operations, status (proposed, rejected, reviewing, at-say-back, accepted, committed), diagnostics, review, commit |
+| `record_changes` | Proposed change to a lasting record | software, proposing session, reason, operations, status (rejected, reviewing, at-say-back, accepted, committed), diagnostics, the files it would write and a hash of each file it was checked against, items touched, items for the say-back, review, commit |
 | `reviews` | Reviewer verdict | record change or foundation decision, consistent or conflicting, conflicting item, agree or object, reasons |
 | `verdicts` | Item judged by a check | check job, commit, item, verdict (met, not-met, could-not-check), evidence paths, round |
 | `intake_items` | Item taken in | software, number (`I-n`), source, sender reference, text, received, kind, items touched, size, touches floor, route, status (taken, held, done, closed), joined to, reading |
