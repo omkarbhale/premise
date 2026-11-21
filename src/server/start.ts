@@ -10,6 +10,7 @@ import type { PremiseConfig } from "../config/settings.js";
 import { type CommandRunner, formatDoctorReport, runDoctor } from "../doctor/doctor.js";
 import { standInScript } from "../demo/stand-in-script.js";
 import type { WorkQueue } from "../queue/work-queue.js";
+import { RecordKeeper } from "../record/record-keeper.js";
 import { openDatabase, recordEvent } from "../storage/database.js";
 import { createUsageLedger } from "../usage-ledger/mock-usage-ledger.js";
 import { createApp } from "./app.js";
@@ -135,6 +136,7 @@ export async function start(
     schemaVersion,
     services,
     ledger,
+    record: new RecordKeeper({ db, config }),
     setup,
     tools,
     webRoot: options.webRoot ?? defaultWebRoot(),

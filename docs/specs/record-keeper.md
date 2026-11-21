@@ -1,6 +1,6 @@
 # Record keeper specification
 
-Status: specification, being built ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Related: [the record](../architecture/the-record.md), [agent tools](agent-tools.md), [line engine](line-engine.md), [runner](runner.md), [storage](storage.md).
+Status: built, except the reading of `recovered-trace.md` and the reviewer's own table ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md), [0159](../decisions/0159-how-the-record-keeper-is-built.md)); the code is in `src/record/` and `src/git/`. Related: [the record](../architecture/the-record.md), [agent tools](agent-tools.md), [line engine](line-engine.md), [runner](runner.md), [storage](storage.md).
 
 ## 1. Purpose
 
@@ -34,7 +34,8 @@ Not responsible for:
 | Propose change | [Agent tools](agent-tools.md) (`record_propose`), line engine (from a closed draft) | Software, proposing session or stage, operations (add, replace, strike), reason | Change id and status: `rejected`, `reviewing`, `at-say-back`, `accepted`; diagnostics | `MALFORMED`, `UNKNOWN_ITEM`, `CONFLICT`, `NOT_ALLOWED` |
 | Apply review | Line engine, when a `review_submit` arrives | Change id, review | New status | none |
 | Write and commit | Line engine, when a change is accepted | Change id, working copy, items it serves | A commit in the working copy, with the trailer | `MALFORMED` (file changed under it) |
-| Read | [Agent tools](agent-tools.md) (`record_read`), page, reporter | Software, IDs or files, commit | Parsed items | `UNKNOWN_ITEM` |
+| Read | [Agent tools](agent-tools.md) (`record_read`), page, reporter | Software, IDs or files, commit | Parsed items; one item's history (what it replaced, what replaced it, every commit naming it); a software's effort plan (priority and milestones with their waits) | `UNKNOWN_ITEM` |
+| Mark | Line engine | Item ID; a milestone's wait, or confirmed | The same change flow, the ID unchanged | `UNKNOWN_ITEM`, `NOT_ALLOWED` |
 | Check trailers | Server, before every push | Commits to push | Pass, or the commits that fail and why | none |
 
 ## 4. Data owned
@@ -52,6 +53,7 @@ Not responsible for:
 | `what.md` | What it must do, each with priority must, should or could | `W-n` |
 | `taste.md` | What people said about areas they claimed | `T-n` |
 | `decisions.md` | Decisions, with reasons and rejected alternatives | `D-n` |
+| `milestones.md` | The software's milestones, in order, each with a wait mark when premise stops after it ([0160](../decisions/0160-milestones-are-record-items.md)) | `M-n` |
 | `run.md` | How to build, start and open the software | none |
 | `recovered-trace.md` | For existing software only: best-guess links from old code to items, each marked as a guess ([0121](../decisions/0121-recovered-trace-file.md)) | none |
 
@@ -60,11 +62,12 @@ Not responsible for:
 The record is Markdown, one item per list line, each with a stable ID ([0082](../decisions/0082-record-as-markdown-with-ids.md)). It is lists ([0029](../decisions/0029-lists-over-long-paragraphs.md)).
 
 - `- [W-7] People can export their list as a CSV file. (must; from: operator; 2026-11-21)`
-- The parentheses hold, in order: priority (W items only), `from:`, and the date.
+- The parentheses hold, in order: priority (W items only), `from:`, `replaces:` when it replaces, `foundation` (D items), `wait` (M items), `confirmed:` and the date, which is always last ([0159](../decisions/0159-how-the-record-keeper-is-built.md)).
 - `from:` is a role from `who.md`, or `assumed` for an assumption of premise's that nobody struck, or `recovered` for an item rebuilt from existing software.
 - A changed item gets a new ID and `replaces: W-3`. The old line stays, struck through, with the reason.
-- A dropped item is struck through with its reason, not deleted, so rejected alternatives stay ([0025](../decisions/0025-two-kinds-of-record.md)).
-- A `D` item states the decision, its reason, and the alternative rejected, and is marked `foundation` when it is one (language, framework, storage, how it runs, data model, who can get in).
+- A dropped item is struck through with its reason, not deleted, so rejected alternatives stay ([0025](../decisions/0025-two-kinds-of-record.md)): `- ~~[W-3] text (marks)~~ struck 2026-11-22: reason`. An item's text and a reason are each one line; a line break in either is refused.
+- Files hold headings and list items only (`run.md` is free text). An email address in an item is refused.
+- A `D` item states the decision, then `Reason: ...` and `Rejected: ...`, and is marked `foundation` when it is one (language, framework, storage, how it runs, data model, who can get in).
 - The record names roles, never people ([0081](../decisions/0081-nothing-about-people-in-the-repository.md)). Intake is cited only as `I-n`.
 
 ## 5. Behaviour
@@ -96,6 +99,13 @@ The record is Markdown, one item per list line, each with a stable ID ([0082](..
 - Before every push, the server asks the record keeper to check every commit being pushed. A commit without the trailer, or with an ID that does not exist in the record at that commit, fails the push. The job goes back to the builder with the reason.
 - From any line of code, `git blame` leads to a commit and its items; from any item, to every commit that names it. That tells a wrong record apart from a drifted build ([0013](../decisions/0013-mismatch-of-intent-is-the-mistake-that-matters.md)).
 
+### 5.4a Repositories
+
+- A software's repository is created on this machine with no commits; its first commit is its first accepted change ([0159](../decisions/0159-how-the-record-keeper-is-built.md)).
+- Jobs work in clones on their own branches and are merged with a merge commit carrying their trailers. All git work is in one small module (`src/git/`); it never forces a push.
+- A remote is added and pushed to after the trailer check. Creating a remote on GitHub is an interface with a step that is not approved yet ([0161](../decisions/0161-github-repository-step-not-approved.md)); tests use a local bare repository.
+- `premise record check <folder>` checks a record folder on disk and says what is wrong and where.
+
 ### 5.5 Existing software
 
 - The drafter's recovered items are written with `from: recovered` and stay unconfirmed until the say-back over the whole recovered record passes ([0019](../decisions/0019-existing-software-through-the-same-line.md)).
@@ -108,6 +118,9 @@ The record is Markdown, one item per list line, each with a stable ID ([0082](..
 |---|---|---|
 | `record.folder` | `premise` | Folder name at the repository root |
 | `record.trailer` | `Premise-Trace` | Commit trailer name |
+| `record.default_branch` | `main` | Branch a new software's repository starts on |
+| `record.commit_author_name` | `premise` | Name on the commits premise makes |
+| `record.commit_author_email` | `premise@localhost` | Address on the commits premise makes |
 
 The record format is not configurable per software; it stays with premise ([0106](../decisions/0106-per-software-and-with-premise.md)).
 
@@ -138,7 +151,7 @@ The record format is not configurable per software; it stays with premise ([0106
 
 ## 11. Milestones
 
-- Milestone 1 step 2: everything above except `recovered-trace.md`; the `from:` values used are `operator` and `assumed`.
+- Milestone 1 step 2: everything above except `recovered-trace.md` (including `milestones.md`); the `from:` values used are `operator` and `assumed`.
 - Milestone 3: `from:` names every role; `taste.md` is filled from claims ([0102](../decisions/0102-taste-proposals-before-building.md)).
 - Milestone 4: `I-n` in trailers for work from every intake source.
 - Milestone 6: recovered items, confirmation by say-back, and `recovered-trace.md`.

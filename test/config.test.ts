@@ -32,6 +32,23 @@ describe("configuration", () => {
     expect(config.softwares.default_priority).toBe(3);
     expect(config.softwares.default_milestone_waits).toBe(false);
     expect(config.server.host).toBe("127.0.0.1");
+    expect(config.record).toEqual({
+      folder: "premise",
+      trailer: "Premise-Trace",
+      default_branch: "main",
+      commit_author_name: "premise",
+      commit_author_email: "premise@localhost",
+    });
+  });
+
+  it("refuses a record folder or trailer name that cannot be used", () => {
+    const problems = problemsOf(() =>
+      loadConfig({
+        dataFolder: tempFolder(),
+        env: { PREMISE_RECORD__FOLDER: "../x", PREMISE_RECORD__TRAILER: "bad trailer" },
+      }),
+    );
+    expect(problems.map((p) => p.key).sort()).toEqual(["record.folder", "record.trailer"]);
   });
 
   it("reads config.json in the data folder, and environment variables win over it", () => {

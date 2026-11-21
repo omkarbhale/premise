@@ -64,6 +64,21 @@ const realLedgerNotBuilt = summarised((value) => {
     : null;
 }, `"mock-fixed", "mock-random" or "real" (not built yet)`);
 
+const folderName: Check = (value) =>
+  typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value)
+    ? null
+    : `must be a folder name with letters, digits, dots, dashes or underscores; it is ${JSON.stringify(value)}`;
+
+const trailerName: Check = (value) =>
+  typeof value === "string" && /^[A-Za-z][A-Za-z0-9-]*$/.test(value)
+    ? null
+    : `must be letters, digits and dashes, starting with a letter; it is ${JSON.stringify(value)}`;
+
+const branchName: Check = (value) =>
+  typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(value) && !value.includes("..")
+    ? null
+    : `must be a branch name with letters, digits, dots, dashes, underscores or slashes; it is ${JSON.stringify(value)}`;
+
 const STRONGEST: AgentTaskKind[] = [
   "draft",
   "research",
@@ -288,6 +303,49 @@ export const SETTINGS: readonly Setting[] = [
     record: "0157",
   },
   {
+    key: "record.folder",
+    default: "premise",
+    check: summarised(
+      folderName,
+      "a folder name with letters, digits, dots, dashes or underscores",
+    ),
+    meaning: "Name of the folder at the root of each software's repository that holds its record.",
+    record: "0080",
+  },
+  {
+    key: "record.trailer",
+    default: "Premise-Trace",
+    check: summarised(trailerName, "letters, digits and dashes, starting with a letter"),
+    meaning:
+      "Name of the line every commit premise makes carries, naming the record items the commit serves.",
+    record: "0083",
+  },
+  {
+    key: "record.default_branch",
+    default: "main",
+    check: summarised(
+      branchName,
+      "a branch name with letters, digits, dots, dashes, underscores or slashes",
+    ),
+    meaning: "Branch name a new software's repository starts on.",
+    record: "0159",
+  },
+  {
+    key: "record.commit_author_name",
+    default: "premise",
+    check: summarised(text, "a name"),
+    meaning: "Name on the commits premise makes in a software's repository.",
+    record: "0159",
+  },
+  {
+    key: "record.commit_author_email",
+    default: "premise@localhost",
+    check: summarised(text, "an address"),
+    meaning:
+      "Address on the commits premise makes in a software's repository. The repository may be public, so keep it free of personal addresses.",
+    record: "0159",
+  },
+  {
     key: "doctor.command_timeout_seconds",
     default: 10,
     check: summarised(wholeNumber(1, 120), "1 to 120"),
@@ -332,5 +390,12 @@ export interface PremiseConfig {
     default_weekly_share_percent: number | null;
   };
   page: { notifications: PageNotifications };
+  record: {
+    folder: string;
+    trailer: string;
+    default_branch: string;
+    commit_author_name: string;
+    commit_author_email: string;
+  };
   doctor: { command_timeout_seconds: number };
 }

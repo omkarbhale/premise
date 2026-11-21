@@ -96,3 +96,35 @@ describe("page server: overview and settings", () => {
     expect(model).toMatchObject({ value: "opus", changed: false });
   });
 });
+
+describe("record routes", () => {
+  it("reads a software's record through the API, and says plainly when an item is unknown", async () => {
+    const { call, record: keeper } = await testApp();
+    await call("POST", "/api/softwares", { idea: "A tool that renames photos by date" });
+    const software = (await call("GET", "/api/overview")).body.softwares[0];
+    const copy = keeper.createWorkingCopy(software.id, "a", "job-a");
+    const change = keeper.propose(
+      software.id,
+      [{ op: "add", kind: "Y", text: "People lose track.", from: "operator" }],
+      "start",
+      { workingCopy: copy },
+    );
+    keeper.applyReview(change.changeId, { verdict: "consistent" });
+    keeper.write(change.changeId, { workingCopy: copy });
+    keeper.mergeJob(software.id, copy, "job-a");
+    const base = `/api/softwares/${software.id}`;
+    const list = await call("GET", `${base}/record-items`);
+    expect(list.body.items.map((i: { id: string }) => i.id)).toEqual(["Y-1"]);
+    const one = await call("GET", `${base}/record/Y-1`);
+    expect(one.body.text).toBe("People lose track.");
+    const history = await call("GET", `${base}/record/Y-1/history`);
+    expect(history.body.commits.length).toBeGreaterThan(0);
+    const missing = await call("GET", `${base}/record/W-9`);
+    expect(missing.status).toBe(404);
+    expect(missing.body.error).toContain("not in this software's record");
+    const plan = await call("GET", `${base}/effort-plan`);
+    expect(plan.body).toMatchObject({ priority: 3, milestones: [] });
+    const badKind = await call("GET", `${base}/record-items?kind=Z`);
+    expect(badKind.status).toBe(400);
+  });
+});

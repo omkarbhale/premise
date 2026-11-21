@@ -38,6 +38,11 @@ A wrong setting stops premise at start with a message naming the setting and why
 | `softwares.default_milestone_waits` | `false` | true or false | Whether a new software stops after each of its milestones until you say go on. | [0129](../decisions/README.md) |
 | `softwares.default_weekly_share_percent` | `null` | 1 to 100, or null | Share of weekly usage a new software may use. null means no share is set. | [0128](../decisions/README.md) |
 | `page.notifications` | `"offer"` | "offer" or "off" | "offer": the page offers browser notifications for new questions, and asks the browser only when you accept. "off": it never offers them. | [0157](../decisions/README.md) |
+| `record.folder` | `"premise"` | a folder name with letters, digits, dots, dashes or underscores | Name of the folder at the root of each software's repository that holds its record. | [0080](../decisions/README.md) |
+| `record.trailer` | `"Premise-Trace"` | letters, digits and dashes, starting with a letter | Name of the line every commit premise makes carries, naming the record items the commit serves. | [0083](../decisions/README.md) |
+| `record.default_branch` | `"main"` | a branch name with letters, digits, dots, dashes, underscores or slashes | Branch name a new software's repository starts on. | [0159](../decisions/README.md) |
+| `record.commit_author_name` | `"premise"` | a name | Name on the commits premise makes in a software's repository. | [0159](../decisions/README.md) |
+| `record.commit_author_email` | `"premise@localhost"` | an address | Address on the commits premise makes in a software's repository. The repository may be public, so keep it free of personal addresses. | [0159](../decisions/README.md) |
 | `doctor.command_timeout_seconds` | `10` | 1 to 120 | How long the setup check waits for each program to answer. |  |
 
 ## Per type of task

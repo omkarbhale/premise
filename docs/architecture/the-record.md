@@ -26,6 +26,7 @@ The record is what the vision calls the lasting record: purpose, users, what the
   - `what.md`: what it must do, each with priority must, should or could (`W-n`);
   - `taste.md`: what people said about areas they claimed (`T-n`);
   - `decisions.md`: decisions, with reasons and rejected alternatives (`D-n`);
+  - `milestones.md`: the software's milestones, in order, each with a wait mark where premise stops after it (`M-n`, [0160](../decisions/0160-milestones-are-record-items.md));
   - `run.md`: how to build, start and open the software. The checker runs it from a clean copy every time, so it cannot go stale without the check failing.
 - One item per line, for example: `- [W-7] People can export their list as a CSV file. (must; from: operator; 2026-11-21)`.
   - `from:` is a role, or `assumed` for an assumption of premise's that nobody struck.
