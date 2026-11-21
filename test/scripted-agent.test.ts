@@ -19,6 +19,12 @@ const request = (over: Partial<AgentRequest> = {}): AgentRequest => ({
 });
 
 describe("scripted agent", () => {
+  it("rejects a usage-limit reset_at that is not a date", () => {
+    expect(() =>
+      parseScript({ rules: [{ end: { outcome: "usage-limit", reset_at: "tomorrow" } }] }),
+    ).toThrow(/reset_at/);
+  });
+
   it("ends done at once when no rule matches", async () => {
     const session = new ScriptedAgentRunner().start(request(), () => {});
     expect(session.sessionId).toBe("scripted-7-1");

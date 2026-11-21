@@ -70,6 +70,13 @@ export function parseScript(value: unknown, source = "the script"): AgentScript 
     if (rule.end.outcome === "failed" && typeof rule.end.failure !== "string") {
       fail(`${where} fails, so it must name the failure (a "failure" text)`);
     }
+    if (
+      rule.end.outcome === "usage-limit" &&
+      rule.end.reset_at != null &&
+      (typeof rule.end.reset_at !== "string" || Number.isNaN(Date.parse(rule.end.reset_at)))
+    ) {
+      fail(`${where} has a reset_at that is not a date such as 2026-11-21T11:00:00Z`);
+    }
     if (rule.delay_ms !== undefined && (!Number.isInteger(rule.delay_ms) || rule.delay_ms < 0)) {
       fail(`${where} has a delay_ms that is not a whole number of milliseconds`);
     }

@@ -341,10 +341,13 @@ export class WorkQueue {
     this.clearResumeTimer();
     if (this.closed || !state.paused || !state.resumeAt) return;
     const delay = Math.max(0, Date.parse(state.resumeAt) - this.clock().getTime());
-    this.resumeTimer = setTimeout(() => {
-      this.resumeTimer = null;
-      this.tick();
-    }, Math.min(delay, 2 ** 31 - 1));
+    this.resumeTimer = setTimeout(
+      () => {
+        this.resumeTimer = null;
+        this.tick();
+      },
+      Math.min(delay, 2 ** 31 - 1),
+    );
     this.resumeTimer.unref();
   }
 
@@ -403,7 +406,11 @@ export class WorkQueue {
             .prepare("UPDATE jobs SET failure_signature = ?, same_failure_count = ? WHERE id = ?")
             .run(outcome.failureSignature, same, id);
           if (same >= this.options.config.queue.same_failure_limit) {
-            this.closeJob(job, "stuck", `The same failure happened ${same} times: ${outcome.summary}`);
+            this.closeJob(
+              job,
+              "stuck",
+              `The same failure happened ${same} times: ${outcome.summary}`,
+            );
           } else {
             this.requeue(job, `The previous attempt failed: ${outcome.summary}`);
           }
@@ -481,7 +488,9 @@ export class WorkQueue {
 
   private pauseAllInside(reason: string, resetAt: string | null): void {
     const fallback = this.options.config.queue.usage_pause_fallback_minutes;
-    const resumeAt = resetAt ?? new Date(this.clock().getTime() + fallback * 60_000).toISOString();
+    const nowMs = this.clock().getTime();
+    const given = resetAt === null ? Number.NaN : Date.parse(resetAt);
+    const resumeAt = given > nowMs ? resetAt! : new Date(nowMs + fallback * 60_000).toISOString();
     const state = { paused: true, reason, resumeAt };
     this.setState(state);
     this.armResumeTimer(state);

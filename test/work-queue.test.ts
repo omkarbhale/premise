@@ -199,6 +199,21 @@ describe("work queue", () => {
     expect(queue.state().resumeAt).toBe("2026-11-21T10:30:00.000Z");
   });
 
+  it("uses the fixed wait when the reset time is unreadable or already past", () => {
+    const time = new Date("2026-11-21T10:00:00Z");
+    const { queue } = setup(
+      { rules: [] },
+      { PREMISE_QUEUE__USAGE_PAUSE_FALLBACK_MINUTES: "30" },
+      () => time,
+    );
+    queue.pauseAll("limit", "tomorrow");
+    expect(queue.state().resumeAt).toBe("2026-11-21T10:30:00.000Z");
+    queue.resumeAll();
+    queue.pauseAll("limit", "2026-11-21T09:00:00Z");
+    expect(queue.state().resumeAt).toBe("2026-11-21T10:30:00.000Z");
+    void queue.close();
+  });
+
   it("does not start work for a software stopped at a milestone wait", () => {
     const { db, queue, software } = setup(hangBuilds);
     setSoftwareState(
