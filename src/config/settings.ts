@@ -414,7 +414,7 @@ export const SETTINGS: readonly Setting[] = [
     check: summarised(wholeNumber(1, 20), "1 to 20"),
     meaning:
       "How many check rounds a must item may fail before premise stops building it and asks you what to do. Each failed round sends the change back to the builder with the checker's evidence.",
-    record: "0185",
+    record: "0186",
   },
   {
     key: "line.remote",

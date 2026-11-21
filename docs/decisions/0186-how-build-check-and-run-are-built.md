@@ -1,4 +1,4 @@
-# 0185. How Build, Check and Run are built; what a check that cannot pass leads to
+# 0186. How Build, Check and Run are built; what a check that cannot pass leads to
 
 - Status: Accepted; points 9 and 10 chosen for the owner, open to the owner's correction
 - Scope: Making premise
@@ -56,4 +56,4 @@ Each is a builders' choice, open to correction, unless marked as chosen for the 
 
 ## Related
 
-[0030](0030-independent-check.md), [0088](0088-turn-and-time-limits.md), [0089](0089-checker-in-a-fresh-session.md), [0090](0090-scenarios-out-of-the-builders-reach.md), [0093](0093-server-merges-no-pull-requests.md), [0153](0153-confinement-names-the-folders-that-exist-at-start.md), [0186](0186-kept-demos-and-one-real-run.md).
+[0030](0030-independent-check.md), [0088](0088-turn-and-time-limits.md), [0089](0089-checker-in-a-fresh-session.md), [0090](0090-scenarios-out-of-the-builders-reach.md), [0093](0093-server-merges-no-pull-requests.md), [0153](0153-confinement-names-the-folders-that-exist-at-start.md), [0187](0187-kept-demos-and-one-real-run.md).

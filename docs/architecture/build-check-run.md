@@ -62,7 +62,7 @@ Carved from section 5 of the plan (the confinement and security-default choices 
 
 ## As built
 
-[0185](../decisions/0185-how-build-check-and-run-are-built.md), in `src/build`, one milestone at a time:
+[0186](../decisions/0186-how-build-check-and-run-are-built.md), in `src/build`, one milestone at a time:
 
 - Build opens with a checker job that writes the scenarios from the record into `scenarios/` in premise's data folder. Then each task of the milestone is one builder job, on its own branch, starting from the commit the task before it made. premise checks what each job left (a commit whose trace trailer names record items) and takes the branch into the software's repository; the same problem three times stops the task and premise asks the operator. A task whose builder asked a person waits; the next task goes on.
 - Check is one fresh checker job on its own clone of the exact commit, with the scenarios in its brief and nothing of the builder's. It judges the items the milestone serves and the must items of milestones already landed. A must item not met, or a blocking finding, starts a fix round: one builder task with the checker's evidence. At `line.check_rounds_before_stop` rounds premise stops and asks the operator: more rounds, or land it as it is.

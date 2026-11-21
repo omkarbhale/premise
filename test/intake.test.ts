@@ -18,13 +18,17 @@ import type {
 } from "../src/shared/api-types.js";
 import { openDatabase } from "../src/storage/database.js";
 import { CRASHING_SERVER, makeSoftware, runBlock } from "./fixtures/fixture-software.js";
-import { tempFolder, testApp, testConfig, uniquePortRange } from "./helpers.js";
+import { tempFolder, testApp as realApp, testConfig, uniquePortRange } from "./helpers.js";
+import { DoNothingLaterStages } from "./stand-in-later.js";
 
 /**
  * Intake in a thin form (docs/specs/intake.md), with the scripted agent as triager, sizer and
  * reader, and this file as the operator. Each software is first walked to the end of its line, so
- * it rests at Intake as a running demo software (its Build, Check and Run are the labelled stand-in).
+ * it rests at Intake as a running demo software (its Build, Check and Run finish at once).
  */
+
+const testApp = (...[env, options]: Parameters<typeof realApp>) =>
+  realApp(env, { ...options, later: new DoNothingLaterStages() });
 
 type App = Awaited<ReturnType<typeof testApp>>;
 type Triage = Record<string, unknown>;

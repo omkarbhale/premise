@@ -31,7 +31,7 @@ import { RecordWriter } from "../line/record-writer.js";
 
 /**
  * Build, Check and Run, for one milestone at a time (docs/architecture/build-check-run.md,
- * decisions 0086-0092, 0122, 0185):
+ * decisions 0086-0092, 0122, 0186):
  *
  * - Build: the checker first writes its scenarios from the record (0122); then each task of the
  *   milestone's working plan is one builder job, in its own working copy on a branch of its own,
@@ -267,7 +267,7 @@ export class BuildCheckRun implements LaterStages {
   }
 
   /**
-   * Which record milestone each plan task belongs to (decision 0185): the one it names, matched by
+   * Which record milestone each plan task belongs to (decision 0186): the one it names, matched by
    * the planner's milestone text; otherwise task 1 goes to the first milestone, task 2 to the
    * second, and every task after that to the last.
    */
@@ -291,7 +291,7 @@ export class BuildCheckRun implements LaterStages {
   /**
    * The items a check judges: those the milestone's tasks serve, plus every must item served by a
    * milestone already landed, so nothing that worked is broken unseen. Items planned for a later
-   * milestone are not judged yet (decision 0185).
+   * milestone are not judged yet (decision 0186).
    */
   itemsToCheck(softwareId: string, milestone: string | null): string[] {
     const live = this.items(softwareId);

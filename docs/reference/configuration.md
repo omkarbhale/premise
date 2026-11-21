@@ -40,7 +40,7 @@ A wrong setting stops premise at start with a message naming the setting and why
 | `line.say_back_max_items` | `10` | 1 to 30 | Most items in a say-back: what premise understood and assumed, for you to strike. | [0028](../decisions/README.md) |
 | `line.why_items_min` | `3` | 1 to 20 | Fewest items the Why draft should have. The drafter is told the range. |  |
 | `line.why_items_max` | `7` | 1 to 30 | Most items the Why draft may have; a longer draft is sent back to the drafter. |  |
-| `line.check_rounds_before_stop` | `3` | 1 to 20 | How many check rounds a must item may fail before premise stops building it and asks you what to do. Each failed round sends the change back to the builder with the checker's evidence. | [0185](../decisions/README.md) |
+| `line.check_rounds_before_stop` | `3` | 1 to 20 | How many check rounds a must item may fail before premise stops building it and asks you what to do. Each failed round sends the change back to the builder with the checker's evidence. | [0186](../decisions/README.md) |
 | `line.remote` | `"github"` | "github", "local" or "none" | "github": at the end of Plan, premise asks you (through the gate) before creating the software's repository on your GitHub account; that step is not approved yet, so the software stays on this machine. "local": a second copy in the data folder's remotes folder, no question asked. "none": the software stays on this machine only. | [0161](../decisions/README.md) |
 | `line.splitting` | `true` | true or false | Whether the sizer may split a piece of work into parts that go through the line one after another. Only parts that are completely separate, or a part that is very long, are split. false keeps every piece whole. | [0170](../decisions/README.md) |
 | `line.split_max_parts` | `5` | 2 to 20 | Most parts the sizer may split one piece of work into. | [0184](../decisions/README.md) |
@@ -90,7 +90,7 @@ A wrong setting stops premise at start with a message naming the setting and why
 | `runner.stop_grace_seconds` | `5` | 0 to 120 | When running software is stopped, how long it gets to end by itself before it is ended forcibly. | [0162](../decisions/README.md) |
 | `runner.output_lines` | `200` | 10 to 5000 | How many of the latest lines of a running software's output the page can show. | [0162](../decisions/README.md) |
 | `runner.confinement` | `"bubblewrap"` | "bubblewrap" or "none" | "bubblewrap": running software sees only its own copy of the code, not your files or premise's data. "none": no confinement, only for a machine where bubblewrap cannot work; premise says so on the page. | [0163](../decisions/README.md) |
-| `runner.read_only_paths` | `[]` | a list of folder paths | Extra folders running software may read but not change, such as where Python is installed when that is under your home folder. The Node.js premise runs on is always included, unless it sits in your home folder itself or a folder above it. | [0163](../decisions/README.md) |
+| `runner.read_only_paths` | `[]` | a list of folder paths | Extra folders running software may read but not change, such as where Python is installed when that is under your home folder. The Node.js premise runs on is always included. | [0163](../decisions/README.md) |
 | `reports.max_lines` | `15` | 3 to 200 | How many lines a short report holds before the rest is behind the page's 'Show more detail' control. | [0164](../decisions/README.md) |
 | `doctor.command_timeout_seconds` | `10` | 1 to 120 | How long the setup check waits for each program to answer. |  |
 

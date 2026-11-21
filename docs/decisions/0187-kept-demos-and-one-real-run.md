@@ -1,4 +1,4 @@
-# 0186. The kept demos, and one real run with real agents
+# 0187. The kept demos, and one real run with real agents
 
 - Status: Accepted
 - Scope: Making premise
@@ -36,4 +36,4 @@
 
 ## Related
 
-[0185](0185-how-build-check-and-run-are-built.md).
+[0186](0186-how-build-check-and-run-are-built.md).

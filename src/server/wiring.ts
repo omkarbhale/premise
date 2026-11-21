@@ -96,7 +96,6 @@ export function createSession(options: {
     onGaveUp: (softwareId, failure) => taker.raise(softwareId, failure),
   });
   const reporter = new Reporter({ db, config, records: record, runner: runs, ledger }, config);
-  const briefs = new Briefs(options.docs ?? docsFolder());
   const build = new BuildCheckRun({ db, queue, config, keeper: record, briefs, runner: runs });
   const later: LaterStages = options.later ?? build;
   line = new LineEngine({

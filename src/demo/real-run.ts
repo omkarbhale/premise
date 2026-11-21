@@ -11,7 +11,7 @@ import { listChatMessages } from "../storage/chat.js";
 import type { OperatorAnswer } from "./demos.js";
 
 /**
- * One real run (decision 0186): a tiny command-line software taken through the whole line by real
+ * One real run (decision 0187): a tiny command-line software taken through the whole line by real
  * Claude Code agents, every type of task on model haiku at low effort, one session at a time, a
  * scripted operator answering, a local second copy instead of GitHub, and sandboxing on. It proves
  * premise's procedure with real agents, not the agents' intelligence, and uses the owner's Claude
