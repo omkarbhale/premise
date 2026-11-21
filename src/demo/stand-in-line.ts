@@ -940,7 +940,8 @@ export function validateAnswer(ask: Ask, answer: AskAnswer): string {
         if (item.decision === "edit") {
           if (ask.kind === "say-back")
             invalid("A say-back item can only be kept or struck. Say more in chat.");
-          if (typeof item.text !== "string" || !item.text.trim()) invalid("An edited item cannot be empty. Strike it instead.");
+          if (typeof item.text !== "string" || !item.text.trim())
+            invalid("An edited item cannot be empty. Strike it instead.");
         }
       }
       const count = (d: string) => answer.items.filter((i) => i.decision === d).length;
@@ -966,7 +967,10 @@ export function validateAnswer(ask: Ask, answer: AskAnswer): string {
       if (answer.kind !== "proposal" || !["accept", "change"].includes(answer.decision)) {
         return invalid("Accept the proposal, or say what to change.");
       }
-      if (answer.decision === "change" && (typeof answer.text !== "string" || !answer.text.trim())) {
+      if (
+        answer.decision === "change" &&
+        (typeof answer.text !== "string" || !answer.text.trim())
+      ) {
         return invalid("Say what to change.");
       }
       return answer.decision === "accept" ? "Accepted." : "Asked for changes.";

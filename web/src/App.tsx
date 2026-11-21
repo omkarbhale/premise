@@ -91,7 +91,10 @@ function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) 
   const openAsks = asks.state === "ready" ? asks.data : [];
 
   useTabTitle(openAsks.length);
-  useNotifications(asks.state === "ready" ? openAsks : null, overview.state === "ready" ? overview.data.page.notifications : "off");
+  useNotifications(
+    asks.state === "ready" ? openAsks : null,
+    overview.state === "ready" ? overview.data.page.notifications : "off",
+  );
 
   if (overview.state === "loading") {
     return (
