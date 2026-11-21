@@ -1,6 +1,6 @@
 # 0137. The first software through premise is usage-ledger
 
-- Status: Partly superseded by [0180](-premise-uses-real-agents-by-default.md): the first real run does not wait for the owner to allow real agent work; it is simply the owner's to start. Otherwise accepted, chosen for the owner; open to the owner's correction
+- Status: Partly superseded by [0180](0180-premise-uses-real-agents-by-default.md): the first real run does not wait for the owner to allow real agent work; it is simply the owner's to start. Otherwise accepted, chosen for the owner; open to the owner's correction
 - Scope: The plan
 - Date: 2026-11-21
 - Decided by: The assistant, for the owner, on the owner's instruction "choose for me" ([0136](0136-open-questions-chosen-for-the-owner.md)). Open to the owner's correction.

@@ -9,12 +9,12 @@ The owner asked the assistant to choose an answer to every question that was ope
 | Question | Chosen | Record |
 | --- | --- | --- |
 | When building starts | Now, for the whole of premise (the owner's own word) | [0130](decisions/0130-the-build-starts-and-covers-all-of-premise.md) |
-| Which software goes through premise first | usage-ledger: the owner needs it and premise depends on it. It runs with real agents, since premise uses real agents by default; demos and tests while making premise use the scripted agent | [0137](decisions/0137-first-software-is-usage-ledger.md), [0180](-premise-uses-real-agents-by-default.md) |
+| Which software goes through premise first | usage-ledger: the owner needs it and premise depends on it. It runs with real agents, since premise uses real agents by default; demos and tests while making premise use the scripted agent | [0137](decisions/0137-first-software-is-usage-ledger.md), [0180](decisions/0180-premise-uses-real-agents-by-default.md) |
 | Whether the builders' reading of effort and milestone waits is right | It stands, except that priority between softwares is a field on each software from milestone 1 (the work queue orders by it); usage shares stay with usage-ledger, mocked | [0138](decisions/0138-priority-is-a-field-from-milestone-1.md), [0129](decisions/0129-builders-reading-of-effort-and-milestone-waits.md) |
 | Whether finding out if real people want the software is "out" or "later" | Out, as written | [0139](decisions/0139-finding-out-if-people-want-it-stays-out.md) |
 | premise's own Claude Code login folder, or the owner's existing login | The owner's existing login; the folder is a setting | [0140](decisions/0140-the-owners-existing-claude-code-login.md) |
 | Creating GitHub repositories (milestone 1 step 1, point 7) | Automated tests use local git remotes only; the real GitHub step stays behind the gate and runs only on the owner's word | [0141](decisions/0141-github-repositories-in-tests-and-behind-the-gate.md) |
-| Which repository step the gate asks about, and when approvals for a kind arrive | Creating any repository on GitHub is gated, private or public; declining does not stop the line; approvals for a kind of action are in milestone 1, for one software | [0182](-how-the-gate-is-built.md) |
+| Which repository step the gate asks about, and when approvals for a kind arrive | Creating any repository on GitHub is gated, private or public; declining does not stop the line; approvals for a kind of action are in milestone 1, for one software | [0182](decisions/0182-how-the-gate-is-built.md) |
 | If bubblewrap or socat is missing | The setup check names what is missing and how to install it; premise refuses to start real agents without them | [0142](decisions/0142-setup-check-names-bubblewrap-and-socat.md) |
 | The other Premise project, and the name | The name stays premise | [0143](decisions/0143-the-name-stays-premise.md) |
 | Being reached from other machines | Stays off by default; no setting opens it | [0144](decisions/0144-reach-from-other-machines-stays-off.md) |
@@ -39,7 +39,7 @@ The owner's decisions of 2026-11-21 on scale, direction and order are records [0
 
 These are not open now; the plan says they wait for the owner when they arrive.
 
-- **The owner's Claude login while making premise.** Used only when strictly necessary, on Haiku at low effort, very sparingly ([0134](decisions/0134-the-owners-claude-login-only-when-strictly-necessary.md)); premise itself uses real agents by default ([0180](-premise-uses-real-agents-by-default.md)), so running usage-ledger through it needs no separate word.
+- **The owner's Claude login while making premise.** Used only when strictly necessary, on Haiku at low effort, very sparingly ([0134](decisions/0134-the-owners-claude-login-only-when-strictly-necessary.md)); premise itself uses real agents by default ([0180](decisions/0180-premise-uses-real-agents-by-default.md)), so running usage-ledger through it needs no separate word.
 - **The real GitHub step.** Creating a repository on the owner's GitHub runs once, on the owner's word ([0141](decisions/0141-github-repositories-in-tests-and-behind-the-gate.md)).
 - **Accounts, hosting for other people and public deployment.** Decided at milestones 5 and 7, which come last, after two real softwares have run through premise ([0045](decisions/0045-a-link-per-person-no-accounts.md), [0178](decisions/0178-hosting-for-others-accounts-and-public-deployment-pushed-later.md)).
 - **The checker on a different model, and tolerating commits made outside premise.** Put on later by the owner, one GitHub issue each ([issue 62](https://github.com/omkarbhale/premise/issues/62), [issue 63](https://github.com/omkarbhale/premise/issues/63)).

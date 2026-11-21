@@ -69,11 +69,11 @@ All tables live in `premise.db`. Times are UTC. "Software" is a row in `software
 | `softwares` | Software premise looks after | id, name, repository, size class ([0117](../decisions/0117-size-classes-set-stage-budgets.md)), current stage, state (active, paused-budget, paused-usage, waiting-milestone, ended), priority (1 most important to 5, [0138](../decisions/0138-priority-is-a-field-from-milestone-1.md)), milestone waits on or off, created |
 | `page_tokens` | Session link issued | token hash, created, revoked |
 | `feedback_links` | Software with a feedback page | software, token hash, created, revoked ([0119](../decisions/0119-feedback-page-has-its-own-link.md)) |
-| `work_items` | Piece of work going through the line (schema 5) | id, software, parent item, kind (software, milestone, module, intake), size class, current stage, state, its list of stages, the line engine's notes ([0181](-the-line-works-on-work-items.md)) |
+| `work_items` | Piece of work going through the line (schema 5) | id, software, parent item, kind (software, milestone, module, intake), size class, current stage, state, its list of stages, the line engine's notes ([0181](../decisions/0181-the-line-works-on-work-items.md)) |
 | `stage_runs` | Stage entered for a work item | work item, software, stage, entered, exited, exit reason, budget (turns, minutes), used |
 | `chat_messages` | Message said in the session | software, text, routed to (draft, intake, reporter), linked ask or intake item, time |
 | `asks` | Thing asked in the session | id, software, role label, kind (question, draft, say-back, proposal, approval, needed), items, waiting job, status (open, answered, withdrawn), answer, asked, answered |
-| `drafts` | Not a table: a stage draft is an ask of kind `draft`, with its items and their per-item states kept with the ask ([0183](-how-the-line-engine-is-built.md)) | |
+| `drafts` | Not a table: a stage draft is an ask of kind `draft`, with its items and their per-item states kept with the ask ([0183](../decisions/0183-how-the-line-engine-is-built.md)) | |
 | `claims` | Area claimed for taste | software, role label, area in its own words, status (open, released) |
 | `jobs` | Unit of work in the queue ([work queue](work-queue.md)) | id, software, kind, stage, record items served, payload, status, attempts, failure signature, waiting ask, result, created, started, finished |
 | `agent_sessions` | Agent session started | id, job, agent role, tier, model alias, runtime session id, working copy, started, ended, end reason, turns. The tool token is never stored ([0150](../decisions/0150-agent-tools-over-plain-http-mcp-tokens-in-memory.md)) |
@@ -141,7 +141,7 @@ Every job, ask, gate request and verdict also writes an `events` row, so that a 
 
 ## 11. Milestones
 
-- Milestone 1: the database, the data folder, every table above except `feedback_links`, `claims`, `readings` and `drafts` (drafts are asks, [0183](-how-the-line-engine-is-built.md)). Approvals for a kind of action are in milestone 1, since the gate is ([0182](-how-the-gate-is-built.md)). `asks` and `chat_messages` arrived with the page server in schema 2, and schema 2 also keeps each software's first words (`softwares.idea`). Schema 5 added `work_items`, `work_item_id` on `stage_runs`, `gate_requests` and `approvals`; the line engine replaced the stand-in line that wrote asks before ([0154](../decisions/0154-a-stand-in-line-until-the-line-engine-exists.md), [0183](-how-the-line-engine-is-built.md)).
+- Milestone 1: the database, the data folder, every table above except `feedback_links`, `claims`, `readings` and `drafts` (drafts are asks, [0183](../decisions/0183-how-the-line-engine-is-built.md)). Approvals for a kind of action are in milestone 1, since the gate is ([0182](../decisions/0182-how-the-gate-is-built.md)). `asks` and `chat_messages` arrived with the page server in schema 2, and schema 2 also keeps each software's first words (`softwares.idea`). Schema 5 added `work_items`, `work_item_id` on `stage_runs`, `gate_requests` and `approvals`; the line engine replaced the stand-in line that wrote asks before ([0154](../decisions/0154-a-stand-in-line-until-the-line-engine-exists.md), [0183](../decisions/0183-how-the-line-engine-is-built.md)).
 - Milestone 3: `claims`.
 - Milestone 4: `feedback_links`, `readings`, and every intake source.
 - Milestone 6: `recovered-trace.md` in the software's repository.

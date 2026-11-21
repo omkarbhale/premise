@@ -1,6 +1,6 @@
 # Line engine specification
 
-Status: Why to Plan built in `src/line/`; Build, Check, Run and Intake are behind a labelled scripted stand-in until the line hands them to their modules, and each milestone's report is written by the [reporter](reporter.md) ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md), [0183](-how-the-line-engine-is-built.md)). Related: [the line](../architecture/the-line.md), [record keeper](record-keeper.md), [work queue](work-queue.md), [page](page.md), [agent tools](agent-tools.md), [prompts](../prompts/README.md).
+Status: Why to Plan built in `src/line/`; Build, Check, Run and Intake are behind a labelled scripted stand-in until the line hands them to their modules, and each milestone's report is written by the [reporter](reporter.md) ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md), [0183](../decisions/0183-how-the-line-engine-is-built.md)). Related: [the line](../architecture/the-line.md), [record keeper](record-keeper.md), [work queue](work-queue.md), [page](page.md), [agent tools](agent-tools.md), [prompts](../prompts/README.md).
 
 ## 1. Purpose
 
@@ -44,9 +44,9 @@ Not responsible for:
 | Milestone wait | Page server (operator) | Software, milestone, wait or not | The software stops after that milestone, or no longer does ([5.8a](#58a-milestones-and-waits)) | none |
 | Job finished | Work queue | Job, result | Next step for the software | none |
 
-Asks are rows in `asks`; drafts are asks of kind `draft` (no separate table, [0183](-how-the-line-engine-is-built.md)); claims in `claims` ([storage](storage.md)).
+Asks are rows in `asks`; drafts are asks of kind `draft` (no separate table, [0183](../decisions/0183-how-the-line-engine-is-built.md)); claims in `claims` ([storage](storage.md)).
 
-As built: what goes through the line is a work item, and each software is one root item ([0181](-the-line-works-on-work-items.md)). Why, Who, What, the say-back and Plan each queue one agent job (What exists: one research job) with the published brief from `docs/prompts`. The later stages are behind the `LaterStages` interface, completed by a scripted stand-in that the page labels ([0183](-how-the-line-engine-is-built.md)).
+As built: what goes through the line is a work item, and each software is one root item ([0181](../decisions/0181-the-line-works-on-work-items.md)). Why, Who, What, the say-back and Plan each queue one agent job (What exists: one research job) with the published brief from `docs/prompts`. The later stages are behind the `LaterStages` interface, completed by a scripted stand-in that the page labels ([0183](../decisions/0183-how-the-line-engine-is-built.md)).
 
 ## 4. Data owned
 

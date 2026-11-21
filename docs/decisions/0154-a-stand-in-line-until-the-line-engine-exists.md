@@ -1,6 +1,6 @@
 # 0154. A stand-in line walks the page through the eleven stages until the line engine exists
 
-- Status: Partly superseded by [0183](-how-the-line-engine-is-built.md): the line engine replaces the stand-in up to Plan; Build, Check, Run, Report and Intake stay a stand-in until their own task
+- Status: Partly superseded by [0183](0183-how-the-line-engine-is-built.md): the line engine replaces the stand-in up to Plan; Build, Check, Run, Report and Intake stay a stand-in until their own task
 - Scope: Milestone 1
 - Date: 2026-11-21
 - Decided by: The builders, while building the page and the page server. The owner did not make this choice.

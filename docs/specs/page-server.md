@@ -72,7 +72,7 @@ Errors are returned as an HTTP status with a short message that says what to do:
 
 Built in milestone 1: every route above except claims, "more", readings, deleting working records and feedback pages, which come with the milestones that need them (section 11).
 
-The line engine and the gate answer their routes through the same small service interfaces (`src/server/services.ts`) ([0183](-how-the-line-engine-is-built.md), [0182](-how-the-gate-is-built.md)). The stand-in line of [0154](../decisions/0154-a-stand-in-line-until-the-line-engine-exists.md) is gone; only the later stages stand in, and the page labels them. The report and run routes are answered by the reporter and the runner.
+The line engine and the gate answer their routes through the same small service interfaces (`src/server/services.ts`) ([0183](../decisions/0183-how-the-line-engine-is-built.md), [0182](../decisions/0182-how-the-gate-is-built.md)). The stand-in line of [0154](../decisions/0154-a-stand-in-line-until-the-line-engine-exists.md) is gone; only the later stages stand in, and the page labels them. The report and run routes are answered by the reporter and the runner.
 
 ## 4. Data owned
 
@@ -90,7 +90,7 @@ Installed once and checked at every start; premise names whatever is missing ([w
 - on Linux and WSL2, bubblewrap and socat, which Claude Code's sandbox needs ([0087](../decisions/0087-agents-run-confined.md)). Installing them needs the owner's administrator password, so premise names them and the owner installs them;
 - usage-ledger, once it exists; until then a mock stands in ([0133](../decisions/0133-usage-ledger-is-mocked-until-it-exists.md)).
 
-Anything missing is printed, with exactly what to do. The same check runs on its own as `premise doctor`. premise starts without usage-ledger; it does not run real agents without Claude Code, the GitHub CLI or confinement ([0142](../decisions/0142-setup-check-names-bubblewrap-and-socat.md)). premise still starts: agent work is held, the page says what is missing and offers a look around with scripted agents, labelled as not real ([0180](-premise-uses-real-agents-by-default.md)). Scripted agents need none of them.
+Anything missing is printed, with exactly what to do. The same check runs on its own as `premise doctor`. premise starts without usage-ledger; it does not run real agents without Claude Code, the GitHub CLI or confinement ([0142](../decisions/0142-setup-check-names-bubblewrap-and-socat.md)). premise still starts: agent work is held, the page says what is missing and offers a look around with scripted agents, labelled as not real ([0180](../decisions/0180-premise-uses-real-agents-by-default.md)). Scripted agents need none of them.
 
 ### 5.2 The session
 

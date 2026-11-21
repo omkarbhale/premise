@@ -22,7 +22,7 @@ Each is a builders' choice, open to correction:
 6. **Chat while a list is open goes onto the list, then to the drafter.** The message is added at once as an item in the operator's words, and a `draft` job with the chat corrections brief may redraft the list. A drafter that says the message is "not about the draft" takes it off the list and it becomes intake. Otherwise chat is intake ("Taken as I-n").
 7. **A stage that ends without its draft asks the operator,** with "Try again" and "Try again with twice the budget", and says nothing was lost.
 8. **Plan:** the planner submits its decisions, milestones and ordered tasks with `draft_submit`; the working plan is kept in the data folder (`plans/<software>/`). Foundation decisions get one review job; an objection gets one revision by the planner, and an objection left after that is said in the session while the line goes on. The operator then confirms the milestones (each with a "stop after it" box); the decisions, the milestones and any changes agents proposed with `record_propose` go into the record together.
-9. **The repository outside this machine is asked through the gate, and building does not wait for it** ([0182](-how-the-gate-is-built.md)).
+9. **The repository outside this machine is asked through the gate, and building does not wait for it** ([0182](0182-how-the-gate-is-built.md)).
 10. **Build, Check, Run, Report and Intake are behind one interface** (`LaterStages`), opened per milestone. Until the line hands them to their modules, a scripted stand-in completes Build, Check, Run and Intake, labelled on the page; the report that ends each milestone is written by the reporter ([0164](0164-how-the-reporter-is-built.md)). A milestone's report ends it; a milestone with a wait stops the software (`waiting-milestone`, so no job starts for it) and asks "go on" or "go back to Why".
 11. **An agent's `ask` does not hold its session.** The question is asked under its role; the agent carries on with its best attempt, and the answer goes into the next brief at that stage.
 12. **The scripted agent calls premise's tools in-process,** through the same checks as a real agent, so tests and demos run the real line engine without AI.
@@ -50,4 +50,4 @@ Each is a builders' choice, open to correction:
 
 ## Related
 
-[0154](0154-a-stand-in-line-until-the-line-engine-exists.md), [0159](0159-how-the-record-keeper-is-built.md), [0160](0160-milestones-are-record-items.md), [0180](-premise-uses-real-agents-by-default.md), [0181](-the-line-works-on-work-items.md), [0182](-how-the-gate-is-built.md).
+[0154](0154-a-stand-in-line-until-the-line-engine-exists.md), [0159](0159-how-the-record-keeper-is-built.md), [0160](0160-milestones-are-record-items.md), [0180](0180-premise-uses-real-agents-by-default.md), [0181](0181-the-line-works-on-work-items.md), [0182](0182-how-the-gate-is-built.md).
