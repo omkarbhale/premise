@@ -28,6 +28,7 @@ import { type Ask, createAsk, listAsks } from "../storage/asks.js";
 import { addChatMessage } from "../storage/chat.js";
 import { type Database, now, recordEvent } from "../storage/database.js";
 import { RecordWriter } from "../line/record-writer.js";
+import { answerWords } from "../line/answers.js";
 import { type Taste, roleWords } from "../taste/taste.js";
 
 /**
@@ -1253,13 +1254,7 @@ export class BuildCheckRun implements LaterStages {
       if (!entry) return null;
       entry.status = "decided";
       const area = String(ask.extra.meta?.area ?? "the claimed area");
-      const words =
-        answer.kind === "proposal" && answer.decision === "change"
-          ? (answer.text ?? "").trim()
-          : ((
-              ask.items.find((i) => answer.kind === "proposal" && i.key === answer.choice) ??
-              ask.items[0]
-            )?.text ?? "premise's own judgement");
+      const words = answerWords(ask, answer);
       this.unhold(
         state,
         entry.claim,
