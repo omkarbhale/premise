@@ -273,6 +273,18 @@ describe("GitHub issues as an intake source", () => {
     expect(held.status).toBe("held");
     await app.call("POST", `/api/intake/${held.id}/undo`);
     await app.settle();
+    // The undone opinion is a wish, so What is confirmed once with the operator; then it runs.
+    const draft = (await app.call("GET", `/api/asks?software=${id}&status=open`)).body.find(
+      (a: AskView) => a.kind === "draft",
+    ) as AskView;
+    const answeredWhat = await app.call("POST", `/api/asks/${draft.id}/answer`, {
+      answer: {
+        kind: "items",
+        items: draft.items.map((i) => ({ key: i.key, decision: "keep" as const })),
+      },
+    });
+    expect(answeredWhat.status, JSON.stringify(answeredWhat.body)).toBe(200);
+    await app.settle();
     expect((await item(app, id, "I-1")).status).toBe("running");
 
     const cards = await approvals(app, id);
