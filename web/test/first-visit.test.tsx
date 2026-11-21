@@ -359,6 +359,7 @@ describe("the page's links", () => {
         const id = /\/api\/softwares\/([^/]+)/.exec(url)?.[1];
         const found = softwares.find((s) => s.id === id);
         if (url.endsWith("/chat")) return reply(200, []);
+        if (/\/api\/softwares\/[^/?]+\/[^?]/.test(url)) return reply(404, { error: "not in this stub" });
         if (found) return reply(200, summary(found));
         return reply(404, { error: "no" });
       }),
