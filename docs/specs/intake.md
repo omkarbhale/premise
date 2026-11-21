@@ -95,7 +95,7 @@ These are where patterns show what people want ([0041](../decisions/0041-intake-
 
 - Senders are told where their item stands: taken, held, done, closed. In the session, for items said there.
 - A comment on a GitHub issue is public and in the owner's name, so it goes through the gate ([0101](../decisions/0101-the-gate-asks-in-the-session.md)), once for each thing worth telling: held, its change running, merged, answered, closed. The session can approve status comments on one software's issues as a kind ([0240](../decisions/0240-how-github-issues-are-read-and-answered.md)).
-- The feedback page shows, to whoever holds an item's receipt, where that item stands, in words fit for them and with nothing of premise's inner workings. It shows no other item. A merged item shows the standing of the item it joined.
+- The feedback page shows, to whoever holds an item's receipt, where that item stands, in words fit for them and with nothing of premise's inner workings. It shows no other item. A merged or joined item shows that it was joined with an earlier report and the joined item's plain status, never the answer written for or by anyone else ([0244](../decisions/0244-a-feedback-sender-sees-only-their-own-words-and-a-plain-status.md)).
 
 ### 5.7 Duplicates across sources
 
