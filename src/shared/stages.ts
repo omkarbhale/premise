@@ -51,6 +51,20 @@ export function stageName(id: string): string {
 export const SIZE_CLASSES = ["small", "medium", "large"] as const;
 export type SizeClass = (typeof SIZE_CLASSES)[number];
 
+/**
+ * How much effort the operator wants put into one software (decision 0191): it sets which cut the
+ * scope check starts on, and scales the budgets of the stages before building.
+ */
+export const SOFTWARE_EFFORTS = ["low", "medium", "high"] as const;
+export type SoftwareEffort = (typeof SOFTWARE_EFFORTS)[number];
+
+/** What each effort level means, in the words the page uses. */
+export const EFFORT_WORDS: Readonly<Record<SoftwareEffort, string>> = {
+  low: "only what you asked for",
+  medium: "what you asked for, plus what premise recommends",
+  high: "everything premise could add",
+};
+
 /** The three phases a person sees; the eleven stages are the detail under each. */
 export const PHASES = [
   {

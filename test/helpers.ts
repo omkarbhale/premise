@@ -7,6 +7,7 @@ import { afterEach } from "vitest";
 import { loadConfig } from "../src/config/load.js";
 import type { PremiseConfig } from "../src/config/settings.js";
 import { RecordKeeper } from "../src/record/record-keeper.js";
+import type { AskAnswer, AskView } from "../src/shared/api-types.js";
 
 const folders: string[] = [];
 
@@ -128,4 +129,28 @@ export async function testApp(
     }
   };
   return { app, db, config, token, host, headers, call, settle, session, folder, record, runner };
+}
+
+/**
+ * The scope check's answer as the page sends it when nobody moves an item: every item where the
+ * chosen cut puts it (the effort level's cut unless one is given).
+ */
+export function scopeAnswer(
+  ask: AskView,
+  cut: "asked" | "recommended" | "everything" = ask.scope?.preselected ?? "recommended",
+): AskAnswer {
+  const place = (tier: string | undefined) =>
+    tier === "recommended"
+      ? cut === "asked"
+        ? "out"
+        : "later"
+      : tier === "could"
+        ? cut === "everything"
+          ? "later"
+          : "out"
+        : "first";
+  return {
+    kind: "scope",
+    items: ask.items.map((i) => ({ key: i.key, place: place(i.tier) as "first" })),
+  };
 }

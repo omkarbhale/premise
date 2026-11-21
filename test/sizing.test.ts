@@ -3,7 +3,7 @@ import type { AgentRequest } from "../src/agents/agent-runner.js";
 import type { AgentScript, ScriptRule } from "../src/agents/scripted-agent.js";
 import { standInScript } from "../src/demo/stand-in-script.js";
 import type { AskView, SoftwareDetail, WorkItemView } from "../src/shared/api-types.js";
-import { testApp as realApp } from "./helpers.js";
+import { testApp as realApp, scopeAnswer } from "./helpers.js";
 import { DoNothingLaterStages } from "./stand-in-later.js";
 
 /**
@@ -384,6 +384,10 @@ describe("sizing a piece of work", () => {
     await keepAll(app, await lineAsk(app, id)); // who
     await say(app, await lineAsk(app, id), "Build it");
     await keepAll(app, await lineAsk(app, id)); // what
+    const scope = await lineAsk(app, id); // how much to build
+    expect(scope.kind).toBe("scope");
+    await app.call("POST", `/api/asks/${scope.id}/answer`, { answer: scopeAnswer(scope) });
+    await app.settle();
     await keepAll(app, await lineAsk(app, id)); // say-back
     const milestones = await lineAsk(app, id);
     const res = await app.call("POST", `/api/asks/${milestones.id}/answer`, {

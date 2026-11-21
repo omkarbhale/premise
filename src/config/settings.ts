@@ -8,6 +8,7 @@ import {
   wholeNumber,
   yesNo,
 } from "./checks.js";
+import { SOFTWARE_EFFORTS, type SoftwareEffort } from "../shared/stages.js";
 
 /** The kinds of task an agent does. Each has its own model, effort and limits. */
 export const AGENT_TASK_KINDS = [
@@ -387,6 +388,14 @@ export const SETTINGS: readonly Setting[] = [
     record: "0129",
   },
   {
+    key: "softwares.default_effort",
+    default: "medium",
+    check: summarised(oneOf(SOFTWARE_EFFORTS), "low, medium or high"),
+    meaning:
+      "How much effort a new software gets, unless you choose when you start it. low: only what you asked for. medium: what you asked for, plus what premise recommends. high: everything premise could add. It sets which choice the scope check starts on, and how long the stages before building may take. You can change it for each software at any time.",
+    record: "0191",
+  },
+  {
     key: "softwares.default_weekly_share_percent",
     default: null,
     check: summarised(orNone(wholeNumber(1, 100)), "1 to 100, or null"),
@@ -452,6 +461,54 @@ export const SETTINGS: readonly Setting[] = [
     record: "0181",
   },
   ...budgetSettings(),
+  {
+    key: "line.low_effort_budget_percent",
+    default: 50,
+    check: summarised(wholeNumber(10, 100), "10 to 100"),
+    meaning:
+      "For a software at low effort, the stages before building get this percent of their usual budget.",
+    record: "0191",
+  },
+  {
+    key: "line.high_effort_budget_percent",
+    default: 150,
+    check: summarised(wholeNumber(100, 400), "100 to 400"),
+    meaning:
+      "For a software at high effort, the stages before building get this percent of their usual budget.",
+    record: "0191",
+  },
+  {
+    key: "line.scope_check",
+    default: true,
+    check: summarised(yesNo, "true or false"),
+    meaning:
+      "Whether premise asks, once after What, how much to build: only what you asked for, plus what premise recommends, or everything. It is skipped when premise has nothing to add. false builds everything that is on the What list.",
+    record: "0191",
+  },
+  {
+    key: "line.wait_after_asked",
+    default: true,
+    check: summarised(yesNo, "true or false"),
+    meaning:
+      "Whether premise stops after the first milestone (what you asked for) when what follows is only premise's own additions, so you try the software before more is built. You can untick the stop on the milestone list, or say go on at once.",
+    record: "0191",
+  },
+  {
+    key: "line.estimate_minutes_per_session",
+    default: 3,
+    check: summarised(wholeNumber(1, 120), "1 to 120"),
+    meaning:
+      "For the scope check's rough estimate: the minutes one agent session is taken to last, until premise has measured its own.",
+    record: "0191",
+  },
+  {
+    key: "line.estimate_items_per_build",
+    default: 3,
+    check: summarised(wholeNumber(1, 20), "1 to 20"),
+    meaning:
+      "For the scope check's rough estimate: how many items of the What list one builder session is taken to cover.",
+    record: "0191",
+  },
   {
     key: "intake.reading_held_count",
     default: 10,
@@ -703,6 +760,7 @@ export interface PremiseConfig {
   softwares: {
     default_priority: number;
     default_milestone_waits: boolean;
+    default_effort: SoftwareEffort;
     default_weekly_share_percent: number | null;
   };
   page: { notifications: PageNotifications };
@@ -715,6 +773,12 @@ export interface PremiseConfig {
     splitting: boolean;
     split_max_parts: number;
     agents_per_stage: number;
+    low_effort_budget_percent: number;
+    high_effort_budget_percent: number;
+    scope_check: boolean;
+    wait_after_asked: boolean;
+    estimate_minutes_per_session: number;
+    estimate_items_per_build: number;
     budgets: Record<BudgetGroup, Record<"small" | "medium" | "large", StageBudget>>;
   };
   existing: {

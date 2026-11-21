@@ -22,6 +22,8 @@ The drafter holds the conversation's first stages. premise is opinionated about 
 - **The say-back is short and is only the cheap first check.** At most ten items. Running software shown early is the real check ([the line](../architecture/the-line.md), stage 5).
 - **Roles become the labels on every later ask.** The Who brief drafts roles as well as users, because roles are how premise labels what it asks from then on ([record 0065](../decisions/0065-one-open-session.md)).
 - **Recovered items stay unconfirmed.** Recovered intent misses 44–65% of user goals in the prior art, so recovery marks every item `recovered`, and conflicts or gaps become questions labelled with the role they are for ([record 0019](../decisions/0019-existing-software-through-the-same-line.md)).
+- **Suggestions rest on what was checked.** premise's own ideas are offered at the scope check as recommended or could; a suggestion may cite only what the research actually verified, otherwise it says "not checked". In the one real run a suggestion was justified by a gap the research had only raised as a hypothetical ([record 0192](../decisions/0192-effort-in-proportion-to-what-was-asked.md)).
+- **Assumed users do not make requirements of what was asked.** A need of a user premise assumed is a should or could, written "for U-n", and the scope check puts it with premise's recommendations, never with what the operator asked for ([record 0191](../decisions/0191-scope-check-effort-and-milestones.md)).
 - **The size class is an assumption.** At Why the drafter proposes small, medium or large, shown like any other assumption ([record 0117](../decisions/0117-size-classes-set-stage-budgets.md)).
 
 ## Inputs and placeholders
@@ -37,6 +39,7 @@ The drafter holds the conversation's first stages. premise is opinionated about 
 | `{{size_class}}` | line engine | The current size class, or "none" before Why ends |
 | `{{budget}}` | line engine | This stage's effort budget in turns and minutes |
 | `{{exists_outcome}}` | record | The outcome of What exists (`E` items), for the What brief |
+| `{{effort}}` | line engine | The software's effort level and what it means ([record 0191](../decisions/0191-scope-check-effort-and-milestones.md)) |
 | `{{say_back_reason}}` | line engine | Why a say-back is due: new software, taking on existing software, or the change that touches purpose or is costly to undo |
 | `{{change}}` | line engine | For a later say-back: the change and the items it replaces |
 | `{{draft}}` | session | The open draft, for chat corrections |
@@ -107,13 +110,13 @@ Items people struck or edited so far:
 Budget: {{budget}}.
 
 Do this:
-1. Draft plausible kinds of user of the software, each one line with the prefix U: who they are and what they need from it, in plain words. Mark them from: assumed unless the operator named them.
+1. Draft plausible kinds of user of the software, each one line with the prefix U: who they are and what they need from it, in plain words. Mark them from: assumed unless the operator named them. A user you assume, other than the operator, starts its line with "Assumed:".
 2. Draft the roles the software needs, each one line with the prefix R:
    - the operator;
    - people with their own taste in a part of the software (look, wording, technical choices), only where the Why suggests someone cares;
    - people who must decide or do what an LLM cannot: real-world acts (accounts, payments, licences, signatures), accountability, an intent nobody has stated.
    Name roles, never people.
-3. Keep the list short. A small software usually has one or two kinds of user and only the operator as a role.
+3. Keep the list short. A small software usually has one kind of user, the operator, and only the operator as a role. Do not invent a second user to justify more work.
 4. Submit with draft_submit. These roles become the labels on everything premise asks from now on.
 5. End with task_finish.
 ````
@@ -131,16 +134,20 @@ The record so far, including the outcome of What exists:
 Items people struck or edited so far:
 {{struck_items}}
 
+Effort the operator chose: {{effort}}.
 Budget: {{budget}}.
 
 Do this:
-1. Draft what the software must do, in purpose terms, each one line with the prefix W and a priority: must, should or could. Fewer musts are better; a must is something without which the software fails its Why.
+1. Draft what the software must do, in purpose terms, each one line with the prefix W and a priority: must, should or could. A must is what the operator's own words ask for, or something without which the software fails its Why. Fewer musts are better.
 2. Build on the outcome of What exists. If it says build on something, say what the software adds to it.
-3. Offer your own ideas where they serve the Why. Mark each from: assumed and say in the line that it is a suggestion.
-4. Note what users will read (help text, a short guide) as W items where the software needs it.
-5. If a role claimed an area for its taste, do not decide that area. Write a W item for what the area must achieve and leave how it looks or reads to the claiming role.
-6. Ask only where a wrong guess is costly: a must that, if wrong, would waste the whole build. Label the ask with the role whose call it is.
-7. Submit with draft_submit and end with task_finish.
+3. Offer your own ideas where they serve the Why, as should (premise recommends it) or could (it could also be added). Mark each from: assumed and say in the line that it is a suggestion. After this list premise asks the operator once how much to build: what they asked for, plus what premise recommends, or everything. So a suggestion costs nothing unless the operator keeps it.
+4. A suggestion may cite only what the research verified (an E item read from its source). If it rests on something nobody checked, such as a gap the research only guessed at, say "not checked" in the line and make it could.
+5. A need of a user premise assumed (any U item marked from: assumed, other than the operator) is never a must. Write it as should or could and name the user in the line, for example "for U-2".
+6. If this piece is a change that came in through intake, draft only the lines that are new or changed, not the whole list again.
+7. Note what users will read (help text, a short guide) as W items where the software needs it.
+8. If a role claimed an area for its taste, do not decide that area. Write a W item for what the area must achieve and leave how it looks or reads to the claiming role.
+9. Ask only where a wrong guess is costly: a must that, if wrong, would waste the whole build. Label the ask with the role whose call it is.
+10. Submit with draft_submit and end with task_finish.
 ````
 
 ## Full text: say-back brief

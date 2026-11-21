@@ -75,11 +75,13 @@ Always included, whatever you choose: {{required_stages}}
 
 Splitting: {{splitting}}
 
+Effort the operator chose for this software: {{effort}}. At low effort, pick the smallest size and the fewest stages that fit.
+
 Do this:
 1. Size. small: a few screens or commands, or a change of a few lines. medium: several parts that depend on each other. large: many parts, or a long piece of work. Pick the smallest that fits.
 2. Stages. Pick only what the piece needs:
-   - A small fix to something already built (a typo, a wrong label, a crash with an obvious cause) needs build and check only.
-   - Something that changes what the software must do (a new wish, a feature, a changed rule) needs what and say-back, then plan, build and check.
+   - A bug report on something the record already requires (a typo, a wrong label, a crash, wrong output) needs build and check only. premise holds it to that.
+   - Something that changes what the software must do (a new wish, a feature, a changed rule) needs what, then plan, build and check. The operator confirms the changed What once; there is no say-back for it.
    - Something that touches what the software is for, or who it is for, goes back to why (and who, if users change), then what, say-back, plan, build and check.
    - What exists is needed only when the piece might already exist elsewhere: a new software, or a large new part. A fix never needs it.
    - A new software needs why, what, say-back and plan. Leave out who only when it is plainly for the operator alone, and what exists only when it is plainly too small or too personal to exist elsewhere.

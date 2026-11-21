@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { AgentScript } from "../src/agents/scripted-agent.js";
 import { standInScript } from "../src/demo/stand-in-script.js";
 import type { AskView, ChatMessage } from "../src/shared/api-types.js";
-import { testApp } from "./helpers.js";
+import { scopeAnswer, testApp } from "./helpers.js";
 
 /**
  * The whole Why-to-Plan path with the scripted agent and a scripted operator (this file plays the
@@ -71,6 +71,15 @@ async function toSayBack(app: App, id: string) {
   await keepAll(app, await lineAsk(app, id)); // who
   await say(app, await lineAsk(app, id), "Build it"); // what exists
   await keepAll(app, await lineAsk(app, id)); // what
+  await chooseScope(app, await lineAsk(app, id)); // how much to build
+}
+
+/** The scope check, answered with the cut the effort level starts on. */
+async function chooseScope(app: App, ask: AskView) {
+  expect(ask.kind).toBe("scope");
+  const res = await app.call("POST", `/api/asks/${ask.id}/answer`, { answer: scopeAnswer(ask) });
+  expect(res.status, JSON.stringify(res.body)).toBe(200);
+  await app.settle();
 }
 
 /** From the say-back to the milestones list, through the planner and the reviewer. */
@@ -180,6 +189,7 @@ describe("the line engine, Why to Plan", () => {
     await keepAll(app, await lineAsk(app, id)); // what
     const what = await record(app, id, "what.md");
     expect(what[0]!.marks).toContain("must");
+    await chooseScope(app, await lineAsk(app, id));
     const sayBack = await lineAsk(app, id);
     expect(sayBack.kind).toBe("say-back");
     expect(sayBack.items.length).toBeGreaterThan(0);
@@ -317,7 +327,8 @@ describe("the line engine, Why to Plan", () => {
 
 describe("the gate on the line", () => {
   async function toGate(env: NodeJS.ProcessEnv = {}) {
-    const app = await testApp(env);
+    // Straight on to the end of the line: no stop after what was asked for.
+    const app = await testApp({ PREMISE_LINE__WAIT_AFTER_ASKED: "false", ...env });
     const id = await start(app);
     await toSayBack(app, id);
     await keepAll(app, await toMilestones(app, id));

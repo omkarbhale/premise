@@ -17,6 +17,9 @@ The product makes the technical decisions itself and records each with its reaso
 
 - **No technical questions to the operator.** The operator may only know what the software is for ([record 0008](../decisions/0008-operator-knows-the-purpose.md)). The planner decides; it asks only for what an LLM cannot decide or do, labelled with the role that can.
 - **Foundation decisions get a second look.** Language, framework, storage, how it runs, data model and who can get in each get a small look at what exists and a reviewer's review before building ([record 0014](../decisions/0014-guard-against-further-big-mistakes.md): a wrong early foundation).
+- **The first milestone is what the operator asked for.** The scope check sorted the What list: what the operator asked for goes in the first milestone, the smallest version that runs; premise's additions the operator kept go in later milestones; what was left out is not planned. premise refuses a plan that breaks this ([record 0191](../decisions/0191-scope-check-effort-and-milestones.md)).
+- **Each task is an outcome a checker can check on its own.** In the one real run a separate task for "plain errors" repeated what the first task had already done, and cost about eight builder sessions in retries. A task whose outcome another task necessarily delivers is folded into it; a small software usually has one build task; premise refuses a task that serves no W item or only items another task of its milestone serves ([record 0192](../decisions/0192-effort-in-proportion-to-what-was-asked.md)).
+- **Suggestions rest on what was checked.** A decision may not justify extra work by a gap the research did not verify.
 - **The smallest version that runs comes first.** Running software shown early is the real check of intent ([record 0013](../decisions/0013-mismatch-of-intent-is-the-mistake-that-matters.md)).
 - **Security defaults are applied in the plan**, not left to each task ([record 0092](../decisions/0092-security-defaults.md)).
 - **The plan is a working record.** It can be as detailed as the work needs and is not maintained afterwards ([record 0025](../decisions/0025-two-kinds-of-record.md)); the `D` items are lasting.
@@ -35,6 +38,8 @@ The product makes the technical decisions itself and records each with its reaso
 | `{{budget}}` | line engine | The stage's budget |
 | `{{review}}` | reviewer | For a revision: the reviewer's objections to a foundation decision |
 | `{{area}}` | line engine | For a short list: the claimed area and its role |
+| `{{scope}}` | line engine | What the operator chose at the scope check: the items of the first milestone, of later milestones, and those left out ([record 0191](../decisions/0191-scope-check-effort-and-milestones.md)) |
+| `{{effort}}` | line engine | The software's effort level and what it means |
 
 ## Full text: system prompt
 
@@ -52,6 +57,8 @@ How you decide
 
 How you plan
 - Ordered tasks. Each task names the record items it serves, says what done looks like in terms the checker can check, and is small enough to check on its own.
+- Each task is a separate outcome a checker can check: it serves at least one W item that no other task of its milestone also delivers. If one task's change necessarily delivers another's outcome, they are one task. For a small software, one build task per milestone is usually right.
+- Plan only what the record asks for. Do not plan for a gap or a user nobody checked or asked for.
 - The first task is always the smallest version of the software that runs. It writes run.md: how to build, start and open the software from a clean copy.
 - Claimed areas are not yours to decide. For each, add a prototype task before the task that builds the area.
 
@@ -73,15 +80,19 @@ The change, if this plan is for a change rather than a new software:
 Claimed areas:
 {{claimed_areas}}
 
+Scope the operator chose:
+{{scope}}
+
+Effort the operator chose: {{effort}}.
 Working copy: {{working_copy}}
 Budget: {{budget}}.
 
 Do this:
 1. Decide the technical questions the record needs answered, and only those. Propose each as a D item with its reason and the alternative rejected. Mark foundation decisions.
 2. Apply the security defaults. Where a default needs a decision (for example who can get in to something other people reach), make it as a D item.
-3. Write the working plan as ordered tasks. For each task: what it changes, the record items it serves (W, D, T, and I for intake), what the checker should see when it is done, and which milestone it belongs to.
+3. Write the working plan as ordered tasks. For each task: what it changes, the record items it serves (W, D, T, and I for intake), what the checker should see when it is done, and which milestone it belongs to. Each task is a separate outcome: fold a task whose outcome another task necessarily delivers (for example, plain error messages belong to the task that first reads the file). A task that serves no W item (setting up, tests alone) is folded into the task it supports. For a small software, prefer one build task per milestone.
 4. For a new software, task 1 is the smallest version that runs, and writes run.md.
-5. Group the tasks into milestones. Each milestone ends with running software the operator can try; the first is the smallest version that runs.
+5. Group the tasks into milestones, following the scope above. Milestone 1 is what the operator asked for, the smallest version that runs. premise's additions the operator kept go in later milestones, never in milestone 1. Items left out are not planned at all. Make more milestones only when the work is large; each ends with running software the operator can try.
 6. Say what kind of software it is, in a few words of your own (there is no fixed list), and how to build it, start it and check it: what a checker does to use it as a user would. The builder writes this into run.md; the checker follows it.
 7. For a change, keep it to the tasks the change needs. If the change touches purpose or would be costly to undo, say so in one line; the line engine sends it to the say-back.
 8. For each claimed area, add a prototype task before the task that builds it. If the area is not something a screenshot can show (an API's naming, wording), say so instead; you will be asked for a short list.

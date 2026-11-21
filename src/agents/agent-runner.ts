@@ -29,6 +29,11 @@ export interface AgentRequest {
   /** The commit or branch to work from; the repository's default branch when absent. */
   ref?: string;
   /**
+   * For a builder: the exact trace trailer line its commits carry, such as "Premise-Trace: W-1,
+   * D-2". The working copy adds it to a commit message that has none (decision 0192).
+   */
+  trace?: string;
+  /**
    * The runtime's id of an earlier session of this job that was cut off (paused for the usage
    * limit, or premise stopped). The runner carries that session on instead of starting afresh.
    */

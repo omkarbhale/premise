@@ -20,6 +20,7 @@ Build is unattended ([VISION.md](../../VISION.md), the line, step 7). The builde
 - **The builder's own tests are not the check.** The checker judges the running result independently ([record 0030](../decisions/0030-independent-check.md)); the prompt says so, so the builder does not shape its work to pass a check it cannot see.
 - **A person-only decision waits; the rest goes on.** If a task needs a decision only a person can make, the builder asks through its tool and that task waits ([build, check and run](../architecture/build-check-run.md)).
 - **Stuck is a valid outcome.** Turn and time limits apply; the same failure three times stops the task and it is reported ([record 0088](../decisions/0088-turn-and-time-limits.md)). The prompt tells the builder to finish as stuck rather than loop.
+- **The trace line is given, not composed.** In the one real run builders twice left the trailer out and the task was tried again. The brief gives the exact line, and premise's commit hook in the working copy adds it when a message has none; a refused commit's message still says exactly what to add ([record 0192](../decisions/0192-effort-in-proportion-to-what-was-asked.md)).
 - **What users read is part of the change.** Help text and guides are in the product ([record 0033](../decisions/0033-answers-to-the-ten-assumptions.md), item 4).
 
 ## Inputs and placeholders
@@ -37,6 +38,7 @@ Build is unattended ([VISION.md](../../VISION.md), the line, step 7). The builde
 | `{{area}}` | line engine | For a prototype: the claimed area and its role |
 | `{{budget}}` | agent runner | Turn and time limits |
 | `{{how_to_run}}` | plan, checker | How to build, start and check this software, from the planner, with any corrections the checker noted |
+| `{{trace}}` | work queue | The exact trace trailer line for this task's commits, such as `Premise-Trace: W-1, D-2`. The working copy's commit hook also adds it to a message that names none ([record 0192](../decisions/0192-effort-in-proportion-to-what-was-asked.md)) |
 
 ## Full text: system prompt
 
@@ -109,7 +111,9 @@ Do this:
    ```
 
    A web software listens on 127.0.0.1 and the port premise gives ({port}, also in the PORT variable). Under the block, add a section "## How to check" saying in a few lines how a person checks it works.
-5. Commit with a Premise-Trace trailer naming the items, for example: Premise-Trace: W-7, D-3. Commit everything the task needs; premise uses only what is committed on your branch.
+5. Commit. The last paragraph of every commit message is exactly this line:
+   {{trace}}
+   Commit everything the task needs; premise uses only what is committed on your branch. If an earlier task already did everything this task asks, commit nothing and finish done, saying so.
 6. Finish with task_finish: done, stuck (what you tried and where it failed), or waiting-for-person (what you asked and of which role).
 ````
 

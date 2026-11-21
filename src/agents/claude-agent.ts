@@ -172,6 +172,7 @@ class ClaudeSession implements AgentSession {
       kind: access.workingCopy,
       repository: request.repository,
       ref: request.ref,
+      ...(request.trace && { trace: request.trace }),
       reuse: resuming,
     });
     if (this.stopRequested) return { kind: "stopped" };

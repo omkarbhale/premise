@@ -13,7 +13,10 @@ export function validateAnswer(ask: Ask, answer: AskAnswer): string {
     throw new ServiceError("INVALID", why);
   };
   if (!answer || typeof answer !== "object") invalid("The answer is empty. Answer again.");
+  if (ask.extra.meta?.purpose === "scope") return validateScope(ask, answer);
   switch (ask.kind) {
+    case "scope":
+      return validateScope(ask, answer);
     case "draft":
     case "say-back": {
       if (answer.kind !== "items" || !Array.isArray(answer.items)) {
@@ -91,4 +94,35 @@ export function validateAnswer(ask: Ask, answer: AskAnswer): string {
       }
       return answer.decision === "accept" ? "Accepted." : "Asked for changes.";
   }
+}
+
+/** The scope check: every item placed in the first version, a later milestone, or left out. */
+function validateScope(ask: Ask, answer: AskAnswer): string {
+  const invalid = (why: string): never => {
+    throw new ServiceError("INVALID", why);
+  };
+  if (answer.kind !== "scope" || !Array.isArray(answer.items)) {
+    return invalid(
+      "Pick how much to build: only what you asked for, plus what premise recommends, or everything.",
+    );
+  }
+  const keys = new Set(ask.items.map((i) => i.key));
+  const seen = new Set<string>();
+  for (const item of answer.items) {
+    if (!item || typeof item !== "object" || typeof item.key !== "string" || !keys.has(item.key))
+      invalid("One answer names an item that is not on this list. Reload the page.");
+    if (seen.has(item.key)) invalid("One item was placed twice. Reload the page.");
+    seen.add(item.key);
+    if (!["first", "later", "out"].includes(item.place))
+      invalid("Each item goes in the first version, a later milestone, or is left out.");
+  }
+  const count = (place: string) => answer.items.filter((i) => i.place === place).length;
+  const unplaced = [...keys].filter((k) => !seen.has(k));
+  const first =
+    count("first") +
+    unplaced.filter((k) => ask.items.find((i) => i.key === k)?.tier === "asked").length;
+  if (first === 0) {
+    invalid("Put at least one item in the first version: it is the smallest version that runs.");
+  }
+  return `First version ${count("first")}, later ${count("later")}, left out ${count("out")}.`;
 }

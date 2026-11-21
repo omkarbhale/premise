@@ -39,6 +39,8 @@ Some moments matter too much, or happen too often, to be worded by a model each 
 | `{{item}}` | A record item, ID and words |
 | `{{restarts}}` | How many times the runner restarted a software |
 | `{{stage}}` | A stage of the line |
+| `{{effort}}` | A software's effort level: low, medium or high |
+| `{{alternative}}` | The researcher's one line to use instead of building, such as an alias |
 
 ## Full text: gate approval card
 
@@ -105,6 +107,27 @@ Items marked "assumed" are premise's guesses.
 ````text
 For {{role}} · {{software_name}} · say back
 What premise understood and assumed. Strike anything wrong; each struck item goes back to its stage.
+````
+
+## Full text: scope check and changes to What
+
+The scope check after What ([record 0191](../decisions/0191-scope-check-effort-and-milestones.md)):
+
+````text
+How much to build?
+premise sorted what it must do into what you asked for, what premise recommends adding, and what it could also add. Pick how much to build; it starts on the choice your effort level ({{effort}}) gives. You can move any item. The first version is what you asked for; what premise adds comes in a later milestone, after you have tried the first. What you leave out stays in the record and is not built.
+````
+
+A change from intake to what the software must do, and a "do not build" recommendation ([record 0192](../decisions/0192-effort-in-proportion-to-what-was-asked.md)):
+
+````text
+This changes what it must do; confirm to change it ({{item_id}})
+These lines are what changes in what the software must do. Strike or edit any that are wrong, then confirm to change it. Nothing else is asked before it is planned and built.
+````
+
+````text
+premise recommends not building it: something already does this
+Instead: {{alternative}}. Something that already exists does the job, which is the cheapest outcome: nothing to build, check or keep running. Pick "Do not build it" to stop here with a short report, or another choice to build it anyway. What was found is listed below.
 ````
 
 ## Full text: notices

@@ -348,6 +348,15 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+  {
+    version: 9,
+    name: "effort per software, and whether an intake item changes what the software must do",
+    sql: `
+      ALTER TABLE softwares ADD COLUMN effort TEXT NOT NULL DEFAULT 'medium'
+        CHECK (effort IN ('low', 'medium', 'high'));
+      ALTER TABLE intake_items ADD COLUMN changes_what INTEGER;
+    `,
+  },
 ];
 
 export const CURRENT_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

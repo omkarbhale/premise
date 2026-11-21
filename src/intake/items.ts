@@ -65,6 +65,8 @@ export interface IntakeItem {
   touches: Touch[];
   size: string | null;
   touchesFloor: boolean;
+  /** Whether its work changes what the software must do; null until triaged (decision 0192). */
+  changesWhat: boolean | null;
   route: IntakeRoute | null;
   /** Why it went where it went, in plain words. */
   reason: string | null;
@@ -97,6 +99,7 @@ interface Row {
   touches: string;
   size: string | null;
   touches_floor: number;
+  changes_what: number | null;
   route: IntakeRoute | null;
   reason: string | null;
   routed_by: IntakeItem["routedBy"];
@@ -125,6 +128,7 @@ function fromRow(row: Row): IntakeItem {
     touches: JSON.parse(row.touches) as Touch[],
     size: row.size,
     touchesFloor: row.touches_floor === 1,
+    changesWhat: row.changes_what === null ? null : row.changes_what === 1,
     route: row.route,
     reason: row.reason,
     routedBy: row.routed_by,
@@ -221,6 +225,7 @@ export interface IntakeChange {
   touches?: Touch[];
   size?: string | null;
   touchesFloor?: boolean;
+  changesWhat?: boolean | null;
   route?: IntakeRoute | null;
   reason?: string | null;
   routedBy?: IntakeItem["routedBy"];
@@ -241,6 +246,7 @@ const COLUMNS: Record<keyof IntakeChange, string> = {
   touches: "touches",
   size: "size",
   touchesFloor: "touches_floor",
+  changesWhat: "changes_what",
   route: "route",
   reason: "reason",
   routedBy: "routed_by",
@@ -262,10 +268,12 @@ export function setIntakeItem(db: Database, id: number, change: IntakeChange): v
     const stored =
       key === "touches"
         ? JSON.stringify(value)
-        : key === "touchesFloor"
-          ? value
-            ? 1
-            : 0
+        : key === "touchesFloor" || key === "changesWhat"
+          ? value === null
+            ? null
+            : value
+              ? 1
+              : 0
           : (value as string | number | null);
     db.prepare(`UPDATE intake_items SET ${column} = ? WHERE id = ?`).run(stored, id);
   }

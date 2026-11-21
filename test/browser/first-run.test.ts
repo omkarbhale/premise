@@ -134,6 +134,16 @@ describe("first run, in a browser", () => {
     await what.waitFor({ timeout: 15_000 });
     await what.getByRole("button", { name: "Confirm this list" }).click();
 
+    // One ask on how much to build: three choices with a rough cost; the effort's is picked.
+    const scope = card(page, "How much to build?");
+    await scope.waitFor({ timeout: 15_000 });
+    await scope.getByText(/rough estimate/).waitFor();
+    await expect(
+      scope.getByRole("radio", { name: /Plus what premise recommends/ }).isChecked(),
+    ).resolves.toBe(true);
+    await shot(page, "05a-scope");
+    await scope.getByRole("button", { name: "Build this much" }).click();
+
     const sayBack = card(page, "Say back: what I understood");
     await sayBack.waitFor({ timeout: 15_000 });
     await shot(page, "05-say-back");
@@ -165,6 +175,13 @@ describe("first run, in a browser", () => {
     await page.getByRole("heading", { name: "Activity" }).waitFor();
     await page.getByText(/agent sessions in use/).waitFor();
     await shot(page, "07-activity");
+
+    // premise stops after what was asked for: what follows is only its own additions.
+    await page.getByRole("button", { name: /^Waiting on you/ }).click();
+    const reached = card(page, /^Milestone reached: .+Go on\?$/);
+    await reached.waitFor({ timeout: 20_000 });
+    await shot(page, "07b-first-milestone-reached");
+    await reached.getByRole("button", { name: "Go on" }).click();
 
     await page.getByRole("button", { name: /^Softwares/ }).click();
     await page

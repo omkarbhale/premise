@@ -280,6 +280,8 @@ How the decisions fit together is in the [architecture overview](../architecture
 | 0188 | [An existing software's record goes into its repository only on approval, and hand edits stay later](0188-existing-softwares-record-and-hand-edits.md) | owner | Accepted |
 | 0189 | [How taking on existing software is built: a copy, a recovery job, one strike-out pass, a gated branch](0189-how-taking-on-existing-software-is-built.md) | builders; two points chosen for the owner | Accepted |
 | 0190 | [How the first visit is made clear](0190-how-the-first-visit-is-made-clear.md) | builders | Accepted |
+| 0191 | [A scope check after What, an effort level per software, and the first milestone for what was asked](0191-scope-check-effort-and-milestones.md) | the owner (quoted); the builders' reading | Accepted |
+| 0192 | [Effort in proportion to what was asked: prompts, plan checks, triage and measures](0192-effort-in-proportion-to-what-was-asked.md) | builders | Accepted |
 | 0131 | [Changes to premise go through the no-mistakes validation pipeline; the assistant still merges](0131-changes-go-through-the-validation-pipeline.md) | owner | Accepted |
 | 0136 | [The assistant chooses the open questions for the owner, and records each choice](0136-open-questions-chosen-for-the-owner.md) | owner | Accepted |
 | 0066 | [premise's documents follow aras-insight's layout](0066-documents-follow-the-aras-insight-layout.md) | owner | Accepted |

@@ -55,6 +55,11 @@ export interface Marks {
   foundation?: boolean;
   /** Only for M items: premise stops after this milestone until the operator says go on. */
   wait?: boolean;
+  /**
+   * Only for W items: the operator left it out of what is built at the scope check (decision 0191).
+   * It stays in the record so it can be brought back; it is not planned, built or checked.
+   */
+  leftOut?: boolean;
   /** The date the say-back confirmed a recovered item. */
   confirmed?: string;
   date: string;
@@ -99,6 +104,7 @@ export function formatMarks(marks: Marks): string {
   if (marks.replaces) parts.push(`replaces: ${marks.replaces}`);
   if (marks.foundation) parts.push("foundation");
   if (marks.wait) parts.push("wait");
+  if (marks.leftOut) parts.push("left-out");
   if (marks.confirmed) parts.push(`confirmed: ${marks.confirmed}`);
   parts.push(marks.date);
   return parts.join("; ");

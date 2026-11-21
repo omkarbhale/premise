@@ -297,7 +297,9 @@ export class BuildCheckRun implements LaterStages {
     const live = this.items(softwareId);
     const known = new Set(live.map((i) => i.id));
     const must = new Set(
-      live.filter((i) => i.kind === "W" && i.marks.priority === "must").map((i) => i.id),
+      live
+        .filter((i) => i.kind === "W" && i.marks.priority === "must" && !i.marks.leftOut)
+        .map((i) => i.id),
     );
     const order = this.milestoneIds(softwareId).map((m) => m.id);
     const at = milestone ? order.indexOf(milestone) : order.length - 1;
@@ -584,6 +586,10 @@ export class BuildCheckRun implements LaterStages {
       : "";
     const retry = task.lastFailure && task.note ? `\n\nYour previous attempt: ${task.note}` : "";
     const ref = state.head?.commit ?? state.base ?? undefined;
+    // The exact trailer line, in the brief and in the working copy's commit hook (decision 0192).
+    const trace = task.items.length
+      ? `${this.config.record.trailer}: ${task.items.join(", ")}`
+      : undefined;
     task.status = "building";
     task.job = null;
     this.save(softwareId, state);
@@ -598,8 +604,12 @@ export class BuildCheckRun implements LaterStages {
         round: state.round,
         ...(ref && { ref }),
         repository: this.deps.keeper.repositoryPath(softwareId),
+        ...(trace && { trace }),
         brief:
           this.deps.briefs.make("build task brief", {
+            trace:
+              trace ??
+              `${this.config.record.trailer}: followed by the IDs of the record items the commit serves`,
             software_name: this.name(softwareId),
             task: `${task.number}. ${task.title}${task.check ? `\nDone looks like: ${task.check}` : ""}`,
             items:

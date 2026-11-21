@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AskView } from "../src/shared/api-types.js";
-import { testApp } from "./helpers.js";
+import { scopeAnswer, testApp } from "./helpers.js";
 
 type Call = Awaited<ReturnType<typeof testApp>>["call"];
 
@@ -17,6 +17,10 @@ async function approvals(call: Call, softwareId: string): Promise<AskView[]> {
 }
 
 async function keepAll(call: Call, ask: AskView) {
+  // The scope check is answered as the page does when nobody moves an item.
+  if (ask.kind === "scope") {
+    return call("POST", `/api/asks/${ask.id}/answer`, { answer: scopeAnswer(ask) });
+  }
   return call("POST", `/api/asks/${ask.id}/answer`, {
     answer: { kind: "items", items: ask.items.map((i) => ({ key: i.key, decision: "keep" })) },
   });
@@ -201,6 +205,16 @@ describe("the whole line, with the line engine and the scripted agent", () => {
     });
     await keepAll(call, await openAsk(call, sw.id)); // what
 
+    // One ask on how much to build, with a rough cost for each choice, started on the effort's.
+    const scope = await openAsk(call, sw.id);
+    expect(scope).toMatchObject({ kind: "scope", stage: "what", title: "How much to build?" });
+    expect(scope.scope!.preselected).toBe("recommended");
+    expect(scope.scope!.cuts.map((c) => c.id)).toEqual(["asked", "recommended", "everything"]);
+    expect(scope.scope!.estimateNote).toContain("rough estimate");
+    expect(scope.items.map((i) => i.tier)).toEqual(["asked", "asked", "recommended", "could"]);
+    await keepAll(call, scope);
+    await settle();
+
     const sayBack = await openAsk(call, sw.id);
     expect(sayBack.kind).toBe("say-back");
     expect(sayBack.items.length).toBeLessThanOrEqual(10);
@@ -218,6 +232,11 @@ describe("the whole line, with the line engine and the scripted agent", () => {
     await settle();
     await keepAll(call, await openAsk(call, sw.id)); // the stage redone
     await settle();
+    const maybeScope = await openAsk(call, sw.id);
+    if (maybeScope.kind === "scope") {
+      await keepAll(call, maybeScope);
+      await settle();
+    }
     const sayBackAgain = await openAsk(call, sw.id);
     expect(sayBackAgain.kind).toBe("say-back");
     expect(sayBackAgain.items.flatMap((i) => i.refs ?? [])).not.toContain(
@@ -235,7 +254,19 @@ describe("the whole line, with the line engine and the scripted agent", () => {
     await call("POST", `/api/asks/${approval!.id}/answer`, {
       answer: { kind: "approval", decision: "approve-once" },
     });
-    await settle(); // build, check, run, for each milestone
+    await settle(); // build, check, run, for the first milestone
+
+    // premise stops after what was asked for, because what follows is only its own additions.
+    const waiting = await call("GET", `/api/softwares/${sw.id}`);
+    expect(waiting.body).toMatchObject({ stage: "report", state: "waiting-milestone" });
+    const firstReport = await call("GET", `/api/softwares/${sw.id}/report`);
+    const effort = firstReport.body.sections.find((x: { title: string }) => x.title === "Effort");
+    expect(effort.lines[0].text).toMatch(
+      /^From your idea to the first running version: .* and \d+ agent sessions?\.$/,
+    );
+    const goOn = await openAsk(call, sw.id);
+    await call("POST", `/api/asks/${goOn.id}/answer`, { answer: { kind: "text", text: "Go on" } });
+    await settle();
 
     const detail = await call("GET", `/api/softwares/${sw.id}`);
     expect(detail.body.stage).toBe("intake");
@@ -275,6 +306,8 @@ describe("the whole line, with the line engine and the scripted agent", () => {
       answer: { kind: "text", text: "Build it" },
     });
     await keepAll(call, await openAsk(call, sw.id)); // what
+    await settle();
+    await keepAll(call, await openAsk(call, sw.id)); // how much to build
     await settle();
     await keepAll(call, await openAsk(call, sw.id)); // say-back
     await settle();

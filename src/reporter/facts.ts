@@ -74,6 +74,55 @@ export interface UsageFact {
   weeklyShare: number;
 }
 
+/**
+ * Proportion, as premise measures it itself (decision 0192; not usage-ledger's figures): agent
+ * sessions, and the time from the idea to the first version that ran.
+ */
+export interface MeasureFacts {
+  /** When the operator started the software. */
+  started: string;
+  /** When its first version started running; null until one has. */
+  firstRunning: string | null;
+  minutesToFirstRunning: number | null;
+  sessionsToFirstRunning: number | null;
+  sessions: number;
+}
+
+/** premise's own measures of one software's effort (decision 0192). */
+export function readMeasures(db: Database, softwareId: string): MeasureFacts | null {
+  const software = db.prepare("SELECT created FROM softwares WHERE id = ?").get(softwareId) as
+    { created: string } | undefined;
+  if (!software) return null;
+  const first = db
+    .prepare(
+      `SELECT started FROM runs WHERE software_id = ? AND status NOT IN ('starting', 'failed')
+       ORDER BY id LIMIT 1`,
+    )
+    .get(softwareId) as { started: string } | undefined;
+  const count = (before?: string) =>
+    (
+      db
+        .prepare(
+          `SELECT COUNT(*) AS n FROM agent_sessions s JOIN jobs j ON j.id = s.job_id
+           WHERE j.software_id = ?${before ? " AND s.started <= ?" : ""}`,
+        )
+        .get(...(before ? [softwareId, before] : [softwareId])) as { n: number }
+    ).n;
+  const minutes = first
+    ? Math.max(
+        0,
+        Math.round(((Date.parse(first.started) - Date.parse(software.created)) / 60_000) * 10) / 10,
+      )
+    : null;
+  return {
+    started: software.created,
+    firstRunning: first?.started ?? null,
+    minutesToFirstRunning: minutes,
+    sessionsToFirstRunning: first ? count(first.started) : null,
+    sessions: count(),
+  };
+}
+
 export interface Facts {
   softwareId: string;
   softwareName: string;
@@ -89,6 +138,8 @@ export interface Facts {
   asks: AskFact[];
   usage: UsageFact | null;
   usageProblem: string | null;
+  /** premise's own measures of effort; null when they could not be read. */
+  measures: MeasureFacts | null;
   /** When the last report was written, if one was. */
   lastReport: string | null;
   /** The commit the latest reports covered, to find what is new. */
@@ -248,6 +299,7 @@ export async function gatherFacts(
     })),
     usage,
     usageProblem,
+    measures: readMeasures(db, softwareId),
     lastReport,
     milestone,
   };

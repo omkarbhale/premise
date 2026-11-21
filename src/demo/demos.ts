@@ -7,7 +7,15 @@ import { loadConfig } from "../config/load.js";
 import type { AgentTaskKind } from "../config/settings.js";
 import { RecordKeeper } from "../record/record-keeper.js";
 import { createSession } from "../server/wiring.js";
-import type { AskView, BuildView, RecordView, ReportView, RunView } from "../shared/api-types.js";
+import type {
+  AskView,
+  BuildView,
+  RecordView,
+  ReportView,
+  RunView,
+  ScopePlace,
+} from "../shared/api-types.js";
+import { placeFor } from "../line/scope.js";
 import { listChatMessages } from "../storage/chat.js";
 import { openDatabase } from "../storage/database.js";
 import { MockUsageLedger } from "../usage-ledger/mock-usage-ledger.js";
@@ -49,7 +57,10 @@ function ids(call: Call, patterns: RegExp[]): string[] {
 /** The scripted agent's script for one demo software. */
 export function demoScript(demo: DemoSoftware): AgentScript {
   const sayBack: ScriptBehaviour = (_request, call) => {
-    const lines = readRecord(call).filter((l) => /^[YUW]-/.test(l.id));
+    // What the operator left out at the scope check is not said back: it is not being built.
+    const lines = readRecord(call).filter(
+      (l) => /^[YUW]-/.test(l.id) && !l.line.includes("left-out"),
+    );
     const assumed = lines.filter((l) => l.line.includes("from: assumed"));
     const said = lines.filter((l) => !l.line.includes("from: assumed"));
     call("draft_submit", {
@@ -135,18 +146,20 @@ export function demoScript(demo: DemoSoftware): AgentScript {
 /** What the scripted operator says to one ask. */
 export type OperatorAnswer =
   | { kind: "items"; items: { key: string; decision: "keep" | "strike"; reason?: string }[] }
+  | { kind: "scope"; items: { key: string; place: ScopePlace }[] }
   | { kind: "text"; text: string }
   | { kind: "approval"; decision: "refuse" };
 
 /**
  * The scripted operator of a demo (decision 0108): answers written down before the run. It keeps
- * every list, strikes the one planted assumption at the first say-back, says "Build it", and
- * answers any other question with its first choice.
+ * every list, strikes the one planted assumption at the first say-back, says "Build it", takes the
+ * scope check's starting choice as it is, and answers any other question with its first choice.
  */
 export function demoOperator(demo: DemoSoftware): (ask: AskView) => OperatorAnswer {
   let struck = false;
   return (ask) => {
     if (ask.kind === "approval") return { kind: "approval", decision: "refuse" };
+    if (ask.kind === "scope") return scopeAsIs(ask);
     if (ask.kind === "say-back" && !struck) {
       const target = ask.items.find((i) => demo.strike.match.test(i.text));
       if (target) {
@@ -167,6 +180,21 @@ export function demoOperator(demo: DemoSoftware): (ask: AskView) => OperatorAnsw
     if (ask.choices?.includes("Build it")) return { kind: "text", text: "Build it" };
     if (ask.choices?.length) return { kind: "text", text: ask.choices[0]! };
     return { kind: "text", text: "Use your best judgment; nothing more is needed from me." };
+  };
+}
+
+/** What the operator chose at the scope check, in a few words for the log. */
+export function scopeWords(answer: Extract<OperatorAnswer, { kind: "scope" }>): string {
+  const n = (place: ScopePlace) => answer.items.filter((i) => i.place === place).length;
+  return `took the starting choice: ${n("first")} in the first version, ${n("later")} later, ${n("out")} left out`;
+}
+
+/** The scope check answered with the choice it starts on, moving nothing (as on the page). */
+export function scopeAsIs(ask: AskView): OperatorAnswer {
+  const cut = ask.scope?.preselected ?? "recommended";
+  return {
+    kind: "scope",
+    items: ask.items.map((i) => ({ key: i.key, place: placeFor(i.tier ?? "asked", cut) })),
   };
 }
 
@@ -284,9 +312,11 @@ export async function runDemo(
             ? answer.text
             : answer.kind === "approval"
               ? "No"
-              : answer.items.some((i) => i.decision === "strike")
-                ? `struck "${struck?.text}": ${struck?.reason}`
-                : "kept every item";
+              : answer.kind === "scope"
+                ? scopeWords(answer)
+                : answer.items.some((i) => i.decision === "strike")
+                  ? `struck "${struck?.text}": ${struck?.reason}`
+                  : "kept every item";
         log(`operator, to "${ask.title}": ${words}`);
         answered.push({ title: ask.title, answer: words });
         await session.services.asks.answer(ask.id, answer);

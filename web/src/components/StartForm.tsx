@@ -1,5 +1,6 @@
 import { useId, useState } from "react";
 import { ApiError, NotCurrentLink, type SoftwareSummary } from "../api";
+import { EFFORT_WORDS, SOFTWARE_EFFORTS, type SoftwareEffort } from "../../../src/shared/stages";
 import { useSession } from "../context";
 import { Problem } from "./Badges";
 
@@ -17,6 +18,8 @@ export function StartForm({
   const { api, notCurrent, refresh } = useSession();
   const [idea, setIdea] = useState("");
   const [name, setName] = useState("");
+  const [effort, setEffort] = useState<SoftwareEffort | "">("");
+  const effortId = useId();
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const ideaId = useId();
@@ -33,9 +36,10 @@ export function StartForm({
     setBusy(true);
     setProblem(null);
     try {
-      const started = await api.start(idea, name.trim() || undefined);
+      const started = await api.start(idea, name.trim() || undefined, effort || undefined);
       setIdea("");
       setName("");
+      setEffort("");
       refresh();
       onStarted(started);
     } catch (error) {
@@ -75,6 +79,26 @@ export function StartForm({
           onChange={(e) => setName(e.target.value)}
           placeholder="premise makes one from your first words"
         />
+      </details>
+      <details className="optional">
+        <summary>How much to build (optional)</summary>
+        <label htmlFor={effortId}>Effort</label>
+        <select
+          id={effortId}
+          value={effort}
+          onChange={(e) => setEffort(e.target.value as SoftwareEffort | "")}
+        >
+          <option value="">As in Settings (softwares.default_effort)</option>
+          {SOFTWARE_EFFORTS.map((e) => (
+            <option key={e} value={e}>
+              {e}: {EFFORT_WORDS[e]}
+            </option>
+          ))}
+        </select>
+        <p className="muted small">
+          After premise has drafted what it must do, it asks once how much to build, starting on
+          this choice. You can change it later on the Line tab.
+        </p>
       </details>
       {problem && <Problem>{problem}</Problem>}
       <div className="actions">

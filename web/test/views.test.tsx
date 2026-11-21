@@ -55,7 +55,7 @@ describe("first run", () => {
       "Write a sentence or two about it.",
     );
     await user.click(screen.getByRole("button", { name: "Start" }));
-    expect(start).toHaveBeenLastCalledWith("A reading list", undefined);
+    expect(start).toHaveBeenLastCalledWith("A reading list", undefined, undefined);
   });
 
   it("shows the open asks in the tab title", async () => {
@@ -91,6 +91,59 @@ describe("answering an ask in place", () => {
       ],
     });
     expect(session.refresh).toHaveBeenCalled();
+  });
+
+  it("chooses how much to build with one click, and moves one item by hand", async () => {
+    const user = userEvent.setup();
+    const api = fakeApi();
+    inSession(
+      <AskCard
+        ask={ask({
+          kind: "scope",
+          stage: "what",
+          title: "How much to build?",
+          items: [
+            { key: "W-1", text: "must: It keeps the list.", mark: "from-role", tier: "asked" },
+            { key: "W-2", text: "should: Help text.", mark: "suggestion", tier: "recommended" },
+            { key: "W-3", text: "could: Sharing.", mark: "suggestion", tier: "could" },
+          ],
+          scope: {
+            cuts: [
+              { id: "asked", label: "Only what I asked for", sessions: 7, minutes: 21 },
+              {
+                id: "recommended",
+                label: "Plus what premise recommends",
+                sessions: 10,
+                minutes: 30,
+              },
+              {
+                id: "everything",
+                label: "Everything premise could add",
+                sessions: 10,
+                minutes: 30,
+              },
+            ],
+            preselected: "recommended",
+            estimateNote: "A rough estimate, not a promise.",
+          },
+        })}
+      />,
+      api,
+    );
+    expect(screen.getByRole("heading", { name: "premise recommends adding" })).toBeTruthy();
+    expect(screen.getByText("1 in the first version, 1 later, 1 left out")).toBeTruthy();
+    await user.click(screen.getByRole("radio", { name: /Only what I asked for/ }));
+    expect(screen.getByText("1 in the first version, 0 later, 2 left out")).toBeTruthy();
+    await user.selectOptions(screen.getByRole("combobox", { name: "Where W-3 goes" }), "later");
+    await user.click(screen.getByRole("button", { name: "Build this much" }));
+    expect(api.answer).toHaveBeenCalledWith(1, {
+      kind: "scope",
+      items: [
+        { key: "W-1", place: "first" },
+        { key: "W-2", place: "out" },
+        { key: "W-3", place: "later" },
+      ],
+    });
   });
 
   it("offers only keep and strike on a say back, and explains it", () => {

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ConfigError, envNameFor, resolveDataFolder } from "./config/load.js";
 import { runDemo } from "./demo/demos.js";
-import { realRun } from "./demo/real-run.js";
+import { REAL_RUN_EXPECTED, realRun } from "./demo/real-run.js";
 import { configurationReference } from "./config/reference.js";
 import { checkRecordFolder } from "./record/check-folder.js";
 import { formatDoctorReport, runDoctor } from "./doctor/doctor.js";
@@ -192,6 +192,9 @@ async function trial(args: Parsed, env: NodeJS.ProcessEnv): Promise<number> {
         "at low effort, one session at a time, a scripted operator answering, a second copy on this",
         "machine instead of GitHub, and the sandbox on. It uses part of your subscription's usage.",
         "",
+        `It runs at low effort, so only what was asked is built: expect ${REAL_RUN_EXPECTED.milestones} milestone`,
+        `and at most about ${REAL_RUN_EXPECTED.mostSessions} agent sessions.`,
+        "",
         "To run it: premise real-run --confirm [--minutes 90] [--data <folder>]",
       ].join("\n"),
     );
@@ -209,6 +212,15 @@ async function trial(args: Parsed, env: NodeJS.ProcessEnv): Promise<number> {
   console.log(`Reached the end of the line: ${evidence.reachedEnd ? "yes" : "no"}`);
   console.log(`Stages, in order: ${evidence.stages.join(" → ")}`);
   console.log(`Agent sessions: ${evidence.sessions.length}; minutes: ${evidence.minutes}`);
+  const m = evidence.measures;
+  if (m?.firstRunning) {
+    console.log(
+      `From the idea to the first running version: ${m.minutesToFirstRunning} minutes, ${m.sessionsToFirstRunning} agent sessions.`,
+    );
+  }
+  console.log(
+    `Milestones: ${evidence.milestones} (expected ${REAL_RUN_EXPECTED.milestones}); agent sessions: ${evidence.sessions.length} (expected at most ${REAL_RUN_EXPECTED.mostSessions}).`,
+  );
   return evidence.reachedEnd ? 0 : 1;
 }
 

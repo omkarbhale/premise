@@ -223,6 +223,7 @@ export class ScriptedAgentRunner implements AgentRunner {
           kind: access.workingCopy,
           repository: request.repository,
           ref: request.ref,
+          ...(request.trace && { trace: request.trace }),
           reuse: Boolean(request.resumeSessionId),
         });
         session = { ...request, workingCopy: copy.path };

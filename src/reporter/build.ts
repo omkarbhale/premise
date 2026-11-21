@@ -2,6 +2,10 @@ import type { ReportLine, ReportView } from "../shared/api-types.js";
 import { stageName } from "../shared/stages.js";
 import type { Facts } from "./facts.js";
 
+function plural(n: number, word: string): string {
+  return `${n} ${word}${n === 1 ? "" : "s"}`;
+}
+
 /**
  * Build a report from recorded facts, and from nothing else (decision 0097). Every line carries
  * the fact it rests on, so a person can follow it. What was not checked is said, not left out.
@@ -64,8 +68,11 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
   );
   for (const item of sinceLast) {
     const priority = item.marks.priority ? `${item.marks.priority}: ` : "";
+    const tag = item.marks.priority ? ` (${item.marks.priority})` : "";
     decided.push({
-      text: `${priority}${sentence(item.text)}`,
+      text: item.marks.leftOut
+        ? `Left out, not built: ${item.id}${tag}: ${sentence(item.text)} To build it after all, send the software back to What on the Line tab; premise asks how much to build again.`
+        : `${priority}${sentence(item.text)}`,
       evidence: `record item ${item.id}, ${item.file}`,
     });
   }
@@ -163,7 +170,8 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
 
   // ---- Failed or not checked ---------------------------------------------------------------
   const failed: ReportLine[] = [];
-  const mustCheck = facts.items.filter((i) => i.kind === "W");
+  // What the operator left out at the scope check is not built, so it is not "not checked".
+  const mustCheck = facts.items.filter((i) => i.kind === "W" && !i.marks.leftOut);
   for (const item of mustCheck) {
     const verdict = verdictOf.get(item.id);
     if (!verdict) {
@@ -233,6 +241,35 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
     limits.push("No check has been recorded for this software yet.");
   }
 
+  // ---- Effort, as premise measured it (decision 0192) ---------------------------------------
+  const effort: ReportLine[] = [];
+  const m = facts.measures;
+  if (m) {
+    const minutes = (n: number) =>
+      n < 1
+        ? "under a minute"
+        : n < 90
+          ? `${Math.round(n)} minutes`
+          : `${Math.round(n / 6) / 10} hours`;
+    effort.push(
+      m.firstRunning && m.minutesToFirstRunning !== null
+        ? {
+            text: `From your idea to the first running version: ${minutes(m.minutesToFirstRunning)} and ${plural(m.sessionsToFirstRunning ?? 0, "agent session")}.`,
+            evidence: "runs and agent sessions",
+          }
+        : {
+            text: `No version has run yet. ${plural(m.sessions, "agent session")} so far.`,
+            evidence: "agent sessions",
+          },
+    );
+    if (m.firstRunning && m.sessions !== m.sessionsToFirstRunning) {
+      effort.push({
+        text: `${plural(m.sessions, "agent session")} in all so far.`,
+        evidence: "agent sessions",
+      });
+    }
+  }
+
   // ---- Short or full -----------------------------------------------------------------------
   const sections: Section[] = [
     {
@@ -252,6 +289,13 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
       plain: "What is waiting on a person, and exactly what to do.",
       lines: needed,
       rank: 0,
+    },
+    {
+      title: "Effort",
+      plain:
+        "How much work premise put in, as premise measured it itself (not the usage figures below).",
+      lines: effort,
+      rank: 1.5,
     },
     {
       title: "Failed or not checked",

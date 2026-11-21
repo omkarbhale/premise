@@ -2,7 +2,7 @@
  * The shapes the page server's API returns (docs/specs/page-server.md 3.2). Shared by the server
  * and the page, so it imports nothing but other shared files.
  */
-import type { SizeClass, StageId } from "./stages.js";
+import type { SizeClass, SoftwareEffort, StageId } from "./stages.js";
 
 export type SoftwareState =
   "active" | "paused-budget" | "paused-usage" | "waiting-milestone" | "ended";
@@ -17,6 +17,8 @@ export interface SoftwareSummary {
   sizeClass: SizeClass;
   priority: number;
   milestoneWaits: boolean;
+  /** How much effort the operator wants put into it: low, medium or high (decision 0191). */
+  effort: SoftwareEffort;
   openAsks: number;
   created: string;
   /** True while premise is taking on this software from existing code (decision 0189). */
@@ -51,7 +53,17 @@ export interface WorkItemView {
    * check of the whole; intake: an intake item's work; purpose: a change of purpose the operator
    * confirmed, which goes through Why.
    */
-  origin: "start" | "split" | "plan" | "fix" | "intake" | "purpose" | "existing" | "recover";
+  origin:
+    | "start"
+    | "split"
+    | "plan"
+    | "fix"
+    | "intake"
+    | "purpose"
+    | "existing"
+    | "recover"
+    | "bug"
+    | "change";
   title: string;
   words: string | null;
   state: "sizing" | "working" | "waiting-on-parts" | "ahead" | "done" | "dropped" | "withdrawn";
@@ -177,7 +189,27 @@ export interface ExistingView {
   };
 }
 
-export type AskKind = "question" | "draft" | "say-back" | "proposal" | "approval" | "needed";
+export type AskKind =
+  "question" | "draft" | "say-back" | "proposal" | "approval" | "needed" | "scope";
+
+/**
+ * Where an item of the scope check goes (decision 0191): into the first version, a later milestone,
+ * or left out (kept in the record, not built).
+ */
+export type ScopePlace = "first" | "later" | "out";
+
+/** Which tier premise put an item in: what the operator asked for, recommended, or could add. */
+export type ScopeTier = "asked" | "recommended" | "could";
+
+/** One of the scope check's three choices, with its rough cost. */
+export interface ScopeCut {
+  id: "asked" | "recommended" | "everything";
+  label: string;
+  /** Rough estimate: agent sessions from here to running software. */
+  sessions: number;
+  /** Rough estimate, in minutes. */
+  minutes: number;
+}
 
 export interface AskItem {
   /** Stable within the ask: the answer names items by this. */
@@ -193,6 +225,8 @@ export interface AskItem {
   refs?: string[];
   /** The heading a long list is grouped under on the page, such as "Why". */
   group?: string;
+  /** For the scope check: the tier premise put it in. */
+  tier?: ScopeTier;
 }
 
 export interface AskView {
@@ -210,6 +244,8 @@ export interface AskView {
   bestAttempt?: string;
   /** For a question: answers to pick from, besides writing one's own. */
   choices?: string[];
+  /** For the scope check: the three choices with their rough cost, and the one effort picks. */
+  scope?: { cuts: ScopeCut[]; preselected: ScopeCut["id"]; estimateNote: string };
   /** For an approval: exactly what will happen and why (the gate's fixed card). */
   approval?: {
     action: string;
@@ -241,7 +277,8 @@ export type AskAnswer =
   | { kind: "text"; text: string }
   | { kind: "approval"; decision: "approve-once" | "approve-kind" | "refuse"; reason?: string }
   | { kind: "needed"; decision: "done" | "cannot"; reason?: string }
-  | { kind: "proposal"; decision: "accept" | "change"; text?: string };
+  | { kind: "proposal"; decision: "accept" | "change"; text?: string }
+  | { kind: "scope"; items: { key: string; place: ScopePlace }[] };
 
 export interface ChatMessage {
   id: number;

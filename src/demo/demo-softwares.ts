@@ -157,6 +157,11 @@ export const COUNT_DEMO: DemoSoftware = {
       text: "It says plainly what went wrong when the file cannot be read.",
       from: "operator",
     },
+    {
+      priority: "could",
+      text: "Suggestion: it also counts what is piped into it, when no file is named. Not checked whether anyone needs it.",
+      from: "assumed",
+    },
   ],
   strike: {
     match: /team of writers/,
@@ -330,7 +335,7 @@ export const READING_LIST_DEMO: DemoSoftware = {
       from: "operator",
     },
     {
-      priority: "could",
+      priority: "must",
       text: "It shares the list with friends.",
       from: "assumed",
     },

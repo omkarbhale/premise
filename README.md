@@ -36,7 +36,7 @@ Either prints a link such as `http://localhost:4610/#token=…`. Open it, descri
 More:
 
 - `npm run demo:cli` and `npm run demo:web` run a whole scripted build, check and run in the terminal, and stop ([0187](docs/decisions/0187-kept-demos-and-one-real-run.md)). `npm run demo:web` does not leave a link running; use `npm run demo` to click around.
-- `npm run real-run -- --confirm` takes a tiny tool through the whole line with real agents on your login (haiku, low effort). Use it sparingly.
+- `npm run real-run -- --confirm` takes a tiny tool through the whole line with real agents on your login (haiku, low effort, the software at low effort so only what was asked is built). Use it sparingly.
 - Usage figures are mocked until usage-ledger exists; the page labels them "Mocked".
 - Change settings (how many agents run at once, the model and effort for each type of task, and more) in `config.json` in the data folder (`~/.premise` by default), or with environment variables: [configuration reference](docs/reference/configuration.md).
 - Another port or data folder: `npm start -- --port 4700`, `npm start -- --data <folder>`. `--help` anywhere prints help; a flag premise does not know is an error and starts nothing.

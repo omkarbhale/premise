@@ -59,6 +59,7 @@ describe("answering", () => {
           state: "active",
           status: "x",
           sizeClass: "small",
+          effort: "medium",
           priority: 3,
           milestoneWaits: false,
           openAsks: 1,

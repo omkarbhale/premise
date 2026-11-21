@@ -17,9 +17,22 @@ export type WorkItemKind = "software" | "milestone" | "module" | "intake";
  * How an item came to be: the software started, a split by the sizer, a plan's milestone, a fix the
  * whole-piece check asked for, an intake item, or a change of purpose the operator confirmed. An
  * existing software taken on is "existing"; the parts its record is recovered in are "recover".
+ *
+ * For intake: "bug" (something the record requires, not working),
+ * "change" (changes what the software must do), "intake" (other new work), "purpose" (a change of
+ * what the software is for, which the operator confirmed).
  */
 export type WorkItemOrigin =
-  "start" | "split" | "plan" | "fix" | "intake" | "purpose" | "existing" | "recover";
+  | "start"
+  | "split"
+  | "plan"
+  | "fix"
+  | "intake"
+  | "purpose"
+  | "existing"
+  | "recover"
+  | "bug"
+  | "change";
 
 /** Who decided a part of an item's sizing. */
 export type SizedBy = "sizer" | "operator" | "default";

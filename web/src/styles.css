@@ -519,6 +519,27 @@ details summary {
   text-decoration: line-through;
   color: var(--struck);
 }
+.item-out .text {
+  color: var(--muted);
+}
+.scope-cuts {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  margin: 0.6rem 0 0;
+  display: grid;
+  gap: 0.35rem;
+}
+.scope-cut {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  align-items: baseline;
+}
+.scope-tier h4 {
+  margin: 0.8rem 0 0;
+  font-size: 0.95rem;
+}
 .item-actions {
   display: flex;
   gap: 0.25rem;
