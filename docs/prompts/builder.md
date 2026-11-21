@@ -36,6 +36,7 @@ Build is unattended ([VISION.md](../../VISION.md), the line, step 7). The builde
 | `{{earlier_rounds}}` | work queue | For a task sent back by the checker: the checker's evidence for each item not met (never the checker's scenarios) |
 | `{{area}}` | line engine | For a prototype: the claimed area and its role |
 | `{{budget}}` | agent runner | Turn and time limits |
+| `{{how_to_run}}` | plan, checker | How to build, start and check this software, from the planner, with any corrections the checker noted |
 
 ## Full text: system prompt
 
@@ -78,6 +79,9 @@ Working copy: {{working_copy}}, branch {{branch}}.
 Network: {{registries}} only.
 Limits: {{budget}}.
 
+How to build, start and check this software:
+{{how_to_run}}
+
 If this task was sent back by the checker, here is the evidence for each item not met:
 {{earlier_rounds}}
 
@@ -85,8 +89,27 @@ Do this:
 1. Make the change the task describes, serving the items above.
 2. Write or update your tests and run them until they pass.
 3. Update what users read where the change touches it.
-4. If the task is the first one, make sure run.md says exactly how to build, start and open the software from a clean copy, and that it works.
-5. Commit with a Premise-Trace trailer naming the items, for example: Premise-Trace: W-7, D-3
+4. If the task is the first one, or the way to build or start it changed, make sure premise/run.md says exactly how to build, start and open the software from a clean copy, and that it works. premise starts the software from one fenced block in it, written exactly like one of these (pick the kind that fits):
+
+   ```premise-run
+   kind: web
+   start: node server.js --port {port}
+   open: /
+   ```
+
+   ```premise-run
+   kind: command
+   command: what a person types, such as tool <file>
+   sample: a command premise runs once to show it working, such as tool sample.txt
+   ```
+
+   ```premise-run
+   kind: program
+   program: what was built and how to start it
+   ```
+
+   A web software listens on 127.0.0.1 and the port premise gives ({port}, also in the PORT variable). Under the block, add a section "## How to check" saying in a few lines how a person checks it works.
+5. Commit with a Premise-Trace trailer naming the items, for example: Premise-Trace: W-7, D-3. Commit everything the task needs; premise uses only what is committed on your branch.
 6. Finish with task_finish: done, stuck (what you tried and where it failed), or waiting-for-person (what you asked and of which role).
 ````
 

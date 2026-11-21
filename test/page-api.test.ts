@@ -186,7 +186,7 @@ describe("answering asks", () => {
   });
 });
 
-describe("the whole line, with the line engine and stand-in later stages", () => {
+describe("the whole line, with the line engine and the scripted agent", () => {
   it("walks from the idea to Intake, with jobs in the queue and a report at the end", async () => {
     const { call, settle, session } = await testApp();
     const { body: sw } = await call("POST", "/api/softwares", { idea: "Track plant watering" });
@@ -244,13 +244,14 @@ describe("the whole line, with the line engine and stand-in later stages", () =>
     const report = await call("GET", `/api/softwares/${sw.id}/report`);
     expect(report.body.written).not.toBeNull();
     expect(report.body.cost.mocked).toBe(true);
-    // The stand-in starts nothing, and the report says so rather than claiming a run.
-    expect(report.body.running).toBeNull();
-    const runningLines = report.body.sections.find((x: { title: string }) => x.title === "Running");
-    expect(runningLines.lines[0].text).toBe("Nothing has been started yet.");
-    // Building is still a stand-in: the repository holds only the record, so nothing is running.
+    // The scripted builder wrote a placeholder program that says it is a trial; it was checked
+    // (honestly: could not check), landed and run as a command once.
     const run = await call("GET", `/api/softwares/${sw.id}/run`);
-    expect(run.body).toMatchObject({ state: "none" });
+    expect(run.body).toMatchObject({ state: "finished" });
+    expect(run.body.output.join("\n")).toContain("a scripted trial");
+    expect(
+      detail.body.build.checks.at(-1).verdicts.map((v: { verdict: string }) => v.verdict),
+    ).toEqual(expect.arrayContaining(["could-not-check"]));
     const titles = report.body.sections.map((s: { title: string }) => s.title);
     expect(titles).toEqual(expect.arrayContaining(["Running"]));
 

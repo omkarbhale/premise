@@ -79,12 +79,14 @@ Budget: {{budget}}.
 Do this:
 1. Decide the technical questions the record needs answered, and only those. Propose each as a D item with its reason and the alternative rejected. Mark foundation decisions.
 2. Apply the security defaults. Where a default needs a decision (for example who can get in to something other people reach), make it as a D item.
-3. Write the working plan as ordered tasks. For each task: what it changes, the record items it serves (W, D, T, and I for intake), and what the checker should see when it is done.
+3. Write the working plan as ordered tasks. For each task: what it changes, the record items it serves (W, D, T, and I for intake), what the checker should see when it is done, and which milestone it belongs to.
 4. For a new software, task 1 is the smallest version that runs, and writes run.md.
-5. For a change, keep it to the tasks the change needs. If the change touches purpose or would be costly to undo, say so in one line; the line engine sends it to the say-back.
-6. For each claimed area, add a prototype task before the task that builds it. If the area is not something a screenshot can show (an API's naming, wording), say so instead; you will be asked for a short list.
-7. List anything needed from a role (needed) or from the gate (approval) with ask or gate_request.
-8. Propose the D items with record_propose, submit the plan with draft_submit, end with task_finish.
+5. Group the tasks into milestones. Each milestone ends with running software the operator can try; the first is the smallest version that runs.
+6. Say what kind of software it is, in a few words of your own (there is no fixed list), and how to build it, start it and check it: what a checker does to use it as a user would. The builder writes this into run.md; the checker follows it.
+7. For a change, keep it to the tasks the change needs. If the change touches purpose or would be costly to undo, say so in one line; the line engine sends it to the say-back.
+8. For each claimed area, add a prototype task before the task that builds it. If the area is not something a screenshot can show (an API's naming, wording), say so instead; you will be asked for a short list.
+9. List anything needed from a role (needed) or from the gate (approval) with ask or gate_request.
+10. Submit with draft_submit, stage "plan": "items" (the D items, each { "text", "foundation": true or false }), "milestones" (each { "text" }), "tasks" (each { "title", "items": the record IDs it serves, "check": what the checker should see, "milestone": its milestone's number, from 1 }), "kind" and "how_to_run". End with task_finish.
 ````
 
 ## Full text: foundation revision brief

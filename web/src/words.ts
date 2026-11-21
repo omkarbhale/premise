@@ -12,7 +12,7 @@ export const TERMS = {
   intake:
     "Intake: what you say that is not an answer, and problems or wishes reported on the Intake tab, are taken in. An agent reads each against the record: most become new work on the line, a question is answered, and only what needs it is held or asked of you.",
   standIn:
-    "Stand-in: building, checking and running are not part of premise yet. Until they are, those stages are walked through without doing anything, so you can see where they will be. Everything before them (why, who, what exists, what, say back, plan), the report and intake are real.",
+    "Stand-in: a part of premise that does not exist yet, so what you see there is scripted or kept without doing the real work. It is marked wherever it appears.",
   mocked:
     "Mocked: usage-ledger, which will report real usage and cost, does not exist yet. Until it does, these figures are made up so you can see where they will appear.",
 } as const;

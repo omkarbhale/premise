@@ -3,13 +3,18 @@ import type { AgentRequest } from "../src/agents/agent-runner.js";
 import type { AgentScript, ScriptRule } from "../src/agents/scripted-agent.js";
 import { standInScript } from "../src/demo/stand-in-script.js";
 import type { AskView, SoftwareDetail, WorkItemView } from "../src/shared/api-types.js";
-import { testApp } from "./helpers.js";
+import { testApp as realApp } from "./helpers.js";
+import { DoNothingLaterStages } from "./stand-in-later.js";
 
 /**
  * Sizing of work (decision 0184), with the scripted agent as the sizer and this file as the
  * operator: small pieces skip to Build, wishes get What and a say-back, purpose changes go to Why,
  * split pieces finish after their parts and a check of the whole, and the operator overrides it all.
  */
+
+/** These tests are about sizing, so Build, Check and Run are stand-ins that finish at once. */
+const testApp = (env: Record<string, string> = {}, options: Parameters<typeof realApp>[1] = {}) =>
+  realApp(env, { ...options, later: new DoNothingLaterStages() });
 
 type App = Awaited<ReturnType<typeof testApp>>;
 type Sizing = Record<string, unknown>;

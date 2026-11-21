@@ -1,6 +1,6 @@
 # Runner specification
 
-Status: specification. Built so far: starting, keeping up, restarting and stopping software, the link or command on the page, ports, confinement, secrets and logs ([0162](../decisions/0162-how-the-runner-is-built.md), [0163](../decisions/0163-running-software-is-confined-with-bubblewrap.md)). Not built yet: repositories on GitHub, merge and push, release notes committed, log errors as intake. Being built ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Related: [build, check and run](../architecture/build-check-run.md), [record keeper](record-keeper.md), [gate](gate.md), [intake](intake.md), [reporter](reporter.md), [storage](storage.md).
+Status: specification. Built so far: starting, keeping up, restarting and stopping software, the link or command on the page, ports, confinement, secrets and logs ([0162](../decisions/0162-how-the-runner-is-built.md), [0163](../decisions/0163-running-software-is-confined-with-bubblewrap.md)). Merge and push are the server's at landing, through the record keeper ([0185](../decisions/0185-how-build-check-and-run-are-built.md)); the line starts each landed commit. Not built yet: repositories on GitHub, release notes committed, log errors as intake. Being built ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Related: [build, check and run](../architecture/build-check-run.md), [record keeper](record-keeper.md), [gate](gate.md), [intake](intake.md), [reporter](reporter.md), [storage](storage.md).
 
 ## 1. Purpose
 

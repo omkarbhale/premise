@@ -295,6 +295,12 @@ export class WorkQueue {
         .prepare("SELECT repository FROM softwares WHERE id = ?")
         .get(job.softwareId) as { repository: string | null } | undefined;
       const ref = typeof job.payload.ref === "string" ? job.payload.ref : undefined;
+      // A job may name the repository to clone (the software's own, on this machine), so it can
+      // work from a commit that is not pushed anywhere else yet.
+      const repository =
+        typeof job.payload.repository === "string"
+          ? job.payload.repository
+          : (software?.repository ?? undefined);
       const resumeSessionId = this.cutOffSession(job.id);
       // A stage's effort budget can be smaller than the task's own limits (decision 0085).
       const limits = (job.payload.limits ?? {}) as { turns?: unknown; minutes?: unknown };
@@ -319,7 +325,7 @@ export class WorkQueue {
           maxTurns,
           maxMinutes,
           brief,
-          ...(software?.repository ? { repository: software.repository } : {}),
+          ...(repository ? { repository } : {}),
           ...(ref ? { ref } : {}),
           ...(resumeSessionId ? { resumeSessionId } : {}),
           ...(context ? { context } : {}),

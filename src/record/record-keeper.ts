@@ -205,8 +205,18 @@ export class RecordKeeper {
 
   /** Bring a job's branch into the software's repository, as a merge commit that carries its trace. */
   mergeJob(softwareId: string, workingCopy: string, branch: string): string {
-    const repo = this.createRepository(softwareId);
+    this.createRepository(softwareId);
     this.git.push(workingCopy, "origin", branch);
+    return this.mergeBranch(softwareId, branch);
+  }
+
+  /**
+   * Merge a branch already in the software's repository into its default branch, as a merge commit
+   * that carries the trace of every commit it brings in. The server lands a checked change this way
+   * (docs/architecture/build-check-run.md, Run); no agent merges.
+   */
+  mergeBranch(softwareId: string, branch: string): string {
+    const repo = this.createRepository(softwareId);
     const commits = this.git.headCommit(repo)
       ? this.git.log(repo, [branch, "--not", this.git.currentBranch(repo)])
       : this.git.log(repo, [branch]);

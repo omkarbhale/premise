@@ -36,6 +36,7 @@ import {
   type StageId,
   isStageId,
   stageName,
+  stageNumber,
 } from "../shared/stages.js";
 import { type Ask, closeAsk, createAsk, getAsk, listAsks, setAskItems } from "../storage/asks.js";
 import { addChatMessage, listChatMessages } from "../storage/chat.js";
@@ -64,7 +65,7 @@ import {
   toAskItem,
 } from "./draft-items.js";
 import type { IntakeHooks, IntakeLine } from "./intake-hooks.js";
-import type { LaterStageId, LaterStages, MilestoneRef } from "./later-stages.js";
+import type { LaterOutcome, LaterStageId, LaterStages, MilestoneRef } from "./later-stages.js";
 import { RecordWriter } from "./record-writer.js";
 import {
   allowedStages,
@@ -197,7 +198,12 @@ interface LineState extends ItemNotes {
 interface StoredPlan {
   decisions: DraftItem[];
   milestones: DraftItem[];
-  tasks: { title: string; items: string[]; check?: string }[];
+  /** Ordered tasks; "milestone" is the 1-based number of the plan's milestone it belongs to. */
+  tasks: { title: string; items: string[]; check?: string; milestone?: number }[];
+  /** What kind of software it is, in the planner's words (no fixed list; decision 0167). */
+  kind?: string;
+  /** How to build, start and check this software, for the builder and the checker. */
+  how_to_run?: string;
 }
 
 export interface LineEngineOptions {
@@ -464,6 +470,7 @@ export class LineEngine implements IntakeLine {
       budget: budget ? { ...budget, usedMinutes: Math.round(used * 10) / 10 } : null,
       work: this.workViews(id),
       wholeCheckStandIn: this.wholeCheck.standIn,
+      build: this.options.later.view?.(id) ?? null,
     };
   }
 
@@ -648,6 +655,7 @@ export class LineEngine implements IntakeLine {
       this.setState(id, { returnTo: undefined, boost: undefined, review: undefined });
       const dropped = this.withdrawParts(target);
       this.setActive(id, target);
+      if (stageNumber(stage) <= stageNumber("build")) this.options.later.reset?.(id);
       this.premiseSays(
         id,
         `Sent back to ${stageName(stage)}. The stages after it will be done again.${dropped > 0 ? ` The ${dropped === 1 ? "part" : `${dropped} parts`} made after it ${dropped === 1 ? "was" : "were"} withdrawn and will be made again.` : ""}`,
@@ -1504,9 +1512,9 @@ export class LineEngine implements IntakeLine {
   ): void {
     this.openRun(software, stage, why, milestone?.id ?? null);
     this.setState(software.id, { milestone: milestone?.id ?? null });
-    const jobs = this.options.later.jobs(software.id, stage, milestone);
     const run = this.state(software.id).run!;
-    for (const job of jobs) {
+    const jobs = this.options.later.jobs({ softwareId: software.id, stage, milestone, run, why });
+    for (const job of jobs ?? []) {
       this.queue.enqueue({
         ...job,
         payload: {
@@ -1517,7 +1525,7 @@ export class LineEngine implements IntakeLine {
         },
       });
     }
-    const about = milestone ? ` ${milestone.id}: ${milestone.text}` : "";
+    const about = milestone ? ` ${milestone.id}: ${milestone.text.replace(/[.\s]+$/, "")}` : "";
     const later = this.options.later.standIn ? " (stand-in: nothing is really done yet)" : "";
     switch (stage) {
       case "build":
@@ -1539,7 +1547,9 @@ export class LineEngine implements IntakeLine {
         this.writeReport(software, milestone);
         break;
     }
-    if (jobs.length === 0 && stage !== "report") this.afterLater(software.id, stage);
+    if (jobs !== null && jobs.length === 0 && stage !== "report") {
+      this.afterLater(software.id, stage);
+    }
   }
 
   /** A later stage finished: on to the piece's next stage, or the piece is finished. */
@@ -1836,37 +1846,37 @@ export class LineEngine implements IntakeLine {
 
   private laterJobEnded(software: Software, job: Job): void {
     const stage = job.stage as LaterStageId;
-    if (job.status !== "done") {
-      this.premiseSays(
+    if (stage === "check" && job.status !== "done" && job.status !== "stopped") {
+      // A check that stopped by itself is something premise raises as intake (spec 5.1).
+      this.options.intake.raise(
         software.id,
-        `The ${jobWords(job)} ${job.status === "stopped" ? "was stopped" : "did not finish"}: ${job.result ?? "no reason was given"}. Send ${software.name} back to ${stageName(stage)} to try again.`,
+        `The check of ${this.label(this.active(software.id))} stopped without a verdict: ${job.result ?? "no reason was given"}.`,
       );
-      if (stage === "check" && job.status !== "stopped") {
-        // A check that stopped by itself is something premise raises as intake (spec 5.1).
-        this.options.intake.raise(
-          software.id,
-          `The check of ${this.label(this.active(software.id))} stopped without a verdict: ${job.result ?? "no reason was given"}.`,
-        );
-      }
-      return;
     }
     const outcome = this.options.later.finished(job);
+    if (outcome.kind === "next") {
+      // The stage is done when none of its jobs are left.
+      const open = this.queue
+        .list()
+        .some(
+          (j) =>
+            j.softwareId === software.id &&
+            j.payload.run === job.payload.run &&
+            !FINISHED.has(j.status),
+        );
+      if (open) return;
+    }
+    this.applyLater(software, stage, outcome);
+  }
+
+  /** Move the line on as a later stage says. */
+  private applyLater(software: Software, stage: LaterStageId, outcome: LaterOutcome): void {
     if (outcome.kind === "wait") return;
     if (outcome.kind === "back-to-build") {
-      this.premiseSays(software.id, `Back to building: ${outcome.evidence}`);
       this.enterLater(software, "build", this.currentMilestone(software.id), "check not passed");
       return;
     }
-    // The stage is done when none of its jobs are left.
-    const open = this.queue
-      .list()
-      .some(
-        (j) =>
-          j.softwareId === software.id &&
-          j.payload.run === job.payload.run &&
-          !FINISHED.has(j.status),
-      );
-    if (!open) this.afterLater(software.id, stage);
+    this.afterLater(software.id, stage);
   }
 
   private openAskOfJob(jobId: number): Ask | undefined {
@@ -1945,9 +1955,11 @@ export class LineEngine implements IntakeLine {
       "",
       ...plan.tasks.map(
         (t, i) =>
-          `${i + 1}. ${t.title}${t.items.length ? ` (serves ${t.items.join(", ")})` : ""}${t.check ? `. Check: ${t.check}` : ""}`,
+          `${i + 1}. ${t.title}${t.items.length ? ` (serves ${t.items.join(", ")})` : ""}${t.milestone ? ` [milestone ${t.milestone}]` : ""}${t.check ? `. Check: ${t.check}` : ""}`,
       ),
       "",
+      ...(plan.kind ? [`Kind of software: ${plan.kind}`, ""] : []),
+      ...(plan.how_to_run ? ["## How to build, start and check it", "", plan.how_to_run, ""] : []),
     ];
     writeFileSync(join(folder, "plan.md"), lines.join("\n"));
   }
@@ -2301,6 +2313,7 @@ export class LineEngine implements IntakeLine {
             this.withdrawParts(root);
             this.setActive(id, root);
             this.setState(id, { returnTo: undefined, boost: undefined, review: undefined });
+            this.options.later.reset?.(id);
             this.premiseSays(
               id,
               "Back to Why: the stages after it will be done again with what you say now.",
@@ -2319,9 +2332,20 @@ export class LineEngine implements IntakeLine {
       default: {
         const said = answer.kind === "text" ? answer.text : JSON.stringify(answer);
         return () => {
-          const answers = [...(this.state(id).answers ?? []), `${ask.title} → ${said}`].slice(-10);
-          this.setState(id, { answers });
-          this.premiseSays(id, "Noted. The agent's next step gets your answer.");
+          const later = this.options.later.answered?.(ask, answer) ?? null;
+          if (purpose === "agent" || later === null) {
+            const answers = [...(this.state(id).answers ?? []), `${ask.title} → ${said}`].slice(
+              -10,
+            );
+            this.setState(id, { answers });
+            this.premiseSays(id, "Noted. The agent's next step gets your answer.");
+          }
+          if (later) {
+            const current = getSoftware(this.db, id)!;
+            if ((LATER as readonly string[]).includes(current.currentStage)) {
+              this.applyLater(current, current.currentStage as LaterStageId, later);
+            }
+          }
         };
       }
     }
@@ -2724,10 +2748,22 @@ export class LineEngine implements IntakeLine {
                 ? v.items.filter((x): x is string => typeof x === "string")
                 : [],
               ...(typeof v.check === "string" && { check: v.check }),
+              ...(typeof v.milestone === "number" &&
+                Number.isInteger(v.milestone) &&
+                v.milestone >= 1 && { milestone: v.milestone }),
             };
           })
         : [];
-      this.writePlan(id, { decisions: ds, milestones, tasks });
+      const kind = typeof args.kind === "string" ? args.kind.trim().slice(0, 200) : "";
+      const howToRun =
+        typeof args.how_to_run === "string" ? args.how_to_run.trim().slice(0, 4000) : "";
+      this.writePlan(id, {
+        decisions: ds,
+        milestones,
+        tasks,
+        ...(kind && { kind }),
+        ...(howToRun && { how_to_run: howToRun }),
+      });
       return toolOk({
         status: "received",
         note: "premise keeps the plan. The operator sees the milestones once you finish.",
@@ -2888,6 +2924,14 @@ export class LineEngine implements IntakeLine {
         "The record keeper refused the change.",
         result.diagnostics.map((d) => d.message),
       );
+    }
+    if ((LATER as readonly string[]).includes(job.stage ?? "") && this.options.later.proposed) {
+      this.options.later.proposed(job.softwareId, result.changeId);
+      return toolOk({
+        change_id: result.changeId,
+        status: result.status,
+        note: "Checked. It goes into the record when this change lands, after the check passes.",
+      });
     }
     this.setState(job.softwareId, {
       proposed: [...(this.state(job.softwareId).proposed ?? []), result.changeId],

@@ -1,11 +1,12 @@
 import type { AgentRunner } from "../agents/agent-runner.js";
 import { ScriptedAgentRunner } from "../agents/scripted-agent.js";
+import { BuildCheckRun } from "../build/build-check-run.js";
+import type { LaterStages } from "../line/later-stages.js";
 import type { AgentToolServer } from "../agents/tool-server.js";
 import type { PremiseConfig } from "../config/settings.js";
 import { Gate } from "../gate/gate.js";
 import { Intake } from "../intake/intake.js";
 import { Briefs } from "../line/briefs.js";
-import { StandInLaterStages } from "../line/later-stages.js";
 import { LineEngine } from "../line/line-engine.js";
 import { WorkQueue } from "../queue/work-queue.js";
 import { RecordKeeper } from "../record/record-keeper.js";
@@ -47,7 +48,7 @@ export interface Session {
 /**
  * Wire the session: the work queue, the record keeper, the gate and the line engine, which answers
  * the page server's interfaces, with the runner, the reporter and intake beside it. Build, Check
- * and Run are a labelled stand-in until their own modules plug in here (src/line/later-stages.ts);
+ * and Run are src/build, behind the line engine's hand-off (src/line/later-stages.ts);
  * each milestone's report is written by the reporter. When a tool server is given, agents'
  * tool calls reach the line engine, the record keeper and the gate.
  */
@@ -60,6 +61,8 @@ export function createSession(options: {
   record?: RecordKeeper;
   docs?: string;
   agents?: AgentsStatus;
+  /** Other later stages than Build, Check and Run (tests of the line itself use a stand-in). */
+  later?: LaterStages;
 }): Session {
   const { db, config, ledger, runner, tools } = options;
   let line: LineEngine | null = null;
@@ -93,6 +96,9 @@ export function createSession(options: {
     onGaveUp: (softwareId, failure) => taker.raise(softwareId, failure),
   });
   const reporter = new Reporter({ db, config, records: record, runner: runs, ledger }, config);
+  const briefs = new Briefs(options.docs ?? docsFolder());
+  const build = new BuildCheckRun({ db, queue, config, keeper: record, briefs, runner: runs });
+  const later: LaterStages = options.later ?? build;
   line = new LineEngine({
     db,
     queue,
@@ -101,7 +107,7 @@ export function createSession(options: {
     keeper: record,
     gate,
     briefs,
-    later: new StandInLaterStages(() => config.agents.scripted.step_seconds),
+    later,
     intake: taker,
     agentsReady: () => agents.ready(),
     reporter,
@@ -120,10 +126,15 @@ export function createSession(options: {
         sizing_submit: (b, a) => engine.sizingSubmit(b, a),
         triage_submit: (b, a) => taker.triageSubmit(b, a),
         reading_submit: (b, a) => taker.readingSubmit(b, a),
+        scenario_write: (b, a) => build.scenarioWrite(b, a),
+        verdict_submit: (b, a) => build.verdictSubmit(b, a),
       },
       onFinish: (b, account) => engine.taskFinished(b, account),
     });
     if (runner instanceof ScriptedAgentRunner) runner.useTools(tools);
+  }
+  if (runner instanceof ScriptedAgentRunner) {
+    runner.useWorkingCopies(config.data.folder, config.data.keep_finished_working_copies);
   }
   const services: SessionServices = {
     softwares: {

@@ -35,6 +35,7 @@ The check is a different agent from the builder, out of its reach, judging the r
 | `{{working_copy}}` | agent runner | The checker's own clean working copy of that commit |
 | `{{evidence_folder}}` | agent runner | Where screenshots, output and logs are saved |
 | `{{budget}}` | agent runner | Turn and time limits |
+| `{{check_notes}}` | earlier checks | Corrections earlier checks noted to how the software is built, started or checked |
 
 ## Full text: system prompt
 
@@ -75,7 +76,7 @@ Do this:
 2. Cover the must items first and fully. Should and could items get one scenario each.
 3. For each checkable T item (taste), write what the claiming role asked for as something observable.
 4. Add one scenario per security default that applies to this software.
-5. Save each with scenario_write. Builders cannot read them. Do not put them anywhere else.
+5. Save each with scenario_write: "name", "items" (the record IDs it checks), "steps" (what a user does, in order) and "expected" (what they must see). Builders cannot read them. Do not put them anywhere else.
 ````
 
 ## Full text: check brief
@@ -97,12 +98,15 @@ Your working copy: {{working_copy}}
 Save evidence in: {{evidence_folder}}
 Limits: {{budget}}.
 
+What earlier checks noted about building, starting or checking it:
+{{check_notes}}
+
 Do this:
-1. Build and start the software from run.md, from your clean copy, exactly as written. Record the output. If it fails, record that as a finding and check what you still can.
+1. Build and start the software from premise/run.md, from your clean copy, exactly as written; its "How to check" section says how a person checks it. Record the output. If it fails, record that as a finding and check what you still can. If you had to do something run.md does not say, say what in "run_notes" so the builder corrects run.md.
 2. Run your scenarios against the running software, as a user would. Save evidence for each.
 3. Give each item a verdict: met, not-met, or could-not-check, with its evidence and, for not-met, exactly what you saw against what the item asks.
 4. Check the security defaults that apply. A broken default is a floor finding.
 5. Check that what users read matches what the software does.
 6. Look for anything plainly wrong that no item names, such as a crash or lost input, and report it as a finding with evidence.
-7. Submit with verdict_submit. Do not soften a verdict, and do not report met without evidence.
+7. Submit with verdict_submit: "verdicts", each { "item": the record ID, "verdict": met, not-met or could-not-check, "evidence": what you saw, or the file you saved }; "findings", each { "text", "blocking": true when it must be fixed before the change lands, such as a broken security default or a run.md that does not work }; and "run_notes" when you had to correct how to build, start or check it. Where you cannot operate the software here (it needs a device, an account or a service you do not have), the verdict is could-not-check, and the evidence names exactly what is needed. Do not soften a verdict, and do not report met without evidence.
 ````

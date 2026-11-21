@@ -9,6 +9,7 @@ import type {
 } from "./agent-runner.js";
 import { accessFor } from "./roles.js";
 import type { AgentToolServer, ToolEnvelope } from "./tool-server.js";
+import { prepareWorkingCopy, removeWorkingCopy, saveEvidence } from "./working-copy.js";
 
 /**
  * The scripted agent: a deterministic stand-in for Claude that calls no LLM (decisions 0134, 0148).
@@ -188,6 +189,19 @@ export class ScriptedAgentRunner implements AgentRunner {
     this.tools = tools;
   }
 
+  /**
+   * Give sessions working copies, as a real agent gets: a clone of the software's repository under
+   * the data folder (a branch for a builder, the commit under check for a checker). A behaviour
+   * finds its copy in request.workingCopy. Without this, sessions get none.
+   */
+  useWorkingCopies(dataFolder: string, keepFinished = false): void {
+    this.dataFolder = dataFolder;
+    this.keepFinished = keepFinished;
+  }
+
+  private dataFolder: string | undefined;
+  private keepFinished = false;
+
   start(request: AgentRequest, onProgress: (progress: AgentProgress) => void): AgentSession {
     this.requests.push(request);
     const rule = this.script.rules.find((r) => matches(r, request));
@@ -198,11 +212,54 @@ export class ScriptedAgentRunner implements AgentRunner {
     });
     let ended = false;
     const finished = (async (): Promise<AgentOutcome> => {
+      const access = accessFor(request.taskKind);
+      let copy: { path: string; branch: string | null } | null = null;
+      let session = request;
+      if (this.dataFolder && request.repository && access.workingCopy !== "scratch") {
+        copy = await prepareWorkingCopy({
+          dataFolder: this.dataFolder,
+          softwareId: request.softwareId,
+          jobId: request.jobId,
+          kind: access.workingCopy,
+          repository: request.repository,
+          ref: request.ref,
+          reuse: Boolean(request.resumeSessionId),
+        });
+        session = { ...request, workingCopy: copy.path };
+      }
+      try {
+        return await this.play(rule, end, session, onProgress, () => ended);
+      } finally {
+        if (copy && access.role === "checker") {
+          saveEvidence(this.dataFolder!, request.softwareId, request.jobId, copy.path);
+        }
+        if (copy && !copy.branch && !this.keepFinished) removeWorkingCopy(copy.path);
+      }
+    })();
+    return {
+      sessionId: `scripted-${request.jobId}-${request.attempt}`,
+      runtime: this.runtime,
+      outcome: Promise.race([finished, stopped]),
+      stop: () => {
+        ended = true;
+        stop();
+      },
+    };
+  }
+
+  private async play(
+    rule: ScriptRule | undefined,
+    end: ScriptEnd,
+    request: AgentRequest,
+    onProgress: (progress: AgentProgress) => void,
+    isEnded: () => boolean,
+  ): Promise<AgentOutcome> {
+    {
       for (const text of rule?.progress ?? []) {
         onProgress({ time: new Date().toISOString(), text });
       }
       if (rule?.delay_ms) await new Promise((r) => setTimeout(r, rule.delay_ms));
-      if (!ended && (rule?.calls?.length || rule?.behave) && this.tools) {
+      if (!isEnded() && (rule?.calls?.length || rule?.behave) && this.tools) {
         const tools = this.tools;
         const token = tools.issue({
           role: accessFor(request.taskKind).role,
@@ -224,15 +281,6 @@ export class ScriptedAgentRunner implements AgentRunner {
       }
       const outcome = toOutcome(end, request);
       return outcome ?? new Promise<AgentOutcome>(() => {});
-    })();
-    return {
-      sessionId: `scripted-${request.jobId}-${request.attempt}`,
-      runtime: this.runtime,
-      outcome: Promise.race([finished, stopped]),
-      stop: () => {
-        ended = true;
-        stop();
-      },
-    };
+    }
   }
 }

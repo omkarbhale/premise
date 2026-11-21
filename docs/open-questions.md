@@ -20,6 +20,7 @@ The owner asked the assistant to choose an answer to every question that was ope
 | Whether a confirmed change of purpose from intake redoes the whole software | No: it goes back to Why as its own piece of work, said back before it is built; sending the whole software back stays the operator's act | [0185](decisions/0185-how-intake-in-a-thin-form-is-built.md) |
 | How senders are told where their item stands, while every sender is in the session | One line in the session at each change, and the Intake tab in plain words | [0185](decisions/0185-how-intake-in-a-thin-form-is-built.md) |
 | Whether triage reads items one at a time or in batches | One at a time, at the fast tier | [0185](decisions/0185-how-intake-in-a-thin-form-is-built.md) |
+| What happens when a check keeps failing, or a build task keeps stopping | premise stops and asks: more rounds or land it as it is; try the stopped tasks again or check what was built | [0186](decisions/0186-how-build-check-and-run-are-built.md) |
 | If bubblewrap or socat is missing | The setup check names what is missing and how to install it; premise refuses to start real agents without them | [0142](decisions/0142-setup-check-names-bubblewrap-and-socat.md) |
 | The other Premise project, and the name | The name stays premise | [0143](decisions/0143-the-name-stays-premise.md) |
 | Being reached from other machines | Stays off by default; no setting opens it | [0144](decisions/0144-reach-from-other-machines-stays-off.md) |

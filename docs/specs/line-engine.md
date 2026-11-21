@@ -1,6 +1,6 @@
 # Line engine specification
 
-Status: Why to Plan, and sizing of every piece of work ([0184](../decisions/0184-how-sizing-of-work-is-built.md)), built in `src/line/`; Intake, in a thin form, is built in `src/intake/` and meets the line through `IntakeHooks` and `IntakeLine` ([0185](../decisions/0185-how-intake-in-a-thin-form-is-built.md)); Build, Check and Run are behind a labelled scripted stand-in until the line hands them to their modules, and each milestone's report is written by the [reporter](reporter.md) ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md), [0183](../decisions/0183-how-the-line-engine-is-built.md)). Related: [the line](../architecture/the-line.md), [record keeper](record-keeper.md), [work queue](work-queue.md), [page](page.md), [agent tools](agent-tools.md), [prompts](../prompts/README.md).
+Status: Why to Plan, and sizing of every piece of work ([0184](../decisions/0184-how-sizing-of-work-is-built.md)), built in `src/line/`; Intake, in a thin form, is built in `src/intake/` and meets the line through `IntakeHooks` and `IntakeLine` ([0185](../decisions/0185-how-intake-in-a-thin-form-is-built.md)); Build, Check and Run are built in `src/build/` behind the line engine's hand-off ([0186](../decisions/0186-how-build-check-and-run-are-built.md)), and each milestone's report is written by the [reporter](reporter.md) ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md), [0183](../decisions/0183-how-the-line-engine-is-built.md)). Related: [the line](../architecture/the-line.md), [record keeper](record-keeper.md), [work queue](work-queue.md), [page](page.md), [agent tools](agent-tools.md), [prompts](../prompts/README.md).
 
 ## 1. Purpose
 
@@ -49,7 +49,7 @@ Not responsible for:
 
 Asks are rows in `asks`; drafts are asks of kind `draft` (no separate table, [0183](../decisions/0183-how-the-line-engine-is-built.md)); claims in `claims` ([storage](storage.md)).
 
-As built: what goes through the line is a work item, and each software is one root item ([0181](../decisions/0181-the-line-works-on-work-items.md)). Why, Who, What, the say-back and Plan each queue one agent job (What exists: one research job) with the published brief from `docs/prompts`. The later stages are behind the `LaterStages` interface, completed by a scripted stand-in that the page labels ([0183](../decisions/0183-how-the-line-engine-is-built.md)).
+As built: what goes through the line is a work item, and each software is one root item ([0181](../decisions/0181-the-line-works-on-work-items.md)). Why, Who, What, the say-back and Plan each queue one agent job (What exists: one research job) with the published brief from `docs/prompts`. The later stages are behind the `LaterStages` interface ([0183](../decisions/0183-how-the-line-engine-is-built.md)): Build, Check and Run are `src/build`, one milestone at a time ([0185](../decisions/0185-how-build-check-and-run-are-built.md)); Intake is a labelled stand-in. The plan the planner submits also names each task's milestone, what kind of software it is, and how to build, start and check it ([0167](../decisions/0167-premise-adapts-at-runtime-to-the-software.md)).
 
 ## 4. Data owned
 
@@ -147,6 +147,7 @@ Applied to every decision a stage meets ([0084](../decisions/0084-who-has-the-la
 - A must item not met, or a floor finding: back to the builder as a new task, with the evidence.
 - Should or could items not met, and small defects: accepted and reported when fixing costs more than it is worth ([0006](../decisions/0006-llm-does-what-it-can.md)); the operator can reopen them.
 - The same item failing three rounds: work on it stops, and the report names which role is needed and for what.
+- As built ([0185](../decisions/0185-how-build-check-and-run-are-built.md)): a check judges the items the milestone's tasks serve plus the must items of milestones already landed; "could not check" does not hold a change back; at the round limit premise asks the operator to give more rounds or land it as it is.
 
 ### 5.8 Waiting
 

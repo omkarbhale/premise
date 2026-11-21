@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { appendFileSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import { appendFileSync, cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { SANDBOX_PLACEHOLDERS } from "./claude-settings.js";
@@ -40,6 +40,31 @@ export function workingCopyPath(dataFolder: string, softwareId: string, jobId: n
   return join(dataFolder, "work", folderName(softwareId), `job-${jobId}`);
 }
 
+/**
+ * The folder, inside a checker's working copy, where it saves its evidence (screenshots, output,
+ * logs). premise keeps it in the data folder once the session ends (decision 0089).
+ */
+export const EVIDENCE_FOLDER = ".premise-evidence";
+
+/** Where premise keeps a check job's evidence after its session. */
+export function evidencePath(dataFolder: string, softwareId: string, jobId: number): string {
+  return join(dataFolder, "evidence", folderName(softwareId), `job-${jobId}`);
+}
+
+/** Copy the evidence a session saved in its working copy into the data folder. */
+export function saveEvidence(
+  dataFolder: string,
+  softwareId: string,
+  jobId: number,
+  copy: string,
+): void {
+  const from = join(copy, EVIDENCE_FOLDER);
+  if (!existsSync(from)) return;
+  const to = evidencePath(dataFolder, softwareId, jobId);
+  mkdirSync(join(to, ".."), { recursive: true });
+  cpSync(from, to, { recursive: true });
+}
+
 export function branchFor(jobId: number): string {
   return `premise/job-${jobId}`;
 }
@@ -74,7 +99,7 @@ export async function prepareWorkingCopy(request: WorkingCopyRequest): Promise<W
   // The sandbox leaves placeholder files in the working copy; keep them out of every commit.
   appendFileSync(
     join(path, ".git", "info", "exclude"),
-    `\n# Placed by the agent sandbox; never part of a change.\n${SANDBOX_PLACEHOLDERS.map((p) => `/${p}`).join("\n")}\n`,
+    `\n# Placed by the agent sandbox; never part of a change.\n${SANDBOX_PLACEHOLDERS.map((p) => `/${p}`).join("\n")}\n/${EVIDENCE_FOLDER}/\n`,
   );
   return { path, branch, isClone: true };
 }
