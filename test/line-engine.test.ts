@@ -373,7 +373,12 @@ describe("the gate on the line", () => {
       answer: { kind: "approval", decision: "refuse", reason: "Not yet" },
     });
     await app.settle();
-    expect((await chat(app, id)).at(-1)).toContain("Declined: nothing was created");
+    // The gate's own reply, then (in passing) what premise learned from the refusal.
+    const said = await chat(app, id);
+    expect(said.filter((t) => !t.startsWith("Learned from")).at(-1)).toContain(
+      "Declined: nothing was created",
+    );
+    expect(said.at(-1)).toContain("Learned from your correction");
     expect(app.session.gate.list(id)[0]).toMatchObject({
       status: "refused",
       outcome: "Declined: Not yet",

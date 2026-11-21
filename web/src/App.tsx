@@ -8,6 +8,7 @@ import { Needed } from "./components/Needed";
 import { Settings } from "./components/Settings";
 import { SoftwareView, type SoftwareTab } from "./components/SoftwareView";
 import { BringInForm } from "./components/BringInForm";
+import { Doing } from "./components/Doing";
 import { StartForm } from "./components/StartForm";
 import { Usage } from "./components/Usage";
 import { Welcome } from "./components/Welcome";
@@ -22,6 +23,7 @@ type View =
   | { name: "needed" }
   | { name: "activity" }
   | { name: "usage" }
+  | { name: "doing" }
   | { name: "settings" }
   | { name: "help" };
 
@@ -149,6 +151,7 @@ function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) 
   const openAsks = asks.state === "ready" ? asks.data : [];
 
   useTabTitle(openAsks.length);
+  usePresence(api, overview.state === "ready" ? (overview.data.page.presenceSeconds ?? 30) : null);
   useNotifications(
     asks.state === "ready" ? openAsks : null,
     overview.state === "ready" ? overview.data.page.notifications : "off",
@@ -207,6 +210,7 @@ function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) 
       more: true,
       extra: o.usage.mocked ? <MockedBadge /> : null,
     },
+    { view: { name: "doing" }, label: "How premise is doing", more: true },
     { view: { name: "settings" }, label: "Settings", more: true },
     { view: { name: "help" }, label: "Help" },
   ];
@@ -340,6 +344,7 @@ function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) 
         {view.name === "needed" && <Needed asks={openAsks} notifications={o.page.notifications} />}
         {view.name === "activity" && <Activity />}
         {view.name === "usage" && <Usage overview={o} />}
+        {view.name === "doing" && <Doing />}
         {view.name === "settings" && <Settings overview={o} />}
         {view.name === "help" && <Help />}
         {asks.state === "error" && <Problem>{asks.message}</Problem>}
@@ -367,6 +372,29 @@ function ConnectionState({ connection }: { connection: Connection }) {
         : "Reconnecting… if this lasts, check premise is still running."}
     </span>
   );
+}
+
+/**
+ * Tell premise while this page is in front of someone, so minutes of attention count only then
+ * (docs/specs/measures.md). A beat every few seconds while visible; one "not visible" when hidden.
+ */
+function usePresence(api: Api, seconds: number | null) {
+  useEffect(() => {
+    if (seconds === null || typeof document === "undefined") return;
+    const beat = () => {
+      api.presence(document.visibilityState === "visible").catch(() => {});
+    };
+    const changed = () => beat();
+    if (document.visibilityState === "visible") beat();
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") beat();
+    }, seconds * 1000);
+    document.addEventListener("visibilitychange", changed);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", changed);
+    };
+  }, [api, seconds]);
 }
 
 /** The browser tab shows how many asks are open (decision 0099). */

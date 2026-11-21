@@ -227,6 +227,8 @@ export interface AskItem {
   group?: string;
   /** For the scope check: the tier premise put it in. */
   tier?: ScopeTier;
+  /** A lesson from an earlier correction this item follows, so the person sees they were heard. */
+  follows?: { label: string; text: string };
 }
 
 export interface AskView {
@@ -355,6 +357,8 @@ export interface ReportView {
   cost: { mocked: boolean; text: string };
   /** Facts the report could not read, said plainly; empty when all were read. */
   limits: string[];
+  /** "How premise is doing": its own return, from recorded events (decision 0172). */
+  doing?: { plain: string; lines: ReportLine[] };
 }
 
 export type RunState =
@@ -450,7 +454,11 @@ export interface Overview {
   };
   /** The line engine runs every stage; the stages listed in standInStages are a labelled stand-in. */
   line: { mode: "engine"; standInStages: StageId[] };
-  page: { notifications: "offer" | "off" };
+  page: {
+    notifications: "offer" | "off";
+    /** How often an open page says it is still in front of someone (measures.presence_seconds). */
+    presenceSeconds?: number;
+  };
   usage: {
     mode: string;
     mocked: boolean;
@@ -541,4 +549,149 @@ export interface IntakeView {
   readings: ReadingView[];
   /** How many items are in each status. */
   counts: Record<string, number>;
+}
+
+// ---- Measures (decision 0172, docs/specs/measures.md) ------------------------------------------
+
+export type MeasureKey =
+  "attention" | "answer-time" | "idea-to-running" | "intake-to-fix" | "checker-misses" | "sessions";
+
+/** One measure, worked out from recorded events only. Never mocked: these are real. */
+export interface MeasureFigure {
+  key: MeasureKey;
+  /** Short name, such as "Your attention". */
+  label: string;
+  /** The figure in a few words, such as "34 minutes" or "2 of 20"; "not enough yet" when too few. */
+  value: string;
+  /** False when there were too few events to say; the value then reads "not enough yet". */
+  enough: boolean;
+  /** How many events the figure rests on. */
+  events: number;
+  /** What it counts and what it rests on, in one plain sentence. */
+  counts: string;
+  /** How it is worked out, for anyone who asks. */
+  how: string;
+}
+
+/** Minutes of attention spent on one group of questions (a role, or a change). */
+export interface AttentionShare {
+  name: string;
+  minutes: number;
+  asks: number;
+}
+
+/** Agent sessions spent on one change. */
+export interface SessionsShare {
+  name: string;
+  sessions: number;
+}
+
+/** A thing premise reported as working that came back as a bug. */
+export interface CheckerMissView {
+  softwareId: string;
+  intake: string;
+  item: string;
+  text: string;
+}
+
+export interface MeasuresView {
+  /** The software these are for, or null for every software together. */
+  softwareId: string | null;
+  name: string;
+  figures: MeasureFigure[];
+  attentionByRole: AttentionShare[];
+  attentionByChange: AttentionShare[];
+  sessionsByChange: SessionsShare[];
+  misses: CheckerMissView[];
+}
+
+/** The overall view: every software together, then each one. */
+export interface MeasuresOverview {
+  overall: MeasuresView;
+  softwares: MeasuresView[];
+  /** The fewest events a rate or typical time needs (measures.min_events). */
+  minEvents: number;
+}
+
+// ---- Learning from corrections (decisions 0173, 0195, docs/specs/learning.md) ------------------
+
+export type CorrectionKind =
+  | "strike"
+  | "edit"
+  | "reject-draft"
+  | "send-back"
+  | "decline-gate"
+  | "undo-split"
+  | "bug-after-met";
+
+/** Where what a correction teaches goes. Exactly one. */
+export type LearningDestination = "software" | "taste" | "premise" | "none";
+
+export interface CorrectionView {
+  id: number;
+  softwareId: string;
+  softwareName: string;
+  kind: CorrectionKind;
+  /** What happened, in plain words: "You struck “Members sign in with email” at What". */
+  what: string;
+  /** What the person said with it, if anything. */
+  said: string | null;
+  status: "reading" | "read";
+  /** What kind of mistake it was, in plain words. */
+  mistake: string | null;
+  destination: LearningDestination | null;
+  /** Why it goes there. */
+  reason: string | null;
+  decidedBy: "agent" | "rule" | "operator" | null;
+  /** The lesson or improvement it gave, if any. */
+  lessonId: number | null;
+  created: string;
+}
+
+export interface LessonView {
+  id: number;
+  /** "L-3" */
+  label: string;
+  destination: "software" | "taste" | "premise";
+  softwareId: string;
+  softwareName: string;
+  text: string;
+  /** The correction it came from, in plain words. */
+  source: string;
+  correctionId: number;
+  uses: number;
+  lastUsed: string | null;
+  created: string;
+  edited: string | null;
+}
+
+/** Improvements for premise itself, grouped when the same thing recurs. They never change premise. */
+export interface ImprovementView {
+  topic: string;
+  text: string;
+  /** How many corrections showed it, and in how many softwares. */
+  seen: number;
+  softwares: string[];
+  lessons: LessonView[];
+  lastSeen: string;
+}
+
+/** A line that left a list, kept briefly so the person can see why. */
+export interface EndedLessonView {
+  label: string;
+  text: string;
+  destination: "software" | "taste" | "premise";
+  note: string;
+  ended: string;
+}
+
+export interface LearningView {
+  softwareId: string | null;
+  /** One sentence each, for someone who has read nothing. */
+  explain: { adapting: string; improving: string };
+  software: { lines: LessonView[]; max: number } | null;
+  taste: { lines: LessonView[]; max: number };
+  improvements: ImprovementView[];
+  corrections: CorrectionView[];
+  ended: EndedLessonView[];
 }

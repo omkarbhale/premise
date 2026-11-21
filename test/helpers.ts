@@ -98,6 +98,8 @@ export async function testApp(
     ledger,
     record,
     setup,
+    measures: session.measures,
+    learning: session.learning,
     webRoot: tempFolder(),
   });
   const token = issueSessionToken(db, config.server.token_bytes);
@@ -118,6 +120,8 @@ export async function testApp(
   /** Let every queued scripted job run to its end, and the line move on after each. */
   const settle = async () => {
     for (let i = 0; i < 40; i++) {
+      // Learning looks for corrections on a timer when premise runs; tests look at once.
+      session.learning.catchUp();
       session.queue.tick();
       await session.queue.idle();
       await session.gate.idle();

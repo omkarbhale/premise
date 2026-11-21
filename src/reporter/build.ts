@@ -338,6 +338,7 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
     running: runningBlock,
     cost,
     limits,
+    ...(facts.doing && { doing: facts.doing }),
   };
 }
 

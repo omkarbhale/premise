@@ -5,6 +5,10 @@ import type {
   ChatMessage,
   IntakeItemView,
   IntakeView,
+  LearningDestination,
+  LearningView,
+  MeasuresOverview,
+  MeasuresView,
   Overview,
   RecordView,
   ReportView,
@@ -73,11 +77,31 @@ export interface Api {
   activity(): Promise<ActivityView>;
   stopJob(id: number): Promise<ActivityView>;
   settings(): Promise<SettingsView>;
+  /** premise's own return: every software together, then each one. */
+  measures(): Promise<MeasuresOverview>;
+  softwareMeasures(id: string): Promise<MeasuresView>;
+  /** The page is (or is no longer) in front of someone; counts attention. Never wakes other pages. */
+  presence(visible: boolean): Promise<{ ok: true }>;
+  /** A question was shown on the page; the first time counts. */
+  shown(askId: number): Promise<{ ok: true }>;
+  /** What premise learned from corrections; for one software, or for all when none is given. */
+  learning(softwareId?: string): Promise<LearningView>;
+  editLesson(id: number, text: string): Promise<{ ok: true }>;
+  deleteLesson(id: number): Promise<{ ok: true }>;
+  moveCorrection(id: number, destination: LearningDestination): Promise<{ ok: true }>;
+  deleteImprovement(topic: string): Promise<{ ok: true }>;
+  /** The improvements for premise, as the text of a file to save. */
+  improvementsText(): Promise<string>;
   eventsUrl(): string;
 }
 
 export function createApi(token: string): Api {
-  async function request<T>(method: "GET" | "POST", path: string, body?: unknown): Promise<T> {
+  async function request<T>(
+    method: "GET" | "POST",
+    path: string,
+    body?: unknown,
+    as: "json" | "text" = "json",
+  ): Promise<T> {
     let response: Response;
     try {
       response = await fetch(path, {
@@ -93,6 +117,7 @@ export function createApi(token: string): Api {
     }
     if (response.status === 401) throw new NotCurrentLink();
     const text = await response.text();
+    if (as === "text" && response.ok) return text as T;
     let parsed: unknown = null;
     try {
       parsed = text ? JSON.parse(text) : null;
@@ -159,6 +184,17 @@ export function createApi(token: string): Api {
     activity: () => get("/api/activity"),
     stopJob: (id) => post(`/api/jobs/${id}/stop`),
     settings: () => get("/api/settings"),
+    measures: () => get("/api/measures"),
+    softwareMeasures: (id) => get(`/api/softwares/${enc(id)}/measures`),
+    presence: (visible) => post("/api/presence", { visible }),
+    shown: (askId) => post(`/api/asks/${askId}/shown`),
+    learning: (softwareId) =>
+      get(`/api/learning${softwareId ? `?software=${enc(softwareId)}` : ""}`),
+    editLesson: (id, text) => post(`/api/lessons/${id}/edit`, { text }),
+    deleteLesson: (id) => post(`/api/lessons/${id}/delete`),
+    moveCorrection: (id, destination) => post(`/api/corrections/${id}/move`, { destination }),
+    deleteImprovement: (topic) => post("/api/improvements/delete", { topic }),
+    improvementsText: () => request("GET", "/api/improvements.txt", undefined, "text"),
     eventsUrl: () => `/api/events?token=${enc(token)}`,
   };
 }

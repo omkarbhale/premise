@@ -7,7 +7,9 @@ import type { PremiseConfig } from "../config/settings.js";
 import { Gate } from "../gate/gate.js";
 import { Intake } from "../intake/intake.js";
 import { Briefs } from "../line/briefs.js";
+import { Learning } from "../learning/learning.js";
 import { LineEngine } from "../line/line-engine.js";
+import { Measures } from "../measures/measures.js";
 import { WorkQueue } from "../queue/work-queue.js";
 import { RecordKeeper } from "../record/record-keeper.js";
 import { Reporter } from "../reporter/reporter.js";
@@ -43,6 +45,10 @@ export interface Session {
   reporter: Reporter;
   /** Takes items in, has them triaged, and routes them (src/intake). */
   intake: Intake;
+  /** premise's own return, from recorded events (src/measures). */
+  measures: Measures;
+  /** Learning from corrections (src/learning). */
+  learning: Learning;
 }
 
 /**
@@ -67,6 +73,7 @@ export function createSession(options: {
   const { db, config, ledger, runner, tools } = options;
   let line: LineEngine | null = null;
   let intake: Intake | null = null;
+  let learning: Learning | null = null;
   const queue = new WorkQueue({
     db,
     config,
@@ -75,6 +82,7 @@ export function createSession(options: {
     onChange: (job) => {
       intake?.jobChanged(job);
       line?.jobChanged(job);
+      learning?.jobChanged(job);
     },
   });
   const record = options.record ?? new RecordKeeper({ db, config });
@@ -95,7 +103,20 @@ export function createSession(options: {
     // A run that keeps crashing is something premise raises as intake (docs/specs/intake.md 5.1).
     onGaveUp: (softwareId, failure) => taker.raise(softwareId, failure),
   });
-  const reporter = new Reporter({ db, config, records: record, runner: runs, ledger }, config);
+  const measures = new Measures({ db, config });
+  learning = new Learning({
+    db,
+    config,
+    queue,
+    briefs,
+    agentsReady: () => agents.ready(),
+    checkerMisses: () => measures.checkerMisses().misses,
+  });
+  const learner = learning;
+  const reporter = new Reporter(
+    { db, config, records: record, runner: runs, ledger, measures },
+    config,
+  );
   const build = new BuildCheckRun({ db, queue, config, keeper: record, briefs, runner: runs });
   const later: LaterStages = options.later ?? build;
   line = new LineEngine({
@@ -125,6 +146,7 @@ export function createSession(options: {
         sizing_submit: (b, a) => engine.sizingSubmit(b, a),
         recovery_submit: (b, a) => engine.recoverySubmit(b, a),
         triage_submit: (b, a) => taker.triageSubmit(b, a),
+        lesson_submit: (b, a) => learner.lessonSubmit(b, a),
         reading_submit: (b, a) => taker.readingSubmit(b, a),
         scenario_write: (b, a) => build.scenarioWrite(b, a),
         verdict_submit: (b, a) => build.verdictSubmit(b, a),
@@ -175,5 +197,17 @@ export function createSession(options: {
     runs: new RunnerService(runs, (id) => getSoftware(db, id) !== undefined),
     activity: new QueueActivity(db, queue, () => config.queue.max_agent_sessions),
   };
-  return { queue, services, line, gate, record, agents, runner: runs, reporter, intake: taker };
+  return {
+    queue,
+    services,
+    line,
+    gate,
+    record,
+    agents,
+    runner: runs,
+    reporter,
+    intake: taker,
+    measures,
+    learning: learner,
+  };
 }

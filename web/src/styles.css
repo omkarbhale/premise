@@ -1231,3 +1231,46 @@ pre.output {
     padding: 0.5rem 0.6rem;
   }
 }
+
+/* Learning and measures */
+.follows {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--accent);
+}
+.lessons,
+.improvements,
+.corrections {
+  list-style: none;
+  padding-left: 0;
+}
+.lessons > li,
+.improvements > li,
+.corrections > li {
+  border-top: 1px solid var(--border);
+  padding: 0.5rem 0;
+}
+.lessons p,
+.improvements p,
+.corrections p {
+  margin: 0.15rem 0;
+}
+.lesson textarea {
+  width: 100%;
+}
+.figures {
+  margin: 0;
+}
+.figure {
+  padding: 0.4rem 0;
+  border-top: 1px solid var(--border);
+}
+.figure dt {
+  font-weight: 600;
+}
+.figure dd {
+  margin: 0;
+}
+.figure-thin strong {
+  color: var(--muted);
+}

@@ -65,6 +65,8 @@ One TypeScript package ([0075](docs/decisions/0075-one-package.md)):
 | `src/demo/` | The scripted agent's scripts, the two kept demos, and the one real run | [0187](docs/decisions/0187-kept-demos-and-one-real-run.md) |
 | `src/intake/` | Intake in a thin form: items numbered `I-n` from the session, the page's report box and premise itself; the triager's job and premise's rules for its answer; the routes (in normally onto the line, asked, held, merged or closed); readings of held items; where each item stands, in plain words | [intake](docs/specs/intake.md), [0185](docs/decisions/0185-how-intake-in-a-thin-form-is-built.md) |
 | `src/existing/` | Existing software in a thin form: where it comes from (a folder or a clone address), premise's own copy of it, what the drafter recovered from its code, `run.md` and `recovered-trace.md`, and pushing the record to a branch of the operator's repository once the gate allows | [line engine](docs/specs/line-engine.md) 5.10, [0189](docs/decisions/0189-how-taking-on-existing-software-is-built.md) |
+| `src/measures/` | premise's own return from recorded events: attention while the page is in front of someone, time to answer, idea to running, problem to fix, things reported working that came back as bugs, sessions per change; "not enough yet" when too few | [measures](docs/specs/measures.md), [0193](docs/decisions/0193-how-the-measures-are-built.md) |
+| `src/learning/` | Learning from corrections: each correction read into one place (this software, the operator's taste, premise itself, or nothing), short lists of lessons agents follow, and improvements for premise that never change it | [learning](docs/specs/learning.md), [0194](docs/decisions/0194-how-learning-from-corrections-is-built.md) |
 | `src/gate/` | The gate: asks before a floor action, approvals (once, or a kind for one software), declines | [gate](docs/specs/gate.md), [0182](docs/decisions/0182-how-the-gate-is-built.md) |
 | `src/shared/` | The API's types and the stages, shared by the server and the page | |
 | `web/` | The page (React, built with Vite), and its component tests | [page](docs/specs/page.md) |
@@ -90,7 +92,8 @@ One TypeScript package ([0075](docs/decisions/0075-one-package.md)):
 - **A lasting record in each software's repository,** one item per line, every commit traced to the items it serves ([the record](docs/architecture/the-record.md)).
 - **Every role in one session,** each ask labelled with the role it is for and phrased in that role's terms ([0065](docs/decisions/0065-one-open-session.md)).
 - **Intake that goes in normally,** with only what needs holding held and read together ([intake and reporting](docs/architecture/intake-and-reporting.md)).
-- **Honest reports** from recorded facts only, every line linked to its evidence ([0097](docs/decisions/0097-reports-from-recorded-facts.md)).
+- **Honest reports** from recorded facts only, every line linked to its evidence ([0097](docs/decisions/0097-reports-from-recorded-facts.md)), including how premise itself is doing: the attention it took, how long things took, and how often something it said worked came back as a bug ([measures](docs/specs/measures.md)).
+- **Learns from corrections.** Each strike or turned-down draft becomes one short lesson its agents follow, for that software or as your taste; what premise itself should do better is kept apart and never changes it on its own ([learning](docs/specs/learning.md)).
 - **A floor never traded for speed,** enforced by confinement and a gate, not by instructions ([the floor and the gate](docs/architecture/the-floor-and-the-gate.md)).
 - **Cost per piece of work** through usage-ledger ([models and cost](docs/architecture/models-and-cost.md)).
 
@@ -152,7 +155,7 @@ Details: [scope](docs/product/scope.md); order: [roadmap](docs/product/roadmap.m
 - [Decision records](docs/decisions/README.md): every decision, one per file, grouped by theme, each saying who decided.
 
 **Module specifications** ([index](docs/specs/README.md))
-- [Page server](docs/specs/page-server.md), [page](docs/specs/page.md), [line engine](docs/specs/line-engine.md), [record keeper](docs/specs/record-keeper.md), [work queue](docs/specs/work-queue.md), [agent runner](docs/specs/agent-runner.md), [agent tools](docs/specs/agent-tools.md), [gate](docs/specs/gate.md), [runner](docs/specs/runner.md), [intake](docs/specs/intake.md), [reporter](docs/specs/reporter.md), [storage](docs/specs/storage.md).
+- [Page server](docs/specs/page-server.md), [page](docs/specs/page.md), [line engine](docs/specs/line-engine.md), [record keeper](docs/specs/record-keeper.md), [work queue](docs/specs/work-queue.md), [agent runner](docs/specs/agent-runner.md), [agent tools](docs/specs/agent-tools.md), [gate](docs/specs/gate.md), [runner](docs/specs/runner.md), [intake](docs/specs/intake.md), [reporter](docs/specs/reporter.md), [measures](docs/specs/measures.md), [learning](docs/specs/learning.md), [storage](docs/specs/storage.md).
 
 **Prompts and skills**
 - [Prompts](docs/prompts/README.md): the full text of every agent role's prompt and the fixed wording premise shows without a model.

@@ -926,24 +926,28 @@ export class LineEngine implements IntakeLine {
         ? "the whole software"
         : `one part of it: ${item.title ?? ""}. ${item.words ?? ""}`.trim();
     const existing = this.takenOn(software.id);
-    const brief = this.options.briefs.make("record recovery brief", {
-      software_name: software.name,
-      piece,
-      operator_words:
-        existing && software.idea.startsWith("Existing software, taken on from")
-          ? "none"
-          : software.idea,
-      history: material.history
-        ? material.history
-            .split("\n")
-            .map((l) => `  ${l}`)
-            .join("\n")
-        : "  none were read",
-      issues:
-        "not read. premise does not read issues yet, so open bugs and wishes are not part of this recovery",
-      record: this.recordText(software.id),
-      budget: `${budget.turns} agent turns and ${budget.minutes} minutes`,
-    });
+    const brief = this.options.briefs.make(
+      "record recovery brief",
+      {
+        software_name: software.name,
+        piece,
+        operator_words:
+          existing && software.idea.startsWith("Existing software, taken on from")
+            ? "none"
+            : software.idea,
+        history: material.history
+          ? material.history
+              .split("\n")
+              .map((l) => `  ${l}`)
+              .join("\n")
+          : "  none were read",
+        issues:
+          "not read. premise does not read issues yet, so open bugs and wishes are not part of this recovery",
+        record: this.recordText(software.id),
+        budget: `${budget.turns} agent turns and ${budget.minutes} minutes`,
+      },
+      software.id,
+    );
     this.queue.enqueue({
       softwareId: software.id,
       kind: "recover",
@@ -2455,33 +2459,37 @@ export class LineEngine implements IntakeLine {
               ? "smaller look brief"
               : STAGE_JOB[stage].brief;
     const item = this.active(software.id);
-    return this.options.briefs.make(name, {
-      software_name: software.name,
-      stage: stageName(stage),
-      operator_words: software.idea,
-      piece:
-        item.parentId === null
-          ? "the whole software"
-          : `${item.kind === "milestone" ? `the milestone ${item.ref ?? ""}` : item.kind === "intake" ? `the intake item ${item.ref ?? ""}, a change to the software` : "one part of it"}: ${item.title ?? ""}. ${item.words ?? ""}`.trim(),
-      record: this.recordText(software.id),
-      struck_items: this.struckText(software.id, stage),
-      size_class: stage === "why" ? "none" : asSize(item.sizeClass),
-      budget: `${budget.turns} agent turns and ${budget.minutes} minutes`,
-      exists_outcome: this.recordText(software.id, ["E"]),
-      say_back_reason:
-        state.returnTo === "say-back" || (state.sayBackRounds ?? 0) > 0
-          ? "items were struck at the last say-back and their stages were redone"
-          : "a new software",
-      change: "none",
-      claimed_areas: "none",
-      working_copy: "none",
-      proposed_change: "none",
-      decision: "none",
-      exists_look: "none",
-      scope: scopeWords(state.scope),
-      effort: `${software.effort}: ${EFFORT_WORDS[software.effort]}`,
-      ...extra,
-    });
+    return this.options.briefs.make(
+      name,
+      {
+        software_name: software.name,
+        stage: stageName(stage),
+        operator_words: software.idea,
+        piece:
+          item.parentId === null
+            ? "the whole software"
+            : `${item.kind === "milestone" ? `the milestone ${item.ref ?? ""}` : item.kind === "intake" ? `the intake item ${item.ref ?? ""}, a change to the software` : "one part of it"}: ${item.title ?? ""}. ${item.words ?? ""}`.trim(),
+        record: this.recordText(software.id),
+        struck_items: this.struckText(software.id, stage),
+        size_class: stage === "why" ? "none" : asSize(item.sizeClass),
+        budget: `${budget.turns} agent turns and ${budget.minutes} minutes`,
+        exists_outcome: this.recordText(software.id, ["E"]),
+        say_back_reason:
+          state.returnTo === "say-back" || (state.sayBackRounds ?? 0) > 0
+            ? "items were struck at the last say-back and their stages were redone"
+            : "a new software",
+        change: "none",
+        claimed_areas: "none",
+        working_copy: "none",
+        proposed_change: "none",
+        decision: "none",
+        exists_look: "none",
+        scope: scopeWords(state.scope),
+        effort: `${software.effort}: ${EFFORT_WORDS[software.effort]}`,
+        ...extra,
+      },
+      software.id,
+    );
   }
 
   private queueStageJob(
@@ -2811,7 +2819,19 @@ export class LineEngine implements IntakeLine {
       stage: ask.stage && isStageId(ask.stage) ? ask.stage : null,
       title: ask.title,
       instruction: ask.instruction,
-      items: ask.items,
+      items: ask.items.map((item) =>
+        item.follows
+          ? {
+              ...item,
+              follows: {
+                label: item.follows.label,
+                text:
+                  this.options.briefs.lessonText(item.follows.label) ??
+                  "a lesson that has since been removed",
+              },
+            }
+          : item,
+      ),
       ...(ask.extra.bestAttempt !== undefined && { bestAttempt: ask.extra.bestAttempt }),
       ...(ask.extra.choices !== undefined && { choices: ask.extra.choices }),
       ...(ask.extra.approval !== undefined && { approval: ask.extra.approval }),

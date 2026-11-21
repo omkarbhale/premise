@@ -357,6 +357,68 @@ export const MIGRATIONS: readonly Migration[] = [
       ALTER TABLE intake_items ADD COLUMN changes_what INTEGER;
     `,
   },
+  {
+    version: 10,
+    name: "measures and learning from corrections",
+    sql: `
+      CREATE TABLE page_presence (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        started TEXT NOT NULL,
+        last_seen TEXT NOT NULL,
+        ended TEXT
+      );
+
+      CREATE TABLE asks_shown (
+        ask_id INTEGER PRIMARY KEY REFERENCES asks(id),
+        shown TEXT NOT NULL
+      );
+
+      CREATE TABLE corrections (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        software_id TEXT NOT NULL REFERENCES softwares(id),
+        kind TEXT NOT NULL CHECK (kind IN
+          ('strike', 'edit', 'reject-draft', 'send-back', 'decline-gate', 'undo-split', 'bug-after-met')),
+        source TEXT NOT NULL UNIQUE,
+        what TEXT NOT NULL,
+        said TEXT,
+        touches TEXT NOT NULL DEFAULT '[]',
+        status TEXT NOT NULL CHECK (status IN ('reading', 'read')),
+        mistake TEXT,
+        destination TEXT CHECK (destination IN ('software', 'taste', 'premise', 'none')),
+        reason TEXT,
+        line TEXT,
+        topic TEXT,
+        decided_by TEXT CHECK (decided_by IN ('agent', 'rule', 'operator')),
+        job_id INTEGER,
+        created TEXT NOT NULL,
+        read TEXT
+      );
+      CREATE INDEX corrections_software ON corrections(software_id, id);
+
+      CREATE TABLE lessons (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        correction_id INTEGER NOT NULL UNIQUE REFERENCES corrections(id),
+        software_id TEXT NOT NULL REFERENCES softwares(id),
+        destination TEXT NOT NULL CHECK (destination IN ('software', 'taste', 'premise')),
+        topic TEXT,
+        text TEXT NOT NULL,
+        state TEXT NOT NULL CHECK (state IN ('live', 'deleted', 'dropped')),
+        uses INTEGER NOT NULL DEFAULT 0,
+        last_used TEXT,
+        created TEXT NOT NULL,
+        edited TEXT,
+        ended TEXT,
+        end_note TEXT
+      );
+      CREATE INDEX lessons_destination ON lessons(destination, state);
+
+      CREATE TABLE learning_cursor (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        last_event INTEGER NOT NULL
+      );
+      INSERT INTO learning_cursor (id, last_event) SELECT 1, COALESCE(MAX(id), 0) FROM events;
+    `,
+  },
 ];
 
 export const CURRENT_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

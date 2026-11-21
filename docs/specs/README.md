@@ -34,6 +34,8 @@ Every module specification uses the same sections: purpose; responsibilities and
 | [runner.md](runner.md) | Runner | Creating repositories; merging and pushing after a pass; starting the software from a clean copy; restarts; logs; release notes; what an LLM cannot provide. |
 | [intake.md](intake.md) | Intake | Sources; triage; routes; what is held; readings; the way back to Why; telling senders. |
 | [reporter.md](reporter.md) | Reporter | Reports from recorded facts only; the report view; when reports are written; notices; more detail; cost through usage-ledger; release notes. |
+| [measures.md](measures.md) | Measures | premise's own return from recorded events: attention, time to answer, idea to running, problem to fix, things reported working that came back as bugs, sessions per change; "not enough yet". |
+| [learning.md](learning.md) | Learning | Learning from corrections, in two kinds kept apart: lessons for a software and the operator's taste, which agents follow; improvements for premise itself, which never change it. |
 | [storage.md](storage.md) | Storage | What lives in the database, the data folder and each software's repository; every table. |
 
 ## Module map
@@ -45,6 +47,11 @@ flowchart LR
     PS --> GA[Gate]
     PS --> IN[Intake]
     PS --> RP[Reporter]
+    PS --> ME[Measures]
+    PS --> LN[Learning]
+    RP --> ME
+    LN --> WQ
+    LN -->|lessons in briefs| LE
     LE --> WQ[Work queue]
     IN --> WQ
     RP --> WQ
@@ -57,6 +64,7 @@ flowchart LR
     AT --> GA
     AT --> IN
     AT --> RP
+    AT --> LN
     RK --> GH[(Software repository<br/>premise/ folder)]
     RU --> GH
     RU --> SW[Running software]

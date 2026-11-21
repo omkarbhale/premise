@@ -1,6 +1,6 @@
 # Reporter specification
 
-Status: specification. Built so far: the report view with its short default and more detail, reports written and kept with their triggers, milestone reports, release-note drafts, a mocked cost section ([0164](../decisions/0164-how-the-reporter-is-built.md)). Not built yet: the reporter agent's wording, `facts_read` and `report_submit`, notices, more detail on one item, release notes committed. Being built ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Related: [intake and reporting](../architecture/intake-and-reporting.md), [page](page.md), [agent tools](agent-tools.md), [storage](storage.md), [models and cost](../architecture/models-and-cost.md).
+Status: specification. Built so far: the report view with its short default and more detail, reports written and kept with their triggers, milestone reports, release-note drafts, a mocked cost section ([0164](../decisions/0164-how-the-reporter-is-built.md)), and "How premise is doing", premise's own return from the [measures](measures.md) ([0193](../decisions/0193-how-the-measures-are-built.md)). Not built yet: the reporter agent's wording, `facts_read` and `report_submit`, notices, more detail on one item, release notes committed. Being built ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Related: [intake and reporting](../architecture/intake-and-reporting.md), [page](page.md), [agent tools](agent-tools.md), [storage](storage.md), [models and cost](../architecture/models-and-cost.md).
 
 ## 1. Purpose
 
@@ -84,6 +84,10 @@ The owner gets one short report per finished milestone, and an immediate message
 - Once usage-ledger is usable, the report reads usage per software, stage, change and record item from usage-ledger ([0064](../decisions/0064-cost-and-spending-limit-from-usage-ledger.md)).
 - Because sessions carry their record items, rework shows up: an item that keeps failing its check shows its whole cost.
 - Until usage-ledger is usable, reports say that cost is not tracked yet.
+
+### 5.7a How premise is doing
+
+Every report, and so every milestone report, carries a "How premise is doing" block: one line per [measure](measures.md) (attention, time to answer, idea to running, problem to fix, things reported working that came back as bugs, agent sessions per change), each saying what it counts and how many events it rests on, and "not enough yet" when a rate or typical time rests on too few. The figures are real, from recorded events, and never labelled mocked ([0172](../decisions/0172-premise-measures-its-own-return.md), [0193](../decisions/0193-how-the-measures-are-built.md)).
 
 ### 5.8 Release notes
 

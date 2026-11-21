@@ -713,6 +713,53 @@ export const SETTINGS: readonly Setting[] = [
     record: "0164",
   },
   {
+    key: "measures.min_events",
+    default: 5,
+    check: summarised(wholeNumber(2, 1000), "2 to 1000"),
+    meaning:
+      'How many events a rate or a typical time needs before premise shows it; with fewer, the page and the reports say "not enough yet" and how many there are.',
+    record: "0193",
+  },
+  {
+    key: "measures.presence_seconds",
+    default: 30,
+    check: summarised(wholeNumber(5, 600), "5 to 600"),
+    meaning:
+      "How often an open page tells premise it is still being looked at. Minutes of attention count only while the page is in front of someone; a page silent for twice this long counts as closed.",
+    record: "0193",
+  },
+  {
+    key: "learning.software_lines_max",
+    default: 10,
+    check: summarised(wholeNumber(1, 100), "1 to 100"),
+    meaning:
+      "The most lessons kept for one software. When a new one would go over, the least-used line is dropped, with a note.",
+    record: "0194",
+  },
+  {
+    key: "learning.taste_lines_max",
+    default: 10,
+    check: summarised(wholeNumber(1, 100), "1 to 100"),
+    meaning:
+      "The most lines kept in the operator's taste, which every software's agents read. When a new one would go over, the least-used line is dropped, with a note.",
+    record: "0194",
+  },
+  {
+    key: "learning.line_max_chars",
+    default: 200,
+    check: summarised(wholeNumber(40, 1000), "40 to 1000"),
+    meaning: "The longest a lesson line may be. Longer lines are cut at a word.",
+    record: "0194",
+  },
+  {
+    key: "learning.read_with_agent",
+    default: true,
+    check: summarised(yesNo, "true or false"),
+    meaning:
+      "Whether an agent (the triager, on the triage task's model) reads each correction to say what kind of mistake it was and propose a lesson. When false, or when the agent gives no answer, premise's fixed rules decide.",
+    record: "0194",
+  },
+  {
     key: "doctor.command_timeout_seconds",
     default: 10,
     check: summarised(wholeNumber(1, 120), "1 to 120"),
@@ -814,5 +861,12 @@ export interface PremiseConfig {
     default_visibility: Visibility;
   };
   reports: { max_lines: number };
+  measures: { min_events: number; presence_seconds: number };
+  learning: {
+    software_lines_max: number;
+    taste_lines_max: number;
+    line_max_chars: number;
+    read_with_agent: boolean;
+  };
   doctor: { command_timeout_seconds: number };
 }

@@ -43,9 +43,11 @@ None. The token from the link is kept in the page's memory only.
 | Chat | The conversation, with premise's one-line acknowledgements ("Taken as I-14") | Write; corrections go to the open draft ([0118](../decisions/0118-how-chat-messages-are-routed.md)) |
 | Needed | Every open ask, grouped by role label, each saying exactly what to do | Answer any of them |
 | Record | Each record file as items, with their marks, what they replaced, struck items with reasons, and the commits that name them | Ask "more" on any item |
-| Report | The report view ([reporter](reporter.md)): Decided, Running, Needed, Failed or not checked, Cost | Open the running software; ask "more" on any line |
+| Report | The report view ([reporter](reporter.md)): Decided, Running, Needed, Failed or not checked, How premise is doing, Cost | Open the running software; ask "more" on any line |
 | Approvals | Standing approvals per software | Withdraw one |
 | Queue | Jobs running, waiting (and on what), queued, paused | Stop a job |
+| Learned | A tab per software, under "More views": the two kinds of learning apart, each explained in a sentence. Lessons for this software and the operator's taste, each line with the correction it came from and how often it was given to agents; improvements for premise, grouped, with where each was seen; recent corrections with where each went and why; lines removed and why ([learning](learning.md)) | Edit or delete a line; move a correction to another place; delete an improvement; save the improvements as a text file |
+| How premise is doing | A page under "More": premise's own return for every software together and each one, each figure with what it rests on, "not enough yet" when too few; then the Learned view across softwares ([measures](measures.md)) | The same as Learned |
 | Intake | A tab per software: every item with where it stands in plain words, its kind, why it went where it went (and the record items it touches), a question's answer, minutes from arriving to its change running; the held count and earlier readings ([0185](../decisions/0185-how-intake-in-a-thin-form-is-built.md)) | Report a problem or a wish; take a merged, closed or held item in after all; ask for a reading now |
 
 ### 5.1a First run and plain words
