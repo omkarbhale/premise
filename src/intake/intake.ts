@@ -1519,9 +1519,9 @@ export class Intake implements IntakeHooks {
     const comment = item
       ? (this.db
           .prepare(
-            "SELECT id, text FROM intake_comments WHERE item_id = ? AND status = 'asked' ORDER BY id DESC LIMIT 1",
+            "SELECT id, text FROM intake_comments WHERE item_id = ? AND request_id = ? AND status = 'asked'",
           )
-          .get(item.id) as { id: number; text: string } | undefined)
+          .get(item.id, request.id) as { id: number; text: string } | undefined)
       : undefined;
     const match = item?.externalRef
       ? /^github:([^/]+)\/([^#]+)#(\d+)$/.exec(item.externalRef)
