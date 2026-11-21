@@ -161,6 +161,8 @@ export async function start(options: StartOptions): Promise<Running> {
     runner: runs,
     intake,
     line,
+    measures,
+    learning,
   } = createSession({
     db,
     config,
@@ -201,6 +203,8 @@ export async function start(options: StartOptions): Promise<Running> {
     record,
     setup,
     tools,
+    measures,
+    learning,
     webRoot: options.webRoot ?? defaultWebRoot(),
   });
   try {
@@ -217,6 +221,7 @@ export async function start(options: StartOptions): Promise<Running> {
   }
   queue.tick();
   intake.start();
+  learning.start();
   const token = issueSessionToken(db, config.server.token_bytes);
   recordEvent(db, { module: "page-server", kind: "started", detail: { port: config.server.port } });
   const address = app.server.address();
@@ -251,6 +256,7 @@ export async function start(options: StartOptions): Promise<Running> {
     config,
     close: async () => {
       intake.close();
+      learning.close();
       await app.close();
       await runs.close();
       await queue.close();

@@ -27,6 +27,7 @@ export type BriefName =
   | "check brief"
   | "sizing brief"
   | "triage brief"
+  | "learning brief"
   | "reading brief";
 
 export const BRIEF_ROLE: Record<BriefName, AgentRole> = {
@@ -43,6 +44,7 @@ export const BRIEF_ROLE: Record<BriefName, AgentRole> = {
   "contradiction review brief": "reviewer",
   "sizing brief": "sizer",
   "triage brief": "triager",
+  "learning brief": "triager",
   "reading brief": "reader",
   "build task brief": "builder",
   "scenario brief": "checker",
@@ -78,8 +80,20 @@ export function fill(template: string, values: Record<string, string | undefined
   });
 }
 
+/**
+ * Where lessons from corrections come from (src/learning). A brief for a role that reads them gets
+ * the software's lessons and the operator's taste after its own text (docs/specs/learning.md 4).
+ */
+export interface LessonSource {
+  /** The lines for one role's brief on one software, or null when there are none for it. */
+  section(role: AgentRole, softwareId: string): string | null;
+  /** A live lesson's words by its label ("L-3"), for a draft item that says it follows it. */
+  text(label: string): string | null;
+}
+
 export class Briefs {
   private readonly cache = new Map<string, string>();
+  private lessons: LessonSource | null = null;
 
   constructor(private readonly docsFolder: string) {}
 
@@ -99,9 +113,24 @@ export class Briefs {
     return text;
   }
 
-  /** A filled-in brief for one job. */
-  make(name: BriefName, values: Record<string, string | undefined>): string {
+  /** Give briefs the lessons from corrections. */
+  useLessons(source: LessonSource): void {
+    this.lessons = source;
+  }
+
+  /** A lesson's words by its label, or null when it is not a live lesson. */
+  lessonText(label: string): string | null {
+    return this.lessons?.text(label) ?? null;
+  }
+
+  /**
+   * A filled-in brief for one job. With the software it is for, a role that reads lessons gets them
+   * after the brief's own text.
+   */
+  make(name: BriefName, values: Record<string, string | undefined>, softwareId?: string): string {
     const role = BRIEF_ROLE[name];
-    return fill(briefTemplate(this.file(role), name, `docs/prompts/${role}.md`), values);
+    const brief = fill(briefTemplate(this.file(role), name, `docs/prompts/${role}.md`), values);
+    const lessons = softwareId ? this.lessons?.section(role, softwareId) : null;
+    return lessons ? `${brief}\n\n${lessons}` : brief;
   }
 }

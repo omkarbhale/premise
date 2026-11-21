@@ -108,6 +108,12 @@ A wrong setting stops premise at start with a message naming the setting and why
 | `runner.confinement` | `"bubblewrap"` | "bubblewrap" or "none" | "bubblewrap": running software sees only its own copy of the code, not your files or premise's data. "none": no confinement, only for a machine where bubblewrap cannot work; premise says so on the page. | [0163](../decisions/README.md) |
 | `runner.read_only_paths` | `[]` | a list of folder paths | Extra folders running software may read but not change, such as where Python is installed when that is under your home folder. The Node.js premise runs on is normally included; when it is installed in your home folder or above it, add its folder here yourself. | [0163](../decisions/README.md) |
 | `reports.max_lines` | `15` | 3 to 200 | How many lines a short report holds before the rest is behind the page's 'Show more detail' control. | [0164](../decisions/README.md) |
+| `measures.min_events` | `5` | 2 to 1000 | How many events a rate or a typical time needs before premise shows it; with fewer, the page and the reports say "not enough yet" and how many there are. | [0193](../decisions/README.md) |
+| `measures.presence_seconds` | `30` | 5 to 600 | How often an open page tells premise it is still being looked at. Minutes of attention count only while the page is in front of someone; a page silent for twice this long counts as closed. | [0193](../decisions/README.md) |
+| `learning.software_lines_max` | `10` | 1 to 100 | The most lessons kept for one software. When a new one would go over, the least-used line is dropped, with a note. | [0194](../decisions/README.md) |
+| `learning.taste_lines_max` | `10` | 1 to 100 | The most lines kept in the operator's taste, which every software's agents read. When a new one would go over, the least-used line is dropped, with a note. | [0194](../decisions/README.md) |
+| `learning.line_max_chars` | `200` | 40 to 1000 | The longest a lesson line may be. Longer lines are cut at a word. | [0194](../decisions/README.md) |
+| `learning.read_with_agent` | `true` | true or false | Whether an agent (the triager, on the triage task's model) reads each correction to say what kind of mistake it was and propose a lesson. When false, or when the agent gives no answer, premise's fixed rules decide. | [0194](../decisions/README.md) |
 | `doctor.command_timeout_seconds` | `10` | 1 to 120 | How long the setup check waits for each program to answer. |  |
 
 ## Per type of task

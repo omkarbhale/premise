@@ -227,7 +227,10 @@ describe("taking on existing software, in a thin form", () => {
     expect(taken.existing!.run.canStart).toBe(true);
     const said = await chat(app, id);
     expect(said.some((t) => t.includes("Recovered 7 items from the code"))).toBe(true);
-    expect(said.at(-1)).toContain("its record will drift");
+    // premise's own reply, then (in passing) what it learned from the strike.
+    expect(said.filter((t) => !t.startsWith("Learned from")).at(-1)).toContain(
+      "its record will drift",
+    );
 
     // The operator's folder was never changed: same commit, nothing new, no branch yet.
     expect(git(folder, ["rev-parse", "HEAD"]).trim()).toBe(head);

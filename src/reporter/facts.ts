@@ -6,7 +6,7 @@ import type { RecordItem } from "../record/format.js";
 import { parseRecord } from "../record/parse.js";
 import { readTrailer } from "../record/trace.js";
 import type { Runner } from "../runner/runner.js";
-import type { RunView } from "../shared/api-types.js";
+import type { ReportLine, RunView } from "../shared/api-types.js";
 import { listAsks } from "../storage/asks.js";
 import type { Database } from "../storage/database.js";
 import type { UsageLedger } from "../usage-ledger/usage-ledger.js";
@@ -144,6 +144,8 @@ export interface Facts {
   lastReport: string | null;
   /** The commit the latest reports covered, to find what is new. */
   milestone: { id: string; text: string } | null;
+  /** "How premise is doing": premise's own return, from recorded events (src/measures). */
+  doing: { plain: string; lines: ReportLine[] } | null;
 }
 
 export interface FactSources {
@@ -156,6 +158,8 @@ export interface FactSources {
   };
   runner?: Runner | undefined;
   ledger: UsageLedger;
+  /** premise's own return (src/measures); the block is left out when not given. */
+  measures?: { reportBlock(softwareId: string): { plain: string; lines: ReportLine[] } };
 }
 
 interface EventRow {
@@ -302,5 +306,6 @@ export async function gatherFacts(
     measures: readMeasures(db, softwareId),
     lastReport,
     milestone,
+    doing: sources.measures ? sources.measures.reportBlock(softwareId) : null,
   };
 }

@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import {
   ApiError,
   type AskAnswer,
@@ -35,6 +35,20 @@ export function AskCard({ ask, showSoftware = false }: { ask: AskView; showSoftw
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const titleId = useId();
+  // The first time this question is in front of someone counts for the measures.
+  const isOpen = ask.status === "open";
+  useEffect(() => {
+    if (!isOpen || typeof document === "undefined") return;
+    let sent = false;
+    const tell = () => {
+      if (sent || document.visibilityState !== "visible") return;
+      sent = true;
+      api.shown(ask.id).catch(() => {});
+    };
+    tell();
+    document.addEventListener("visibilitychange", tell);
+    return () => document.removeEventListener("visibilitychange", tell);
+  }, [api, ask.id, isOpen]);
   // An approval can be asked long after its stage began: say where the software is now.
   const nowStage =
     ask.kind === "approval" && ask.status === "open"
@@ -205,6 +219,11 @@ function ItemsAnswer({ ask, busy, onSend }: AnswerProps) {
             <span className="text">{item.text}</span>
           )}
           <span className={`mark mark-${item.mark}`}>{markLabel(item)}</span>
+          {item.follows && (
+            <span className="follows small">
+              Follows what you taught premise ({item.follows.label}): {item.follows.text}
+            </span>
+          )}
         </div>
         <div className="item-actions" role="group" aria-label={`What to do with: ${item.text}`}>
           <button

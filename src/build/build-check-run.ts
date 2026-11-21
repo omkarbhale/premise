@@ -554,12 +554,16 @@ export class BuildCheckRun implements LaterStages {
       items,
       payload: {
         purpose: "scenarios",
-        brief: this.deps.briefs.make("scenario brief", {
-          software_name: this.name(softwareId),
-          record: this.recordText(softwareId),
-          items_to_check: this.itemLines(softwareId, items),
-          kind: this.kind(softwareId),
-        }),
+        brief: this.deps.briefs.make(
+          "scenario brief",
+          {
+            software_name: this.name(softwareId),
+            record: this.recordText(softwareId),
+            items_to_check: this.itemLines(softwareId, items),
+            kind: this.kind(softwareId),
+          },
+          softwareId,
+        ),
         context: {
           stage: "build",
           name: this.name(softwareId),
@@ -606,25 +610,29 @@ export class BuildCheckRun implements LaterStages {
         repository: this.deps.keeper.repositoryPath(softwareId),
         ...(trace && { trace }),
         brief:
-          this.deps.briefs.make("build task brief", {
-            trace:
-              trace ??
-              `${this.config.record.trailer}: followed by the IDs of the record items the commit serves`,
-            software_name: this.name(softwareId),
-            task: `${task.number}. ${task.title}${task.check ? `\nDone looks like: ${task.check}` : ""}`,
-            items:
-              this.itemLines(softwareId, task.items) || "none named; serve the task as written",
-            record: this.recordText(softwareId),
-            working_copy: "the folder you start in",
-            branch: "the branch you start on, made for this task",
-            registries: this.config.agents.network.allowed_domains.join(", "),
-            earlier_rounds: task.evidence ?? "none",
-            how_to_run: [
-              this.howToRun(softwareId),
-              ...state.checkNotes.map((n) => `The checker noted: ${n}`),
-            ].join("\n"),
-            budget: this.budgetText("build"),
-          }) +
+          this.deps.briefs.make(
+            "build task brief",
+            {
+              trace:
+                trace ??
+                `${this.config.record.trailer}: followed by the IDs of the record items the commit serves`,
+              software_name: this.name(softwareId),
+              task: `${task.number}. ${task.title}${task.check ? `\nDone looks like: ${task.check}` : ""}`,
+              items:
+                this.itemLines(softwareId, task.items) || "none named; serve the task as written",
+              record: this.recordText(softwareId),
+              working_copy: "the folder you start in",
+              branch: "the branch you start on, made for this task",
+              registries: this.config.agents.network.allowed_domains.join(", "),
+              earlier_rounds: task.evidence ?? "none",
+              how_to_run: [
+                this.howToRun(softwareId),
+                ...state.checkNotes.map((n) => `The checker noted: ${n}`),
+              ].join("\n"),
+              budget: this.budgetText("build"),
+            },
+            softwareId,
+          ) +
           answers +
           retry,
         context: {
@@ -665,19 +673,23 @@ export class BuildCheckRun implements LaterStages {
         ref: commit,
         round: state.round,
         repository: this.deps.keeper.repositoryPath(softwareId),
-        brief: this.deps.briefs.make("check brief", {
-          software_name: this.name(softwareId),
-          commit,
-          record: this.recordText(softwareId),
-          items_to_check: this.itemLines(softwareId, items),
-          scenarios:
-            this.scenarioText(softwareId, items) || "none were written; judge from the record",
-          kind: this.kind(softwareId),
-          working_copy: "the folder you start in, a clean copy of that commit",
-          evidence_folder: `${EVIDENCE_FOLDER}/ inside your working copy (premise keeps it)`,
-          check_notes: state.checkNotes.join("\n") || "none",
-          budget: this.budgetText("check"),
-        }),
+        brief: this.deps.briefs.make(
+          "check brief",
+          {
+            software_name: this.name(softwareId),
+            commit,
+            record: this.recordText(softwareId),
+            items_to_check: this.itemLines(softwareId, items),
+            scenarios:
+              this.scenarioText(softwareId, items) || "none were written; judge from the record",
+            kind: this.kind(softwareId),
+            working_copy: "the folder you start in, a clean copy of that commit",
+            evidence_folder: `${EVIDENCE_FOLDER}/ inside your working copy (premise keeps it)`,
+            check_notes: state.checkNotes.join("\n") || "none",
+            budget: this.budgetText("check"),
+          },
+          softwareId,
+        ),
         context: {
           stage: "check",
           name: this.name(softwareId),

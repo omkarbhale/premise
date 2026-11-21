@@ -89,6 +89,25 @@ export function ReportView({ softwareId }: { softwareId: string }) {
           </span>
         )}
       </p>
+      {r.doing && (
+        <section className="card" aria-label="How premise is doing">
+          <h2>How premise is doing</h2>
+          <p className="muted small">{r.doing.plain}</p>
+          <ul>
+            {r.doing.lines.map((line, i) => (
+              <li key={i}>
+                {line.text}
+                {line.evidence && (
+                  <details className="evidence">
+                    <summary className="small muted">how this is worked out</summary>
+                    <span className="muted small">{line.evidence}</span>
+                  </details>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <section className="card" aria-label="Cost">
         <h2>Cost {r.cost.mocked && <MockedBadge />}</h2>
         <p>

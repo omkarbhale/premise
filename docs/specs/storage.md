@@ -1,6 +1,6 @@
 # Storage specification
 
-Status: built through schema 9, specification otherwise, being built ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Related: [record keeper](record-keeper.md), [work queue](work-queue.md), [agent runner](agent-runner.md), [the record](../architecture/the-record.md), [architecture overview](../architecture/overview.md).
+Status: built through schema 10, specification otherwise, being built ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Related: [record keeper](record-keeper.md), [work queue](work-queue.md), [agent runner](agent-runner.md), [the record](../architecture/the-record.md), [architecture overview](../architecture/overview.md).
 
 ## 1. Purpose
 
@@ -87,6 +87,11 @@ All tables live in `premise.db`. Times are UTC. "Software" is a row in `software
 | `approvals` | Approval given in the session | software, scope (one action, or a named kind of action), kind, given, withdrawn |
 | `runs` | Start of a checked commit | software, commit, how opened (link, command, program), state, restarts, started, stopped |
 | `reports` | Report written | software, trigger (change reached running, asked, line ended), lines with evidence links, created |
+| `page_presence` | Stretch of time a page was in front of someone (schema 10) | started, last seen, ended; written by the page's beats, never as events ([measures](measures.md)) |
+| `asks_shown` | Question first shown on a page (schema 10) | ask, when ([measures](measures.md)) |
+| `corrections` | Correction a person made to premise's work (schema 10) | software, kind (strike, edit, reject-draft, send-back, decline-gate, undo-split, bug-after-met), the event it came from, what happened, what the person said, items touched, status (reading, read), the kind of mistake, destination (software, taste, premise, none), why, the proposed line, topic, who decided (agent, rule, operator), the reading job ([learning](learning.md)) |
+| `lessons` | Line learned from one correction (schema 10) | correction, software, destination (software, taste, premise), topic, text, state (live, deleted, dropped), times used and when last, created, edited, ended and why ([learning](learning.md)) |
+| `learning_cursor` | One row: the last event learning looked at (schema 10) | last event |
 | `events` | Anything that happened | time, software, module, kind, reference; append-only; feeds the page's event stream and every report |
 | `settings` | Configuration value changed from its default | key, value, changed |
 
@@ -146,6 +151,7 @@ Every job, ask, gate request and verdict also writes an `events` row, so that a 
 - Milestone 4, first part (intake in a thin form): schema 7 added `intake_items` and `readings` ([0185](../decisions/0185-how-intake-in-a-thin-form-is-built.md)).
 - Milestone 6, first part (existing software in a thin form): schema 8 added `existing_softwares`; `work_items.origin` also takes `existing` and `recover`; `premise/recovered-trace.md` is written in the software's repository ([0189](../decisions/0189-how-taking-on-existing-software-is-built.md)).
 - Schema 9 added each software's effort and whether an intake item changes what the software must do ([0191](../decisions/0191-scope-check-effort-and-milestones.md), [0192](../decisions/0192-effort-in-proportion-to-what-was-asked.md)).
+- Schema 10 added the measures and learning tables: `page_presence`, `asks_shown`, `corrections`, `lessons` and `learning_cursor` ([0193](../decisions/0193-how-the-measures-are-built.md), [0194](../decisions/0194-how-learning-from-corrections-is-built.md)).
 - Milestone 3: `claims`.
 - Milestone 4, the rest: `feedback_links`, and every intake source.
 - Milestone 6: `recovered-trace.md` in the software's repository.

@@ -205,6 +205,22 @@ const TOOLS: ToolDefinition[] = [
     notBuilt: "intake",
   },
   {
+    name: "lesson_submit",
+    description:
+      'Submit your reading of one correction: what kind of mistake it was ("mistake"), where what it teaches goes ("destination": software, taste, premise or none), why ("reason"), the one short line to learn ("line", unless none), and for premise a short "topic" so the same thing recurring is grouped.',
+    inputSchema: obj(
+      {
+        mistake: { type: "string" },
+        destination: { type: "string", enum: ["software", "taste", "premise", "none"] },
+        reason: { type: "string" },
+        line: { type: "string" },
+        topic: { type: "string" },
+      },
+      ["mistake", "destination", "reason"],
+    ),
+    notBuilt: "learning",
+  },
+  {
     name: "reading_submit",
     description: "Submit the short list from reading the held intake items.",
     inputSchema: anyObject,

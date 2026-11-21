@@ -30,6 +30,8 @@ export interface DraftItem {
   wait?: boolean;
   /** Record items it stands for (say-back), or sources (What exists). */
   refs?: string[];
+  /** The lesson from an earlier correction it follows, by label ("L-3"). */
+  follows?: string;
 }
 
 export class DraftError extends Error {
@@ -163,6 +165,8 @@ export function readDraftItems(
       ...(foundation && kind === "D" && { foundation }),
       ...(value.wait === true && { wait: true }),
       ...(refs && refs.length > 0 && { refs }),
+      ...(typeof value.follows === "string" &&
+        /^L-\d+$/.test(value.follows.trim()) && { follows: value.follows.trim() }),
     });
   });
   if (problems.length) throw new DraftError(problems);
@@ -184,6 +188,7 @@ export function toAskItem(item: DraftItem): AskItem {
     ...(mark === "from-role" && { from: item.from }),
     ...(item.wait !== undefined && { wait: item.wait }),
     ...(item.refs && { refs: item.refs }),
+    ...(item.follows && { follows: { label: item.follows, text: "" } }),
   };
 }
 

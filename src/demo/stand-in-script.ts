@@ -1,6 +1,8 @@
 import type { AgentRequest } from "../agents/agent-runner.js";
 import type { AgentScript, ScriptBehaviour, ScriptRule } from "../agents/scripted-agent.js";
 import { AGENT_TASK_KINDS, type AgentTaskKind } from "../config/settings.js";
+import { ruleReading } from "../learning/rules.js";
+import type { CorrectionKind } from "../shared/api-types.js";
 import { shortIdea } from "./drafts.js";
 import {
   commitAll,
@@ -353,6 +355,30 @@ const triage: ScriptBehaviour = (request, call) => {
   });
 };
 
+/**
+ * The scripted triager reading a correction: premise's fixed rules give the reading, submitted
+ * through lesson_submit exactly as a real triager would. No AI judges the correction.
+ */
+const learn: ScriptBehaviour = (request, call) => {
+  const c = request.context ?? {};
+  const text = (v: unknown) => (typeof v === "string" ? v : null);
+  const reading = ruleReading({
+    kind: String(c.kind) as CorrectionKind,
+    what: String(c.what ?? ""),
+    said: text(c.said),
+    subject: text(c.subject),
+    replacement: text(c.replacement),
+    stage: null,
+  });
+  call("lesson_submit", {
+    mistake: reading.mistake,
+    destination: reading.destination,
+    reason: `Scripted triager, using premise's fixed rule: ${reading.reason}`,
+    ...(reading.line && { line: reading.line }),
+    ...(reading.topic && { topic: reading.topic }),
+  });
+};
+
 /** The scripted reader: lists the held items as they are. It reads no pattern into them. */
 const reading: ScriptBehaviour = (request, call) => {
   const held = Array.isArray(request.context?.held)
@@ -404,6 +430,7 @@ export function standInScript(stepSeconds: number): AgentScript {
       rule("review", { behave: review }),
       rule("size", { behave: size }),
       rule("recover", { behave: recover }),
+      rule("triage", { when: { purpose: "learn" }, behave: learn }),
       rule("triage", { behave: triage }),
       rule("reading", { behave: reading }),
       rule("build", { behave: trialBuild }),

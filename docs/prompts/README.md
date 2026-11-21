@@ -16,11 +16,15 @@ These prompts are the builders' design. Nothing here is the owner's wording or t
 | [planner.md](planner.md) | planner | strongest | Plan (plan jobs); short lists for claimed areas | Make the technical decisions with reasons, and write the working plan |
 | [builder.md](builder.md) | builder | strongest | Build (build jobs); taste prototypes (prototype jobs) | Make one task's change in a confined working copy and commit it with its trace |
 | [checker.md](checker.md) | checker | strongest | Check (check jobs): writing scenarios, and checking a commit | Judge the running software against the record, with evidence, out of the builder's reach |
-| [triager.md](triager.md) | triager | fast | Intake (triage jobs) | Read one intake item against the record and choose its route |
+| [triager.md](triager.md) | triager | fast | Intake (triage jobs); learning jobs | Read one intake item against the record and choose its route; read one correction into exactly one place |
 | [reader.md](reader.md) | reader | strongest | Intake (reading jobs) | Read held items together and write the short list for the operator |
 | [reporter.md](reporter.md) | reporter | fast | Report (report jobs); "more on" answers | Write reports from recorded facts only, each line linked to its evidence |
 | [sizer.md](sizer.md) | sizer | fast, low effort | size jobs: once for every piece of work before its first stage | Decide a piece's size, the stages it needs, and whether it splits, each with a reason |
 | [fixed-wording.md](fixed-wording.md) | none | none | gate, intake, notices | Text the server shows without a model |
+
+## Lessons from corrections
+
+For the drafter, planner, builder and checker, premise adds the lines it learned from people's corrections after the brief's own text: this software's lessons, then the operator's taste ([learning](../specs/learning.md)). The drafter and planner are told to mark a draft item that follows a lesson with `"follows": "L-n"`, and the page shows it. Improvements for premise itself are never added to a brief. The triager reads each correction with its learning brief ([triager.md](triager.md)).
 
 ## How the prompts fit the line
 

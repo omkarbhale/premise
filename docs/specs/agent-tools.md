@@ -1,6 +1,6 @@
 # Agent tools specification
 
-Status: built in `src/agents/tool-server.ts`, served at `POST /mcp` ([0150](../decisions/0150-agent-tools-over-plain-http-mcp-tokens-in-memory.md)). `progress`, `task_finish`, `draft_submit`, `record_read`, `record_propose`, `ask`, `gate_request`, `review_submit`, `sizing_submit`, `recovery_submit`, `scenario_write`, `verdict_submit`, `triage_submit` and `reading_submit` are served by the real modules (the line engine, the record keeper, the gate, Build and Check in `src/build`, intake), set with `setHandlers`. `facts_read` and `report_submit` still check and record every call but their modules are not built yet, so they answer that nothing more comes of it ([0152](../decisions/0152-tools-of-unbuilt-modules-record-and-say-so.md)). Related: [agent runner](agent-runner.md), [record keeper](record-keeper.md), [gate](gate.md), [line engine](line-engine.md), [prompts](../prompts/README.md), [skills](../skills/README.md).
+Status: built in `src/agents/tool-server.ts`, served at `POST /mcp` ([0150](../decisions/0150-agent-tools-over-plain-http-mcp-tokens-in-memory.md)). `progress`, `task_finish`, `draft_submit`, `record_read`, `record_propose`, `ask`, `gate_request`, `review_submit`, `sizing_submit`, `recovery_submit`, `scenario_write`, `verdict_submit`, `triage_submit`, `lesson_submit` and `reading_submit` are served by the real modules (the line engine, the record keeper, the gate, Build and Check in `src/build`, intake, learning), set with `setHandlers`. `facts_read` and `report_submit` still check and record every call but their modules are not built yet, so they answer that nothing more comes of it ([0152](../decisions/0152-tools-of-unbuilt-modules-record-and-say-so.md)). Related: [agent runner](agent-runner.md), [record keeper](record-keeper.md), [gate](gate.md), [line engine](line-engine.md), [prompts](../prompts/README.md), [skills](../skills/README.md).
 
 ## 1. Purpose
 
@@ -48,6 +48,7 @@ Not responsible for:
 | `sizing_submit` | – | – | – | – | – | – | – | – | – | yes |
 | `recovery_submit` | recovery jobs only | – | – | – | – | – | – | – | – | – |
 | `triage_submit` | – | – | – | – | – | – | yes | – | – | – |
+| `lesson_submit` | – | – | – | – | – | – | learning jobs only | – | – | – |
 | `reading_submit` | – | – | – | – | – | – | – | yes | – | – |
 | `facts_read` | – | – | – | – | – | – | – | – | yes | – |
 | `report_submit` | – | – | – | – | – | – | – | – | yes | – |
@@ -92,6 +93,7 @@ Every tool returns `ok` (true or false), `result` (the tool's output) or `error`
 | `review_submit` | For each proposed change: `consistent` or `conflicting` with the live item it conflicts with; for a foundation decision: `agree` or `object`, with reasons | Review id | `UNKNOWN_ITEM`, `MALFORMED` |
 | `recovery_submit` | For a `recover` job (existing software): `items`, each with kind (Y, U, R, W or D), text, a priority for W, `assumed` for a guess, and `files`, the files of the old code it is guessed to serve; `run`, how to `build`, `start` and `check` it in plain words and `premise_run`, the runner's block; `could_not_check`, what premise would need, one line each; a `summary` | Kept until the job ends; then every item goes into the record `from: recovered`, unconfirmed, with `run.md` and `recovered-trace.md` ([0189](../decisions/0189-how-taking-on-existing-software-is-built.md)). Submitting again replaces it | `MALFORMED` (with what to fix), `TASK_CLOSED` |
 | `triage_submit` | For the job's intake item: kind (bug, wish, change-of-purpose, question, opinion, duplicate, noise); `touches`, the record items touched, each with its reason; rough size; touches floor (yes or no); `changes_what` (yes or no; a bug never changes what the software must do, [0192](../decisions/0192-effort-in-proportion-to-what-was-asked.md)); route (in-normally, asked-at-once, held, merged-or-closed); a reason; for a duplicate, the item it joins (`joins`); for a question, its answer (`answer`). Submitted once; premise routes the item at once and may change the route under its rules ([0185](../decisions/0185-how-intake-in-a-thin-form-is-built.md)) | The route taken, with any notes ([intake](intake.md)) | `UNKNOWN_ITEM`, `MALFORMED`, `TASK_CLOSED` |
+| `lesson_submit` | For the job's correction: `mistake`, what kind of mistake it was; `destination` (software, taste, premise, none); `reason`; `line`, one short instruction to learn (not for none), cut to `learning.line_max_chars`; for premise, a `topic` so the same thing recurring is grouped. Submitted once; applied at once ([learning](learning.md), [0194](../decisions/0194-how-learning-from-corrections-is-built.md)) | The destination, and the line's label (`L-n`) | `NOT_ALLOWED` (not a learning job), `MALFORMED`, `CONFLICT` (already read), `TASK_CLOSED` |
 | `reading_submit` | For the job's reading, the short list: `wanted` (what people seem to want), `recurring` (what keeps coming up), `purpose` (whether the purpose or the users should change), `back_to_why` (yes or no) | Reading id; the list goes to the operator as an ask ([intake](intake.md)) | `MALFORMED`, `TASK_CLOSED` |
 | `facts_read` | Software; since when; kinds (verdicts, job outcomes, gate decisions, runs, usage figures) | Facts, each with its evidence link | none |
 | `report_submit` | Report lines, each with the evidence link of the fact it rests on | Report id | `MALFORMED` (a line with no evidence link, or a link to no recorded fact) |
@@ -144,4 +146,5 @@ None. Calls are recorded as `events`; their effects are stored by the modules th
 - Milestone 1 step 2: `record_read`, `record_propose`, `draft_submit`, `ask` (operator only), `gate_request`, `progress`, `task_finish`, `scenario_write`, `verdict_submit`, `review_submit`, `facts_read`, `report_submit`.
 - Milestone 3: `ask` under every role label; kind `proposal` for taste.
 - Milestone 4: `triage_submit`, `reading_submit`.
+- Milestone 8: `lesson_submit`.
 - Milestone 6, first part: `recovery_submit`.

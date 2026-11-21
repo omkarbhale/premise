@@ -17,6 +17,10 @@ import {
   type SoftwareEffort,
   type StageId,
 } from "../shared/stages.js";
+import type { Learning } from "../learning/learning.js";
+import { registerLearningRoutes } from "../learning/routes.js";
+import type { Measures } from "../measures/measures.js";
+import { registerMeasureRoutes } from "../measures/routes.js";
 import { registerRecordRoutes } from "../record/routes.js";
 import type { RecordKeeper } from "../record/record-keeper.js";
 import { type Database, recordEvent } from "../storage/database.js";
@@ -46,6 +50,10 @@ export interface AppDeps {
   webRoot: string;
   /** The live event stream; one is made when not given. */
   events?: EventHub;
+  /** premise's own return (src/measures); its routes are left out when not given. */
+  measures?: Measures;
+  /** Learning from corrections (src/learning); its routes are left out when not given. */
+  learning?: Learning;
 }
 
 const NOT_BUILT_PAGE = `<!doctype html><html lang="en"><meta charset="utf-8"><title>premise</title>
@@ -216,6 +224,8 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
     });
 
     if (deps.record) registerRecordRoutes(api, deps.record);
+    if (deps.measures) registerMeasureRoutes(api, deps.measures);
+    if (deps.learning) registerLearningRoutes(api, deps.learning);
 
     api.get("/api/overview", async (): Promise<Overview> => {
       const [softwares, activity, weekly] = await Promise.all([
@@ -233,7 +243,10 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
           scriptedDemo: agents.scriptedDemo(),
         },
         line: { mode: "engine", standInStages: [] },
-        page: { notifications: deps.config.page.notifications },
+        page: {
+          notifications: deps.config.page.notifications,
+          presenceSeconds: deps.config.measures.presence_seconds,
+        },
         usage: { mode: deps.ledger.mode, mocked: deps.ledger.mocked, weekly },
         softwares,
         softwareUsage: await Promise.all(

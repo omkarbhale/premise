@@ -158,7 +158,7 @@ export const PREMISE_TOOLS_BY_ROLE: Record<AgentRole, readonly string[]> = {
   ],
   builder: ["record_read", "record_propose", "ask", "gate_request", "progress", "task_finish"],
   checker: ["record_read", "ask", "gate_request", "progress", "scenario_write", "verdict_submit"],
-  triager: ["record_read", "gate_request", "progress", "triage_submit"],
+  triager: ["record_read", "gate_request", "progress", "triage_submit", "lesson_submit"],
   reader: ["record_read", "ask", "gate_request", "progress", "task_finish", "reading_submit"],
   reporter: ["record_read", "gate_request", "progress", "facts_read", "report_submit"],
   sizer: ["record_read", "sizing_submit", "progress", "task_finish"],

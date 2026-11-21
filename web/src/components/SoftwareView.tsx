@@ -7,11 +7,12 @@ import { Define, Problem } from "./Badges";
 import { Conversation } from "./Conversation";
 import { ExistingPanel } from "./ExistingPanel";
 import { IntakeView } from "./IntakeView";
+import { Learned } from "./Learned";
 import { Line } from "./Line";
 import { RecordView } from "./RecordView";
 import { ReportView } from "./ReportView";
 
-export type SoftwareTab = "conversation" | "line" | "record" | "report" | "intake";
+export type SoftwareTab = "conversation" | "line" | "record" | "report" | "intake" | "learned";
 
 const TABS: { id: SoftwareTab; label: string; help: string; more?: boolean }[] = [
   {
@@ -28,6 +29,12 @@ const TABS: { id: SoftwareTab; label: string; help: string; more?: boolean }[] =
   },
   { id: "record", label: "Record", help: "What was decided, and why", more: true },
   { id: "intake", label: "Intake", help: "Report a problem or ask for a change", more: true },
+  {
+    id: "learned",
+    label: "Learned",
+    help: "What premise learned from your corrections, and what it could do better",
+    more: true,
+  },
 ];
 
 /** One software: where it is, what waits on you, and its conversation, line, record, report and intake. */
@@ -135,6 +142,7 @@ export function SoftwareView({
         {tab === "record" && <RecordView softwareId={s.id} />}
         {tab === "report" && <ReportView softwareId={s.id} />}
         {tab === "intake" && <IntakeView softwareId={s.id} copyNotReady={copyNotReady} />}
+        {tab === "learned" && <Learned softwareId={s.id} />}
       </div>
     </div>
   );
