@@ -11,7 +11,7 @@ import {
   missingSandboxTools,
 } from "../src/agents/claude-agent.js";
 import { AgentToolServer } from "../src/agents/tool-server.js";
-import { workingCopyPath } from "../src/agents/working-copy.js";
+import { prepareWorkingCopy, workingCopyPath } from "../src/agents/working-copy.js";
 import { runDoctor } from "../src/doctor/doctor.js";
 import { WorkQueue } from "../src/queue/work-queue.js";
 import { createSession } from "../src/server/wiring.js";
@@ -265,6 +265,25 @@ describe("real agent runner, against a fake claude", () => {
     const last = calls(folder).at(-1)!;
     expect(last.args[last.args.indexOf("-p") + 1]).toBe(RESUME_PROMPT);
     expect(last.args[last.args.indexOf("--resume") + 1]).toBe(first.sessionId);
+  });
+
+  it("carries on a builder's clone only once premise finished setting it up", async () => {
+    const folder = tempFolder();
+    const repository = gitRepository();
+    const request = { dataFolder: folder, softwareId: "s1", jobId: 4, kind: "branch" as const };
+    const copy = workingCopyPath(folder, "s1", 4);
+    const git = (...args: string[]) => execFileSync("git", args, { cwd: copy }).toString().trim();
+    // premise stopped right after cloning: no branch, no identity to commit with.
+    mkdirSync(join(copy, ".."), { recursive: true });
+    execFileSync("git", ["clone", "--quiet", repository, copy]);
+    await prepareWorkingCopy({ ...request, repository, reuse: true });
+    expect(git("branch", "--show-current")).toBe("premise/job-4");
+    expect(git("config", "user.name")).toBe("premise agent");
+
+    // A copy that was set up is carried on as it is, work in progress and all.
+    writeFileSync(join(copy, "half-done.txt"), "work in progress");
+    await prepareWorkingCopy({ ...request, repository, reuse: true });
+    expect(readFileSync(join(copy, "half-done.txt"), "utf8")).toBe("work in progress");
   });
 
   it("gives a builder a clone on its own branch, and keeps sandbox placeholders out of its commit", async () => {

@@ -103,6 +103,9 @@ export function saveEvidence(
   cpSync(from, to, { recursive: true });
 }
 
+/** Marks, inside a clone's .git folder, that premise finished setting the clone up. */
+const PREPARED = "premise-prepared";
+
 export function branchFor(jobId: number): string {
   return `premise/job-${jobId}`;
 }
@@ -120,7 +123,10 @@ export async function prepareWorkingCopy(request: WorkingCopyRequest): Promise<W
   const path = workingCopyPath(request.dataFolder, request.softwareId, request.jobId);
   const clone = request.kind !== "scratch" && Boolean(request.repository);
   const branch = clone && request.kind === "branch" ? branchFor(request.jobId) : null;
-  if (request.reuse && existsSync(path)) return { path, branch, isClone: clone };
+  // A clone is carried on only once it was fully set up: premise may have stopped part-way
+  // through, leaving a copy without its branch, identity or hook, which is made again.
+  const ready = clone ? existsSync(join(path, ".git", PREPARED)) : existsSync(path);
+  if (request.reuse && ready) return { path, branch, isClone: clone };
 
   rmSync(path, { recursive: true, force: true });
   mkdirSync(join(path, ".."), { recursive: true });
@@ -140,6 +146,8 @@ export async function prepareWorkingCopy(request: WorkingCopyRequest): Promise<W
     join(path, ".git", "info", "exclude"),
     `\n# Placed by the agent sandbox; never part of a change.\n${SANDBOX_PLACEHOLDERS.map((p) => `/${p}`).join("\n")}\n/${EVIDENCE_FOLDER}/\n`,
   );
+  // Written last: the copy is ready to carry on after a restart.
+  writeFileSync(join(path, ".git", PREPARED), "");
   return { path, branch, isClone: true };
 }
 

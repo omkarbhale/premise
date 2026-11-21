@@ -226,17 +226,28 @@ describe("restart in the middle of build and of check", () => {
     it(`carries on after premise stops in the middle of ${where === "build" ? "a build task" : "the check"}`, async () => {
       const hang = {
         when: { task: where, attempt: 1, ...(where === "check" && { purpose: "check" }) },
+        progress: ["Working"],
         end: { outcome: "hang" as const },
       };
       const env = { PREMISE_LINE__REMOTE: "none" };
       const first = await testApp(env, { script: countScript(hang) });
       const { body } = await first.call("POST", "/api/softwares", { idea: COUNT_DEMO.idea });
       const id = body.id as string;
-      await driveWithoutWaiting(first, id, (app) =>
+      // Cut once the session is under way, as it says in its first progress line: a job counts as
+      // running from the moment it starts, while its working copy is still being cloned, and a
+      // clone left going would carry on in the stopped premise behind the new one's back.
+      const underWay = (app: App) =>
         app.session.queue
           .list("running")
-          .some((j) => j.kind === where && j.payload.purpose !== "scenarios"),
-      );
+          .filter((j) => j.kind === where && j.payload.purpose !== "scenarios")
+          .some((j) =>
+            app.db
+              .prepare(
+                "SELECT 1 FROM events WHERE module = 'agent' AND kind = 'progress' AND reference = ?",
+              )
+              .get(String(j.id)),
+          );
+      await driveWithoutWaiting(first, id, underWay);
       const cut = first.session.queue.list("running");
       expect(cut.map((j) => j.kind)).toEqual([where]);
 
