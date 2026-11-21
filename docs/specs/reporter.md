@@ -1,6 +1,6 @@
 # Reporter specification
 
-Status: specification, being built ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Related: [intake and reporting](../architecture/intake-and-reporting.md), [page](page.md), [agent tools](agent-tools.md), [storage](storage.md), [models and cost](../architecture/models-and-cost.md).
+Status: specification. Built so far: the report view with its short default and more detail, reports written and kept with their triggers, milestone reports, release-note drafts, a mocked cost section ([0164](../decisions/0164-how-the-reporter-is-built.md)). Not built yet: the reporter agent's wording, `facts_read` and `report_submit`, notices, more detail on one item, release notes committed. Being built ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Related: [intake and reporting](../architecture/intake-and-reporting.md), [page](page.md), [agent tools](agent-tools.md), [storage](storage.md), [models and cost](../architecture/models-and-cost.md).
 
 ## 1. Purpose
 

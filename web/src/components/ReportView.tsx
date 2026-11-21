@@ -2,15 +2,28 @@ import { useSession } from "../context";
 import { useLoad } from "../hooks";
 import { when } from "../words";
 import { MockedBadge, Problem, StandInBadge } from "./Badges";
+import { RunPanel } from "./RunPanel";
+import { useState } from "react";
 
 export function ReportView({ softwareId }: { softwareId: string }) {
   const { api, version, notCurrent } = useSession();
-  const report = useLoad(() => api.report(softwareId), [softwareId], version, notCurrent);
+  const [detail, setDetail] = useState(false);
+  const report = useLoad(
+    () => api.report(softwareId, detail),
+    [softwareId, detail],
+    version,
+    notCurrent,
+  );
   if (report.state === "loading") return <p className="muted">Loading the report…</p>;
   if (report.state === "error") return <Problem>{report.message}</Problem>;
   const r = report.data;
   return (
     <div className="report">
+      <p className="muted small">
+        This is what premise knows, taken only from what it recorded: the record, the code, the
+        checks, what is running and the work queue. If something is not here, it is not known.
+      </p>
+      <RunPanel softwareId={softwareId} />
       {r.written ? (
         <p>
           Report written {when(r.written)}. {r.source === "stand-in" && <StandInBadge />}
@@ -20,12 +33,6 @@ export function ReportView({ softwareId }: { softwareId: string }) {
           No report yet. premise writes one when the software reaches Run. Until then, this shows
           what is known so far.
         </p>
-      )}
-      {r.running && (
-        <section className="card running" aria-label="Open the running software">
-          <h2>Open it</h2>
-          <p>{r.running.where}</p>
-        </section>
       )}
       {r.sections.map((section) => (
         <section key={section.title} className="card" aria-label={section.title}>
@@ -45,6 +52,22 @@ export function ReportView({ softwareId }: { softwareId: string }) {
           )}
         </section>
       ))}
+      <p>
+        <button
+          type="button"
+          className="quiet"
+          aria-pressed={detail}
+          onClick={() => setDetail((d) => !d)}
+        >
+          {detail ? "Show the short report" : "Show more detail"}
+        </button>{" "}
+        {!detail && r.hiddenLines > 0 && (
+          <span className="muted small">
+            {r.hiddenLines} more line{r.hiddenLines === 1 ? " is" : "s are"} left out of the short
+            report.
+          </span>
+        )}
+      </p>
       <section className="card" aria-label="Cost">
         <h2>Cost {r.cost.mocked && <MockedBadge />}</h2>
         <p>
@@ -52,6 +75,16 @@ export function ReportView({ softwareId }: { softwareId: string }) {
           {r.cost.mocked && " These figures are made up until usage-ledger exists."}
         </p>
       </section>
+      {r.limits.length > 0 && (
+        <section className="card note" aria-label="What this report cannot tell you">
+          <h2>What this report cannot tell you</h2>
+          <ul>
+            {r.limits.map((limit) => (
+              <li key={limit}>{limit}</li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }

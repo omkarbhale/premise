@@ -1,6 +1,6 @@
 # Runner specification
 
-Status: specification, being built ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Related: [build, check and run](../architecture/build-check-run.md), [record keeper](record-keeper.md), [gate](gate.md), [intake](intake.md), [reporter](reporter.md), [storage](storage.md).
+Status: specification. Built so far: starting, keeping up, restarting and stopping software, the link or command on the page, ports, confinement, secrets and logs ([0162](../decisions/0162-how-the-runner-is-built.md), [0163](../decisions/0163-running-software-is-confined-with-bubblewrap.md)). Not built yet: repositories on GitHub, merge and push, release notes committed, log errors as intake. Being built ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Related: [build, check and run](../architecture/build-check-run.md), [record keeper](record-keeper.md), [gate](gate.md), [intake](intake.md), [reporter](reporter.md), [storage](storage.md).
 
 ## 1. Purpose
 
@@ -58,6 +58,8 @@ Not responsible for:
 
 ### 5.3 Starting the software
 
+`run.md` holds one fenced block marked `premise-run` that the runner reads ([0162](../decisions/0162-how-the-runner-is-built.md)): `kind: web` with `start:` (and `open:`), `kind: command` with `command:` (and `sample:`), or `kind: program` with `program:`.
+
 The runner starts the checked commit from a clean copy using `run.md`, confined like an agent ([0087](../decisions/0087-agents-run-confined.md)):
 
 | Kind of software | How it runs | What the page shows |
@@ -87,6 +89,8 @@ The runner starts the checked commit from a clean copy using `run.md`, confined 
 - premise does not act in the real world: open accounts, pay, sign ([0033](../decisions/0033-answers-to-the-ten-assumptions.md)).
 
 ## 6. Configuration
+
+The settings are listed in the [configuration reference](../reference/configuration.md) (`runner.*`). The two below are the specification's; the reference also holds `runner.port_range`, the start and sample time limits, the restart delay, the stop grace, the output kept for the page, `runner.confinement` and `runner.read_only_paths`.
 
 | Key | Default | Meaning |
 |---|---|---|

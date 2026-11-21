@@ -36,6 +36,9 @@ export type UsageLedgerMode = (typeof USAGE_LEDGER_MODES)[number];
 export const PAGE_NOTIFICATIONS = ["offer", "off"] as const;
 export type PageNotifications = (typeof PAGE_NOTIFICATIONS)[number];
 
+export const RUNNER_CONFINEMENTS = ["bubblewrap", "none"] as const;
+export type RunnerConfinement = (typeof RUNNER_CONFINEMENTS)[number];
+
 export const LOOPBACK_HOSTS = ["127.0.0.1", "::1", "localhost"] as const;
 
 /** One setting: its dotted key, default, check and meaning. */
@@ -63,6 +66,21 @@ const realLedgerNotBuilt = summarised((value) => {
     ? `is "real", but premise cannot talk to a real usage-ledger yet. Use "mock-fixed" or "mock-random" (decision 0133)`
     : null;
 }, `"mock-fixed", "mock-random" or "real" (not built yet)`);
+
+/** "4700-4799": the first and last port, the first not above the last, both usable. */
+export function parsePortRange(value: unknown): { first: number; last: number } | null {
+  if (typeof value !== "string") return null;
+  const match = /^\s*(\d{1,5})\s*-\s*(\d{1,5})\s*$/.exec(value);
+  if (!match) return null;
+  const first = Number(match[1]);
+  const last = Number(match[2]);
+  return first >= 1024 && last <= 65535 && first <= last ? { first, last } : null;
+}
+
+const portRange: Check = (value) =>
+  parsePortRange(value)
+    ? null
+    : `must be two ports from 1024 to 65535 joined by a dash, the first not above the last, such as "4700-4799"; it is ${JSON.stringify(value)}`;
 
 const folderName: Check = (value) =>
   typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value)
@@ -346,6 +364,89 @@ export const SETTINGS: readonly Setting[] = [
     record: "0159",
   },
   {
+    key: "runner.restart_limit",
+    default: 3,
+    check: summarised(wholeNumber(0, 50), "0 to 50"),
+    meaning:
+      "How many times a crashed software is started again within the window below before premise stops trying and reports it. 0 never restarts.",
+    record: "0162",
+  },
+  {
+    key: "runner.restart_window_minutes",
+    default: 10,
+    check: summarised(wholeNumber(1, 1440), "1 to 1440"),
+    meaning: "The window, in minutes, in which restarts count towards the limit.",
+    record: "0162",
+  },
+  {
+    key: "runner.restart_delay_seconds",
+    default: 2,
+    check: summarised(wholeNumber(0, 600), "0 to 600"),
+    meaning: "How long to wait before starting a crashed software again.",
+    record: "0162",
+  },
+  {
+    key: "runner.port_range",
+    default: "4700-4799",
+    check: summarised(portRange, 'two ports joined by a dash, such as "4700-4799"'),
+    meaning:
+      "Ports on this machine that running web software may use. Software is only ever reachable from this machine.",
+    record: "0162",
+  },
+  {
+    key: "runner.start_timeout_seconds",
+    default: 30,
+    check: summarised(wholeNumber(1, 600), "1 to 600"),
+    meaning: "How long a web software has to start answering before the start is called failed.",
+    record: "0162",
+  },
+  {
+    key: "runner.sample_timeout_seconds",
+    default: 30,
+    check: summarised(wholeNumber(1, 600), "1 to 600"),
+    meaning: "How long a command-line software's sample run may take.",
+    record: "0162",
+  },
+  {
+    key: "runner.stop_grace_seconds",
+    default: 5,
+    check: summarised(wholeNumber(0, 120), "0 to 120"),
+    meaning:
+      "When running software is stopped, how long it gets to end by itself before it is ended forcibly.",
+    record: "0162",
+  },
+  {
+    key: "runner.output_lines",
+    default: 200,
+    check: summarised(wholeNumber(10, 5000), "10 to 5000"),
+    meaning: "How many of the latest lines of a running software's output the page can show.",
+    record: "0162",
+  },
+  {
+    key: "runner.confinement",
+    default: "bubblewrap",
+    check: summarised(oneOf(RUNNER_CONFINEMENTS), `"bubblewrap" or "none"`),
+    meaning:
+      '"bubblewrap": running software sees only its own copy of the code, not your files or premise\'s data. "none": no confinement, only for a machine where bubblewrap cannot work; premise says so on the page.',
+    record: "0163",
+  },
+  {
+    key: "runner.read_only_paths",
+    default: [],
+    check: summarised(textList, "a list of folder paths"),
+    meaning:
+      "Extra folders running software may read but not change, such as where Node.js or Python is installed when that is under your home folder.",
+    record: "0163",
+  },
+  {
+    key: "reports.max_lines",
+    default: 15,
+    check: summarised(wholeNumber(3, 200), "3 to 200"),
+    meaning:
+      "How many lines a short report holds before the rest is behind the page's 'Show more detail' control.",
+    record: "0164",
+  },
+  {
     key: "doctor.command_timeout_seconds",
     default: 10,
     check: summarised(wholeNumber(1, 120), "1 to 120"),
@@ -397,5 +498,18 @@ export interface PremiseConfig {
     commit_author_name: string;
     commit_author_email: string;
   };
+  runner: {
+    restart_limit: number;
+    restart_window_minutes: number;
+    restart_delay_seconds: number;
+    port_range: string;
+    start_timeout_seconds: number;
+    sample_timeout_seconds: number;
+    stop_grace_seconds: number;
+    output_lines: number;
+    confinement: RunnerConfinement;
+    read_only_paths: string[];
+  };
+  reports: { max_lines: number };
   doctor: { command_timeout_seconds: number };
 }

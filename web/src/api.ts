@@ -6,6 +6,7 @@ import type {
   Overview,
   RecordView,
   ReportView,
+  RunView,
   SettingsView,
   SoftwareDetail,
   SoftwareSummary,
@@ -45,7 +46,10 @@ export interface Api {
   chat(id: string): Promise<ChatMessage[]>;
   say(id: string, text: string): Promise<{ said: ChatMessage; reply: ChatMessage }>;
   record(id: string): Promise<RecordView>;
-  report(id: string): Promise<ReportView>;
+  report(id: string, detail?: boolean): Promise<ReportView>;
+  run(id: string): Promise<RunView>;
+  startRun(id: string): Promise<RunView>;
+  stopRun(id: string): Promise<RunView>;
   sendBack(id: string, stage: StageId): Promise<SoftwareDetail>;
   setSize(id: string, size: SizeClass): Promise<SoftwareDetail>;
   asks(filter?: { software?: string; status?: "open" | "answered" }): Promise<AskView[]>;
@@ -100,7 +104,11 @@ export function createApi(token: string): Api {
     chat: (id) => get(`/api/softwares/${enc(id)}/chat`),
     say: (id, text) => post(`/api/softwares/${enc(id)}/chat`, { text }),
     record: (id) => get(`/api/softwares/${enc(id)}/record`),
-    report: (id) => get(`/api/softwares/${enc(id)}/report`),
+    report: (id, detail = false) =>
+      get(`/api/softwares/${enc(id)}/report${detail ? "?detail=1" : ""}`),
+    run: (id) => get(`/api/softwares/${enc(id)}/run`),
+    startRun: (id) => post(`/api/softwares/${enc(id)}/run/start`),
+    stopRun: (id) => post(`/api/softwares/${enc(id)}/run/stop`),
     sendBack: (id, stage) => post(`/api/softwares/${enc(id)}/send-back`, { stage }),
     setSize: (id, size) => post(`/api/softwares/${enc(id)}/size`, { size }),
     asks: (filter = {}) => {

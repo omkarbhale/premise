@@ -849,6 +849,9 @@ export class StandInLine {
       softwareId,
       source: "stand-in",
       written,
+      detail: true,
+      hiddenLines: 0,
+      limits: [],
       sections: [
         { title: "Decided", plain: "What is in the record so far.", lines: decided },
         {
