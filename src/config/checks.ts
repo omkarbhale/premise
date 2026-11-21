@@ -15,6 +15,13 @@ export function wholeNumber(min: number, max: number): Check {
       : `must be a whole number from ${min} to ${max}; it is ${show(value)}`;
 }
 
+export function positiveNumber(min: number, max: number): Check {
+  return (value) =>
+    typeof value === "number" && Number.isFinite(value) && value >= min && value <= max
+      ? null
+      : `must be a number from ${min} to ${max}; it is ${show(value)}`;
+}
+
 export const yesNo: Check = (value) =>
   typeof value === "boolean" ? null : `must be true or false; it is ${show(value)}`;
 

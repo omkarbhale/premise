@@ -58,7 +58,7 @@ Always current, for each software ([0012](../decisions/0012-reporting-with-a-pro
 | Needed | What is needed and from which role, each with exactly what to do; grouped by role, with a count per role, when another role than the operator is waited on, and with no role label while only the operator is ([0196](../decisions/0196-roles-and-taste-in-one-session.md)) |
 | Effort | premise's own measures ([0192](../decisions/0192-effort-in-proportion-to-what-was-asked.md)): the time from the idea to the first running version and the agent sessions it took, and the agent sessions in all. From premise's agent sessions and runs, not from usage-ledger |
 | Failed or not checked | Every item not met or not checked, except what the operator left out |
-| Cost | From usage-ledger, once it is usable (milestone 2). Until then: "Cost is not tracked yet." |
+| Cost | From usage-ledger, mocked until it exists and labelled so: the total, the software's budget, and under a fold lines per step, change and record item, each with premise's own count of sessions and minutes beside the figure (not labelled mocked). A software paused for its budget has it as the first line under Needed ([usage](usage.md)). |
 
 It opens with one plain sentence saying what was built and checked out of what was asked, and "Running" gives the folder a command is typed in ([0190](../decisions/0190-how-the-first-visit-is-made-clear.md)). It is in lists ([0029](../decisions/0029-lists-over-long-paragraphs.md)), and states the known limit that the checker shares the builder's model ([0091](../decisions/0091-checker-same-provider-strongest-tier.md)).
 
@@ -83,9 +83,9 @@ The owner gets one short report per finished milestone, and an immediate message
 
 ### 5.7 Cost
 
-- Once usage-ledger is usable, the report reads usage per software, stage, change and record item from usage-ledger ([0064](../decisions/0064-cost-and-spending-limit-from-usage-ledger.md)).
+- The report reads usage per software, stage, change and record item from usage-ledger, a mock until it exists ([0064](../decisions/0064-cost-and-spending-limit-from-usage-ledger.md)).
 - Because sessions carry their record items, rework shows up: an item that keeps failing its check shows its whole cost.
-- Until usage-ledger is usable, reports say that cost is not tracked yet.
+- While usage-ledger is a mock, every cost figure in a report is labelled mocked ([0133](../decisions/0133-usage-ledger-is-mocked-until-it-exists.md)).
 
 ### 5.7a How premise is doing
 

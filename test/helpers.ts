@@ -100,6 +100,7 @@ export async function testApp(
     setup,
     measures: session.measures,
     learning: session.learning,
+    usage: session.usage,
     webRoot: tempFolder(),
   });
   const token = issueSessionToken(db, config.server.token_bytes);

@@ -37,7 +37,7 @@ More:
 
 - `npm run demo:cli` and `npm run demo:web` run a whole scripted build, check and run in the terminal, and stop ([0187](docs/decisions/0187-kept-demos-and-one-real-run.md)). `npm run demo:web` does not leave a link running; use `npm run demo` to click around.
 - `npm run real-run -- --confirm` takes a tiny tool through the whole line with real agents on your login (haiku, low effort, the software at low effort so only what was asked is built). Use it sparingly.
-- Usage figures are mocked until usage-ledger exists; the page labels them "Mocked".
+- Usage figures are mocked until usage-ledger exists; the page labels them "Mocked". Each software can be given a budget (a share of the week's usage or dollars a week); when it is used up, only that software pauses and you choose what happens next. `premise demo budget` shows it.
 - Change settings (how many agents run at once, the model and effort for each type of task, and more) in `config.json` in the data folder (`~/.premise` by default), or with environment variables: [configuration reference](docs/reference/configuration.md).
 - Another port or data folder: `npm start -- --port 4700`, `npm start -- --data <folder>`. `--help` anywhere prints help; a flag premise does not know is an error and starts nothing.
 
@@ -53,7 +53,8 @@ One TypeScript package ([0075](docs/decisions/0075-one-package.md)):
 | `src/storage/` | The SQLite database in the data folder, with numbered migrations | [storage](docs/specs/storage.md) |
 | `src/queue/` | The work queue: jobs that survive a restart, the parallel limit, priority, the same-failure rule, the usage-limit pause | [work queue](docs/specs/work-queue.md) |
 | `src/agents/` | The agent runner's interface; the scripted agent used by every test; real Claude Code sessions (confinement, limits, stop and resume); the tools agents reach premise through | [agent runner](docs/specs/agent-runner.md), [agent tools](docs/specs/agent-tools.md) |
-| `src/usage-ledger/` | usage-ledger's interface, and its mock | [models and cost](docs/architecture/models-and-cost.md) |
+| `src/usage-ledger/` | usage-ledger's interface (the contract it has to meet), and its mock | [usage-ledger contract](docs/specs/usage-ledger.md) |
+| `src/usage/` | Usage per software, step, change and item beside premise's own counts; budgets; pausing a software that overruns | [usage and budgets](docs/specs/usage.md) |
 | `src/record/` | The record keeper: the record's format, proposed changes, trace trailers, the reading API; `premise record check <folder>` | [record keeper](docs/specs/record-keeper.md) |
 | `src/git/` | The one small module for git, and the repository host seam | [record keeper](docs/specs/record-keeper.md#54a-repositories) |
 | `src/runner/` | The runner: starts a built software from a clean copy by its `run.md`, confined, on a local port; restarts it a few times when it crashes; shows the link or the command and the latest output | [runner](docs/specs/runner.md) |

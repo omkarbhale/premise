@@ -474,7 +474,9 @@ export class LineEngine implements IntakeLine {
     if (software.state === "waiting-milestone") {
       return "Stopped after a milestone. Try it, then say go on.";
     }
-    if (software.state === "paused-budget") return "Paused: its effort budget is used up.";
+    if (software.state === "paused-budget") {
+      return "Paused: its budget is used up. Open Usage to raise the budget, let it finish the change it is on, or leave it paused.";
+    }
     if (software.state === "paused-usage") return "Paused until the usage limit resets.";
     if (openAsks > 0) {
       return `Waiting on you: ${openAsks === 1 ? "1 thing" : `${openAsks} things`} to answer.`;

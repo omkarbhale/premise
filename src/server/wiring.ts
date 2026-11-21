@@ -12,6 +12,7 @@ import { LineEngine } from "../line/line-engine.js";
 import { Measures } from "../measures/measures.js";
 import { Portfolio } from "../portfolio/portfolio.js";
 import { Summary } from "../reporter/summary.js";
+import { Usage } from "../usage/usage.js";
 import { WorkQueue } from "../queue/work-queue.js";
 import { RecordKeeper } from "../record/record-keeper.js";
 import { Reporter } from "../reporter/reporter.js";
@@ -61,6 +62,8 @@ export interface Session {
   portfolio: Portfolio;
   /** The short summary across softwares. */
   summary: Summary;
+  /** Cost and the spending limit, on usage-ledger's figures (src/usage). */
+  usage: Usage;
 }
 
 /**
@@ -86,17 +89,21 @@ export function createSession(options: {
   let line: LineEngine | null = null;
   let intake: Intake | null = null;
   let learning: Learning | null = null;
+  const usage = new Usage({ db, config, ledger });
   const queue = new WorkQueue({
     db,
     config,
     runner,
+    budgets: usage,
     serverJobs: (job) => line!.runServerJob(job),
     onChange: (job) => {
       intake?.jobChanged(job);
       line?.jobChanged(job);
       learning?.jobChanged(job);
+      usage.jobChanged(job);
     },
   });
+  usage.onSettled = () => queue.tick();
   const record = options.record ?? new RecordKeeper({ db, config });
   const agents: AgentsStatus = options.agents ?? {
     ready: () => runner.ready?.() ?? true,
@@ -126,7 +133,7 @@ export function createSession(options: {
   });
   const learner = learning;
   const reporter = new Reporter(
-    { db, config, records: record, runner: runs, ledger, measures },
+    { db, config, records: record, runner: runs, ledger, measures, usage },
     config,
   );
   const writer = new RecordWriter(record);
@@ -291,5 +298,6 @@ export function createSession(options: {
     taste,
     portfolio,
     summary,
+    usage,
   };
 }

@@ -4,6 +4,7 @@ import { useSession } from "../context";
 import { useLoad } from "../hooks";
 import { stageName, whereNow } from "../../../src/shared/stages";
 import { Define, Problem } from "./Badges";
+import { OverrunNotice } from "./Budget";
 import { Conversation } from "./Conversation";
 import { ExistingPanel } from "./ExistingPanel";
 import { IntakeView } from "./IntakeView";
@@ -111,6 +112,7 @@ export function SoftwareView({
           <p>{s.idea}</p>
         </details>
         {s.existing && <ExistingPanel softwareId={s.id} existing={s.existing} />}
+        {s.state === "paused-budget" && <PausedForBudget softwareId={s.id} />}
       </header>
 
       <div className="tabs" role="tablist" aria-label={`${s.name} views`}>
@@ -150,4 +152,12 @@ export function SoftwareView({
       </div>
     </div>
   );
+}
+
+/** The notice that this software's budget is used up, with what to do, where the operator looks. */
+function PausedForBudget({ softwareId }: { softwareId: string }) {
+  const { api, version, notCurrent } = useSession();
+  const usage = useLoad(() => api.softwareUsage(softwareId), [softwareId], version, notCurrent);
+  if (usage.state !== "ready") return null;
+  return <OverrunNotice softwareId={softwareId} budget={usage.data.budget} />;
 }
