@@ -31,7 +31,9 @@ The words premise's documents use, in plain language. Where a word was settled w
 | Say-back | A list of at most ten things premise understood and assumed, for the operator to strike out ([0020](decisions/0020-when-to-say-back.md), [0028](decisions/0028-say-back-as-assumptions-to-strike.md)). |
 | Assumption | Something premise decided and shows instead of asking, because being wrong is cheap. Marked `from: assumed` in the record until someone strikes it ([0027](decisions/0027-spend-least-of-peoples-attention.md)). |
 | Foundation decision | A technical choice that is costly to undo: language, framework, storage, how it runs, data model, who can get in. Gets a small "what exists" look and a review by a second agent ([0014](decisions/0014-guard-against-further-big-mistakes.md)). |
-| Size class | Small, medium or large: proposed at Why, sets the stage budgets ([0117](decisions/0117-size-classes-set-stage-budgets.md)). |
+| Size class | Small, medium or large: proposed by the sizer for each piece of work, which the operator can change, and sets its stage budgets ([0117](decisions/0117-size-classes-set-stage-budgets.md), [0184](decisions/0184-how-sizing-of-work-is-built.md)). |
+| Sizer | The agent that, before a piece of work's first stage, decides its size, the stages it needs and whether it splits into parts, each with a reason ([0184](decisions/0184-how-sizing-of-work-is-built.md)). |
+| Work item | A piece of work going through the line: a software, one of its milestones, a part of a split piece, or an intake item ([0181](decisions/0181-the-line-works-on-work-items.md)). |
 | Check | The independent judgement of the running software against the record, by an agent other than the builder ([0030](decisions/0030-independent-check.md)). |
 | Scenario | What the checker will try, written from the record into premise's data folder, out of the builder's reach ([0090](decisions/0090-scenarios-out-of-the-builders-reach.md)). |
 | Verdict | The checker's finding per item: met, not met, or could not check, with evidence. |

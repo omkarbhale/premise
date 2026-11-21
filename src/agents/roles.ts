@@ -16,6 +16,7 @@ export const AGENT_ROLES = [
   "triager",
   "reader",
   "reporter",
+  "sizer",
 ] as const;
 export type AgentRole = (typeof AGENT_ROLES)[number];
 
@@ -31,13 +32,14 @@ export const ROLE_FOR_TASK: Record<AgentTaskKind, AgentRole> = {
   triage: "triager",
   reading: "reader",
   report: "reporter",
+  size: "sizer",
 };
 
 /**
  * What a job's working copy is:
  * - "branch": a clone of the software's repository, on a new branch for the change (builder);
  * - "clone": its own clone of the commit to work from, separate from any other (checker);
- * - "read-only": a clone it may read but not change (planner, drafter, reviewer);
+ * - "read-only": a clone it may read but not change (planner, drafter, reviewer, sizer);
  * - "scratch": an empty folder (researcher, triager, reader, reporter).
  * Without a repository, every kind falls back to an empty scratch folder.
  */
@@ -97,6 +99,7 @@ export function accessFor(kind: AgentTaskKind): TaskAccess {
     case "planner":
     case "drafter":
     case "reviewer":
+    case "sizer":
       return {
         role,
         workingCopy: "read-only",
@@ -156,4 +159,5 @@ export const PREMISE_TOOLS_BY_ROLE: Record<AgentRole, readonly string[]> = {
   triager: ["record_read", "gate_request", "progress", "triage_submit"],
   reader: ["record_read", "ask", "gate_request", "progress", "task_finish", "reading_submit"],
   reporter: ["record_read", "gate_request", "progress", "facts_read", "report_submit"],
+  sizer: ["record_read", "sizing_submit", "progress", "task_finish"],
 };

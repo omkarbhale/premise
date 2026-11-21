@@ -29,6 +29,7 @@ The drafter holds the conversation's first stages. premise is opinionated about 
 | Placeholder | Source | Description |
 | --- | --- | --- |
 | `{{software_name}}` | line engine | The working name of the software |
+| `{{piece}}` | line engine | The piece of work going through the line now: \"the whole software\", or a milestone or one part of a split piece, with its words ([record 0184](../decisions/0184-how-sizing-of-work-is-built.md)) |
 | `{{stage}}` | line engine | why, who, what or say-back |
 | `{{operator_words}}` | session | The operator's answer to "What is this software for?", verbatim |
 | `{{record}}` | record keeper | The software's whole live record, in its line format |
@@ -73,6 +74,7 @@ Your output is read by people in one session where everything is open. Keep it s
 
 ````text
 Stage: Why, for {{software_name}}.
+Piece of work: {{piece}}
 
 The operator said what the software is for:
 {{operator_words}}
@@ -95,6 +97,7 @@ Do this:
 
 ````text
 Stage: Who, for {{software_name}}.
+Piece of work: {{piece}}
 
 The record so far:
 {{record}}
@@ -120,6 +123,7 @@ Do this:
 
 ````text
 Stage: What, for {{software_name}}.
+Piece of work: {{piece}}
 
 The record so far, including the outcome of What exists:
 {{record}}
@@ -144,6 +148,7 @@ Do this:
 
 ````text
 Stage: say-back, for {{software_name}}.
+Piece of work: {{piece}}
 
 Why a say-back is due: {{say_back_reason}}
 The change, if this is a later say-back: {{change}}

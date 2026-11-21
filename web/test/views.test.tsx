@@ -11,7 +11,7 @@ import { Needed } from "../src/components/Needed";
 import { RecordView } from "../src/components/RecordView";
 import { Settings } from "../src/components/Settings";
 import { Usage } from "../src/components/Usage";
-import { ask, fakeApi, inSession, overview, software } from "./fixtures";
+import { ask, fakeApi, inSession, overview, software, workItem } from "./fixtures";
 
 afterEach(() => {
   cleanup();
@@ -246,7 +246,7 @@ describe("the other views", () => {
     expect(
       screen.getAllByRole("listitem").filter((li) => li.className.startsWith("stage ")).length,
     ).toBe(11);
-    expect(screen.getAllByText("Here now").length).toBe(2);
+    expect(screen.getAllByText("Here now", { selector: ".phase .chip" }).length).toBe(2);
     await user.click(screen.getAllByRole("button", { name: "Send back here" })[0]!);
     expect(sendBack).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Send back" }));
@@ -258,6 +258,90 @@ describe("the other views", () => {
     const labels = [...document.querySelectorAll(".chip, .sr-only")].map((e) => e.textContent);
     expect(labels.join(" ")).not.toMatch(/pending|failed|skipped/i);
     expect(screen.getAllByText("Comes later").length).toBe(2);
+  });
+
+  it("marks steps the work does not need as not needed, with the reason, and no way to send back there", () => {
+    const stages = software().stages.map((s) =>
+      s.id === "who" || s.id === "exists"
+        ? { ...s, position: "skipped" as const, why: "It is for you alone." }
+        : s,
+    );
+    inSession(<Line software={software({ stages })} />);
+    expect(screen.getAllByText("Not needed", { selector: ".stage .chip" }).length).toBe(2);
+    expect(screen.getAllByText("Not needed here: It is for you alone.").length).toBe(2);
+    // Why is done and What is current: two send-back buttons, none on the skipped steps.
+    expect(
+      screen.getAllByRole("button", { name: /Send back here|Start this step again/ }),
+    ).toHaveLength(2);
+  });
+
+  it("shows each piece of work's size and steps with their reasons, and lets the operator change them", async () => {
+    const user = userEvent.setup();
+    const setItemSize = vi.fn(() => Promise.resolve(software()));
+    const setItemStages = vi.fn(() => Promise.resolve(software()));
+    const undoSplit = vi.fn(() => Promise.resolve(software()));
+    const parts = [
+      workItem({
+        state: "waiting-on-parts",
+        current: false,
+        canUndoSplit: true,
+        sizing: {
+          size: { by: "sizer", reason: "Two small things." },
+          stages: { by: "sizer", reason: "It is for you alone." },
+          split: {
+            decision: "split",
+            by: "sizer",
+            reason: "The two parts are completely separate.",
+          },
+        },
+      }),
+      workItem({
+        id: 2,
+        parentId: 1,
+        depth: 1,
+        kind: "module",
+        origin: "split",
+        title: "Fix the title",
+        words: "The title has a typo.",
+        stages: ["build", "check"],
+        skipped: ["why", "who", "exists", "what", "say-back", "plan"],
+        allowedStages: ["why", "who", "exists", "what", "say-back", "plan", "build", "check"],
+        requiredStages: ["build", "check"],
+        sizing: {
+          size: { by: "operator", reason: "You changed it from small to medium." },
+          stages: { by: "sizer", reason: "A small fix needs building and checking only." },
+          split: { decision: "whole", by: "sizer", reason: "It is one line." },
+        },
+      }),
+    ];
+    inSession(
+      <Line software={software({ work: parts })} />,
+      fakeApi({ setItemSize, setItemStages, undoSplit }),
+    );
+    expect(
+      screen.getByText(/Split into parts: The two parts are completely separate./),
+    ).toBeTruthy();
+    expect(screen.getByText(/A small fix needs building and checking only./)).toBeTruthy();
+    expect(screen.getByText(/You changed it from small to medium./)).toBeTruthy();
+    expect(screen.getByText("Waiting for its parts")).toBeTruthy();
+
+    const fix = screen.getByText("Fix the title").closest("li")!;
+    await user.selectOptions(within(fix as HTMLElement).getByRole("combobox"), "large");
+    expect(setItemSize).toHaveBeenCalledWith(2, "large");
+
+    await user.click(within(fix as HTMLElement).getByRole("button", { name: "Change steps" }));
+    expect(within(fix as HTMLElement).getByRole("checkbox", { name: /Build/ })).toHaveProperty(
+      "disabled",
+      true,
+    );
+    await user.click(within(fix as HTMLElement).getByRole("checkbox", { name: "What" }));
+    await user.click(within(fix as HTMLElement).getByRole("button", { name: "Save steps" }));
+    expect(setItemStages).toHaveBeenCalledWith(2, ["build", "check", "what"]);
+
+    await user.click(screen.getByRole("button", { name: "Undo the split" }));
+    expect(undoSplit).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Undo split" }));
+    expect(undoSplit).toHaveBeenCalledWith(1);
   });
 
   it("shows milestones with their stops, and standing approvals to withdraw", async () => {

@@ -15,6 +15,7 @@ const PROGRESS: Record<AgentTaskKind, string> = {
   triage: "Reading new items (scripted)",
   reading: "Reading held items together (scripted)",
   report: "Writing the report (scripted)",
+  size: "Sizing the work: how big, which steps, whether to split (scripted)",
 };
 
 function idea(request: AgentRequest): string {
@@ -168,8 +169,24 @@ const review: ScriptBehaviour = (request, call) => {
 };
 
 /**
+ * The scripted sizer: every piece is small, goes through every stage it may have, and stays whole.
+ * A real sizer leaves out what a piece does not need; this one never guesses.
+ */
+const size: ScriptBehaviour = (request, call) => {
+  const allowed = Array.isArray(request.context?.allowed) ? request.context.allowed : [];
+  call("sizing_submit", {
+    size: "small",
+    size_reason: "Scripted sizer: every piece is taken as small.",
+    stages: allowed,
+    stages_reason: "Scripted sizer: it goes through every step this kind of work can have.",
+    split: [],
+    split_reason: "Scripted sizer: it never splits work.",
+  });
+};
+
+/**
  * The scripted agent's script when no script file is set: every job says what it is doing, takes
- * `stepSeconds`, and ends done (decision 0154). Drafting, research, planning and review jobs submit
+ * `stepSeconds`, and ends done (decision 0154). Sizing, drafting, research, planning and review jobs submit
  * fixed drafts through premise's tools, exactly as a real agent would, so the line engine runs for
  * real without any AI. The page labels the whole run as a trial with scripted agents.
  */
@@ -191,6 +208,7 @@ export function standInScript(stepSeconds: number): AgentScript {
       rule("research", { behave: research }),
       rule("plan", { when: { purpose: "draft" }, behave: plan }),
       rule("review", { behave: review }),
+      rule("size", { behave: size }),
       ...AGENT_TASK_KINDS.map((task) => rule(task)),
     ],
   };

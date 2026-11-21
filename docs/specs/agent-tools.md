@@ -1,6 +1,6 @@
 # Agent tools specification
 
-Status: built in `src/agents/tool-server.ts`, served at `POST /mcp` ([0150](../decisions/0150-agent-tools-over-plain-http-mcp-tokens-in-memory.md)). `progress`, `task_finish`, `draft_submit`, `record_read`, `record_propose`, `ask`, `gate_request` and `review_submit` are served by the real modules (the line engine, the record keeper, the gate), set with `setHandlers`. `scenario_write`, `verdict_submit`, `triage_submit`, `reading_submit`, `facts_read` and `report_submit` still check and record every call but their modules are not built yet, so they answer that nothing more comes of it ([0152](../decisions/0152-tools-of-unbuilt-modules-record-and-say-so.md)). Related: [agent runner](agent-runner.md), [record keeper](record-keeper.md), [gate](gate.md), [line engine](line-engine.md), [prompts](../prompts/README.md), [skills](../skills/README.md).
+Status: built in `src/agents/tool-server.ts`, served at `POST /mcp` ([0150](../decisions/0150-agent-tools-over-plain-http-mcp-tokens-in-memory.md)). `progress`, `task_finish`, `draft_submit`, `record_read`, `record_propose`, `ask`, `gate_request`, `review_submit` and `sizing_submit` are served by the real modules (the line engine, the record keeper, the gate), set with `setHandlers`. `scenario_write`, `verdict_submit`, `triage_submit`, `reading_submit`, `facts_read` and `report_submit` still check and record every call but their modules are not built yet, so they answer that nothing more comes of it ([0152](../decisions/0152-tools-of-unbuilt-modules-record-and-say-so.md)). Related: [agent runner](agent-runner.md), [record keeper](record-keeper.md), [gate](gate.md), [line engine](line-engine.md), [prompts](../prompts/README.md), [skills](../skills/README.md).
 
 ## 1. Purpose
 
@@ -33,22 +33,23 @@ Not responsible for:
 
 ### 3.2 Which agent role gets which tool
 
-| Tool | drafter | researcher | reviewer | planner | builder | checker | triager | reader | reporter |
-|---|---|---|---|---|---|---|---|---|---|
-| `record_read` | yes | yes | yes | yes | yes | yes | yes | yes | yes |
-| `record_propose` | yes | yes | – | yes | D items only | – | – | – | – |
-| `draft_submit` | yes | yes | – | yes | – | – | – | – | – |
-| `ask` | yes | yes | – | yes | yes | could-not-check only | – | yes | – |
-| `gate_request` | yes | yes | yes | yes | yes | yes | yes | yes | yes |
-| `progress` | yes | yes | yes | yes | yes | yes | yes | yes | yes |
-| `task_finish` | yes | yes | yes | yes | yes | – | – | yes | – |
-| `scenario_write` | – | – | – | – | – | yes | – | – | – |
-| `verdict_submit` | – | – | – | – | – | yes | – | – | – |
-| `review_submit` | – | – | yes | – | – | – | – | – | – |
-| `triage_submit` | – | – | – | – | – | – | yes | – | – |
-| `reading_submit` | – | – | – | – | – | – | – | yes | – |
-| `facts_read` | – | – | – | – | – | – | – | – | yes |
-| `report_submit` | – | – | – | – | – | – | – | – | yes |
+| Tool | drafter | researcher | reviewer | planner | builder | checker | triager | reader | reporter | sizer |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `record_read` | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes |
+| `record_propose` | yes | yes | – | yes | D items only | – | – | – | – | – |
+| `draft_submit` | yes | yes | – | yes | – | – | – | – | – | – |
+| `ask` | yes | yes | – | yes | yes | could-not-check only | – | yes | – | – |
+| `gate_request` | yes | yes | yes | yes | yes | yes | yes | yes | yes | – |
+| `progress` | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes |
+| `task_finish` | yes | yes | yes | yes | yes | – | – | yes | – | yes |
+| `scenario_write` | – | – | – | – | – | yes | – | – | – | – |
+| `verdict_submit` | – | – | – | – | – | yes | – | – | – | – |
+| `review_submit` | – | – | yes | – | – | – | – | – | – | – |
+| `sizing_submit` | – | – | – | – | – | – | – | – | – | yes |
+| `triage_submit` | – | – | – | – | – | – | yes | – | – | – |
+| `reading_submit` | – | – | – | – | – | – | – | yes | – | – |
+| `facts_read` | – | – | – | – | – | – | – | – | yes | – |
+| `report_submit` | – | – | – | – | – | – | – | – | yes | – |
 
 Agent roles and their tiers are in [0113](../decisions/0113-agent-roles.md).
 
@@ -56,7 +57,7 @@ Built-in Claude Code tools by agent role:
 
 - builder and checker: file and shell tools inside their confined working copy ([0087](../decisions/0087-agents-run-confined.md));
 - researcher: web search and web fetch, no shell;
-- drafter, reviewer, planner, triager, reader, reporter: read-only file tools on their working copy, where they have one.
+- drafter, reviewer, planner, triager, reader, reporter, sizer: read-only file tools on their working copy, where they have one.
 
 ### 3.3 The result envelope
 
@@ -86,6 +87,7 @@ Every tool returns `ok` (true or false), `result` (the tool's output) or `error`
 | `task_finish` | Status: `done`, `stuck` (with what was tried), or `waiting-for-person` (with the ask id) | Nothing. This account is never a report source ([0097](../decisions/0097-reports-from-recorded-facts.md)) and never shown to the checker ([0089](../decisions/0089-checker-in-a-fresh-session.md)) | `TASK_CLOSED` |
 | `scenario_write` | Scenario name; the items it checks; steps a user would take; what is expected. Used in the scenario-writing check job, from the record, before the build ([0122](../decisions/0122-scenarios-written-before-the-build.md)); the judging job may add scenarios for plainly wrong behaviour no item names | Scenario id; the file is written under `scenarios/<software>/` in the data folder ([0090](../decisions/0090-scenarios-out-of-the-builders-reach.md)) | `UNKNOWN_ITEM`, `MALFORMED` |
 | `verdict_submit` | For each item checked: `met`, `not-met` or `could-not-check`, the scenario, and evidence files from the session's evidence folder; plus findings on `run.md`, the security defaults ([0092](../decisions/0092-security-defaults.md)) and what users read | Verdict ids; the [line engine](line-engine.md) applies the outcomes | `UNKNOWN_ITEM`, `MALFORMED` (a verdict without evidence) |
+| `sizing_submit` | For one piece of work: its size (small, medium or large) with a reason; the stages it needs with a reason; and a split, a list of parts each with a title and words, or empty, with a reason | The answer is kept; premise adds what must never be skipped and says so in `notes`. It is used when the sizer's job ends ([0184](../decisions/0184-how-sizing-of-work-is-built.md)) | `MALFORMED` (with what to fix), `TASK_CLOSED` |
 | `review_submit` | For each proposed change: `consistent` or `conflicting` with the live item it conflicts with; for a foundation decision: `agree` or `object`, with reasons | Review id | `UNKNOWN_ITEM`, `MALFORMED` |
 | `triage_submit` | Intake item; kind (bug, wish, change-of-purpose, question, opinion, duplicate, noise); items touched; rough size; touches floor (yes or no); route (in-normally, asked-at-once, held, merged-or-closed); for a duplicate, the item it joins; for noise, the reason | The route taken ([intake](intake.md)) | `UNKNOWN_ITEM`, `MALFORMED` |
 | `reading_submit` | The held items read; the short list: what people seem to want, what keeps coming up, whether the purpose or the users should change | Reading id; the list goes to the operator as an ask ([intake](intake.md)) | `MALFORMED` |

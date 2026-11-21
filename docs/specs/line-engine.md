@@ -1,6 +1,6 @@
 # Line engine specification
 
-Status: Why to Plan built in `src/line/`; Build, Check, Run and Intake are behind a labelled scripted stand-in until the line hands them to their modules, and each milestone's report is written by the [reporter](reporter.md) ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md), [0183](../decisions/0183-how-the-line-engine-is-built.md)). Related: [the line](../architecture/the-line.md), [record keeper](record-keeper.md), [work queue](work-queue.md), [page](page.md), [agent tools](agent-tools.md), [prompts](../prompts/README.md).
+Status: Why to Plan, and sizing of every piece of work ([0184](../decisions/0184-how-sizing-of-work-is-built.md)), built in `src/line/`; Build, Check, Run and Intake are behind a labelled scripted stand-in until the line hands them to their modules, and each milestone's report is written by the [reporter](reporter.md) ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md), [0183](../decisions/0183-how-the-line-engine-is-built.md)). Related: [the line](../architecture/the-line.md), [record keeper](record-keeper.md), [work queue](work-queue.md), [page](page.md), [agent tools](agent-tools.md), [prompts](../prompts/README.md).
 
 ## 1. Purpose
 
@@ -39,7 +39,10 @@ Not responsible for:
 | Chat message | Page server | Software, text | Where it went: the open draft, or an intake item ([0118](../decisions/0118-how-chat-messages-are-routed.md)) | none |
 | Send back | Page server (operator) | Software, stage | The software reopens that stage; later stages are marked to repeat | `NO_SUCH_STAGE` |
 | Claim area | Page server | Software, role label, the area in its own words | Claim id | none |
-| Set size class | Page server (operator) | Software, small, medium or large | New stage budgets | none |
+| Set size class | Page server (operator) | Software, small, medium or large | New stage budgets | `INVALID` (the software is finished or dropped) |
+| Set a piece's size | Page server (operator) | Work item, small, medium or large | New stage budgets for that piece; recorded as the operator's | `NOT_FOUND`, `INVALID` |
+| Set a piece's stages | Page server (operator) | Work item, the stages it should go through | Its stages; what is always needed stays, and the answer says so | `INVALID` (finished, or nothing changed) |
+| Undo a split | Page server (operator) | Work item | Its parts withdrawn; it goes through the line whole | `INVALID` (not split, or a part is built) |
 | Set priority | Page server (operator) | Software, priority | The work queue orders by it | none |
 | Milestone wait | Page server (operator) | Software, milestone, wait or not | The software stops after that milestone, or no longer does ([5.8a](#58a-milestones-and-waits)) | none |
 | Job finished | Work queue | Job, result | Next step for the software | none |
@@ -66,6 +69,28 @@ As built: what goes through the line is a work item, and each software is one ro
 
 - At Why, the drafter proposes a size class (small, medium, large) as an assumption on the Why draft, which the operator can strike ([0117](../decisions/0117-size-classes-set-stage-budgets.md)). The operator can change it at any time.
 - The class sets each stage's budget in agent turns and minutes, from the table in 6. When a stage's budget is used up, the stage ends with what it has: its draft is shown with what is missing marked, and the operator decides whether to go on or give more.
+
+### 5.2a Sizing each piece of work
+
+As built ([0184](../decisions/0184-how-sizing-of-work-is-built.md)); the owner's decisions are [0168](../decisions/0168-any-piece-of-work-goes-through-the-same-line-at-its-own-size.md) and [0170](../decisions/0170-what-may-be-split-is-decided-by-strong-prompting.md).
+
+- Before a piece of work's first stage, a sizer job ([docs/prompts/sizer.md](../prompts/sizer.md)) decides, each with a reason: its size class, the stages it needs, and whether it splits into parts. A piece is the software itself, one of its milestones, one part of a split piece, or (with intake) an intake item. It is sized when the line comes to it.
+- The rules premise holds the sizer to:
+
+| Piece | May go through | Always goes through |
+|---|---|---|
+| A new software | every stage | Why, What, Say back, Plan, Build, Check, Run, Report, Intake (so only Who and What exists can be skipped) |
+| A milestone of a confirmed plan | Build, Check, Run, Report | all four |
+| A part of a split piece, or a fix | Why to Check | Build, Check |
+
+  A say-back is added whenever Why or What is. Every change premise makes to the sizer's answer is part of the reason the page shows.
+- Splitting: only completely separate parts, or a very long part; one heavy piece is not by itself a reason; when unsure, not at all. Two to `line.split_max_parts` parts. Parts and fixes are not split again. `line.splitting` turns it off.
+- A sizer that fails or gives no answer leaves the piece at its size, through every stage it may have, whole; the reason says so.
+- One piece of a software is worked on at a time. A split piece's parts go through the line one after another up to Check. Then the whole is checked through the `WholeCheck` hand-off (a labelled stand-in until the Check stage takes it), and the piece goes on with Run, Report and, for a software, Intake. When the whole does not pass, a fix goes through as one more part, up to three rounds.
+- A confirmed plan's milestones become the piece's parts, each referring to its `M-n` record item; waits stay on the record items (5.8a). After the last milestone, the software goes on to Intake.
+- The operator can change any piece's size and stages, and undo a split until a part reaches Build. Sending back applies to the piece being worked on, or to the nearest piece above it that went through that stage itself; parts made after that stage are withdrawn.
+- The software's stage view gives each stage's position for the piece being worked on: done, current, ahead, or skipped with the reason.
+- The first time a piece reaches Build, the time it spent before building is recorded on it and on every piece above it that had not reached Build yet (`build-started` events), so the first stages can be measured ([0172](../decisions/0172-premise-measures-its-own-return.md)).
 
 ### 5.3 The stages
 
@@ -166,10 +191,15 @@ Stage budgets, in agent turns and minutes per stage, by size class ([0117](../de
 | `line.say_back_max_items` | 10 | Most items in a say-back |
 | `line.why_items` | 3–7 | Items in the Why draft |
 | `line.check_rounds_before_stop` | 3 | Rounds an item may fail before work on it stops |
+| `line.splitting` | true | Whether the sizer may split a piece into parts |
+| `line.split_max_parts` | 5 | Most parts one piece may be split into |
+| `line.agents_per_stage` | 1 | Agents one stage of one piece may use at once; only 1 is used today ([0181](../decisions/0181-the-line-works-on-work-items.md)) |
+| `agents.tasks.size.*` | fast tier, low effort, 20 turns, 5 minutes | The sizer's model, effort and limits |
 
 ## 7. Limits
 
 - One software at a time until milestone 7 ([roadmap](../product/roadmap.md)).
+- One piece of a software at a time: the parts of a split piece go through the line one after another ([0184](../decisions/0184-how-sizing-of-work-is-built.md)).
 - Build and check have no stage budget; each session has its turn and time limits instead ([0088](../decisions/0088-turn-and-time-limits.md)).
 
 ## 8. Failure modes and recovery
@@ -181,6 +211,8 @@ Stage budgets, in agent turns and minutes per stage, by size class ([0117](../de
 | A say-back keeps coming back struck | Third round on the same item | The software stays at that stage | Listed under "Needed" for the operator, with the item and its history |
 | The researcher finds nothing | Empty list | The draft says so | The operator decides the outcome as usual |
 | A drafter session fails | Job failure | The stage waits | Retried; the same failure three times is reported ([0088](../decisions/0088-turn-and-time-limits.md)) |
+| The sizer fails or gives no answer | Its job ends without an answer | The piece goes through every stage it may have, whole, at its size; the reason says so | The operator changes it on the Line tab |
+| premise stops while a piece is being sized | The sizer's job is found running at start | The sizing resumes | Nothing to do |
 
 ## 9. Security considerations
 

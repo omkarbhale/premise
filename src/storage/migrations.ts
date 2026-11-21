@@ -257,6 +257,25 @@ export const MIGRATIONS: readonly Migration[] = [
 
     `,
   },
+  {
+    version: 6,
+    name: "sizing of work items",
+    sql: `
+      ALTER TABLE work_items ADD COLUMN title TEXT;
+      ALTER TABLE work_items ADD COLUMN words TEXT;
+      ALTER TABLE work_items ADD COLUMN ref TEXT;
+      ALTER TABLE work_items ADD COLUMN position INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE work_items ADD COLUMN origin TEXT NOT NULL DEFAULT 'start';
+      ALTER TABLE work_items ADD COLUMN sizing TEXT;
+      ALTER TABLE work_items ADD COLUMN proposal TEXT;
+      ALTER TABLE work_items ADD COLUMN sized TEXT;
+      ALTER TABLE work_items ADD COLUMN build_started TEXT;
+      ALTER TABLE work_items ADD COLUMN finished TEXT;
+      UPDATE work_items SET sized = created,
+        sizing = '{"size":{"by":"default","reason":"Made before premise sized work."},"stages":{"by":"default","reason":"Made before premise sized work: every stage."},"split":{"decision":"whole","by":"default","reason":"Made before premise sized work."}}'
+        WHERE parent_id IS NULL;
+    `,
+  },
 ];
 
 export const CURRENT_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

@@ -70,7 +70,7 @@ flowchart LR
    - **Runner:** starts the built software from a clean copy and keeps it up while premise runs. [Spec](../specs/runner.md).
    - **Intake:** takes items in from every source and routes them. [Spec](../specs/intake.md).
    - **Reporter:** writes reports from recorded facts. [Spec](../specs/reporter.md).
-2. **Agents.** Claude Code sessions run headless, one child process each. Each has a role (drafter, researcher, planner, builder, checker, triager, reporter), instructions that ship with premise, and only the tools its role needs.
+2. **Agents.** Claude Code sessions run headless, one child process each. Each has a role (drafter, researcher, planner, builder, checker, triager, reporter, sizer), instructions that ship with premise, and only the tools its role needs.
    - Two more agent roles, reviewer and reader, were added later ([0113](../decisions/0113-agent-roles.md)). The [prompts](../prompts/README.md) and [skills](../skills/README.md) are their instructions; the [agent tools](../specs/agent-tools.md) are their tools.
 3. **The page.** One browser page holding one session where everything is open: chat, every stage, record view, report view, and "needed", grouped by role ([0065](../decisions/0065-one-open-session.md)). [Spec](../specs/page.md).
 4. **Storage.** premise's own database and data folder on the owner's machine; each software's repository on GitHub. [Spec](../specs/storage.md).

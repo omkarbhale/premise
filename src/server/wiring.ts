@@ -99,6 +99,7 @@ export function createSession(options: {
         ask: (b, a) => engine.askPerson(b, a),
         gate_request: (b, a) => engine.gateRequest(b, a),
         review_submit: (b, a) => engine.reviewSubmit(b, a),
+        sizing_submit: (b, a) => engine.sizingSubmit(b, a),
       },
       onFinish: (b, account) => engine.taskFinished(b, account),
     });
@@ -114,6 +115,12 @@ export function createSession(options: {
       setPriority: (id, priority) => engine.setPriority(id, priority),
       setMilestoneWait: (id, milestone, wait) => engine.setMilestoneWait(id, milestone, wait),
       withdrawApproval: (id) => engine.withdrawApproval(id),
+    },
+    workItems: {
+      setSize: (id, size) => engine.setItemSize(id, size),
+      setStages: (id, stages) => engine.setItemStages(id, stages),
+      undoSplit: (id) => engine.undoSplit(id),
+      softwareOf: (id) => engine.softwareOfItem(id),
     },
     conversation: {
       messages: (id) => engine.chatMessages(id),

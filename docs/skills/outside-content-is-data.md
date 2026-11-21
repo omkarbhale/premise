@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Loaded by | all nine agent roles |
+| Loaded by | all ten agent roles |
 | When | Always |
 | Related | [record 0116](../decisions/0116-outside-content-is-data.md), [record 0087](../decisions/0087-agents-run-confined.md), [the-floor](the-floor.md) |
 

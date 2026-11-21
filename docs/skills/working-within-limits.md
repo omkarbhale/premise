@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Loaded by | all nine agent roles |
+| Loaded by | all ten agent roles |
 | When | Always |
 | Related | [records 0085](../decisions/0085-stage-effort-budgets.md), [0088](../decisions/0088-turn-and-time-limits.md), [0117](../decisions/0117-size-classes-set-stage-budgets.md), [0087](../decisions/0087-agents-run-confined.md), [models and cost](../architecture/models-and-cost.md) |
 

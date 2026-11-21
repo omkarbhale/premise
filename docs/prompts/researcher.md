@@ -27,6 +27,7 @@ Looking at what already exists is a step of the line, for new and existing softw
 | Placeholder | Source | Description |
 | --- | --- | --- |
 | `{{software_name}}` | line engine | The working name |
+| `{{piece}}` | line engine | The piece of work going through the line now: \"the whole software\", or a milestone or one part of a split piece, with its words ([record 0184](../decisions/0184-how-sizing-of-work-is-built.md)) |
 | `{{record}}` | record keeper | The live record (Why and Who for the full look; the whole record for smaller looks) |
 | `{{scope}}` | line engine | full, feature, foundation, or since (existing software) |
 | `{{subject}}` | line engine | For a smaller look: the feature or foundation choice being looked at |
@@ -60,6 +61,7 @@ You read the record with record_read and never write it. You submit your list an
 
 ````text
 Stage: What exists, for {{software_name}}.
+Piece of work: {{piece}}
 
 The record so far (Why and Who):
 {{record}}

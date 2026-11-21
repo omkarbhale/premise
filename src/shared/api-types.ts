@@ -25,8 +25,53 @@ export interface StageView {
   id: StageId;
   name: string;
   plain: string;
-  /** done: passed; current: where the software is; ahead: not reached yet. */
-  position: "done" | "current" | "ahead";
+  /**
+   * done: passed; current: where the work is; ahead: not reached yet; skipped: sizing found the
+   * piece of work being done now does not need it.
+   */
+  position: "done" | "current" | "ahead" | "skipped";
+  /** For a skipped stage: why it is not needed. */
+  why?: string;
+}
+
+/** Who decided part of a piece of work's sizing: the sizer agent, the operator, or premise's default. */
+export type SizedByView = "sizer" | "operator" | "default";
+
+/** A piece of work going through the line: the software, a milestone, or a part of a split piece. */
+export interface WorkItemView {
+  id: number;
+  parentId: number | null;
+  /** 0 for the software, 1 for its milestones or parts, and so on. */
+  depth: number;
+  kind: "software" | "milestone" | "module" | "intake";
+  /** start: the software; split: a part the sizer made; plan: a milestone; fix: asked for by the check of the whole. */
+  origin: "start" | "split" | "plan" | "fix";
+  title: string;
+  words: string | null;
+  state: "sizing" | "working" | "waiting-on-parts" | "ahead" | "done" | "dropped" | "withdrawn";
+  /** The piece being worked on now. */
+  current: boolean;
+  stage: StageId | null;
+  sizeClass: SizeClass;
+  /** The stages it goes through, in order. */
+  stages: StageId[];
+  /** Stages it could have had but does not need. */
+  skipped: StageId[];
+  allowedStages: StageId[];
+  /** Stages this kind of work always has. */
+  requiredStages: StageId[];
+  sizing: {
+    size: { by: SizedByView; reason: string };
+    stages: { by: SizedByView; reason: string };
+    split: { decision: "split" | "whole"; by: SizedByView; reason: string };
+  } | null;
+  sized: string | null;
+  /** Minutes from when the piece was made to its first build; null until it reaches Build. */
+  minutesBeforeBuild: number | null;
+  /** Its size and stages can still be changed. */
+  canChange: boolean;
+  /** It is split, and no part has been built yet. */
+  canUndoSplit: boolean;
 }
 
 export interface UsageFigures {
@@ -46,6 +91,10 @@ export interface SoftwareDetail extends SoftwareSummary {
   approvals: ApprovalView[];
   /** This stage's effort budget and what is used, when the stage has one. */
   budget: { turns: number; minutes: number; usedMinutes: number } | null;
+  /** The software and its pieces of work, in order: milestones, and parts of split pieces. */
+  work: WorkItemView[];
+  /** True while the check of a split piece as a whole is a stand-in that checks nothing. */
+  wholeCheckStandIn: boolean;
 }
 
 export type AskKind = "question" | "draft" | "say-back" | "proposal" | "approval" | "needed";

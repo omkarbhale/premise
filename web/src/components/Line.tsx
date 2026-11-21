@@ -1,20 +1,9 @@
 import { useState } from "react";
 import { ApiError, NotCurrentLink, type SoftwareDetail } from "../api";
 import { useSession } from "../context";
-import {
-  PHASES,
-  SIZE_CLASSES,
-  whereNow,
-  type SizeClass,
-  type StageId,
-} from "../../../src/shared/stages";
+import { PHASES, whereNow, type StageId } from "../../../src/shared/stages";
 import { Problem } from "./Badges";
-
-const SIZE_PLAIN: Record<SizeClass, string> = {
-  small: "Small: a few screens or commands; short steps.",
-  medium: "Medium: several parts; longer steps.",
-  large: "Large: many parts; the longest steps.",
-};
+import { WorkItems } from "./WorkItems";
 
 /** The three phases with their steps, where the software is, and the controls that move it. */
 export function Line({ software }: { software: SoftwareDetail }) {
@@ -41,9 +30,9 @@ export function Line({ software }: { software: SoftwareDetail }) {
   return (
     <div className="line-view">
       <p className="muted">
-        Every software goes through three phases. Open a phase to see its steps. A step that is not
-        needed for this software is simply passed over. You can send the software back to any step
-        it has reached.
+        Every piece of work goes through three phases. Open a phase to see its steps. Steps the work
+        being done now does not need are marked "Not needed", with the reason. You can send the work
+        back to any step it has reached.
       </p>
       <p className="where-now">
         <strong>{whereNow(software.stage)}</strong>
@@ -53,23 +42,33 @@ export function Line({ software }: { software: SoftwareDetail }) {
           const steps = software.stages.filter((st) =>
             (phase.stages as readonly string[]).includes(st.id),
           );
-          const state = steps.some((st) => st.position === "current")
-            ? "current"
-            : steps.every((st) => st.position === "done")
-              ? "done"
-              : steps.every((st) => st.position === "ahead")
-                ? "ahead"
-                : "current";
+          const needed = steps.filter((st) => st.position !== "skipped");
+          const state =
+            needed.length === 0
+              ? "skipped"
+              : needed.some((st) => st.position === "current")
+                ? "current"
+                : needed.every((st) => st.position === "done")
+                  ? "done"
+                  : needed.every((st) => st.position === "ahead")
+                    ? "ahead"
+                    : "current";
           return (
             <li key={phase.id} className={`phase phase-${state}`}>
               <details open={state === "current"}>
                 <summary>
                   <span className="phase-number" aria-hidden="true">
-                    {state === "done" ? "✓" : n + 1}
+                    {state === "done" ? "✓" : state === "skipped" ? "–" : n + 1}
                   </span>
                   <strong>{phase.name}</strong>
                   <span className="chip">
-                    {state === "done" ? "Done" : state === "current" ? "Here now" : "Comes later"}
+                    {state === "done"
+                      ? "Done"
+                      : state === "current"
+                        ? "Here now"
+                        : state === "skipped"
+                          ? "Not needed"
+                          : "Comes later"}
                   </span>
                 </summary>
                 <p className="muted small">{phase.plain}</p>
@@ -77,7 +76,13 @@ export function Line({ software }: { software: SoftwareDetail }) {
                   {steps.map((stage) => (
                     <li key={stage.id} className={`stage stage-${stage.position}`}>
                       <span className="stage-number" aria-hidden="true">
-                        {stage.position === "done" ? "✓" : stage.position === "current" ? "●" : "○"}
+                        {stage.position === "done"
+                          ? "✓"
+                          : stage.position === "current"
+                            ? "●"
+                            : stage.position === "skipped"
+                              ? "–"
+                              : "○"}
                       </span>
                       <div className="stage-body">
                         <strong>{stage.name}</strong>
@@ -86,15 +91,25 @@ export function Line({ software }: { software: SoftwareDetail }) {
                             ? " (passed)"
                             : stage.position === "current"
                               ? " (here now)"
-                              : " (comes later)"}
+                              : stage.position === "skipped"
+                                ? " (not needed)"
+                                : " (comes later)"}
                         </span>
                         {stage.position === "current" && (
                           <span className="chip chip-here">Here now</span>
                         )}
+                        {stage.position === "skipped" && (
+                          <span className="chip" aria-hidden="true">
+                            Not needed
+                          </span>
+                        )}
                         <p className="muted small">{stage.plain}</p>
+                        {stage.position === "skipped" && stage.why && (
+                          <p className="small">Not needed here: {stage.why}</p>
+                        )}
                         {stage.position === "current" && <p className="small">{software.status}</p>}
                       </div>
-                      {stage.position !== "ahead" &&
+                      {(stage.position === "done" || stage.position === "current") &&
                         (confirming === stage.id ? (
                           <div
                             className="confirm"
@@ -138,29 +153,7 @@ export function Line({ software }: { software: SoftwareDetail }) {
       </ol>
       {problem && <Problem>{problem}</Problem>}
 
-      <section className="card">
-        <h2>Size</h2>
-        <p className="muted small">
-          The size sets how much effort each step may take. premise proposes one at the start;
-          change it whenever you like.
-        </p>
-        <fieldset className="sizes">
-          <legend className="sr-only">Size</legend>
-          {SIZE_CLASSES.map((size) => (
-            <label key={size} className="radio">
-              <input
-                type="radio"
-                name="size"
-                value={size}
-                checked={software.sizeClass === size}
-                disabled={busy}
-                onChange={() => void act(() => api.setSize(software.id, size))}
-              />
-              {SIZE_PLAIN[size]}
-            </label>
-          ))}
-        </fieldset>
-      </section>
+      <WorkItems software={software} busy={busy} act={act} api={api} />
 
       <section className="card">
         <h2>Milestones</h2>

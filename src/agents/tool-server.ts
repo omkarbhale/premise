@@ -181,6 +181,23 @@ const TOOLS: ToolDefinition[] = [
     notBuilt: "intake",
   },
   {
+    name: "sizing_submit",
+    description:
+      'Submit how big one piece of work is, which stages of the line it needs, and whether it splits, each with its reason. "split" is a list of parts, or empty to keep the piece whole.',
+    inputSchema: obj(
+      {
+        size: { type: "string", enum: ["small", "medium", "large"] },
+        size_reason: { type: "string" },
+        stages: textList,
+        stages_reason: { type: "string" },
+        split: { type: "array", items: anyObject },
+        split_reason: { type: "string" },
+      },
+      ["size", "size_reason", "stages", "stages_reason", "split_reason"],
+    ),
+    notBuilt: "the line engine",
+  },
+  {
     name: "facts_read",
     description:
       "Read recorded facts about the software since a time, each with its evidence link.",

@@ -26,15 +26,16 @@ import type {
   SoftwareDetail,
   SoftwareSummary,
   StageView,
+  WorkItemView,
 } from "../shared/api-types.js";
 import {
   SIZE_CLASSES,
   STAGES,
+  STAGE_IDS,
   type SizeClass,
   type StageId,
   isStageId,
   stageName,
-  stageNumber,
 } from "../shared/stages.js";
 import { type Ask, closeAsk, createAsk, getAsk, listAsks, setAskItems } from "../storage/asks.js";
 import { addChatMessage, countIntakeMessages, listChatMessages } from "../storage/chat.js";
@@ -65,8 +66,28 @@ import {
 import type { LaterStageId, LaterStages, MilestoneRef } from "./later-stages.js";
 import { RecordWriter } from "./record-writer.js";
 import {
+  allowedStages,
+  defaultStages,
+  maySplit,
+  pieceWords,
+  readSizing,
+  requiredStages,
+  settleStages,
+} from "./sizing.js";
+import { StandInWholeCheck, type WholeCheck } from "./whole-check.js";
+import {
+  type SizedBy,
+  type Sizing,
+  type SizingProposal,
+  type WorkItem,
+  type WorkItemOrigin,
+  ancestry,
+  childItems,
   createWorkItem,
+  getWorkItem,
   itemState,
+  listWorkItems,
+  minutesBeforeBuild,
   nextStage,
   rootItem,
   setItemState,
@@ -134,8 +155,25 @@ const PROBLEM_CHOICES = ["Try again", "Try again with twice the budget"] as cons
 type AskPurpose =
   "draft" | "exists" | "say-back" | "milestones" | "stage-problem" | "milestone-reached" | "agent";
 
+/** The line's notes on one work item, kept with the item. */
+interface ItemNotes {
+  /** The item's parts: made by a split, or a confirmed plan's milestones. */
+  children?: "split" | "plan";
+  /** The last stage the item went through itself before its parts took over; null for a split. */
+  handedOffAt?: StageId | null;
+  /** When its parts are done, the item goes on after this stage. */
+  resumeAfter?: StageId;
+  /** Rounds of the whole-piece check so far. */
+  wholeRound?: number;
+}
+
+/** Fixes the whole-piece check may ask for before premise goes on and reports it. */
+const WHOLE_CHECK_ROUNDS = 3;
+
 /** The line engine's own notes on a software, kept with it in the database. */
-interface LineState {
+interface LineState extends ItemNotes {
+  /** The work item being worked on now; the software's root item when not set. */
+  item?: number;
   /** The current stage run (stage_runs.id); jobs of older runs are ignored. */
   run?: number;
   /** After a stage is redone for a struck say-back item, go straight back to the say-back. */
@@ -168,6 +206,8 @@ export interface LineEngineOptions {
   gate: Gate;
   briefs: Briefs;
   later: LaterStages;
+  /** The check of a whole piece once its parts are done; a labelled stand-in when not given. */
+  wholeCheck?: WholeCheck;
   /** False while no agent can start; status lines then say why work waits. */
   agentsReady?: () => boolean;
   /** Writes the report at each milestone's end and when a software is not built. */
@@ -183,12 +223,14 @@ export interface LineEngineOptions {
 export class LineEngine {
   private readonly db: Database;
   private readonly writer: RecordWriter;
+  private readonly wholeCheck: WholeCheck;
   private readonly deferred = new Set<Promise<void>>();
   private afterCommit: (() => void)[] = [];
 
   constructor(private readonly options: LineEngineOptions) {
     this.db = options.db;
     this.writer = new RecordWriter(options.keeper);
+    this.wholeCheck = options.wholeCheck ?? new StandInWholeCheck();
     options.gate.onDecided((request) => this.gateDecided(request));
     options.gate.registerPerformer("create-repository", (request) =>
       this.createRemoteRepository(request),
@@ -230,29 +272,64 @@ export class LineEngine {
   }
 
   private sizeOf(software: Software): SizeClass {
-    return (SIZE_CLASSES as readonly string[]).includes(software.sizeClass)
-      ? (software.sizeClass as SizeClass)
-      : "small";
+    return asSize(software.sizeClass);
   }
 
-  /** The effort budget of an early stage for this software, with any boost the operator gave. */
+  /** The effort budget of an early stage for the piece being worked on, with any boost given. */
   budgetFor(software: Software, stage: string): StageBudget | null {
     if (!(EARLY as readonly string[]).includes(stage)) return null;
-    const base =
-      this.config.line.budgets[STAGE_JOB[stage as EarlyStage].group][this.sizeOf(software)];
+    const size = asSize(this.active(software.id).sizeClass);
+    const base = this.config.line.budgets[STAGE_JOB[stage as EarlyStage].group][size];
     const boost = this.state(software.id).boost ?? 1;
     return { turns: base.turns * boost, minutes: base.minutes * boost };
   }
 
-  /** The software's state, on its root item and mirrored on its row. */
+  /** The software's state, on its row. Its work items keep their own states. */
   private setLifecycle(id: string, state: Software["state"], why: string): void {
     setSoftwareState(this.db, id, state, why);
-    setWorkItem(this.db, rootItem(this.db, id).id, { state });
   }
 
-  /** The next stage the software's root item goes through after `from`. */
-  private after(id: string, from: StageId): StageId {
-    return nextStage(rootItem(this.db, id), from) ?? "intake";
+  /** The work item being worked on now: one of the software's items, or the software itself. */
+  private active(softwareId: string): WorkItem {
+    const root = rootItem(this.db, softwareId);
+    const id = itemState<LineState>(this.db, root.id).item;
+    const item = id === undefined ? undefined : getWorkItem(this.db, id);
+    return item && item.softwareId === softwareId ? item : root;
+  }
+
+  private notes(item: WorkItem): ItemNotes {
+    return itemState<ItemNotes>(this.db, item.id);
+  }
+
+  private setNotes(item: WorkItem, change: Partial<ItemNotes>): void {
+    const next: Record<string, unknown> = { ...itemState(this.db, item.id), ...change };
+    for (const key of Object.keys(next)) if (next[key] === undefined) delete next[key];
+    setItemState(this.db, item.id, next);
+  }
+
+  /** The record milestone the active piece belongs to, if any. */
+  private milestoneOf(softwareId: string): MilestoneRef | null {
+    const chain = ancestry(this.db, this.active(softwareId));
+    const milestone = chain.find((i) => i.kind === "milestone" && i.ref);
+    if (!milestone) return null;
+    const found = this.milestones(softwareId).find((m) => m.id === milestone.ref);
+    return { id: milestone.ref!, text: found?.text ?? milestone.title ?? milestone.ref! };
+  }
+
+  /** The piece's name in plain words, for the session. */
+  private label(item: WorkItem): string {
+    if (item.parentId === null) return "the software";
+    if (item.kind === "milestone") return `${item.ref ?? "a milestone"} (${item.title ?? ""})`;
+    return `the part "${item.title ?? "unnamed"}"`;
+  }
+
+  /** On to the next stage of the piece after `from`, or the piece is finished. */
+  private advance(id: string, from: StageId, why: string): void {
+    const item = this.active(id);
+    const next = this.state(id).returnTo === "say-back" ? "say-back" : nextStage(item, from);
+    if (next === "say-back") this.setState(id, { returnTo: undefined });
+    if (next) this.enterStage(getSoftware(this.db, id)!, next, why);
+    else this.finishItem(id, item, "done");
   }
 
   private premiseSays(
@@ -266,6 +343,24 @@ export class LineEngine {
   // ---- Softwares -------------------------------------------------------------------------------
 
   private statusLine(software: Software, openAsks: number, jobs: Job[]): string {
+    const item = this.active(software.id);
+    const said = this.lifecycleLine(software, openAsks, jobs, item);
+    if (item.parentId === null || software.state !== "active") return said;
+    const parts = childItems(this.db, item.parentId);
+    const where =
+      item.kind === "milestone"
+        ? `${item.ref ?? "Milestone"}`
+        : `Part ${parts.findIndex((p) => p.id === item.id) + 1} of ${parts.length}, "${item.title}"`;
+    return `${where}: ${said}`;
+  }
+
+  private lifecycleLine(software: Software, openAsks: number, jobs: Job[], item: WorkItem): string {
+    const blocked = jobs.some(
+      (j) => j.status === "queued" && j.kind !== "run" && this.options.agentsReady?.() === false,
+    );
+    if (software.state === "active" && item.state === "sizing" && !blocked) {
+      return "Sizing the work: an agent is deciding how big it is, which steps it needs, and whether it splits into parts. This is quick.";
+    }
     if (software.state === "ended") {
       return "Ended: you decided not to build it. Send it back to any stage to pick it up again.";
     }
@@ -321,13 +416,7 @@ export class LineEngine {
 
   async softwareDetail(id: string): Promise<SoftwareDetail> {
     const software = this.require(id);
-    const current = stageNumber(software.currentStage);
-    const stages: StageView[] = STAGES.map((s, i) => ({
-      id: s.id,
-      name: s.name,
-      plain: s.plain,
-      position: i + 1 < current ? "done" : i + 1 === current ? "current" : "ahead",
-    }));
+    const stages = this.stageViews(id);
     const usage = await this.options.ledger.softwareUsage(id);
     const state = this.state(id);
     const reached = this.reachedMilestones(id);
@@ -367,7 +456,102 @@ export class LineEngine {
       milestones,
       approvals,
       budget: budget ? { ...budget, usedMinutes: Math.round(used * 10) / 10 } : null,
+      work: this.workViews(id),
+      wholeCheckStandIn: this.wholeCheck.standIn,
     };
+  }
+
+  /**
+   * Where each of the eleven stages stands for the piece being worked on: done, current, ahead, or
+   * skipped when sizing found the piece does not need it (with the reason).
+   */
+  private stageViews(id: string): StageView[] {
+    const active = this.active(id);
+    const chain = ancestry(this.db, active);
+    const order = (s: string) => STAGE_IDS.indexOf(s as StageId);
+    const skippedWhy = (item: WorkItem) =>
+      item.sizing?.stages.reason ?? "Sizing found this piece of work does not need it.";
+    /** Stages the item's parts covered; done when a part went through it, else skipped. */
+    const coveredByParts = (item: WorkItem, stage: StageId): "done" | "skipped" | null => {
+      const notes = this.notes(item);
+      if (!notes.children || !notes.resumeAfter) return null;
+      const from = notes.handedOffAt ? order(notes.handedOffAt) : -1;
+      if (order(stage) <= from || order(stage) > order(notes.resumeAfter)) return null;
+      const parts = childItems(this.db, item.id).filter((p) => p.state !== "withdrawn");
+      return parts.some((p) => p.stages.includes(stage)) ? "done" : "skipped";
+    };
+    return STAGES.map((s) => {
+      const view = { id: s.id, name: s.name, plain: s.plain };
+      const covered = active.state === "sizing" ? null : coveredByParts(active, s.id);
+      if (covered === "done") return { ...view, position: "done" as const };
+      if (active.stages.includes(s.id) && covered === null) {
+        if (active.state === "sizing") return { ...view, position: "ahead" as const };
+        const here = order(active.currentStage);
+        const position = order(s.id) < here ? "done" : order(s.id) === here ? "current" : "ahead";
+        return { ...view, position: position as StageView["position"] };
+      }
+      if (covered === null) {
+        for (const owner of chain.slice(1)) {
+          if (!owner.stages.includes(s.id)) continue;
+          const notes = this.notes(owner);
+          if (notes.handedOffAt && order(s.id) <= order(notes.handedOffAt)) {
+            return { ...view, position: "done" as const };
+          }
+          if (notes.resumeAfter && order(s.id) > order(notes.resumeAfter)) {
+            return { ...view, position: "ahead" as const };
+          }
+        }
+      }
+      return { ...view, position: "skipped" as const, why: skippedWhy(active) };
+    });
+  }
+
+  /** Every work item of the software, in order, as the page shows them. */
+  private workViews(id: string): WorkItemView[] {
+    const active = this.active(id);
+    const items = listWorkItems(this.db, id);
+    const depth = new Map<number, number>();
+    return items.map((item) => {
+      const level = item.parentId === null ? 0 : (depth.get(item.parentId) ?? 0) + 1;
+      depth.set(item.id, level);
+      const notes = this.notes(item);
+      const children = items.filter((c) => c.parentId === item.id);
+      const splitLive = notes.children === "split" && children.some((c) => c.state !== "withdrawn");
+      return {
+        id: item.id,
+        parentId: item.parentId,
+        depth: level,
+        kind: item.kind,
+        origin: item.origin,
+        title:
+          item.parentId === null
+            ? (getSoftware(this.db, id)?.name ?? "The software")
+            : item.kind === "milestone"
+              ? `${item.ref ?? "Milestone"}: ${item.title ?? ""}`
+              : (item.title ?? "A part"),
+        words: item.words,
+        state: workState(item, item.id === active.id),
+        current: item.id === active.id,
+        stage: isStageId(item.currentStage) ? item.currentStage : null,
+        sizeClass: asSize(item.sizeClass),
+        stages: item.stages,
+        skipped: allowedStages(item).filter((s) => !item.stages.includes(s)),
+        allowedStages: [...allowedStages(item)],
+        requiredStages: [...requiredStages(item)],
+        sizing: item.sizing,
+        sized: item.sized,
+        minutesBeforeBuild: minutesBeforeBuild(item),
+        canChange: !["done", "withdrawn", "dropped"].includes(item.state),
+        canUndoSplit: splitLive && !this.partsStartedBuilding(item),
+      };
+    });
+  }
+
+  /** Whether any part of a split piece, or a part of a part, has reached Build. */
+  private partsStartedBuilding(item: WorkItem): boolean {
+    return childItems(this.db, item.id).some(
+      (c) => c.state !== "withdrawn" && (c.buildStarted !== null || this.partsStartedBuilding(c)),
+    );
   }
 
   async startSoftware(input: StartSoftwareInput): Promise<SoftwareSummary> {
@@ -406,9 +590,13 @@ export class LineEngine {
         text: idea,
         routedTo: "start",
       });
-      createWorkItem(this.db, { softwareId: created.id, kind: "software" });
+      const root = createWorkItem(this.db, {
+        softwareId: created.id,
+        kind: "software",
+        sizeClass: created.sizeClass,
+      });
       this.options.keeper.createRepository(created.id);
-      this.enterStage(created, "why", "started");
+      this.beginItem(created.id, root, "started");
       return created;
     });
     this.queue.tick();
@@ -437,7 +625,8 @@ export class LineEngine {
         `"${String(stage)}" is not a stage. The stages are: ${STAGES.map((s) => s.name).join(", ")}.`,
       );
     }
-    if (stageNumber(stage) > stageNumber(software.currentStage)) {
+    const target = this.sendBackTarget(id, stage);
+    if (!target) {
       throw new ServiceError(
         "INVALID",
         `${software.name} has not reached ${stageName(stage)} yet; it can only be sent back to ${stageName(software.currentStage)} or an earlier stage.`,
@@ -447,30 +636,260 @@ export class LineEngine {
       this.clearWork(id, `Withdrawn: sent back to ${stageName(stage)}.`);
       if (software.state !== "active") this.setLifecycle(id, "active", "sent back");
       this.setState(id, { returnTo: undefined, boost: undefined, review: undefined });
+      const dropped = this.withdrawParts(target);
+      this.setActive(id, target);
       this.premiseSays(
         id,
-        `Sent back to ${stageName(stage)}. The stages after it will be done again.`,
+        `Sent back to ${stageName(stage)}. The stages after it will be done again.${dropped > 0 ? ` The ${dropped === 1 ? "part" : `${dropped} parts`} made after it ${dropped === 1 ? "was" : "were"} withdrawn and will be made again.` : ""}`,
       );
       this.enterStage(getSoftware(this.db, id)!, stage, "sent back");
     });
     this.queue.tick();
   }
 
+  /**
+   * The piece a send-back applies to: the one being worked on when it has reached the stage itself,
+   * or else the nearest piece above it that went through that stage before its parts took over.
+   */
+  private sendBackTarget(id: string, stage: StageId): WorkItem | undefined {
+    const order = (s: string) => STAGE_IDS.indexOf(s as StageId);
+    for (const item of ancestry(this.db, this.active(id))) {
+      if (!item.stages.includes(stage)) continue;
+      const notes = this.notes(item);
+      const reached =
+        item.state === "sizing"
+          ? -1
+          : notes.children
+            ? notes.handedOffAt
+              ? order(notes.handedOffAt)
+              : -1
+            : order(item.currentStage);
+      if (notes.children && item.state === "active") {
+        // Its parts are done and it goes on itself: it has reached its own current stage.
+        if (order(stage) <= order(item.currentStage)) return item;
+        continue;
+      }
+      if (order(stage) <= reached) return item;
+    }
+    return undefined;
+  }
+
+  /** Withdraw every part below a piece that is not finished, with their jobs. Returns how many. */
+  private withdrawParts(item: WorkItem): number {
+    let count = 0;
+    for (const child of childItems(this.db, item.id)) {
+      count += this.withdrawParts(child);
+      if (child.state === "withdrawn") continue;
+      setWorkItem(this.db, child.id, { state: "withdrawn", finished: now() });
+      recordEvent(this.db, {
+        softwareId: item.softwareId,
+        module: "line",
+        kind: "work-item-withdrawn",
+        reference: String(child.id),
+      });
+      count += 1;
+    }
+    this.setNotes(item, {
+      children: undefined,
+      handedOffAt: undefined,
+      resumeAfter: undefined,
+      wholeRound: undefined,
+    });
+    return count;
+  }
+
+  private setActive(id: string, item: WorkItem): void {
+    const root = rootItem(this.db, id);
+    this.setState(id, { item: item.id === root.id ? undefined : item.id });
+    if (item.state !== "active" && item.state !== "sizing") {
+      setWorkItem(this.db, item.id, { state: "active" });
+    }
+  }
+
   async setSize(id: string, size: SizeClass): Promise<void> {
-    const software = this.require(id);
+    this.require(id);
+    await this.setItemSize(rootItem(this.db, id).id, size);
+  }
+
+  /** The operator changes a piece's size; its stages' budgets follow. */
+  async setItemSize(itemId: number, size: SizeClass): Promise<void> {
+    const item = this.requireItem(itemId);
+    if (["done", "withdrawn", "dropped"].includes(item.state)) {
+      throw new ServiceError(
+        "INVALID",
+        "That piece of work is finished, so its size cannot change. Send the software back to change it.",
+      );
+    }
     if (!(SIZE_CLASSES as readonly string[]).includes(size)) {
       throw new ServiceError("INVALID", `The size must be small, medium or large.`);
     }
-    if (software.sizeClass === size) return;
+    if (item.sizeClass === size) return;
     transaction(this.db, () => {
-      setSoftwareSizeClass(this.db, id, size);
-      setWorkItem(this.db, rootItem(this.db, id).id, { sizeClass: size });
-      const budget = this.budgetFor(getSoftware(this.db, id)!, software.currentStage);
+      this.recordSizing(
+        item,
+        { sizeClass: size },
+        {
+          size: { by: "operator", reason: `You changed it from ${item.sizeClass} to ${size}.` },
+        },
+      );
+      const software = getSoftware(this.db, item.softwareId)!;
+      const isActive = this.active(item.softwareId).id === item.id;
+      const budget = isActive ? this.budgetFor(software, software.currentStage) : null;
       this.premiseSays(
-        id,
-        `Size is now ${size}.${budget ? ` This stage may now take up to ${budget.turns} agent turns and ${budget.minutes} minutes.` : " Each stage before building gets a budget to match."}`,
+        item.softwareId,
+        `${item.parentId === null ? "Size" : `The size of ${this.label(item)}`} is now ${size}.${budget ? ` This stage may now take up to ${budget.turns} agent turns and ${budget.minutes} minutes.` : " Each stage before building gets a budget to match."}`,
       );
     });
+  }
+
+  async softwareOfItem(itemId: number): Promise<string> {
+    return this.requireItem(itemId).softwareId;
+  }
+
+  private requireItem(itemId: number): WorkItem {
+    const item = getWorkItem(this.db, itemId);
+    if (!item || !getSoftware(this.db, item.softwareId)) {
+      throw new ServiceError(
+        "NOT_FOUND",
+        "That piece of work is not in premise any more. Reload the page.",
+      );
+    }
+    return item;
+  }
+
+  /** Change an item's size or stages and what is recorded about them; a software mirrors its size. */
+  private recordSizing(
+    item: WorkItem,
+    change: { sizeClass?: string; stages?: StageId[] },
+    sizing: Partial<Sizing>,
+  ): void {
+    const before = item.sizing ?? defaultSizing("Not sized yet.");
+    setWorkItem(this.db, item.id, { ...change, sizing: { ...before, ...sizing } });
+    if (change.sizeClass && item.parentId === null) {
+      setSoftwareSizeClass(this.db, item.softwareId, change.sizeClass);
+    }
+    recordEvent(this.db, {
+      softwareId: item.softwareId,
+      module: "line",
+      kind: "work-item-resized",
+      reference: String(item.id),
+      detail: { ...change, by: Object.values(sizing)[0]?.by ?? "operator" },
+    });
+  }
+
+  /** The operator picks which stages a piece goes through. What must never be skipped stays. */
+  async setItemStages(itemId: number, wanted: StageId[]): Promise<void> {
+    const item = this.requireItem(itemId);
+    if (["done", "withdrawn", "dropped"].includes(item.state)) {
+      throw new ServiceError(
+        "INVALID",
+        "That piece of work is finished, so its steps cannot change. Send the software back to change it.",
+      );
+    }
+    const unknown = wanted.filter((s) => !isStageId(s));
+    if (unknown.length) {
+      throw new ServiceError(
+        "INVALID",
+        `${unknown.join(", ")} ${unknown.length === 1 ? "is not a step" : "are not steps"}. The steps are: ${STAGES.map((s) => s.name).join(", ")}.`,
+      );
+    }
+    const settled = settleStages(item, wanted);
+    const kept = requiredStages(item).filter((s) => !wanted.includes(s));
+    if (settled.stages.join() === item.stages.join()) {
+      if (kept.length) {
+        throw new ServiceError(
+          "INVALID",
+          `Nothing changed: ${kept.map(stageName).join(", ")} ${kept.length === 1 ? "is" : "are"} always needed for this kind of work.`,
+        );
+      }
+      return;
+    }
+    transaction(this.db, () => {
+      this.recordSizing(
+        item,
+        { stages: settled.stages },
+        {
+          stages: {
+            by: "operator",
+            reason: `You chose these steps.${settled.notes.length ? ` ${settled.notes.join(" ")}` : ""}`,
+          },
+        },
+      );
+      const fresh = getWorkItem(this.db, item.id)!;
+      const added = settled.stages.filter((s) => !item.stages.includes(s));
+      const removed = item.stages.filter((s) => !settled.stages.includes(s));
+      const words = [
+        added.length ? `now goes through ${added.map(stageName).join(", ")}` : "",
+        removed.length ? `skips ${removed.map(stageName).join(", ")}` : "",
+      ].filter(Boolean);
+      let tail = "";
+      const isActive = this.active(item.softwareId).id === item.id;
+      const order = (s: string) => STAGE_IDS.indexOf(s as StageId);
+      if (isActive && item.state === "active" && !this.notes(item).children) {
+        const here = item.currentStage as StageId;
+        if (removed.includes(here)) {
+          tail = ` It was at ${stageName(here)}, so it moves on now.`;
+          this.clearWork(item.softwareId, `Withdrawn: ${stageName(here)} is no longer needed.`);
+          const next = settled.stages.find((s) => order(s) > order(here));
+          if (next) this.enterStage(getSoftware(this.db, item.softwareId)!, next, "steps changed");
+          else this.finishItem(item.softwareId, fresh, "done");
+        } else if (added.some((s) => order(s) < order(here))) {
+          tail =
+            " Steps it has already passed are not done now; send it back to one of them to do it.";
+        }
+      }
+      if (kept.length) {
+        tail += ` ${kept.map(stageName).join(", ")} ${kept.length === 1 ? "stays" : "stay"}: always needed for this kind of work.`;
+      }
+      this.premiseSays(
+        item.softwareId,
+        `${capital(this.label(item))} ${words.join(" and ")}.${tail}`,
+      );
+    });
+    this.queue.tick();
+  }
+
+  /** The operator undoes a split: the parts are withdrawn and the piece goes through the line whole. */
+  async undoSplit(itemId: number): Promise<void> {
+    const item = this.requireItem(itemId);
+    const notes = this.notes(item);
+    const parts = childItems(this.db, item.id).filter((c) => c.state !== "withdrawn");
+    if (notes.children !== "split" || parts.length === 0) {
+      throw new ServiceError(
+        "INVALID",
+        "That piece of work is not split, so there is nothing to undo.",
+      );
+    }
+    if (this.partsStartedBuilding(item)) {
+      throw new ServiceError(
+        "INVALID",
+        "A part has already been built, so the split cannot be undone. Send the software back to an earlier step instead.",
+      );
+    }
+    transaction(this.db, () => {
+      this.clearWork(item.softwareId, "Withdrawn: the split was undone.");
+      this.withdrawParts(item);
+      this.recordSizing(
+        item,
+        {},
+        {
+          split: { decision: "whole", by: "operator", reason: "You undid the split." },
+        },
+      );
+      const fresh = getWorkItem(this.db, item.id)!;
+      this.setActive(item.softwareId, fresh);
+      setWorkItem(this.db, item.id, { state: "active" });
+      this.premiseSays(
+        item.softwareId,
+        `Split undone: ${this.label(item)} goes through the line whole, and its ${parts.length} parts are withdrawn.`,
+      );
+      this.enterStage(
+        getSoftware(this.db, item.softwareId)!,
+        fresh.stages[0] ?? "build",
+        "split undone",
+      );
+    });
+    this.queue.tick();
   }
 
   async setPriority(id: string, priority: number): Promise<void> {
@@ -559,7 +978,7 @@ export class LineEngine {
     }
     const fresh = getSoftware(this.db, software.id)!;
     const budget = this.budgetFor({ ...fresh, currentStage: stage }, stage);
-    const item = rootItem(this.db, software.id);
+    const item = this.active(software.id);
     const row = this.db
       .prepare(
         `INSERT INTO stage_runs (software_id, work_item_id, stage, milestone, entered, budget_turns, budget_minutes)
@@ -578,11 +997,389 @@ export class LineEngine {
     setWorkItem(this.db, item.id, { currentStage: stage });
     setSoftwareStage(this.db, software.id, stage, why);
     this.setState(software.id, { run, ...(budget ? {} : { boost: undefined }) });
+    if (stage === "build") this.markBuildStarted(item);
     return run;
   }
 
-  /** Put a software at a stage and start that stage's work. */
+  /**
+   * The first time a piece reaches Build: the time it spent before building is recorded for it and
+   * for every piece above it that has not reached Build yet, so the first stages can be measured.
+   */
+  private markBuildStarted(item: WorkItem): void {
+    const at = now();
+    for (const piece of ancestry(this.db, item)) {
+      if (piece.buildStarted) continue;
+      setWorkItem(this.db, piece.id, { buildStarted: at });
+      recordEvent(this.db, {
+        softwareId: piece.softwareId,
+        module: "line",
+        kind: "build-started",
+        reference: String(piece.id),
+        detail: {
+          minutesBeforeBuild: minutesBeforeBuild({ created: piece.created, buildStarted: at }),
+        },
+      });
+    }
+  }
+
+  // ---- Sizing and parts -----------------------------------------------------------------------
+
+  /** Begin a piece of work: size it first if it has not been sized, then its first stage. */
+  private beginItem(softwareId: string, item: WorkItem, why: string): void {
+    this.setActive(softwareId, item);
+    const fresh = getWorkItem(this.db, item.id)!;
+    if (!fresh.sized) {
+      this.startSizing(softwareId, fresh, why);
+      return;
+    }
+    this.enterStage(getSoftware(this.db, softwareId)!, fresh.stages[0] ?? "build", why);
+  }
+
+  /** Queue the sizer's job for a piece; the line waits for it (it is quick). */
+  private startSizing(softwareId: string, item: WorkItem, why: string): void {
+    const software = getSoftware(this.db, softwareId)!;
+    const state = this.state(softwareId);
+    if (state.run) {
+      this.db
+        .prepare(
+          "UPDATE stage_runs SET exited = ?, exit_reason = ? WHERE id = ? AND exited IS NULL",
+        )
+        .run(now(), why, state.run);
+    }
+    const row = this.db
+      .prepare(
+        `INSERT INTO stage_runs (software_id, work_item_id, stage, milestone, entered)
+         VALUES (?, ?, 'sizing', ?, ?)`,
+      )
+      .run(softwareId, item.id, item.kind === "milestone" ? item.ref : null, now());
+    const run = Number(row.lastInsertRowid);
+    this.setState(softwareId, { run, boost: undefined });
+    setWorkItem(this.db, item.id, { state: "sizing", proposal: null });
+    const allowed = allowedStages(item);
+    const required = requiredStages(item);
+    const splitting = maySplit(item, this.config);
+    const brief = this.options.briefs.make("sizing brief", {
+      software_name: software.name,
+      piece_kind: pieceWords(item),
+      piece: item.parentId === null ? software.idea : `${item.title ?? ""}: ${item.words ?? ""}`,
+      operator_words: software.idea,
+      record: this.recordText(softwareId),
+      allowed_stages: allowed
+        .map((s) => `- ${s}: ${STAGES.find((x) => x.id === s)!.plain}`)
+        .join("\n"),
+      required_stages: required.join(", "),
+      splitting: splitting
+        ? `allowed, into at most ${this.config.line.split_max_parts} parts`
+        : "not allowed for this piece: keep it whole",
+    });
+    this.queue.enqueue({
+      softwareId,
+      kind: "size",
+      stage: "sizing",
+      payload: {
+        run,
+        item: item.id,
+        purpose: "size",
+        brief,
+        context: {
+          stage: "sizing",
+          purpose: "size",
+          name: software.name,
+          idea: software.idea,
+          piece: item.parentId === null ? "software" : item.kind,
+          title: item.title ?? software.name,
+          words: item.words ?? software.idea,
+          allowed: [...allowed],
+          required: [...required],
+          splitting,
+        },
+      },
+    });
+    if (item.parentId === null) {
+      this.premiseSays(
+        softwareId,
+        "First, a quick look at the size of the work: how big it is, which steps it needs, and whether it splits into separate parts.",
+      );
+    }
+  }
+
+  /** sizing_submit: the sizer's answer for its piece, kept until its job ends. */
+  sizingSubmit(binding: ToolBinding, args: Record<string, unknown>): ToolEnvelope {
+    const job = this.jobOf(binding);
+    if (!("id" in job)) return job;
+    const item = getWorkItem(this.db, Number(job.payload.item));
+    if (!item || item.state !== "sizing") {
+      return toolFail("TASK_CLOSED", "This piece of work is no longer being sized. Stop.");
+    }
+    const read = readSizing(item, args, this.config);
+    if ("problems" in read) {
+      return toolFail("MALFORMED", "The sizing cannot be used as it is.", read.problems);
+    }
+    setWorkItem(this.db, item.id, { proposal: read.proposal });
+    return toolOk({
+      status: "received",
+      stages: read.proposal.stages,
+      parts: read.proposal.split.length,
+      notes: read.proposal.notes,
+      note: "premise uses this when you finish. Submitting again replaces it.",
+    });
+  }
+
+  /** The sizer's job ended: apply its answer, or a safe default when it gave none. */
+  private sizeJobEnded(software: Software, job: Job): void {
+    const item = getWorkItem(this.db, Number(job.payload.item));
+    if (!item || item.state !== "sizing") return;
+    if (job.status === "done" && item.proposal) {
+      this.applySizing(software.id, item, item.proposal, "sizer");
+      return;
+    }
+    const why =
+      job.status === "done"
+        ? "the sizer finished without giving an answer"
+        : `the sizer ${job.status === "stopped" ? "was stopped" : `did not finish (${job.result ?? "no reason was given"})`}`;
+    const stages = defaultStages(item);
+    this.applySizing(
+      software.id,
+      item,
+      {
+        size: item.parentId === null ? asSize(software.sizeClass) : asSize(item.sizeClass),
+        sizeReason: `Not sized: ${why}, so premise kept the size it had.`,
+        stages,
+        stagesReason: `Not sized: ${why}, so premise uses every step this kind of work can have. Take out the ones it does not need.`,
+        split: [],
+        splitReason: `Not sized: ${why}, so it stays whole.`,
+        notes: [],
+      },
+      "default",
+    );
+  }
+
+  private applySizing(
+    softwareId: string,
+    item: WorkItem,
+    proposal: SizingProposal,
+    by: SizedBy,
+  ): void {
+    const split = proposal.split.length >= 2;
+    const sizing: Sizing = {
+      size: { by, reason: proposal.sizeReason },
+      stages: {
+        by,
+        reason: [proposal.stagesReason, ...proposal.notes].join(" "),
+      },
+      split: { decision: split ? "split" : "whole", by, reason: proposal.splitReason },
+    };
+    setWorkItem(this.db, item.id, {
+      sizeClass: proposal.size,
+      stages: proposal.stages,
+      sizing,
+      sized: now(),
+      proposal: null,
+      state: "active",
+      currentStage: proposal.stages[0] ?? "build",
+    });
+    if (item.parentId === null) setSoftwareSizeClass(this.db, softwareId, proposal.size);
+    recordEvent(this.db, {
+      softwareId,
+      module: "line",
+      kind: "work-item-sized",
+      reference: String(item.id),
+      detail: { by, size: proposal.size, stages: proposal.stages, parts: proposal.split.length },
+    });
+    const fresh = getWorkItem(this.db, item.id)!;
+    const skipped = allowedStages(fresh).filter((s) => !fresh.stages.includes(s));
+    const who = by === "sizer" ? "" : " (not sized by an agent)";
+    this.premiseSays(
+      softwareId,
+      `${capital(this.label(fresh))}${who}: ${proposal.size}. ${skipped.length ? `Not needed: ${skipped.map(stageName).join(", ")}, because ${lowerFirst(proposal.stagesReason)}` : "It goes through every step."}${split ? "" : ` Kept whole: ${lowerFirst(proposal.splitReason)}`} You can change this on the Line tab.`,
+    );
+    if (!split) {
+      this.enterStage(getSoftware(this.db, softwareId)!, fresh.stages[0] ?? "build", "sized");
+      return;
+    }
+    const parts = this.makeParts(
+      fresh,
+      proposal.split.map((p) => ({ title: p.title, words: p.words })),
+      "split",
+    );
+    this.setNotes(fresh, {
+      children: "split",
+      handedOffAt: null,
+      resumeAfter: "check",
+      wholeRound: 0,
+    });
+    setWorkItem(this.db, fresh.id, { state: "waiting" });
+    this.premiseSays(
+      softwareId,
+      `Split into ${parts.length} separate parts, because ${lowerFirst(proposal.splitReason)} ${parts.map((p, i) => `${i + 1}. ${p.title}`).join("; ")}. Each part goes through the steps it needs, one after another; then the whole is checked, run and reported. You can undo the split on the Line tab until a part is built.`,
+    );
+    this.beginItem(softwareId, parts[0]!, "split");
+  }
+
+  /** Make a piece's parts, in order. Each is sized when the line comes to it. */
+  private makeParts(
+    parent: WorkItem,
+    parts: { title: string; words: string; ref?: string }[],
+    origin: WorkItemOrigin,
+  ): WorkItem[] {
+    const before = childItems(this.db, parent.id).length;
+    return parts.map((part, i) => {
+      const kind = origin === "plan" ? "milestone" : "module";
+      return createWorkItem(this.db, {
+        softwareId: parent.softwareId,
+        parentId: parent.id,
+        kind,
+        origin,
+        title: part.title,
+        words: part.words,
+        ref: part.ref ?? null,
+        position: before + i,
+        sizeClass: parent.sizeClass,
+        stages: defaultStages({ kind, origin, parentId: parent.id }),
+        state: "ahead",
+      });
+    });
+  }
+
+  /** A piece is finished: the next part after it begins, or the piece above it goes on. */
+  private finishItem(softwareId: string, item: WorkItem, state: "done" | "dropped"): void {
+    if (item.parentId === null) {
+      // The software itself: its line ends at Intake.
+      this.enterStage(getSoftware(this.db, softwareId)!, "intake", "line finished");
+      return;
+    }
+    setWorkItem(this.db, item.id, { state, finished: now() });
+    recordEvent(this.db, {
+      softwareId,
+      module: "line",
+      kind: state === "done" ? "work-item-done" : "work-item-dropped",
+      reference: String(item.id),
+    });
+    const parent = getWorkItem(this.db, item.parentId)!;
+    const next = childItems(this.db, parent.id).find((c) => c.state === "ahead");
+    if (next) {
+      this.beginItem(softwareId, next, `${this.label(item)} finished`);
+      return;
+    }
+    this.setActive(softwareId, parent);
+    if (this.notes(parent).children === "split") this.startWholeCheck(softwareId, parent);
+    else this.resumeParent(softwareId, parent);
+  }
+
+  /** Every part of a split piece is done: check the whole (a hand-off to the Check stage). */
+  private startWholeCheck(softwareId: string, item: WorkItem): void {
+    const notes = this.notes(item);
+    const round = (notes.wholeRound ?? 0) + 1;
+    this.setNotes(item, { wholeRound: round });
+    this.setActive(softwareId, item);
+    const software = getSoftware(this.db, softwareId)!;
+    this.openRun(software, "check", "parts done", this.milestoneOf(softwareId)?.id ?? null);
+    const run = this.state(softwareId).run!;
+    const parts = childItems(this.db, item.id).filter((p) => p.state === "done");
+    const jobs = this.wholeCheck.jobs(softwareId, {
+      itemId: item.id,
+      title: item.parentId === null ? software.name : (item.title ?? ""),
+      words: item.words ?? software.idea,
+      milestone: this.milestoneOf(softwareId)?.id ?? null,
+      parts: parts.map((p) => ({ itemId: p.id, title: p.title ?? "" })),
+      round,
+    });
+    for (const job of jobs) {
+      this.queue.enqueue({ ...job, payload: { ...job.payload, run, whole: true, item: item.id } });
+    }
+    this.premiseSays(
+      softwareId,
+      `Every part of ${this.label(item)} is built and checked; now checking that the parts work together${this.wholeCheck.standIn ? " (stand-in: nothing is really checked yet)" : ""}.`,
+    );
+    if (jobs.length === 0) this.resumeParent(softwareId, item);
+  }
+
+  private wholeJobEnded(software: Software, job: Job): void {
+    const item = getWorkItem(this.db, Number(job.payload.item));
+    if (!item) return;
+    if (job.status !== "done") {
+      this.premiseSays(
+        software.id,
+        `The check of the whole ${job.status === "stopped" ? "was stopped" : "did not finish"}: ${job.result ?? "no reason was given"}. Send ${software.name} back to Check to try again.`,
+      );
+      return;
+    }
+    const outcome = this.wholeCheck.finished(job);
+    if (outcome.kind === "wait") return;
+    const open = this.queue
+      .list()
+      .some(
+        (j) =>
+          j.softwareId === software.id &&
+          j.payload.run === job.payload.run &&
+          !FINISHED.has(j.status),
+      );
+    if (outcome.kind === "passed") {
+      if (!open) {
+        this.premiseSays(software.id, `The whole of ${this.label(item)} passed its check.`);
+        this.resumeParent(software.id, item);
+      }
+      return;
+    }
+    const round = this.notes(item).wholeRound ?? 1;
+    if (round >= WHOLE_CHECK_ROUNDS) {
+      this.premiseSays(
+        software.id,
+        `The check of the whole still fails after ${round} rounds: ${outcome.evidence} premise goes on, and the report says so. Send it back to Check, or say in chat what to fix.`,
+      );
+      this.resumeParent(software.id, item);
+      return;
+    }
+    this.clearWork(software.id, "Withdrawn: the whole check found something to fix.");
+    const [fix] = this.makeParts(
+      item,
+      [
+        {
+          title: `Fix what the check of the whole found (round ${round})`,
+          words: outcome.evidence,
+        },
+      ],
+      "fix",
+    );
+    this.premiseSays(
+      software.id,
+      `The check of the whole found a problem: ${outcome.evidence} A fix goes through the line as one more part.`,
+    );
+    this.beginItem(software.id, fix!, "whole check not passed");
+  }
+
+  /** A piece's parts are done (and, for a split, the whole checked): it goes on itself. */
+  private resumeParent(softwareId: string, item: WorkItem): void {
+    const notes = this.notes(item);
+    this.setActive(softwareId, item);
+    const fresh = getWorkItem(this.db, item.id)!;
+    const next = notes.resumeAfter ? nextStage(fresh, notes.resumeAfter) : undefined;
+    if (next) this.enterStage(getSoftware(this.db, softwareId)!, next, "parts done");
+    else this.finishItem(softwareId, fresh, "done");
+  }
+
+  /** Put the piece being worked on at a stage and start that stage's work. */
   private enterStage(software: Software, stage: StageId, why: string): void {
+    const item = this.active(software.id);
+    if (!item.stages.includes(stage) && allowedStages(item).includes(stage)) {
+      // Sent to a stage sizing left out, such as Why for a struck purpose item: it now needs it.
+      const stages = STAGE_IDS.filter((s) => s === stage || item.stages.includes(s));
+      this.recordSizing(
+        item,
+        { stages },
+        {
+          stages: {
+            by: item.sizing?.stages.by ?? "default",
+            reason:
+              `${item.sizing?.stages.reason ?? ""} ${stageName(stage)} was added when the work was sent back to it (${why}).`.trim(),
+          },
+        },
+      );
+    }
+    if (stage === "check" && this.notes(item).children === "split") {
+      this.startWholeCheck(software.id, item);
+      return;
+    }
     if ((EARLY as readonly string[]).includes(stage)) {
       this.setState(software.id, { boost: undefined });
       if (stage === "say-back" && why !== "items struck")
@@ -594,13 +1391,7 @@ export class LineEngine {
       return;
     }
     if ((LATER as readonly string[]).includes(stage)) {
-      const first = this.milestones(software.id)[0];
-      this.enterLater(
-        software,
-        stage as LaterStageId,
-        first ? { id: first.id, text: first.text } : null,
-        why,
-      );
+      this.enterLater(software, stage as LaterStageId, this.milestoneOf(software.id), why);
       return;
     }
     // Intake: the end of the line.
@@ -625,7 +1416,12 @@ export class LineEngine {
     for (const job of jobs) {
       this.queue.enqueue({
         ...job,
-        payload: { ...job.payload, run, milestone: milestone?.id ?? null },
+        payload: {
+          ...job.payload,
+          run,
+          milestone: milestone?.id ?? null,
+          item: this.active(software.id).id,
+        },
       });
     }
     const about = milestone ? ` ${milestone.id}: ${milestone.text}` : "";
@@ -653,14 +1449,9 @@ export class LineEngine {
     if (jobs.length === 0 && stage !== "report") this.afterLater(software.id, stage);
   }
 
-  /** A later stage finished: on to the next one, or the milestone's end. */
+  /** A later stage finished: on to the piece's next stage, or the piece is finished. */
   private afterLater(softwareId: string, stage: LaterStageId): void {
-    const software = getSoftware(this.db, softwareId)!;
-    const milestone = this.currentMilestone(softwareId);
-    const next = LATER[LATER.indexOf(stage) + 1];
-    if (next) {
-      this.enterLater(software, next, milestone, `${stage} done`);
-    }
+    this.advance(softwareId, stage, `${stage} done`);
   }
 
   /** Have the reporter write a report from recorded facts (after this transaction commits). */
@@ -720,9 +1511,16 @@ export class LineEngine {
         reference: milestone.id,
       });
     }
+    const item = this.active(software.id);
+    if (item.kind !== "milestone") {
+      this.afterLater(software.id, "report");
+      return;
+    }
     const all = this.milestones(software.id);
     const index = milestone ? all.findIndex((m) => m.id === milestone.id) : -1;
-    const nextMilestone = index >= 0 ? all[index + 1] : undefined;
+    const siblings = childItems(this.db, item.parentId!);
+    const after = siblings.find((s) => s.position > item.position && s.state === "ahead");
+    const nextMilestone = after ? { id: after.ref ?? "", text: after.title ?? "" } : undefined;
     const waits = index >= 0 && all[index]!.wait;
     if (waits) {
       this.setLifecycle(software.id, "waiting-milestone", `${milestone!.id} reached`);
@@ -740,16 +1538,7 @@ export class LineEngine {
       });
       return;
     }
-    this.nextMilestone(software.id, nextMilestone);
-  }
-
-  private nextMilestone(softwareId: string, next: { id: string; text: string } | undefined): void {
-    const software = getSoftware(this.db, softwareId)!;
-    if (next) {
-      this.enterLater(software, "build", { id: next.id, text: next.text }, "next milestone");
-    } else {
-      this.enterStage(software, "intake", "last milestone reported");
-    }
+    this.afterLater(software.id, "report");
   }
 
   // ---- Jobs -----------------------------------------------------------------------------------
@@ -799,13 +1588,18 @@ export class LineEngine {
           : purpose === "revision"
             ? "foundation revision brief"
             : STAGE_JOB[stage].brief;
+    const item = this.active(software.id);
     return this.options.briefs.make(name, {
       software_name: software.name,
       stage: stageName(stage),
       operator_words: software.idea,
+      piece:
+        item.parentId === null
+          ? "the whole software"
+          : `${item.kind === "milestone" ? `the milestone ${item.ref ?? ""}` : "one part of it"}: ${item.title ?? ""}. ${item.words ?? ""}`.trim(),
       record: this.recordText(software.id),
       struck_items: this.struckText(software.id, stage),
-      size_class: stage === "why" ? "none" : this.sizeOf(software),
+      size_class: stage === "why" ? "none" : asSize(item.sizeClass),
       budget: `${budget.turns} agent turns and ${budget.minutes} minutes`,
       exists_outcome: this.recordText(software.id, ["E"]),
       say_back_reason:
@@ -838,10 +1632,20 @@ export class LineEngine {
       stage,
       payload: {
         run,
+        item: this.active(software.id).id,
         purpose,
         brief: this.briefFor(software, stage, purpose, extra),
         limits: { turns: budget.turns, minutes: budget.minutes },
-        context: { stage, purpose, name: software.name, idea: software.idea, ...context },
+        context: {
+          stage,
+          purpose,
+          name: software.name,
+          idea: software.idea,
+          ...(this.active(software.id).parentId !== null && {
+            piece: this.active(software.id).title,
+          }),
+          ...context,
+        },
       },
     });
   }
@@ -888,6 +1692,14 @@ export class LineEngine {
       this.markHandled(job.id);
       this.addUsedMinutes(job);
       const software = getSoftware(this.db, job.softwareId)!;
+      if (job.kind === "size") {
+        this.sizeJobEnded(software, job);
+        return;
+      }
+      if (job.payload.whole === true) {
+        this.wholeJobEnded(software, job);
+        return;
+      }
       if ((LATER as readonly string[]).includes(job.stage ?? "")) {
         this.laterJobEnded(software, job);
         return;
@@ -1281,18 +2093,24 @@ export class LineEngine {
           `The operator confirmed the ${stageName(stage)} draft.`,
         );
         return () => {
-          if (keptSize && keptSize !== software.sizeClass) {
-            setSoftwareSizeClass(this.db, id, keptSize);
-            setWorkItem(this.db, rootItem(this.db, id).id, { sizeClass: keptSize });
+          const item = this.active(id);
+          if (keptSize && keptSize !== item.sizeClass) {
+            this.recordSizing(
+              item,
+              { sizeClass: keptSize },
+              {
+                size: {
+                  by: "operator",
+                  reason: `You kept "Size: ${keptSize}" on the ${stageName(stage)} list.`,
+                },
+              },
+            );
             this.premiseSays(
               id,
-              `Size set to ${keptSize}: each stage before building gets a ${keptSize} software's budget.`,
+              `Size set to ${keptSize}: each stage before building gets a ${keptSize} budget.`,
             );
           }
-          const next: StageId =
-            this.state(id).returnTo === "say-back" ? "say-back" : this.after(id, stage);
-          if (next === "say-back") this.setState(id, { returnTo: undefined });
-          this.enterStage(getSoftware(this.db, id)!, next, `${stage} confirmed`);
+          this.advance(id, stage, `${stage} confirmed`);
         };
       }
       case "exists": {
@@ -1310,6 +2128,16 @@ export class LineEngine {
           "The operator decided what to do about what already exists.",
         );
         return () => {
+          const item = this.active(id);
+          if (notBuild && item.parentId !== null) {
+            this.premiseSays(
+              id,
+              `${capital(this.label(item))} will not be built, as you decided. The work goes on with what comes next.`,
+            );
+            this.withdrawParts(item);
+            this.finishItem(id, item, "dropped");
+            return;
+          }
           if (notBuild) {
             this.setLifecycle(id, "ended", "operator decided not to build");
             this.openRun(software, "report", "not built");
@@ -1320,10 +2148,7 @@ export class LineEngine {
             );
             return;
           }
-          const next: StageId =
-            this.state(id).returnTo === "say-back" ? "say-back" : this.after(id, "exists");
-          if (next === "say-back") this.setState(id, { returnTo: undefined });
-          this.enterStage(getSoftware(this.db, id)!, next, "outcome decided");
+          this.advance(id, "exists", "outcome decided");
         };
       }
       case "say-back":
@@ -1358,6 +2183,10 @@ export class LineEngine {
           if (/^go back/i.test(text)) {
             this.setLifecycle(id, "active", "operator went back to Why");
             this.clearWork(id, "Withdrawn: sent back to Why.");
+            const root = rootItem(this.db, id);
+            this.withdrawParts(root);
+            this.setActive(id, root);
+            this.setState(id, { returnTo: undefined, boost: undefined, review: undefined });
             this.premiseSays(
               id,
               "Back to Why: the stages after it will be done again with what you say now.",
@@ -1366,9 +2195,10 @@ export class LineEngine {
             return;
           }
           this.setLifecycle(id, "active", "operator said go on");
-          const all = this.milestones(id);
-          const at = all.findIndex((m) => m.id === ask.extra.meta?.milestone);
-          this.nextMilestone(id, at >= 0 ? all[at + 1] : undefined);
+          const item = this.active(id);
+          if (item.kind === "milestone" && item.ref === ask.extra.meta?.milestone) {
+            this.finishItem(id, item, "done");
+          }
         };
       }
       case "agent":
@@ -1392,11 +2222,12 @@ export class LineEngine {
     const struck = applyAnswers(items, answer.kind === "items" ? answer.items : []).struck;
     if (struck.length === 0) {
       return () => {
+        const next = nextStage(this.active(id), "say-back");
         this.premiseSays(
           id,
-          "Nothing struck: premise has understood what matters. On to the plan.",
+          `Nothing struck: premise has understood what matters.${next === "plan" ? " On to the plan." : ""}`,
         );
-        this.enterStage(software, this.after(id, "say-back"), "say-back passed");
+        this.advance(id, "say-back", "say-back passed");
       };
     }
     const live = new Map(this.recordLines(id).map((i) => [i.id, i]));
@@ -1461,21 +2292,38 @@ export class LineEngine {
     const milestones = corrected.keep
       .map((entry) => addOperation({ ...entry, item: { ...entry.item, kind: "M" } }))
       .filter((op): op is NonNullable<typeof op> => op !== null);
-    this.land(id, [...decisions, ...milestones], "The operator confirmed the plan's milestones.");
+    const assigned = this.land(
+      id,
+      [...decisions, ...milestones],
+      "The operator confirmed the plan's milestones.",
+    );
+    const milestoneIds = assigned.slice(decisions.length).filter((x): x is string => Boolean(x));
     return () => {
       this.setState(id, { proposed: undefined });
-      const waits = this.milestones(id).some((m) => m.wait);
+      const all = this.milestones(id);
+      const waits = all.some((m) => m.wait);
       this.db
         .prepare("UPDATE softwares SET milestone_waits = ? WHERE id = ?")
         .run(waits ? 1 : 0, id);
       this.repositoryStep(getSoftware(this.db, id)!);
-      const first = this.milestones(id)[0];
-      this.enterLater(
-        getSoftware(this.db, id)!,
-        "build",
-        first ? { id: first.id, text: first.text } : null,
-        "plan confirmed",
+      // The confirmed milestones become the piece's parts, each going through the line in turn.
+      const piece = this.active(id);
+      const made = milestoneIds
+        .map((mid) => all.find((m) => m.id === mid))
+        .filter((m): m is NonNullable<typeof m> => Boolean(m));
+      if (made.length === 0) {
+        this.advance(id, "plan", "plan confirmed");
+        return;
+      }
+      this.withdrawParts(piece);
+      const parts = this.makeParts(
+        piece,
+        made.map((m) => ({ title: m.text, words: m.text, ref: m.id })),
+        "plan",
       );
+      this.setNotes(piece, { children: "plan", handedOffAt: "plan", resumeAfter: "report" });
+      setWorkItem(this.db, piece.id, { state: "waiting" });
+      this.beginItem(id, parts[0]!, "plan confirmed");
     };
   }
 
@@ -2162,7 +3010,10 @@ export function jobWords(job: Pick<Job, "kind" | "payload">): string {
   if (purpose === "correction") return "drafter, working in your correction";
   if (purpose === "review") return "reviewer, checking the plan's costly choices";
   if (purpose === "revision") return "planner, revising the plan";
+  if (job.payload.whole === true) return "checker, checking the parts work together";
   switch (job.kind) {
+    case "size":
+      return "sizer";
     case "draft":
       return "drafter";
     case "research":
@@ -2178,4 +3029,38 @@ export function jobWords(job: Pick<Job, "kind" | "payload">): string {
     default:
       return job.kind;
   }
+}
+
+function asSize(value: string): SizeClass {
+  return (SIZE_CLASSES as readonly string[]).includes(value) ? (value as SizeClass) : "small";
+}
+
+function capital(text: string): string {
+  return text ? text[0]!.toUpperCase() + text.slice(1) : text;
+}
+
+function lowerFirst(text: string): string {
+  const t = text.trim();
+  if (!t) return "no reason was given.";
+  const lowered = /^[A-Z][a-z]/.test(t) ? t[0]!.toLowerCase() + t.slice(1) : t;
+  return /[.!?]$/.test(lowered) ? lowered : `${lowered}.`;
+}
+
+function defaultSizing(reason: string): Sizing {
+  return {
+    size: { by: "default", reason },
+    stages: { by: "default", reason },
+    split: { decision: "whole", by: "default", reason },
+  };
+}
+
+/** A work item's state in plain words for the page. */
+function workState(item: WorkItem, current: boolean): WorkItemView["state"] {
+  if (item.state === "sizing") return "sizing";
+  if (item.state === "withdrawn") return "withdrawn";
+  if (item.state === "dropped") return "dropped";
+  if (item.state === "done") return "done";
+  if (item.state === "ahead") return "ahead";
+  if (item.state === "waiting") return "waiting-on-parts";
+  return current ? "working" : "working";
 }

@@ -1,6 +1,6 @@
 import { render } from "@testing-library/react";
 import { vi } from "vitest";
-import type { Api, AskView, Overview, SoftwareDetail } from "../src/api";
+import type { Api, AskView, Overview, SoftwareDetail, WorkItemView } from "../src/api";
 import { SessionContext, type Session } from "../src/context";
 import { STAGES } from "../../src/shared/stages";
 
@@ -79,6 +79,49 @@ export function software(change: Partial<SoftwareDetail> = {}): SoftwareDetail {
     milestones: [],
     approvals: [],
     budget: { turns: 15, minutes: 10, usedMinutes: 1.5 },
+    work: [workItem()],
+    wholeCheckStandIn: true,
+    ...change,
+  };
+}
+
+/** A piece of work as the page shows it: by default the software itself, sized by the sizer. */
+export function workItem(change: Partial<WorkItemView> = {}): WorkItemView {
+  return {
+    id: 1,
+    parentId: null,
+    depth: 0,
+    kind: "software",
+    origin: "start",
+    title: "Reading list",
+    words: null,
+    state: "working",
+    current: true,
+    stage: "what",
+    sizeClass: "small",
+    stages: ["why", "what", "say-back", "plan", "build", "check", "run", "report", "intake"],
+    skipped: ["who", "exists"],
+    allowedStages: STAGES.map((s) => s.id),
+    requiredStages: [
+      "why",
+      "what",
+      "say-back",
+      "plan",
+      "build",
+      "check",
+      "run",
+      "report",
+      "intake",
+    ],
+    sizing: {
+      size: { by: "sizer", reason: "A few screens." },
+      stages: { by: "sizer", reason: "It is for you alone, and too personal to exist elsewhere." },
+      split: { decision: "whole", by: "sizer", reason: "It is one piece." },
+    },
+    sized: "2026-11-21T10:00:00Z",
+    minutesBeforeBuild: null,
+    canChange: true,
+    canUndoSplit: false,
     ...change,
   };
 }
@@ -100,6 +143,9 @@ export function fakeApi(change: Partial<Api> = {}): Api {
     stopRun: vi.fn(fail),
     sendBack: vi.fn(fail),
     setSize: vi.fn(fail),
+    setItemSize: vi.fn(fail),
+    setItemStages: vi.fn(fail),
+    undoSplit: vi.fn(fail),
     setPriority: vi.fn(fail),
     setMilestoneWait: vi.fn(fail),
     withdrawApproval: vi.fn(fail),

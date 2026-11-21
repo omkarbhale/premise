@@ -24,24 +24,27 @@ async function keepAll(call: Call, ask: AskView) {
 
 describe("starting a software", () => {
   it("starts one from an idea, names it, and asks the first draft", async () => {
-    const { call } = await testApp();
+    const { call, settle } = await testApp();
     const started = await call("POST", "/api/softwares", {
       idea: "I want a small app that keeps my reading list",
     });
     expect(started.status).toBe(201);
-    expect(started.body).toMatchObject({
-      name: "Small app",
-      stage: "why",
-      openAsks: 1,
-    });
-    expect(started.body.status).toContain("Waiting on you");
+    expect(started.body).toMatchObject({ name: "Small app", stage: "why" });
+
+    // The work is sized first (quickly), then the Why draft is asked.
+    await settle();
+    const now = await call("GET", `/api/softwares/${started.body.id}`);
+    expect(now.body).toMatchObject({ stage: "why", openAsks: 1 });
+    expect(now.body.status).toContain("Waiting on you");
 
     const ask = await openAsk(call, started.body.id);
     expect(ask).toMatchObject({ kind: "draft", role: "operator", stage: "why" });
     expect(ask.items[0]!.text).toContain("keeps my reading list");
 
     const chat = await call("GET", `/api/softwares/${started.body.id}/chat`);
-    expect(chat.body.map((m: { author: string }) => m.author)).toEqual(["person", "premise"]);
+    const authors = chat.body.map((m: { author: string }) => m.author);
+    expect(authors[0]).toBe("person");
+    expect(authors.slice(1).every((a: string) => a === "premise")).toBe(true);
   });
 
   it("refuses an empty idea with a message that says what to do", async () => {

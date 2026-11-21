@@ -78,6 +78,7 @@ function fromRow(row: JobRow): Job {
  * then triage and readings (work-queue spec 5.1). Lower runs first.
  */
 const KIND_RANK: Record<JobKind, number> = {
+  size: 0,
   draft: 0,
   report: 0,
   review: 1,

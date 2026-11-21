@@ -48,7 +48,7 @@ Not responsible for:
 1. Make a fresh working copy for the job under `work/<software>/job-<job>/` ([0086](../decisions/0086-working-copy-and-branch-per-change.md)); premise clones, with the owner's git setup, so the agent holds no credential. Files the sandbox leaves in a working copy (`.bashrc`, `.gitconfig`, `.claude/` and the like) are excluded from git there, so no commit picks them up:
    - builder: a clone of the software's repository on a branch for the change (`premise/job-<job>`);
    - checker: its own clone of the commit under check, separate from the builder's ([0089](../decisions/0089-checker-in-a-fresh-session.md));
-   - planner, drafter, reviewer: a read-only clone at the default branch, where the job needs one;
+   - planner, drafter, reviewer, sizer: a read-only clone at the default branch, where the job needs one;
    - researcher, triager, reader, reporter: none, or an empty scratch folder;
    - any role, when the software has no repository yet: an empty scratch folder.
    - A job whose last session was cut off (usage limit, pause, premise stopped) keeps its working copy and carries that session on with `--resume`, but only if its id was confirmed by the session's first event; a session cut off before that starts afresh ([0151](../decisions/0151-session-ids-chosen-by-premise-and-cut-off-sessions-carried-on.md)).
@@ -92,7 +92,7 @@ Every agent runs confined: Claude Code's sandbox for shell commands, plus permis
 | Agent role | Tier |
 |---|---|
 | drafter, researcher, reviewer, planner, builder, checker, reader | strongest |
-| triager, reporter | fast |
+| triager, reporter, sizer | fast (the sizer at low effort, [0184](../decisions/0184-how-sizing-of-work-is-built.md)) |
 
 - Models are named by Claude Code's tier aliases, not pinned versions, so a better model makes premise better without a change ([0105](../decisions/0105-tier-aliases.md), [0031](../decisions/0031-the-product-is-general.md)).
 - The checker uses the same provider as the builder, in a fresh session, with different instructions, at the strongest tier ([0091](../decisions/0091-checker-same-provider-strongest-tier.md)). A checker that shares the builder's model is a known limit; reports say so.

@@ -32,6 +32,7 @@
 ## Consequences
 
 - The storage specification lists `work_items`.
+- Child items, sizing and a page for them were built later ([0184](0184-how-sizing-of-work-is-built.md)).
 
 ## Related
 
