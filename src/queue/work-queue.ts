@@ -506,7 +506,7 @@ export class WorkQueue {
       return;
     }
     const job = this.get(id);
-    if (job && ["queued", "waiting", "paused"].includes(job.status)) {
+    if (job && ["queued", "waiting", "paused", "running"].includes(job.status)) {
       this.closeJob(job, "stopped", "Stopped by a person.");
       this.notify(id);
     }

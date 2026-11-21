@@ -1,249 +1,319 @@
-import { useEffect, useState } from "react";
-import { type Overview, NotCurrentLink, fetchOverview, sessionToken } from "./api";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type Api, type AskView, createApi, sessionToken } from "./api";
+import { Activity } from "./components/Activity";
+import { MockedBadge, Problem, StandInBadge } from "./components/Badges";
+import { Help } from "./components/Help";
+import { Needed } from "./components/Needed";
+import { Settings } from "./components/Settings";
+import { SoftwareView, type SoftwareTab } from "./components/SoftwareView";
+import { StartForm } from "./components/StartForm";
+import { Usage } from "./components/Usage";
+import { Welcome } from "./components/Welcome";
+import { SessionContext, type Session } from "./context";
+import { type Connection, useEventStream, useLoad } from "./hooks";
+import { stageName, stageNumber } from "../../src/shared/stages";
+import { plural } from "./words";
 
-type Load =
-  | { state: "loading" }
-  | { state: "no-link" }
-  | { state: "error"; message: string }
-  | { state: "ready"; overview: Overview };
-
-function MockedBadge() {
-  return (
-    <span
-      className="badge badge-mocked"
-      title="These figures are made up until usage-ledger exists."
-    >
-      Mocked
-    </span>
-  );
-}
-
-function percent(value: number): string {
-  return `${Math.round(value * 100)}%`;
-}
-
-function date(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+type View =
+  | { name: "software"; id: string | null }
+  | { name: "start" }
+  | { name: "needed" }
+  | { name: "activity" }
+  | { name: "usage" }
+  | { name: "settings" }
+  | { name: "help" };
 
 function Notice({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <main className="page">
-      <h1>premise</h1>
-      <section className="card notice">
-        <h2>{title}</h2>
+    <main className="page narrow" id="main">
+      <p className="brand">premise</p>
+      <section className="card notice" role="alert">
+        <h1>{title}</h1>
         {children}
       </section>
     </main>
   );
 }
 
-export function App() {
-  const [load, setLoad] = useState<Load>(() =>
-    sessionToken() ? { state: "loading" } : { state: "no-link" },
+export function NoLink() {
+  return (
+    <Notice title="Open premise from its link">
+      <p>
+        This page needs the private link premise printed in its terminal when it started. It looks
+        like <code>http://localhost:4610/#token=…</code>
+      </p>
+      <ul>
+        <li>
+          premise not running? In the premise folder run <code>npm start</code>, then open the link
+          it prints.
+        </li>
+        <li>
+          Lost the link, or this one stopped working? Run <code>npm run new-link</code> in another
+          terminal; it prints a fresh link and the old ones stop working.
+        </li>
+      </ul>
+    </Notice>
+  );
+}
+
+/** The whole page: one session where everything is open (decision 0065). */
+export function App({ api: given }: { api?: Api } = {}) {
+  const token = useMemo(() => sessionToken(), []);
+  const api = useMemo(() => given ?? (token ? createApi(token) : null), [given, token]);
+  const [linkOk, setLinkOk] = useState(true);
+  if (!api || !linkOk) return <NoLink />;
+  return <Session api={api} onNotCurrent={() => setLinkOk(false)} />;
+}
+
+function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) {
+  const [version, setVersion] = useState(0);
+  const [problem, setProblem] = useState<string | null>(null);
+  const [view, setView] = useState<View>({ name: "software", id: null });
+  const [tab, setTab] = useState<SoftwareTab>("conversation");
+  const pending = useRef<number | null>(null);
+
+  // Many events arrive together; reload once for each burst.
+  const refresh = useCallback(() => {
+    if (pending.current !== null) return;
+    pending.current = window.setTimeout(() => {
+      pending.current = null;
+      setVersion((v) => v + 1);
+    }, 60);
+  }, []);
+  const connection = useEventStream(api.eventsUrl(), refresh);
+
+  const session: Session = useMemo(
+    () => ({ api, version, notCurrent: onNotCurrent, report: setProblem, refresh }),
+    [api, version, onNotCurrent, refresh],
+  );
+  const overview = useLoad(() => api.overview(), [], version, onNotCurrent);
+  const asks = useLoad(() => api.asks({ status: "open" }), [], version, onNotCurrent);
+  const openAsks = asks.state === "ready" ? asks.data : [];
+
+  useTabTitle(openAsks.length);
+  useNotifications(
+    asks.state === "ready" ? openAsks : null,
+    overview.state === "ready" ? overview.data.page.notifications : "off",
   );
 
-  useEffect(() => {
-    const token = sessionToken();
-    if (!token) return;
-    let cancelled = false;
-    const refresh = () =>
-      fetchOverview(token).then(
-        (overview) => !cancelled && setLoad({ state: "ready", overview }),
-        (error: unknown) =>
-          !cancelled &&
-          setLoad(
-            error instanceof NotCurrentLink
-              ? { state: "no-link" }
-              : { state: "error", message: (error as Error).message },
-          ),
-      );
-    void refresh();
-    const timer = window.setInterval(() => void refresh(), 5000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, []);
-
-  if (load.state === "no-link") {
+  if (overview.state === "loading") {
     return (
-      <Notice title="Open premise from its link">
-        <p>
-          This page needs the private link premise printed in the terminal when it started. It looks
-          like <code>http://localhost:4610/#token=…</code>.
-        </p>
-        <p>
-          Not running yet? In the premise folder run <code>npm start</code>, then open the link it
-          prints. If premise was restarted, its old links stop working: use the newest one.
-        </p>
-      </Notice>
+      <main className="page narrow" id="main">
+        <p className="brand">premise</p>
+        <p className="muted">Loading…</p>
+      </main>
     );
   }
-  if (load.state === "loading") return <Notice title="Loading…">{null}</Notice>;
-  if (load.state === "error") {
+  if (overview.state === "error") {
     return (
       <Notice title="premise did not answer">
-        <p>{load.message}</p>
-        <p>Check that premise is still running in its terminal, then reload this page.</p>
+        <p>{overview.message}</p>
+        <button type="button" onClick={() => overview.reload()}>
+          Try again
+        </button>
       </Notice>
     );
   }
+  const o = overview.data;
+  const selected =
+    view.name === "software"
+      ? (o.softwares.find((s) => s.id === view.id) ?? o.softwares[0] ?? null)
+      : null;
+  const firstRun = o.softwares.length === 0;
 
-  const o = load.overview;
-  const queued = o.queue.jobs.queued ?? 0;
-  const waiting = o.queue.jobs.waiting ?? 0;
-  const problems = o.setup.filter((c) => c.status !== "ok");
+  const nav: { view: View; label: string; extra?: React.ReactNode }[] = [
+    { view: { name: "software", id: selected?.id ?? null }, label: "Softwares" },
+    {
+      view: { name: "needed" },
+      label: "Waiting on you",
+      extra: o.openAsks > 0 ? <span className="count">{o.openAsks}</span> : null,
+    },
+    {
+      view: { name: "activity" },
+      label: "Activity",
+      extra:
+        o.activity.running > 0 ? <span className="count live">{o.activity.running}</span> : null,
+    },
+    { view: { name: "usage" }, label: "Usage", extra: o.usage.mocked ? <MockedBadge /> : null },
+    { view: { name: "settings" }, label: "Settings" },
+    { view: { name: "help" }, label: "Help" },
+  ];
 
   return (
-    <main className="page">
-      <header>
-        <h1>premise</h1>
-        <p className="lead">
-          Takes software from an idea to running software. You say what it is for; premise drafts,
-          plans, builds and checks it, and asks you only where it matters.
-        </p>
+    <SessionContext.Provider value={session}>
+      <a href="#main" className="skip">
+        Skip to the content
+      </a>
+      <header className="topbar">
+        <div className="brand-row">
+          <span className="brand">premise</span>
+          <span className="trial small">
+            {o.line.mode === "stand-in" && <StandInBadge />}
+            {o.agents.mode === "scripted" && (
+              <span className="badge" title="Agents follow a script; no AI is called.">
+                Scripted agents
+              </span>
+            )}
+          </span>
+          <ConnectionState connection={connection} />
+        </div>
+        <nav aria-label="premise">
+          {nav.map((item) => (
+            <button
+              key={item.view.name}
+              type="button"
+              className="nav"
+              aria-current={view.name === item.view.name ? "page" : undefined}
+              onClick={() => setView(item.view)}
+            >
+              {item.label}
+              {item.extra}
+            </button>
+          ))}
+        </nav>
       </header>
 
-      <section className="card">
-        <h2>Right now</h2>
-        <ul className="facts">
-          <li>
-            <strong>premise is running</strong> (version {o.version}).
-          </li>
-          <li>
-            <strong>Agents:</strong>{" "}
-            {o.agents.mode === "scripted" ? (
-              <>
-                scripted <span className="badge">No AI is called</span> A stand-in follows a script,
-                so you can try everything without using your Claude login.
-              </>
-            ) : (
-              <>real Claude Code sessions on your login.</>
-            )}
-          </li>
-          <li>
-            <strong>Work:</strong> {o.queue.runningAgentSessions} of {o.queue.maxAgentSessions}{" "}
-            agent sessions running; {queued} waiting to start; {waiting} waiting for an answer.
-          </li>
-          {o.queue.paused && (
-            <li className="warn">
-              <strong>Paused:</strong> {o.queue.reason}
-              {o.queue.resumeAt && <> Resumes around {date(o.queue.resumeAt)}.</>}
-            </li>
-          )}
-        </ul>
-      </section>
-
-      <section className="card">
-        <h2>
-          Usage this week <MockedBadge />
-        </h2>
-        <p className="muted">
-          usage-ledger, which will report real usage, is not connected yet. Until it is, premise
-          shows made-up figures ({o.usage.mode}) so you can see where they will appear.
-        </p>
-        <div
-          className="meter"
-          aria-label={`Mocked weekly usage ${percent(o.usage.weekly.utilization)}`}
-        >
-          <div className="meter-fill" style={{ width: percent(o.usage.weekly.utilization) }} />
+      {problem && (
+        <div className="banner" role="alert">
+          {problem}{" "}
+          <button type="button" className="link" onClick={() => setProblem(null)}>
+            Dismiss
+          </button>
         </div>
-        <p>
-          {percent(o.usage.weekly.utilization)} of the week used (mocked); the week resets{" "}
-          {date(o.usage.weekly.resetsAt)}.
-        </p>
-      </section>
+      )}
+      {o.activity.paused && (
+        <div className="banner warn" role="status">
+          All agent work is paused. See Activity for why and when it starts again.
+        </div>
+      )}
 
-      <section className="card">
-        <h2>Softwares</h2>
-        {o.softwares.length === 0 ? (
-          <p>
-            No software yet. Starting one from a one-paragraph idea is coming in the next build of
-            premise; this build lays the foundation it runs on.
-          </p>
-        ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Priority</th>
-                <th>Stage</th>
-                <th>State</th>
-                <th>
-                  Usage <MockedBadge />
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {o.softwares.map((s) => (
-                <tr key={s.id}>
-                  <td>{s.name}</td>
-                  <td>{s.priority}</td>
-                  <td>{s.currentStage}</td>
-                  <td>{s.state}</td>
-                  <td>
-                    {s.usage.sessions} sessions, ${s.usage.costUsd.toFixed(2)},{" "}
-                    {percent(s.usage.weeklyShare)} of the week
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <main className="page" id="main" tabIndex={-1}>
+        {view.name === "software" &&
+          (firstRun ? (
+            <Welcome
+              overview={o}
+              onStarted={(s) => {
+                setTab("conversation");
+                setView({ name: "software", id: s.id });
+              }}
+            />
+          ) : (
+            <div className="split">
+              <aside className="softwares" aria-label="Softwares">
+                <div className="section-head">
+                  <h2>Softwares</h2>
+                  <button type="button" onClick={() => setView({ name: "start" })}>
+                    Start another
+                  </button>
+                </div>
+                <ul>
+                  {o.softwares.map((s) => (
+                    <li key={s.id}>
+                      <button
+                        type="button"
+                        className="software-pick"
+                        aria-current={selected?.id === s.id ? "true" : undefined}
+                        onClick={() => setView({ name: "software", id: s.id })}
+                      >
+                        <span className="name">{s.name}</span>
+                        <span className="small muted">
+                          {stageNumber(s.stage)} of 11: {stageName(s.stage)}
+                        </span>
+                        <span className={`small ${s.openAsks > 0 ? "needs-you" : "muted"}`}>
+                          {s.status}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </aside>
+              <div className="detail">
+                {selected && (
+                  <SoftwareView
+                    key={selected.id}
+                    softwareId={selected.id}
+                    tab={tab}
+                    onTab={setTab}
+                    asks={openAsks}
+                  />
+                )}
+              </div>
+            </div>
+          ))}
+        {view.name === "start" && (
+          <section className="card narrow-card" aria-labelledby="start-title">
+            <h1 id="start-title">Start another software</h1>
+            <StartForm
+              autoFocus
+              onStarted={(s) => {
+                setTab("conversation");
+                setView({ name: "software", id: s.id });
+              }}
+            />
+          </section>
         )}
-      </section>
-
-      <section className="card">
-        <h2>Setup</h2>
-        {problems.length === 0 ? (
-          <p>Everything premise checks for is here.</p>
-        ) : (
-          <ul className="checks">
-            {problems.map((c) => (
-              <li key={c.name} className={c.status}>
-                <strong>{c.name}:</strong> {c.detail}
-                {c.fix && <div className="fix">{c.fix}</div>}
-              </li>
-            ))}
-          </ul>
-        )}
-        <details>
-          <summary>Settings in use</summary>
-          <p className="muted">
-            Change them in <code>config.json</code> in {o.dataFolder}, or with environment
-            variables; then restart premise. Every setting is explained in
-            docs/reference/configuration.md.
-          </p>
-          <table>
-            <thead>
-              <tr>
-                <th>Type of task</th>
-                <th>Model</th>
-                <th>Effort</th>
-                <th>Turn limit</th>
-                <th>Time limit</th>
-              </tr>
-            </thead>
-            <tbody>
-              {o.agents.tasks.map((t) => (
-                <tr key={t.kind}>
-                  <td>{t.kind}</td>
-                  <td>{t.model}</td>
-                  <td>{t.effort}</td>
-                  <td>{t.max_turns}</td>
-                  <td>{t.max_minutes} min</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </details>
-      </section>
-    </main>
+        {view.name === "needed" && <Needed asks={openAsks} notifications={o.page.notifications} />}
+        {view.name === "activity" && <Activity />}
+        {view.name === "usage" && <Usage overview={o} />}
+        {view.name === "settings" && <Settings overview={o} />}
+        {view.name === "help" && <Help />}
+        {asks.state === "error" && <Problem>{asks.message}</Problem>}
+      </main>
+      <footer className="footer muted small">
+        premise {o.version} · data in <code>{o.dataFolder}</code> ·{" "}
+        {plural(o.activity.max, "agent session")} at once
+      </footer>
+    </SessionContext.Provider>
   );
+}
+
+function ConnectionState({ connection }: { connection: Connection }) {
+  if (connection === "live") {
+    return (
+      <span className="conn conn-live small" title="Updates arrive as they happen.">
+        Live
+      </span>
+    );
+  }
+  return (
+    <span className="conn conn-off small" role="status">
+      {connection === "connecting"
+        ? "Connecting…"
+        : "Reconnecting… if this lasts, check premise is still running."}
+    </span>
+  );
+}
+
+/** The browser tab shows how many asks are open (decision 0099). */
+function useTabTitle(open: number) {
+  useEffect(() => {
+    document.title = open > 0 ? `(${open}) premise` : "premise";
+  }, [open]);
+}
+
+/** A browser notification for each new ask while the page is hidden, once allowed. */
+function useNotifications(asks: AskView[] | null, setting: "offer" | "off") {
+  const seen = useRef<Set<number> | null>(null);
+  useEffect(() => {
+    if (!asks) return;
+    const ids = new Set(asks.map((a) => a.id));
+    if (seen.current === null) {
+      seen.current = ids;
+      return;
+    }
+    const fresh = asks.filter((a) => !seen.current!.has(a.id));
+    seen.current = ids;
+    if (
+      setting === "off" ||
+      fresh.length === 0 ||
+      typeof Notification === "undefined" ||
+      Notification.permission !== "granted" ||
+      !document.hidden
+    ) {
+      return;
+    }
+    for (const ask of fresh) {
+      new Notification(`premise: ${ask.softwareName}`, { body: ask.title, tag: `ask-${ask.id}` });
+    }
+  }, [asks, setting]);
 }

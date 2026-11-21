@@ -1,59 +1,119 @@
+import type {
+  ActivityView,
+  AskAnswer,
+  AskView,
+  ChatMessage,
+  Overview,
+  RecordView,
+  ReportView,
+  SettingsView,
+  SoftwareDetail,
+  SoftwareSummary,
+} from "../../src/shared/api-types";
+import type { SizeClass, StageId } from "../../src/shared/stages";
+
+export type * from "../../src/shared/api-types";
+
 /** The session token lives in the link's #token=… part: never sent to other sites, never stored. */
 export function sessionToken(): string | null {
   const match = /(?:^#|&)token=([^&]+)/.exec(window.location.hash);
   return match ? decodeURIComponent(match[1]!) : null;
 }
 
-export interface Check {
-  name: string;
-  status: "ok" | "warn" | "missing";
-  detail: string;
-  fix?: string;
-}
-
-export interface Overview {
-  version: string;
-  dataFolder: string;
-  schemaVersion: number;
-  agents: {
-    mode: "scripted" | "claude";
-    tasks: {
-      kind: string;
-      model: string;
-      effort: string;
-      max_turns: number;
-      max_minutes: number;
-    }[];
-  };
-  queue: {
-    maxAgentSessions: number;
-    runningAgentSessions: number;
-    jobs: Record<string, number>;
-    paused: boolean;
-    reason: string | null;
-    resumeAt: string | null;
-  };
-  usage: {
-    mode: string;
-    mocked: boolean;
-    weekly: { mocked: boolean; utilization: number; windowStart: string; resetsAt: string };
-  };
-  softwares: {
-    id: string;
-    name: string;
-    priority: number;
-    state: string;
-    currentStage: string;
-    usage: { mocked: boolean; sessions: number; costUsd: number; weeklyShare: number };
-  }[];
-  setup: Check[];
-}
-
+/** The link is missing, old, or premise was given a new one. */
 export class NotCurrentLink extends Error {}
 
-export async function fetchOverview(token: string): Promise<Overview> {
-  const response = await fetch("/api/overview", { headers: { "x-premise-token": token } });
-  if (response.status === 401) throw new NotCurrentLink();
-  if (!response.ok) throw new Error(`premise answered ${response.status}.`);
-  return (await response.json()) as Overview;
+/** premise refused or failed a request; the message says what to do, in plain words. */
+export class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+    readonly code?: string,
+  ) {
+    super(message);
+  }
+}
+
+export const NOT_ANSWERING =
+  "premise is not answering. Check that it is still running in its terminal (start it with `npm start`), then try again.";
+
+export interface Api {
+  overview(): Promise<Overview>;
+  softwares(): Promise<SoftwareSummary[]>;
+  software(id: string): Promise<SoftwareDetail>;
+  start(idea: string, name?: string): Promise<SoftwareSummary>;
+  chat(id: string): Promise<ChatMessage[]>;
+  say(id: string, text: string): Promise<{ said: ChatMessage; reply: ChatMessage }>;
+  record(id: string): Promise<RecordView>;
+  report(id: string): Promise<ReportView>;
+  sendBack(id: string, stage: StageId): Promise<SoftwareDetail>;
+  setSize(id: string, size: SizeClass): Promise<SoftwareDetail>;
+  asks(filter?: { software?: string; status?: "open" | "answered" }): Promise<AskView[]>;
+  answer(id: number, answer: AskAnswer): Promise<AskView>;
+  activity(): Promise<ActivityView>;
+  stopJob(id: number): Promise<ActivityView>;
+  settings(): Promise<SettingsView>;
+  eventsUrl(): string;
+}
+
+export function createApi(token: string): Api {
+  async function request<T>(method: "GET" | "POST", path: string, body?: unknown): Promise<T> {
+    let response: Response;
+    try {
+      response = await fetch(path, {
+        method,
+        headers: {
+          "x-premise-token": token,
+          ...(body !== undefined && { "content-type": "application/json" }),
+        },
+        ...(body !== undefined && { body: JSON.stringify(body) }),
+      });
+    } catch {
+      throw new ApiError(0, NOT_ANSWERING);
+    }
+    if (response.status === 401) throw new NotCurrentLink();
+    const text = await response.text();
+    let parsed: unknown = null;
+    try {
+      parsed = text ? JSON.parse(text) : null;
+    } catch {
+      parsed = null;
+    }
+    if (!response.ok) {
+      const error = parsed as { error?: string; code?: string } | null;
+      throw new ApiError(
+        response.status,
+        error?.error ?? `premise answered with an error (${response.status}). Try again.`,
+        error?.code,
+      );
+    }
+    return parsed as T;
+  }
+  const get = <T>(path: string) => request<T>("GET", path);
+  const post = <T>(path: string, body?: unknown) => request<T>("POST", path, body ?? {});
+  const enc = encodeURIComponent;
+  return {
+    overview: () => get("/api/overview"),
+    softwares: () => get("/api/softwares"),
+    software: (id) => get(`/api/softwares/${enc(id)}`),
+    start: (idea, name) => post("/api/softwares", name ? { idea, name } : { idea }),
+    chat: (id) => get(`/api/softwares/${enc(id)}/chat`),
+    say: (id, text) => post(`/api/softwares/${enc(id)}/chat`, { text }),
+    record: (id) => get(`/api/softwares/${enc(id)}/record`),
+    report: (id) => get(`/api/softwares/${enc(id)}/report`),
+    sendBack: (id, stage) => post(`/api/softwares/${enc(id)}/send-back`, { stage }),
+    setSize: (id, size) => post(`/api/softwares/${enc(id)}/size`, { size }),
+    asks: (filter = {}) => {
+      const query = new URLSearchParams();
+      if (filter.software) query.set("software", filter.software);
+      if (filter.status) query.set("status", filter.status);
+      const qs = query.toString();
+      return get(`/api/asks${qs ? `?${qs}` : ""}`);
+    },
+    answer: (id, answer) => post(`/api/asks/${id}/answer`, { answer }),
+    activity: () => get("/api/activity"),
+    stopJob: (id) => post(`/api/jobs/${id}/stop`),
+    settings: () => get("/api/settings"),
+    eventsUrl: () => `/api/events?token=${enc(token)}`,
+  };
 }

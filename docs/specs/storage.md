@@ -139,7 +139,7 @@ Every job, ask, gate request and verdict also writes an `events` row, so that a 
 
 ## 11. Milestones
 
-- Milestone 1: the database, the data folder, every table above except `feedback_links`, `claims`, `readings` and `approvals` of a kind (one-action approvals are in milestone 1, since the gate is).
+- Milestone 1: the database, the data folder, every table above except `feedback_links`, `claims`, `readings` and `approvals` of a kind (one-action approvals are in milestone 1, since the gate is). `asks` and `chat_messages` arrived with the page server in schema 2, written by the stand-in line until the line engine takes them over ([0154](../decisions/0154-a-stand-in-line-until-the-line-engine-exists.md)); schema 2 also keeps each software's first words (`softwares.idea`).
 - Milestone 3: `claims` and approvals for a kind of action.
 - Milestone 4: `feedback_links`, `readings`, and every intake source.
 - Milestone 6: `recovered-trace.md` in the software's repository.

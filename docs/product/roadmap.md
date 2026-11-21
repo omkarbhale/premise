@@ -65,6 +65,7 @@ Thinnest means: one software at a time; only the operator; no taste claims; inta
 - Reported: each of the eight points, passed or failed, with its evidence.
 
 **Step 2 onward: the line.**
+- Progress: the foundation is built, and so are the server, the page, the session's link and token, the API and the event stream. Until the line engine, record keeper and reporter are built, a stand-in walks the page through every stage, labelled as a stand-in ([0154](../decisions/0154-a-stand-in-line-until-the-line-engine-exists.md)).
 - Built:
   - the server; the page (one session: chat, record view, report view, "needed"); the session's link and token; the database; the work queue that survives a restart; the gate;
   - stages Why to Plan in their thinnest form: one draft per stage, corrections in chat, a strike-out say-back, a short look at what exists;

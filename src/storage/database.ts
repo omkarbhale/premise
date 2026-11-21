@@ -106,8 +106,12 @@ export function openDatabase(
   }
 }
 
-/** Run work in one transaction: committed together, or not at all. */
+/**
+ * Run work in one transaction: committed together, or not at all. Inside another transaction the
+ * work joins it, so modules can call each other without knowing who opened it.
+ */
 export function transaction<T>(db: Database, work: () => T): T {
+  if (db.isTransaction) return work();
   db.exec("BEGIN IMMEDIATE");
   try {
     const result = work();

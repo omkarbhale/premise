@@ -5,13 +5,16 @@ import type { AgentRunner } from "../agents/agent-runner.js";
 import { ClaudeAgentRunner } from "../agents/claude-agent.js";
 import { ScriptedAgentRunner, loadScriptFile } from "../agents/scripted-agent.js";
 import { AgentToolServer } from "../agents/tool-server.js";
+import { loadConfig } from "../config/load.js";
 import type { PremiseConfig } from "../config/settings.js";
-import { formatDoctorReport, runDoctor } from "../doctor/doctor.js";
-import { WorkQueue } from "../queue/work-queue.js";
+import { type CommandRunner, formatDoctorReport, runDoctor } from "../doctor/doctor.js";
+import { standInScript } from "../demo/stand-in-script.js";
+import type { WorkQueue } from "../queue/work-queue.js";
 import { openDatabase, recordEvent } from "../storage/database.js";
 import { createUsageLedger } from "../usage-ledger/mock-usage-ledger.js";
 import { createApp } from "./app.js";
 import { issueSessionToken } from "./session-token.js";
+import { createSession } from "./wiring.js";
 
 /** Where the built page is: dist/web, next to dist/server. */
 export function defaultWebRoot(): string {
@@ -50,7 +53,28 @@ async function createRunner(
     });
   }
   const file = config.agents.scripted.script_file;
-  return new ScriptedAgentRunner(file ? loadScriptFile(file) : undefined);
+  return new ScriptedAgentRunner(
+    file ? loadScriptFile(file) : standInScript(config.agents.scripted.step_seconds),
+  );
+}
+
+/** The session's link: the token rides in the part after #, which browsers never send anywhere. */
+export function sessionLink(port: number, token: string): string {
+  return `http://localhost:${port}/#token=${token}`;
+}
+
+/**
+ * "New link" (docs/specs/page-server.md 3.1): a new token for the session; every older link stops
+ * working at once, including in pages already open. Works while premise is running.
+ */
+export function newLink(options: { dataFolder: string; env: NodeJS.ProcessEnv }): string {
+  const config = loadConfig({ dataFolder: options.dataFolder, env: options.env });
+  const { db } = openDatabase(config.data.folder);
+  try {
+    return sessionLink(config.server.port, issueSessionToken(db, config.server.token_bytes));
+  } finally {
+    db.close();
+  }
 }
 
 export interface StartOptions {
@@ -58,6 +82,8 @@ export interface StartOptions {
   env: NodeJS.ProcessEnv;
   webRoot?: string;
   print?: (line: string) => void;
+  /** For tests: how the setup check runs programs. */
+  run?: CommandRunner;
 }
 
 /** Start premise: check the machine, open the database, resume the queue, serve the page. */
@@ -65,7 +91,11 @@ export async function start(
   options: StartOptions,
 ): Promise<{ close: () => Promise<void>; link: string }> {
   const print = options.print ?? ((line: string) => console.log(line));
-  const setup = await runDoctor({ dataFolder: options.dataFolder, env: options.env });
+  const setup = await runDoctor({
+    dataFolder: options.dataFolder,
+    env: options.env,
+    ...(options.run && { run: options.run }),
+  });
   if (!setup.canStart || !setup.config) {
     throw new Error(formatDoctorReport(setup));
   }
@@ -92,7 +122,7 @@ export async function start(
     db.close();
     throw error;
   }
-  const queue = new WorkQueue({ db, config, runner });
+  const { queue, services } = createSession({ db, config, ledger, runner });
   made.queue = queue;
   const recovered = queue.recover();
   if (recovered.length > 0) {
@@ -103,7 +133,7 @@ export async function start(
     config,
     db,
     schemaVersion,
-    queue,
+    services,
     ledger,
     setup,
     tools,
@@ -124,7 +154,9 @@ export async function start(
   queue.tick();
   const token = issueSessionToken(db, config.server.token_bytes);
   recordEvent(db, { module: "page-server", kind: "started", detail: { port: config.server.port } });
-  const link = `http://localhost:${config.server.port}/#token=${token}`;
+  const address = app.server.address();
+  const port = address && typeof address === "object" ? address.port : config.server.port;
+  const link = sessionLink(port, token);
 
   const warnings = setup.checks.filter((c) => c.status !== "ok");
   print("premise is running.");
@@ -144,9 +176,8 @@ export async function start(
     );
   }
   print("");
-  print(
-    "The link holds a private token: anyone with it on this machine can use premise. Press Ctrl+C to stop.",
-  );
+  print("The link holds a private token: anyone with it on this machine can use premise.");
+  print("Lost it? Run `npm run new-link` in another terminal. Press Ctrl+C to stop premise.");
 
   return {
     link,

@@ -1,17 +1,21 @@
 import { existsSync } from "node:fs";
+import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import fastifyStatic from "@fastify/static";
-import Fastify, { type FastifyInstance } from "fastify";
+import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
 import type { AgentToolServer } from "../agents/tool-server.js";
-import type { PremiseConfig } from "../config/settings.js";
-import { AGENT_TASK_KINDS } from "../config/settings.js";
+import { describeCheck } from "../config/checks.js";
+import { CONFIG_FILE_NAME, envNameFor } from "../config/load.js";
+import { type PremiseConfig, SETTINGS } from "../config/settings.js";
 import type { DoctorReport } from "../doctor/doctor.js";
-import type { WorkQueue } from "../queue/work-queue.js";
+import type { AskAnswer, Overview, SettingsView } from "../shared/api-types.js";
+import { SIZE_CLASSES, STAGE_IDS, type SizeClass, type StageId } from "../shared/stages.js";
 import { type Database, recordEvent } from "../storage/database.js";
-import { listSoftwares } from "../storage/softwares.js";
 import type { UsageLedger } from "../usage-ledger/usage-ledger.js";
-import { isValidSessionToken } from "./session-token.js";
 import { VERSION } from "../version.js";
+import { EventHub } from "./events.js";
+import { ServiceError, type ServiceErrorCode, type SessionServices } from "./services.js";
+import { isValidSessionToken } from "./session-token.js";
 
 export const TOKEN_HEADER = "x-premise-token";
 
@@ -19,17 +23,15 @@ export interface AppDeps {
   config: PremiseConfig;
   db: Database;
   schemaVersion: number;
-  queue: WorkQueue;
+  services: SessionServices;
   ledger: UsageLedger;
   setup: DoctorReport;
   /** premise's tools for agents, served at /mcp; each call carries its session's own token. */
   tools?: AgentToolServer;
   /** The built page; when it is missing, a short note says how to build it. */
   webRoot: string;
-}
-
-function allowedHosts(port: number): Set<string> {
-  return new Set([`localhost:${port}`, `127.0.0.1:${port}`, `[::1]:${port}`]);
+  /** The live event stream; one is made when not given. */
+  events?: EventHub;
 }
 
 const NOT_BUILT_PAGE = `<!doctype html><html lang="en"><meta charset="utf-8"><title>premise</title>
@@ -38,23 +40,121 @@ const NOT_BUILT_PAGE = `<!doctype html><html lang="en"><meta charset="utf-8"><ti
 <p>Stop premise, run <code>npm run build</code>, then <code>npm start</code> again and open the link it prints.</p>
 </body></html>`;
 
-/** The page server: health, the session check, the API, and the page. */
-export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
-  const app = Fastify({ logger: false });
-  const hosts = allowedHosts(deps.config.server.port);
+const STATUS_FOR: Record<ServiceErrorCode, number> = {
+  NOT_FOUND: 404,
+  ASK_CLOSED: 409,
+  INVALID: 422,
+  NAME_TAKEN: 409,
+};
 
-  // Host and Origin checks (decision 0078) cover every route; the session token covers the API scope.
+/** The page never needs anything from another site; these headers say so to the browser. */
+const SECURITY_HEADERS: Record<string, string> = {
+  "content-security-policy":
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+  "x-content-type-options": "nosniff",
+  "referrer-policy": "no-referrer",
+  "x-frame-options": "DENY",
+};
+
+function valueAt(config: PremiseConfig, key: string): unknown {
+  let node: unknown = config;
+  for (const part of key.split(".")) {
+    node =
+      node !== null && typeof node === "object"
+        ? (node as Record<string, unknown>)[part]
+        : undefined;
+  }
+  return node;
+}
+
+export function settingsView(config: PremiseConfig): SettingsView {
+  return {
+    configFile: join(config.data.folder, CONFIG_FILE_NAME),
+    dataFolder: config.data.folder,
+    settings: SETTINGS.map((s) => {
+      const value = valueAt(config, s.key);
+      return {
+        key: s.key,
+        value: value === undefined ? null : value,
+        default: s.default,
+        changed: JSON.stringify(value) !== JSON.stringify(s.default),
+        meaning: s.meaning,
+        allowed: describeCheck(s.check),
+        envName: envNameFor(s.key),
+      };
+    }),
+  };
+}
+
+const idParam = {
+  type: "object",
+  properties: { id: { type: "string", minLength: 1, maxLength: 100 } },
+  required: ["id"],
+} as const;
+
+const numberIdParam = {
+  type: "object",
+  properties: { id: { type: "integer", minimum: 1 } },
+  required: ["id"],
+} as const;
+
+/** The page server: the session check, the API, the event stream and the page. */
+export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
+  const app = Fastify({ logger: false, bodyLimit: 256 * 1024 });
+  const events = deps.events ?? new EventHub(deps.db);
+  const { services } = deps;
+
+  const port = (): number => {
+    const address = app.server.address() as AddressInfo | null;
+    return address && typeof address === "object" ? address.port : deps.config.server.port;
+  };
+  const allowedHost = (value: string): boolean => {
+    const p = port();
+    return [`localhost:${p}`, `127.0.0.1:${p}`, `[::1]:${p}`].includes(value);
+  };
+
+  // Host and Origin checks (decision 0078) cover every route; the session token covers the API.
   app.addHook("onRequest", async (request, reply) => {
     const host = request.headers.host ?? "";
-    if (!hosts.has(host)) {
+    if (!allowedHost(host)) {
       recordEvent(deps.db, { module: "page-server", kind: "refused-host", detail: { host } });
       return reply.code(403).send({ error: "premise answers only on this machine's own address." });
     }
     const origin = request.headers.origin;
-    if (origin !== undefined && !hosts.has(origin.replace(/^https?:\/\//, ""))) {
+    if (origin !== undefined && !allowedHost(origin.replace(/^https?:\/\//, ""))) {
       recordEvent(deps.db, { module: "page-server", kind: "refused-origin", detail: { origin } });
       return reply.code(403).send({ error: "premise does not answer requests from other sites." });
     }
+  });
+
+  app.addHook("onSend", async (_request, reply, payload) => {
+    for (const [name, value] of Object.entries(SECURITY_HEADERS)) reply.header(name, value);
+    return payload;
+  });
+
+  app.setErrorHandler((error: FastifyError, request, reply) => {
+    if (error instanceof ServiceError) {
+      return reply.code(STATUS_FOR[error.code]).send({ error: error.message, code: error.code });
+    }
+    if (error.validation) {
+      return reply.code(422).send({
+        error: `premise did not understand that request (${error.message}). Reload the page and try again.`,
+        code: "INVALID",
+      });
+    }
+    if (error.statusCode && error.statusCode < 500) {
+      return reply.code(error.statusCode).send({
+        error: `premise could not take that request (${error.message}). Reload the page and try again.`,
+      });
+    }
+    recordEvent(deps.db, {
+      module: "page-server",
+      kind: "request-failed",
+      detail: { path: request.url.split("?")[0] ?? "", message: error.message },
+    });
+    return reply.code(500).send({
+      error: `Something went wrong inside premise: ${error.message}. Try again; if it keeps happening, restart premise from its terminal.`,
+    });
   });
 
   app.get("/api/health", async () => ({ ok: true, name: "premise", version: VERSION }));
@@ -78,57 +178,233 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
 
   await app.register(async (api) => {
     api.addHook("onRequest", async (request, reply) => {
-      const token = request.headers[TOKEN_HEADER];
-      if (!isValidSessionToken(deps.db, typeof token === "string" ? token : undefined)) {
-        recordEvent(deps.db, {
-          module: "page-server",
-          kind: "refused-token",
-          detail: { path: request.url.split("?")[0] ?? "" },
-        });
+      const path = request.url.split("?")[0] ?? "";
+      const header = request.headers[TOKEN_HEADER];
+      // A browser's EventSource cannot send headers, so the event stream takes the token in the URL.
+      const fromQuery =
+        path === "/api/events" ? (request.query as Record<string, unknown>).token : undefined;
+      const token =
+        typeof header === "string" ? header : typeof fromQuery === "string" ? fromQuery : undefined;
+      if (!isValidSessionToken(deps.db, token)) {
+        recordEvent(deps.db, { module: "page-server", kind: "refused-token", detail: { path } });
         return reply.code(401).send({
-          error: "This link is not current. Open the link premise printed when it started.",
+          error:
+            "This link is not current. Open the newest link premise printed, or run `npm run new-link` to get one.",
+          code: "NOT_CURRENT",
         });
       }
     });
 
-    api.get("/api/overview", async () => {
-      const { config } = deps;
-      const queueState = deps.queue.state();
-      const weekly = await deps.ledger.weeklyUsage();
-      const softwares = await Promise.all(
-        listSoftwares(deps.db).map(async (s) => ({
-          ...s,
-          usage: await deps.ledger.softwareUsage(s.id),
-        })),
-      );
-      const counts = Object.fromEntries(
-        (
-          deps.db.prepare("SELECT status, COUNT(*) AS n FROM jobs GROUP BY status").all() as {
-            status: string;
-            n: number;
-          }[]
-        ).map((r) => [r.status, r.n]),
-      );
+    api.get("/api/overview", async (): Promise<Overview> => {
+      const [softwares, activity, weekly] = await Promise.all([
+        services.softwares.list(),
+        services.activity.view(),
+        deps.ledger.weeklyUsage(),
+      ]);
       return {
         version: VERSION,
-        dataFolder: config.data.folder,
-        schemaVersion: deps.schemaVersion,
-        agents: {
-          mode: config.agents.mode,
-          tasks: AGENT_TASK_KINDS.map((kind) => ({ kind, ...config.agents.tasks[kind] })),
-        },
-        queue: {
-          maxAgentSessions: config.queue.max_agent_sessions,
-          runningAgentSessions: deps.queue.runningAgentSessions(),
-          jobs: counts,
-          ...queueState,
-        },
+        dataFolder: deps.config.data.folder,
+        agents: { mode: deps.config.agents.mode },
+        line: { mode: "stand-in" },
+        page: { notifications: deps.config.page.notifications },
         usage: { mode: deps.ledger.mode, mocked: deps.ledger.mocked, weekly },
         softwares,
+        softwareUsage: await Promise.all(
+          softwares.map(async (s) => {
+            const u = await deps.ledger.softwareUsage(s.id);
+            return {
+              softwareId: s.id,
+              mocked: u.mocked,
+              sessions: u.sessions,
+              inputTokens: u.inputTokens,
+              outputTokens: u.outputTokens,
+              costUsd: u.costUsd,
+              weeklyShare: u.weeklyShare,
+            };
+          }),
+        ),
+        openAsks: softwares.reduce((n, s) => n + s.openAsks, 0),
+        activity: {
+          running: activity.running.length,
+          queued: activity.queued.length,
+          waiting: activity.waiting.length,
+          max: activity.maxAgentSessions,
+          paused: activity.paused,
+        },
         setup: deps.setup.checks,
       };
     });
+
+    api.get("/api/softwares", async () => services.softwares.list());
+
+    api.post<{ Body: { idea: string; name?: string } }>(
+      "/api/softwares",
+      {
+        schema: {
+          body: {
+            type: "object",
+            properties: {
+              idea: { type: "string", maxLength: 20000 },
+              name: { type: "string", maxLength: 200 },
+            },
+            required: ["idea"],
+          },
+        },
+      },
+      async (request, reply) => {
+        const { idea, name } = request.body;
+        const started = await services.softwares.start(name ? { idea, name } : { idea });
+        return reply.code(201).send(started);
+      },
+    );
+
+    api.get<{ Params: { id: string } }>(
+      "/api/softwares/:id",
+      { schema: { params: idParam } },
+      async (request) => services.softwares.get(request.params.id),
+    );
+
+    api.get<{ Params: { id: string } }>(
+      "/api/softwares/:id/chat",
+      { schema: { params: idParam } },
+      async (request) => services.conversation.messages(request.params.id),
+    );
+
+    api.post<{ Params: { id: string }; Body: { text: string } }>(
+      "/api/softwares/:id/chat",
+      {
+        schema: {
+          params: idParam,
+          body: {
+            type: "object",
+            properties: { text: { type: "string", maxLength: 20000 } },
+            required: ["text"],
+          },
+        },
+      },
+      async (request) => services.conversation.say(request.params.id, request.body.text),
+    );
+
+    api.get<{ Params: { id: string } }>(
+      "/api/softwares/:id/record",
+      { schema: { params: idParam } },
+      async (request) => services.records.view(request.params.id),
+    );
+
+    api.get<{ Params: { id: string } }>(
+      "/api/softwares/:id/report",
+      { schema: { params: idParam } },
+      async (request) => services.reports.view(request.params.id),
+    );
+
+    api.post<{ Params: { id: string }; Body: { stage: StageId } }>(
+      "/api/softwares/:id/send-back",
+      {
+        schema: {
+          params: idParam,
+          body: {
+            type: "object",
+            properties: { stage: { type: "string", enum: [...STAGE_IDS] } },
+            required: ["stage"],
+          },
+        },
+      },
+      async (request) => {
+        await services.softwares.sendBack(request.params.id, request.body.stage);
+        return services.softwares.get(request.params.id);
+      },
+    );
+
+    api.post<{ Params: { id: string }; Body: { size: SizeClass } }>(
+      "/api/softwares/:id/size",
+      {
+        schema: {
+          params: idParam,
+          body: {
+            type: "object",
+            properties: { size: { type: "string", enum: [...SIZE_CLASSES] } },
+            required: ["size"],
+          },
+        },
+      },
+      async (request) => {
+        await services.softwares.setSize(request.params.id, request.body.size);
+        return services.softwares.get(request.params.id);
+      },
+    );
+
+    api.get<{ Querystring: { software?: string; status?: "open" | "answered" } }>(
+      "/api/asks",
+      {
+        schema: {
+          querystring: {
+            type: "object",
+            properties: {
+              software: { type: "string", maxLength: 100 },
+              status: { type: "string", enum: ["open", "answered"] },
+            },
+          },
+        },
+      },
+      async (request) =>
+        services.asks.list({
+          ...(request.query.software && { softwareId: request.query.software }),
+          ...(request.query.status && { status: request.query.status }),
+        }),
+    );
+
+    api.post<{ Params: { id: number }; Body: { answer: AskAnswer } }>(
+      "/api/asks/:id/answer",
+      {
+        schema: {
+          params: numberIdParam,
+          body: {
+            type: "object",
+            properties: {
+              answer: {
+                type: "object",
+                properties: {
+                  kind: {
+                    type: "string",
+                    enum: ["items", "text", "approval", "needed", "proposal"],
+                  },
+                },
+                required: ["kind"],
+              },
+            },
+            required: ["answer"],
+          },
+        },
+      },
+      async (request) => services.asks.answer(request.params.id, request.body.answer),
+    );
+
+    api.get("/api/activity", async () => services.activity.view());
+
+    api.post<{ Params: { id: number } }>(
+      "/api/jobs/:id/stop",
+      { schema: { params: numberIdParam } },
+      async (request) => {
+        await services.activity.stopJob(request.params.id);
+        return services.activity.view();
+      },
+    );
+
+    api.get("/api/settings", async () => settingsView(deps.config));
+
+    api.get("/api/events", async (request, reply) => {
+      const header = request.headers["last-event-id"];
+      const since = typeof header === "string" && /^\d+$/.test(header) ? Number(header) : null;
+      reply.hijack();
+      for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
+        reply.raw.setHeader(name, value);
+      }
+      events.attach(reply.raw, since);
+    });
   });
+
+  // Open event streams never end by themselves; end them first so closing does not wait on them.
+  app.addHook("preClose", async () => events.close());
 
   if (existsSync(join(deps.webRoot, "index.html"))) {
     await app.register(fastifyStatic, { root: deps.webRoot });

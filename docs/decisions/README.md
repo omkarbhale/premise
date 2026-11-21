@@ -19,7 +19,7 @@ Words: the **owner** is the person premise is being made for; the **assistant** 
 - Records 0067–0110 are the old `docs/plan.md` choices: P*n* is record 0066 + *n* (P1 is 0067, P44 is 0110).
 - Records 0111–0125 are builders' choices made while writing these documents, the specifications, the prompts and the skills; 0124 is the owner's ruling after the first test of the plan, and 0125 is the builders' choice from that test.
 - Records 0126–0129 come from the conversation of 2026-11-21 in which the owner doubled back on the planning ([conversation record](../record/conversation-2026-11-21.md)): 0126–0128 are the owner's; 0129 is the builders' reading of 0128, open to the owner's correction.
-- Records 0130–0136 are the owner's instruction of 2026-11-21 that started the build ([instruction record](../record/instruction-2026-11-21-build-starts.md)); 0137–0145 are the open questions the assistant chose for the owner on that instruction; 0146–0148 are the builders' choices made while building the foundation; 0149 is the owner's standing addition about suggestions left out of a task.
+- Records 0130–0136 are the owner's instruction of 2026-11-21 that started the build ([instruction record](../record/instruction-2026-11-21-build-starts.md)); 0137–0145 are the open questions the assistant chose for the owner on that instruction; 0146–0148 are the builders' choices made while building the foundation; 0149 is the owner's standing addition about suggestions left out of a task; 0150–0153 are the builders' choices made while building the agent runner and its tools; 0154–0158 are the builders' choices made while building the page and the page server.
 - Every record has a **Source** line. For records 0001–0040 it points into the [conversation record](../record/conversation-2026-11-20.md) and, where used, the [shaping notes](../record/shaping-notes-2026-11-20.md) and the [scope page draft](../record/scope-page-draft-0.1.html). Records 0041–0065 quote the owner from the assistant's notes of the 2026-11-21 conversations, which are not kept in this repository. The old single files are in git history at commit f62615a.
 - **Status** is Accepted, Superseded by NNNN, or Partly superseded by NNNN (naming the part). A record is never edited to reverse its decision: a new record supersedes it and both are kept. The new record carries a "Supersedes" or "Partly supersedes" line.
 - **Scope** says where a decision holds: *The product* (premise as envisioned), *The plan* (premise as planned, across milestones), *Milestone N*, or *Making premise* (how premise itself is made).
@@ -212,6 +212,11 @@ How the decisions fit together is in the [architecture overview](../architecture
 | 0151 | [premise chooses each session's id, and carries a cut-off session on in the same working copy](0151-session-ids-chosen-by-premise-and-cut-off-sessions-carried-on.md) | builders | Accepted |
 | 0152 | [Until their module is built, agent tools record the call and say nothing more comes of it](0152-tools-of-unbuilt-modules-record-and-say-so.md) | builders | Accepted |
 | 0153 | [A session's confinement names the other folders that exist when it starts](0153-confinement-names-the-folders-that-exist-at-start.md) | builders | Accepted |
+| 0154 | [A stand-in line walks the page through the eleven stages until the line engine exists](0154-a-stand-in-line-until-the-line-engine-exists.md) | builders | Accepted |
+| 0155 | [The page is readable at phone width, in light and dark](0155-the-page-is-readable-at-phone-width.md) | builders | Accepted |
+| 0156 | [The page is tested with Testing Library, plus one headless browser test with screenshots](0156-page-tests-with-testing-library-and-one-browser-test.md) | builders | Accepted |
+| 0157 | [Browser notifications are offered on the page, not asked for on first open](0157-browser-notifications-are-offered-not-asked.md) | builders | Accepted |
+| 0158 | [The event stream reads the events table, and the link can be renewed from the terminal](0158-the-event-stream-reads-the-events-table.md) | builders | Accepted |
 
 ### Cost and the spending limit
 

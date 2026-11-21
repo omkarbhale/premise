@@ -14,6 +14,7 @@ import { AgentToolServer } from "../src/agents/tool-server.js";
 import { workingCopyPath } from "../src/agents/working-copy.js";
 import { runDoctor } from "../src/doctor/doctor.js";
 import { WorkQueue } from "../src/queue/work-queue.js";
+import { createSession } from "../src/server/wiring.js";
 import { createApp } from "../src/server/app.js";
 import { openDatabase } from "../src/storage/database.js";
 import { createSoftware } from "../src/storage/softwares.js";
@@ -288,13 +289,14 @@ describe("real agent runner, against a fake claude", () => {
   it("serves a session premise's tools for its role, with its own token, until it ends", async () => {
     const port = await freePort();
     const { folder, config, db, schemaVersion, tools, runner } = setup({}, port);
-    const queue = new WorkQueue({ db, config, runner });
+    const ledger = new MockUsageLedger("mock-fixed", 1);
+    const session = createSession({ db, config, ledger, runner });
     const app = await createApp({
       config,
       db,
       schemaVersion,
-      queue,
-      ledger: new MockUsageLedger("mock-fixed", 1),
+      services: session.services,
+      ledger,
       setup: await runDoctor({
         dataFolder: folder,
         env: {},

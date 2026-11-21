@@ -8,7 +8,7 @@ One product that takes software from an idea to running software, and keeps taki
 
 The full statement is in [VISION.md](VISION.md).
 
-> **Status: being built.** The owner said to build the whole of premise ([0130](docs/decisions/0130-the-build-starts-and-covers-all-of-premise.md)). The foundation is in: configuration, storage, the work queue, a scripted agent that stands in for Claude, a mock of usage-ledger marked as mocked on the page, the setup check and a first page. The real agent runner is in too: Claude Code run headless, each session confined by its sandbox, off unless you turn it on. Starting a software from an idea comes in the next builds ([roadmap](docs/product/roadmap.md)). Questions that were open with the owner were chosen for the owner and can be corrected ([open questions](docs/open-questions.md)).
+> **Status: being built.** The owner said to build the whole of premise ([0130](docs/decisions/0130-the-build-starts-and-covers-all-of-premise.md)). The foundation is in (configuration, storage, the work queue, a scripted agent that stands in for Claude, a mock of usage-ledger, the setup check), and so is the page with its server: start a software from an idea and walk it through all eleven stages. The real agent runner is in too: Claude Code run headless, each session confined by its sandbox, off unless you turn it on. Until the line engine is built, a stand-in walks the line with fixed drafts and the page labels it ([0154](docs/decisions/0154-a-stand-in-line-until-the-line-engine-exists.md), [roadmap](docs/product/roadmap.md)). Questions that were open with the owner were chosen for the owner and can be corrected ([open questions](docs/open-questions.md)).
 
 ## Quick start
 
@@ -22,16 +22,16 @@ npm run build
 npm start
 ```
 
-`npm start` prints a link such as `http://localhost:4610/#token=…`. Open it in your browser. The link holds a private token; restarting premise gives a new one.
+`npm start` prints a link such as `http://localhost:4610/#token=…`. Open it in your browser and describe a software in a sentence or two; the page says what happens next. The link holds a private token; restarting premise gives a new one, and `npm run new-link` prints a new one at any time (older links stop working).
 
-- **Nothing calls an AI by default.** Agents are scripted stand-ins until you choose otherwise, so you can try everything without using a Claude login.
+- **Nothing calls an AI by default.** Agents are scripted stand-ins and the line is a stand-in until the line engine is built, so you can try everything without using a Claude login. Both are labelled on the page.
 - **Real agents** run as Claude Code sessions on your existing Claude Code login, with no API key. Turn them on with `"agents": { "mode": "claude" }` in `config.json`. On Linux and WSL2 they need bubblewrap and socat (`sudo apt install bubblewrap socat`), because every agent runs inside Claude Code's sandbox; without them premise refuses to start real agents and says what is missing. `npm run doctor` checks all of it.
 - **Usage figures are mocked** until usage-ledger exists, and the page labels them "Mocked".
 - **Check your machine** with `npm run doctor`: it lists what premise needs, what is missing, and how to get it.
 - **Change settings** (how many agents run at once, the model and effort for each type of task, and more) in `config.json` in the data folder (`~/.premise` by default), or with environment variables. Every setting: [configuration reference](docs/reference/configuration.md).
 - Start on another port with `npm start -- --port 4700`, or use another data folder with `npm start -- --data <folder>`.
 
-For working on premise: `npm run dev` (rebuilds the server on change), `npm test`, `npm run lint`, `npm run typecheck`. Every change goes through the no-mistakes validation pipeline ([0131](docs/decisions/0131-changes-go-through-the-validation-pipeline.md)); CI runs the same checks.
+For working on premise: `npm run dev` (rebuilds the server on change), `npm test`, `npm run lint`, `npm run typecheck`. `npm test` needs the page built (`npm run build`) and Playwright's headless Chromium (`npx playwright install chromium-headless-shell`) for its one browser test, which saves screenshots of each main state in `test-artifacts/screenshots/`. Every change goes through the no-mistakes validation pipeline ([0131](docs/decisions/0131-changes-go-through-the-validation-pipeline.md)); CI runs the same checks.
 
 ## The code
 
@@ -45,9 +45,11 @@ One TypeScript package ([0075](docs/decisions/0075-one-package.md)):
 | `src/agents/` | The agent runner's interface; the scripted agent used by every test; real Claude Code sessions (confinement, limits, stop and resume); the tools agents reach premise through | [agent runner](docs/specs/agent-runner.md), [agent tools](docs/specs/agent-tools.md) |
 | `src/usage-ledger/` | usage-ledger's interface, and its mock | [models and cost](docs/architecture/models-and-cost.md) |
 | `src/doctor/` | The setup check | [page server](docs/specs/page-server.md#51-prerequisites) |
-| `src/server/` | The page server: health, the session token, Host and Origin checks, the API | [page server](docs/specs/page-server.md) |
-| `web/` | The page (React, built with Vite) | [page](docs/specs/page.md) |
-| `test/` | Vitest tests; none calls an LLM or the network. Real agents are tested against a stand-in `claude` that replays recorded events; one real session is opt-in only | |
+| `src/server/` | The page server: the session token, Host and Origin checks, the API, the event stream, and the service interfaces the rest of premise answers | [page server](docs/specs/page-server.md) |
+| `src/demo/` | The stand-in line: walks a software through the eleven stages with fixed drafts until the line engine exists | [0154](docs/decisions/0154-a-stand-in-line-until-the-line-engine-exists.md) |
+| `src/shared/` | The API's types and the stages, shared by the server and the page | |
+| `web/` | The page (React, built with Vite), and its component tests | [page](docs/specs/page.md) |
+| `test/` | Vitest tests, and one headless browser test; none calls an LLM or the network. Real agents are tested against a stand-in `claude` that replays recorded events; one real session is opt-in only | |
 
 ## The problem
 

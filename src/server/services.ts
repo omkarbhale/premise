@@ -1,0 +1,85 @@
+import type {
+  ActivityView,
+  AskAnswer,
+  AskView,
+  ChatMessage,
+  RecordView,
+  ReportView,
+  SoftwareDetail,
+  SoftwareSummary,
+} from "../shared/api-types.js";
+import type { SizeClass, StageId } from "../shared/stages.js";
+
+/**
+ * What the page server needs from the rest of premise, as small interfaces (docs/specs/page-server.md
+ * 2: the server hands actions on; it does not decide what they mean). Today the stand-in line
+ * (src/demo) answers all but activity; the line engine, record keeper and reporter replace it one
+ * interface at a time.
+ */
+
+export type ServiceErrorCode = "NOT_FOUND" | "ASK_CLOSED" | "INVALID" | "NAME_TAKEN";
+
+/** A refusal the page can show as it is: the message says what happened and what to do. */
+export class ServiceError extends Error {
+  constructor(
+    readonly code: ServiceErrorCode,
+    message: string,
+  ) {
+    super(message);
+    this.name = "ServiceError";
+  }
+}
+
+export interface StartSoftwareInput {
+  /** What the software is for, in the person's own words. */
+  idea: string;
+  /** Optional; made from the idea when missing. */
+  name?: string;
+}
+
+export interface SoftwareService {
+  list(): Promise<SoftwareSummary[]>;
+  get(id: string): Promise<SoftwareDetail>;
+  start(input: StartSoftwareInput): Promise<SoftwareSummary>;
+  sendBack(id: string, stage: StageId): Promise<void>;
+  setSize(id: string, size: SizeClass): Promise<void>;
+}
+
+export interface ChatResult {
+  said: ChatMessage;
+  /** premise's one-line acknowledgement, such as "Taken as I-3". */
+  reply: ChatMessage;
+}
+
+export interface ConversationService {
+  messages(softwareId: string): Promise<ChatMessage[]>;
+  say(softwareId: string, text: string): Promise<ChatResult>;
+}
+
+export interface AskService {
+  /** Every ask, open ones first; or only one software's. */
+  list(filter?: { softwareId?: string; status?: "open" | "answered" }): Promise<AskView[]>;
+  answer(id: number, answer: AskAnswer): Promise<AskView>;
+}
+
+export interface RecordService {
+  view(softwareId: string): Promise<RecordView>;
+}
+
+export interface ReportService {
+  view(softwareId: string): Promise<ReportView>;
+}
+
+export interface ActivityService {
+  view(): Promise<ActivityView>;
+  stopJob(id: number): Promise<void>;
+}
+
+export interface SessionServices {
+  softwares: SoftwareService;
+  conversation: ConversationService;
+  asks: AskService;
+  records: RecordService;
+  reports: ReportService;
+  activity: ActivityService;
+}

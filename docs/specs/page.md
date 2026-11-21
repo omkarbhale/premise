@@ -47,6 +47,13 @@ None. The token from the link is kept in the page's memory only.
 | Queue | Jobs running, waiting (and on what), queued, paused | Stop a job |
 | Intake | Items, their routes and statuses, held count | Ask for a reading now |
 
+### 5.1a First run and plain words
+
+- With no software yet, the page says what premise is, gives one box to describe a software ("What should the software do, and for whom?"), says what happens next, and says what is not real yet (stand-in line, scripted agents, mocked usage) ([0135](../decisions/0135-the-experience-works-without-the-guide.md)).
+- Every empty view says what will appear there and when. Every error says what to do next.
+- premise's own words (the record, say back, the floor, roles, intake) are explained where they appear, in a few words; the Help view lists them all.
+- Navigation: Softwares (each with Conversation, Line, Record and Report), Waiting on you, Activity, Usage, Settings (read only, with where to change each setting) and Help.
+
 ### 5.2 Asks
 
 Every ask shows its role label and its kind, and is written in that role's terms ([0009](../decisions/0009-everyone-needed-is-a-user.md)).
@@ -76,11 +83,11 @@ Every ask shows its role label and its kind, and is written in that role's terms
 
 | Key | Default | Meaning |
 |---|---|---|
-| `page.notifications` | asks permission on first open | Browser notifications |
+| `page.notifications` | `"offer"` | `"offer"`: a button on "Waiting on you" offers browser notifications, and the browser asks only when it is pressed. `"off"`: never offered ([0157](../decisions/0157-browser-notifications-are-offered-not-asked.md)) |
 
 ## 7. Limits
 
-- Works in current desktop browsers on the owner's machine. A phone-width layout is not a goal before premise can be reached from other machines.
+- Works in current browsers on the owner's machine, from a phone-width window to a wide one, in light and dark, and by keyboard alone ([0155](../decisions/0155-the-page-is-readable-at-phone-width.md)).
 - One session; no accounts ([0045](../decisions/0045-a-link-per-person-no-accounts.md)).
 
 ## 8. Failure modes and recovery
