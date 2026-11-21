@@ -1,6 +1,6 @@
 # 0034. First proof, and existing software after
 
-- Status: Accepted
+- Status: Partly superseded by [0170](0170-existing-software-much-earlier-in-a-thin-form.md): that existing software follows once the line works, after milestone 4
 - Scope: The plan
 - Date: 2026-11-20
 - Decided by: The owner, agreeing to the assistant's assumption 10: "8, 9, 10, I agree."

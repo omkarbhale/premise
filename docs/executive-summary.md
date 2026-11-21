@@ -41,12 +41,12 @@ premise is one product that takes software from an idea to running software, and
 
 - **First:** proof that premise can drive LLM work unattended through the owner's Claude subscription on the owner's machine, with confinement that holds. If that cannot be proven, work stops for the owner.
 - **Then:** the thinnest line, end to end: one software at a time, only the operator, Why to Plan in their thinnest form, one builder and one independent checker, the server's merge and push, running software with a link or a command, and a report each time a change reaches running.
-- **Also:** a software's milestones, with a wait after any the operator sets ([0129](decisions/0129-builders-reading-of-effort-and-milestone-waits.md), the builders' reading).
+- **Also:** work sized per piece, with splitting only where the parts are separate or very long ([0167](decisions/0167-any-piece-of-work-goes-through-the-same-line-at-its-own-size.md), [0169](decisions/0169-what-may-be-split-is-decided-by-strong-prompting.md)); the page showing three phases, Understand, Build and Running, with the eleven stages as detail ([0173](decisions/0173-the-page-shows-three-phases.md)); a software's milestones, with a wait after any the operator sets ([0129](decisions/0129-builders-reading-of-effort-and-milestone-waits.md), the builders' reading).
 - **Shown by:** two small softwares of different kinds, a command-line utility and a small web app, each taken from a one-paragraph idea to running software with a scripted operator; in each, one assumption struck in the say-back and one planted defect caught by the checker ([roadmap](product/roadmap.md)).
 
 ## What comes later
 
-The owner's first software goes through premise as early as possible, before the later milestones are built ([0127](decisions/0127-first-software-is-one-the-owner-needs.md)); chosen for the owner: usage-ledger ([0137](decisions/0137-first-software-is-usage-ledger.md)). In order ([roadmap](product/roadmap.md)): cost and the spending limit, from usage-ledger, mocked until it exists ([0133](decisions/0133-usage-ledger-is-mocked-until-it-exists.md)); every role in one session; intake, automatic and held; other people setting premise up; existing software; kept live for real users, and several softwares at once.
+The owner's first software goes through premise as early as possible, before the later milestones are built ([0127](decisions/0127-first-software-is-one-the-owner-needs.md)); chosen for the owner: usage-ledger ([0137](decisions/0137-first-software-is-usage-ledger.md)). In order ([roadmap](product/roadmap.md), [0178](decisions/0178-the-roadmap-is-reordered.md)): intake in a thin form; existing software in a thin form ([0170](decisions/0170-existing-software-much-earlier-in-a-thin-form.md)); premise's own measures, and learning from corrections ([0171](decisions/0171-premise-measures-its-own-return.md), [0172](decisions/0172-premise-learns-from-corrections.md)); real use, usage-ledger first, then premise's own remaining work ([0174](decisions/0174-premise-is-used-for-real-as-soon-as-milestone-1-runs.md)); every role in one session, and cost and the spending limit, mocked until usage-ledger exists ([0133](decisions/0133-usage-ledger-is-mocked-until-it-exists.md)), with the rest of intake and existing software. Last, after two real softwares have run through premise: other people setting premise up (hosting, accounts), and software kept live on public hosts, with several softwares at once ([0177](decisions/0177-hosting-for-others-accounts-and-public-deployment-pushed-later.md)). Later, with an issue each: the checker on a different model from the builder; tolerating commits made outside premise.
 
 ## Main risks, and what meets them
 
@@ -54,7 +54,7 @@ The owner's first software goes through premise as early as possible, before the
 | --- | --- |
 | The conversation turns into paperwork | Drafts instead of interviews; stage budgets; a say-back of at most ten items |
 | A say-back that confirms the wrong thing | The smallest running version first; the checker judges against the record |
-| Existing software swallows the effort | It comes after the line works |
+| Existing software swallows the effort | It comes in a thin form first, after thin intake |
 | The whole line is a lot | The thinnest line first, one milestone at a time |
 | Agents gaming their checks; false reports | Scenarios out of the builder's reach; a checker that never sees the builder's claims; reports from facts only |
 | Destructive actions | No credentials for agents; confinement; the gate |

@@ -1,6 +1,6 @@
 # Vision: premise
 
-Draft 4, 2026-11-21.
+Draft 5, 2026-11-21.
 Words: the **product** is premise. The **software** is what the product builds.
 
 ## What it is
@@ -27,7 +27,7 @@ One product that takes software from an idea to running software, and keeps taki
 6. People's attention is what the product spends least of. When being wrong is cheap it decides and shows its assumptions; when it is not, it asks. It speaks in lists, not long paragraphs.
 7. It reports honestly, including what failed and what it could not check.
 8. Some things are never traded for speed.
-9. It is general. It can be used for any software, and a better model makes it better.
+9. It is general. It can be used for any software, and a better model makes it better. Any software means any scale: a small tool, an enterprise application, a monorepo. How close it gets is engineering.
 
 ## The line
 
@@ -44,6 +44,11 @@ One product that takes software from an idea to running software, and keeps taki
 11. **Intake.** Ideas and problems come back in from the operator, other people, the software's users and the product itself, and are picked up automatically where work shows up. Each is judged against the record. When people do not want the software, the product goes back to Why with the operator: the wrong problem may have been solved, or there are other problems.
 
 Existing software enters the same line: the product rebuilds the record a from-scratch conversation would have produced, with people wherever parts conflict or cannot be inferred.
+
+## How it adapts
+
+- There is no fixed list of kinds of software.
+- For each software, the product works out how to build it, run it and check it, keeps that in the record, and corrects it when intake shows it wrong.
 
 ## The record
 
