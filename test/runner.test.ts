@@ -249,6 +249,46 @@ http.createServer((q, r) => r.end("ok")).listen(port, process.env.HOST);
     }
   });
 
+  it("keeps several softwares running at once, and says plainly when as many as allowed run", async () => {
+    setup({ PREMISE_RUNNER__MAX_RUNNING_SOFTWARES: "2" });
+    const [a, b, c] = ["A", "B", "C"].map((name) => makeSoftware(db, config, name, WEB));
+    const views = [await runner.start(a!.id), await runner.start(b!.id)];
+    expect(new Set(views.map((v) => v.link)).size).toBe(2);
+    expect(await Promise.all(views.map((v) => fetchText(v.link!)))).toEqual([
+      "hello from the fixture web app",
+      "hello from the fixture web app",
+    ]);
+    expect(runner.runningSoftwares().sort()).toEqual([a!.id, b!.id].sort());
+    await expect(runner.start(c!.id)).rejects.toThrow(
+      /2 softwares are already running \(A, B\).*Stop one of them first.*runner\.max_running_softwares/,
+    );
+    // The refusal is shown on the software's page, and the others keep running.
+    expect((await runner.view(c!.id)).state).toBe("failed");
+    expect(await fetchText(views[0]!.link!)).toBe("hello from the fixture web app");
+    // Restarting one that runs already is not one more.
+    expect((await runner.start(a!.id)).state).toBe("running");
+    await runner.stop(b!.id);
+    expect((await runner.start(c!.id)).state).toBe("running");
+  });
+
+  it("says plainly when this machine has too little free memory to start one more", async () => {
+    await runner.close();
+    runner = new Runner({
+      db,
+      config,
+      repositories: { repositoryPath: (id) => join(dataFolder, "repos", id) },
+      freeMemory: () => 100 * 1024 * 1024,
+    });
+    const s = makeSoftware(db, config, "Big", WEB);
+    await expect(runner.start(s.id)).rejects.toThrow(
+      /only 100 MB of memory free.*runner\.min_free_memory_mb/,
+    );
+    const noRoom = db.prepare("SELECT detail FROM events WHERE kind = 'no-room'").all() as {
+      detail: string;
+    }[];
+    expect(JSON.parse(noRoom[0]!.detail)).toMatchObject({ reason: "memory", freeMb: 100 });
+  });
+
   it("restarts a crashed software, then gives up after the limit and says so", async () => {
     setup({ PREMISE_RUNNER__RESTART_LIMIT: "2" });
     const s = makeSoftware(db, config, "Fragile", {

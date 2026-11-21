@@ -1,6 +1,6 @@
 # Storage specification
 
-Status: built through schema 10, specification otherwise, being built ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Related: [record keeper](record-keeper.md), [work queue](work-queue.md), [agent runner](agent-runner.md), [the record](../architecture/the-record.md), [architecture overview](../architecture/overview.md).
+Status: built through schema 12, specification otherwise, being built ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Related: [record keeper](record-keeper.md), [work queue](work-queue.md), [agent runner](agent-runner.md), [the record](../architecture/the-record.md), [architecture overview](../architecture/overview.md).
 
 ## 1. Purpose
 
@@ -66,7 +66,7 @@ All tables live in `premise.db`. Times are UTC. "Software" is a row in `software
 
 | Table | One row per | Main columns |
 |---|---|---|
-| `softwares` | Software premise looks after | id, name, repository, size class ([0117](../decisions/0117-size-classes-set-stage-budgets.md)), current stage, state (active, paused-budget, paused-usage, waiting-milestone, ended), priority (1 most important to 5, [0138](../decisions/0138-priority-is-a-field-from-milestone-1.md)), milestone waits on or off, effort (low, medium, high; schema 9, [0191](../decisions/0191-scope-check-effort-and-milestones.md)), created |
+| `softwares` | Software premise looks after | id, name, repository, size class ([0117](../decisions/0117-size-classes-set-stage-budgets.md)), current stage, state (active, paused-budget, paused-usage, waiting-milestone, ended), priority (1 most important to 5, [0138](../decisions/0138-priority-is-a-field-from-milestone-1.md)), milestone waits on or off, effort (low, medium, high; schema 9, [0191](../decisions/0191-scope-check-effort-and-milestones.md)), when and why the operator paused it and when it was archived (schema 12, [0197](../decisions/0197-how-several-softwares-at-once-is-built.md)), created |
 | `page_tokens` | Session link issued | token hash, created, revoked |
 | `feedback_links` | Software with a feedback page | software, token hash, created, revoked ([0119](../decisions/0119-feedback-page-has-its-own-link.md)) |
 | `work_items` | Piece of work going through the line (schema 5; sizing in schema 6) | id, software, parent item, kind (software, milestone, module, intake), origin (start, split, plan, fix, intake, purpose, existing, recover, and for intake work bug or change, [0192](../decisions/0192-effort-in-proportion-to-what-was-asked.md)), title and words of a part, the record item it stands for (a milestone's `M-n`), order among its siblings, size class, current stage, state, its list of stages, its sizing with a reason for the size, the stages and the split, the sizer's pending answer, when it was made, sized, reached Build and finished, the line engine's notes ([0181](../decisions/0181-the-line-works-on-work-items.md), [0184](../decisions/0184-how-sizing-of-work-is-built.md)) |
@@ -155,5 +155,5 @@ Every job, ask, gate request and verdict also writes an `events` row, so that a 
 - Milestone 3: `claims` (schema 11).
 - Milestone 4, the rest: `feedback_links`, and every intake source.
 - Milestone 6: `recovered-trace.md` in the software's repository.
-- Milestone 7: several active softwares at once share the same tables; nothing new is needed.
+- Milestone 7: several active softwares at once share the same tables; schema 12 added the operator's pause and the archive mark on `softwares` ([0197](../decisions/0197-how-several-softwares-at-once-is-built.md)). Nothing is ever deleted when a software is archived.
 - Usage and cost figures are never stored here; they come from usage-ledger once it is usable (milestone 2, [0064](../decisions/0064-cost-and-spending-limit-from-usage-ledger.md)).

@@ -286,6 +286,7 @@ How the decisions fit together is in the [architecture overview](../architecture
 | 0194 | [How learning from corrections is built: one destination each, read by the triager, short lists in briefs](0194-how-learning-from-corrections-is-built.md) | builders; two points chosen for the owner | Accepted |
 | 0195 | [Two kinds of learning: premise adapting, and premise itself improving](0195-two-kinds-of-learning.md) | owner (quoted), builders' reading | Accepted |
 | 0196 | [How roles and taste claims are built in the one session: labels, no label for the operator alone, described proposals before the build, real-world acts as steps](0196-roles-and-taste-in-one-session.md) | builders; one point chosen for the owner | Accepted |
+| 0197 | [How looking after several softwares at once is built: shared sessions with a fair wait, the summary, pause and archive](0197-how-several-softwares-at-once-is-built.md) | builders; three points chosen for the owner | Accepted |
 | 0131 | [Changes to premise go through the no-mistakes validation pipeline; the assistant still merges](0131-changes-go-through-the-validation-pipeline.md) | owner | Accepted |
 | 0136 | [The assistant chooses the open questions for the owner, and records each choice](0136-open-questions-chosen-for-the-owner.md) | owner | Accepted |
 | 0066 | [premise's documents follow aras-insight's layout](0066-documents-follow-the-aras-insight-layout.md) | owner | Accepted |

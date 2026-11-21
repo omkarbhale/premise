@@ -9,7 +9,7 @@ import {
   rmSync,
 } from "node:fs";
 import { createServer, connect } from "node:net";
-import { homedir, networkInterfaces } from "node:os";
+import { freemem, homedir, networkInterfaces } from "node:os";
 import { dirname, join, relative, sep } from "node:path";
 import type { AgentOutcome } from "../agents/agent-runner.js";
 import { type PremiseConfig, parsePortRange } from "../config/settings.js";
@@ -64,6 +64,8 @@ export interface RunnerDeps {
   repositories: { repositoryPath(softwareId: string): string; git?: Git };
   /** Told when a software keeps crashing and premise stops starting it again. */
   onGaveUp?: (softwareId: string, failure: string) => void;
+  /** Free memory on this machine, in bytes; for tests. */
+  freeMemory?: () => number;
 }
 
 interface RunRow {
@@ -365,6 +367,12 @@ export class Runner {
       return this.view(softwareId);
     }
 
+    const noRoom = this.noRoom(softwareId, instructions.kind);
+    if (noRoom) {
+      insert(instructions.kind, "failed", { failure: noRoom });
+      throw new RunnerError("RUN_FAILED", noRoom);
+    }
+
     const logFile = join(logFolder, `run-${Date.now()}.log`);
     const runId = insert(instructions.kind, "starting", {
       command: instructions.kind === "web" ? instructions.start! : instructions.command!,
@@ -455,6 +463,53 @@ export class Runner {
     throw new PortRangeError(
       `Every port from ${range.first} to ${range.last} is in use, so there is nowhere to start it. Stop something else, or widen runner.port_range in the settings.`,
     );
+  }
+
+  /** The softwares running on this machine now, besides premise itself. */
+  runningSoftwares(): string[] {
+    return [...this.live.keys()];
+  }
+
+  /**
+   * Several softwares run at once, each on its own port (decision 0197). Before starting one more,
+   * say plainly when this machine is the limit: too many running already, or too little free memory.
+   * Returns what to tell the person, or null when there is room.
+   */
+  private noRoom(softwareId: string, kind: RunInstructions["kind"]): string | null {
+    const { db, config } = this.deps;
+    const others = this.runningSoftwares().filter((id) => id !== softwareId);
+    if (kind === "web" && others.length >= config.runner.max_running_softwares) {
+      const names = others
+        .map(
+          (id) =>
+            (
+              db.prepare("SELECT name FROM softwares WHERE id = ?").get(id) as
+                { name: string } | undefined
+            )?.name ?? id,
+        )
+        .join(", ");
+      recordEvent(db, {
+        softwareId,
+        module: "runner",
+        kind: "no-room",
+        detail: { reason: "count" },
+      });
+      return `${others.length} softwares are already running (${names}), which is as many as premise runs at once on this machine. Stop one of them first, or raise runner.max_running_softwares in the settings.`;
+    }
+    const minimum = config.runner.min_free_memory_mb;
+    if (minimum > 0) {
+      const freeMb = Math.floor((this.deps.freeMemory ?? freemem)() / (1024 * 1024));
+      if (freeMb < minimum) {
+        recordEvent(db, {
+          softwareId,
+          module: "runner",
+          kind: "no-room",
+          detail: { reason: "memory", freeMb },
+        });
+        return `This machine has only ${freeMb} MB of memory free, less than the ${minimum} MB premise keeps free before starting a software. Stop a running software or close other programs, then try again; or lower runner.min_free_memory_mb in the settings.`;
+      }
+    }
+    return null;
   }
 
   /**

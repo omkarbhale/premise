@@ -228,8 +228,9 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
     if (deps.learning) registerLearningRoutes(api, deps.learning);
 
     api.get("/api/overview", async (): Promise<Overview> => {
-      const [softwares, activity, weekly] = await Promise.all([
+      const [softwares, archived, activity, weekly] = await Promise.all([
         services.softwares.list(),
+        services.softwares.list({ archived: true }),
         services.activity.view(),
         deps.ledger.weeklyUsage(),
       ]);
@@ -250,6 +251,7 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
         usage: { mode: deps.ledger.mode, mocked: deps.ledger.mocked, weekly },
         softwares,
         roles: services.roles(),
+        archivedSoftwares: archived.length,
         softwareUsage: await Promise.all(
           softwares.map(async (s) => {
             const u = await deps.ledger.softwareUsage(s.id);
@@ -276,7 +278,41 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
       };
     });
 
-    api.get("/api/softwares", async () => services.softwares.list());
+    api.get("/api/softwares", async (request) =>
+      services.softwares.list({
+        archived: (request.query as { archived?: string }).archived === "1",
+      }),
+    );
+
+    // Looking after several softwares at once (decision 0197).
+    for (const action of ["pause", "resume", "archive", "restore"] as const) {
+      api.post<{ Params: { id: string } }>(
+        `/api/softwares/:id/${action}`,
+        { schema: { params: idParam } },
+        async (request) => {
+          await services.softwares[action](request.params.id);
+          return services.softwares.get(request.params.id);
+        },
+      );
+    }
+
+    api.get("/api/summary", async () => services.summary.view());
+    api.post<{ Body: { upTo: number } }>(
+      "/api/summary/seen",
+      {
+        schema: {
+          body: {
+            type: "object",
+            properties: { upTo: { type: "integer", minimum: 0 } },
+            required: ["upTo"],
+          },
+        },
+      },
+      async (request) => {
+        await services.summary.markSeen(request.body.upTo);
+        return { ok: true };
+      },
+    );
 
     api.post<{ Body: { idea: string; name?: string; effort?: SoftwareEffort } }>(
       "/api/softwares",

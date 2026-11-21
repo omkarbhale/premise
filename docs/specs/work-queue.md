@@ -35,7 +35,7 @@ Not responsible for:
 | Finish | Agent runner, runner | Job, result: done, stuck, failed, with the reason | Job closed; line engine told | none |
 | Stop | Page server (a person, in the session) | Job | Session stopped; job `stopped` | none |
 | Pause all, resume all | Agent runner (usage limit) | Reason, expected reset time | Queue state | none |
-| Pause software, resume software | Usage-ledger watcher (budget overrun), page server | Software, reason | Software state | none |
+| Pause software, resume software | Usage-ledger watcher (budget overrun), page server (the operator, through `src/portfolio`) | Software, reason | Software state; a pause stops its running sessions and requeues their jobs | none |
 
 ## 4. Data owned
 
@@ -47,13 +47,14 @@ Job statuses: `queued`, `running`, `waiting` (on an ask or a gate request), `pau
 
 ### 5.1 Choosing the next job
 
-- A job is startable when it is `queued`, its software is not paused, and the queue is not paused.
+- A job is startable when it is `queued`, its software is active, not paused by the operator and not archived, and the queue is not paused.
 - Agent jobs need a free session slot. At most two agent sessions run at once by default: every session draws on the same subscription limits, and more sessions at once mostly reach the limit sooner ([0074](../decisions/0074-two-agent-sessions-at-once.md)).
 - `run` jobs are done by the server, not an agent, and do not take a slot.
 - Order: the most important software first, by its priority (1 to 5, [0138](../decisions/0138-priority-is-a-field-from-milestone-1.md)); then jobs that unblock a person's view (a draft, a say-back, a report), then checks, then builds, then triage and readings; within one kind, oldest first.
 - A software stopped at a milestone wait ([line engine](line-engine.md)) is not startable: no new job starts for it until the operator says to go on. Its asks stay answerable.
 - Effort (builders' reading, [0129](../decisions/0129-builders-reading-of-effort-and-milestone-waits.md)): a software with a share of weekly usage is not started once its share is used, read from usage-ledger and the weekly figure in Claude Code's own stream; it comes with cost in milestone 2. Priority orders the queue between softwares, from milestone 1 ([0138](../decisions/0138-priority-is-a-field-from-milestone-1.md)).
-- Milestone 7: with several softwares, slots are shared fairly, taking turns between softwares that have startable jobs.
+- Several softwares share the slots ([0197](../decisions/0197-how-several-softwares-at-once-is-built.md)): the most important first, by priority; among equally important ones, the one with fewer sessions running, then the one whose last start was longest ago. A software that has waited `queue.fair_wait_minutes` without a session, behind more important ones, gets the next free slot, the longest-waiting first (event `fair-turn`). So no software waits indefinitely.
+- A job waiting on a person holds no slot, so an ask never blocks other softwares. A software paused by the operator, archived, stopped at a milestone, or paused for its budget starts nothing; pausing or archiving it stops its running sessions and puts their jobs back in the queue, so the slots go to other softwares.
 
 ### 5.2 Restarts
 
@@ -97,6 +98,7 @@ Anything that must survive a crash goes through the work queue's table ([archite
 | `queue.max_agent_sessions` | 2 | Agent sessions running at once ([0074](../decisions/0074-two-agent-sessions-at-once.md), [0132](../decisions/0132-sensible-things-are-configurable.md)) |
 | `queue.same_failure_limit` | 3 | Same failures before a task stops |
 | `queue.usage_pause_fallback_minutes` | 60 | How long to wait before trying again when the reset time is not known |
+| `queue.fair_wait_minutes` | 30 | How long a software with startable work waits behind more important ones before it gets the next free slot ([0197](../decisions/0197-how-several-softwares-at-once-is-built.md)) |
 
 ## 7. Limits
 
@@ -131,4 +133,4 @@ Anything that must survive a crash goes through the work queue's table ([archite
 - Milestone 2 (against usage-ledger's mock until it exists, [0133](../decisions/0133-usage-ledger-is-mocked-until-it-exists.md)): per-software budget pause; effort as a share of weekly usage.
 - Milestone 4: `triage` and `reading` jobs.
 - Milestone 1 (foundation): the queue that survives a restart, the session limit, priority between softwares, the three-strike rule and the usage-limit pause, with the scripted agent.
-- Milestone 7: fair sharing between several softwares.
+- Milestone 7, built: fair sharing between several softwares, the operator's pause and archive ([0197](../decisions/0197-how-several-softwares-at-once-is-built.md)).

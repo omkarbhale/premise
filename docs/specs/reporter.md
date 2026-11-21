@@ -29,6 +29,8 @@ Not responsible for:
 | More detail | Page (a "more" control on any record item or report line), intake (a triaged question) | Software, item or line | An answer in the session, each line with its evidence link | `UNKNOWN_ITEM` |
 | Release notes | Runner (after merge) | Software, commit, items served | Drafted notes, handed to the runner | none |
 | Report view | Page | Software | The current view (5.2) | none |
+| Summary across softwares | Page ("Summary") | none | The current summary (5.8a): what needs you, what changed since you last looked, every software's phase and what it is doing | none |
+| Summary seen | Page (leaving the summary) | The newest event it showed | The mark "since you last looked" moves there | none |
 
 The reporter agent works only through `facts_read` and `report_submit` ([agent tools](agent-tools.md)).
 
@@ -89,6 +91,17 @@ The owner gets one short report per finished milestone, and an immediate message
 
 Every report, and so every milestone report, carries a "How premise is doing" block: one line per [measure](measures.md) (attention, time to answer, idea to running, problem to fix, things reported working that came back as bugs, agent sessions per change), each saying what it counts and how many events it rests on, and "not enough yet" when a rate or typical time rests on too few. The figures are real, from recorded events, and never labelled mocked ([0172](../decisions/0172-premise-measures-its-own-return.md), [0193](../decisions/0193-how-the-measures-are-built.md)).
 
+### 5.8a The summary across softwares
+
+One short summary covers every software that is not archived, beside each software's own report ([0197](../decisions/0197-how-several-softwares-at-once-is-built.md)). It is built from recorded facts only, never by an agent: each software's state and status line as the line keeps them, its open asks, its running copy, and the events.
+
+- One sentence first: how many softwares, how many wait on you, how many are working or running, how many are paused.
+- What waits on you, per software: how many things to answer, or a milestone to try.
+- What changed since you last looked, per software, from the events after the mark: started, moved on to a stage, asked you something, a change landed, a report was written, started running, crashed, could not start for lack of room, work got stuck, paused, resumed, restored, priority changed. Repeats are counted, and each software shows at most `reports.max_lines` lines.
+- Every software with its phase, what it is doing now, its priority, and where its running copy answers.
+
+"Since you last looked" is the newest event the summary showed when the person last left it (kept in `settings` as `summary.seen`); before the first look, the summary says what has happened so far.
+
 ### 5.8 Release notes
 
 Release notes for each change that reaches running are drafted from the record items it served ([0123](../decisions/0123-reporter-drafts-release-notes.md)). Only items whose check verdict was met are in them; items not met or not checked stay in "Failed or not checked". They describe what users can now do, in users' terms, and are handed to the runner, which commits them ([runner](runner.md)).
@@ -130,4 +143,4 @@ The report's default form stays with premise ([0012](../decisions/0012-reporting
 - Milestone 1 step 2: a report each time a change reaches running; the report view; notices; more detail from the page's "more" control.
 - Milestone 2 (against usage-ledger's mock until it exists, [0133](../decisions/0133-usage-ledger-is-mocked-until-it-exists.md)): the Cost section, usage per stage and per item.
 - Milestone 4: more detail asked in chat, through triage.
-- Milestone 7: a report per software and one summary across softwares.
+- Milestone 7, built: a report per software and one summary across softwares (5.8a).

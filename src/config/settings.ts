@@ -275,6 +275,14 @@ export const SETTINGS: readonly Setting[] = [
     meaning: "How long agent work pauses after a usage-limit event that gives no reset time.",
   },
   {
+    key: "queue.fair_wait_minutes",
+    default: 30,
+    check: summarised(wholeNumber(1, 1440), "1 to 1440"),
+    meaning:
+      "With several softwares, the most important goes first; a software that has waited this many minutes for an agent, behind more important ones, gets the next free one.",
+    record: "0197",
+  },
+  {
     key: "agents.mode",
     default: "claude",
     check: summarised(oneOf(AGENT_MODES), `"claude" or "scripted"`),
@@ -667,6 +675,22 @@ export const SETTINGS: readonly Setting[] = [
     record: "0162",
   },
   {
+    key: "runner.max_running_softwares",
+    default: 5,
+    check: summarised(wholeNumber(1, 50), "1 to 50"),
+    meaning:
+      "How many softwares may be running on this machine at once, each on its own port. Starting one more says to stop another first.",
+    record: "0197",
+  },
+  {
+    key: "runner.min_free_memory_mb",
+    default: 256,
+    check: summarised(wholeNumber(0, 65536), "0 to 65536"),
+    meaning:
+      "A software is not started when this machine has less free memory than this, in megabytes; premise says so. 0 never checks.",
+    record: "0197",
+  },
+  {
     key: "runner.sample_timeout_seconds",
     default: 30,
     check: summarised(wholeNumber(1, 600), "1 to 600"),
@@ -808,6 +832,7 @@ export interface PremiseConfig {
     max_agent_sessions: number;
     same_failure_limit: number;
     usage_pause_fallback_minutes: number;
+    fair_wait_minutes: number;
   };
   agents: {
     mode: AgentMode;
@@ -869,6 +894,8 @@ export interface PremiseConfig {
     restart_delay_seconds: number;
     port_range: string;
     start_timeout_seconds: number;
+    max_running_softwares: number;
+    min_free_memory_mb: number;
     sample_timeout_seconds: number;
     stop_grace_seconds: number;
     output_lines: number;

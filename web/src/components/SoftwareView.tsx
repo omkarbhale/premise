@@ -11,6 +11,7 @@ import { Learned } from "./Learned";
 import { Line } from "./Line";
 import { RecordView } from "./RecordView";
 import { ReportView } from "./ReportView";
+import { SoftwareActions } from "./SoftwareActions";
 
 export type SoftwareTab = "conversation" | "line" | "record" | "report" | "intake" | "learned";
 
@@ -91,7 +92,10 @@ export function SoftwareView({
             </>
           )}
         </p>
-        <p className={`status status-${open > 0 ? "needs-you" : s.state}`} role="status">
+        <p
+          className={`status status-${open > 0 ? "needs-you" : s.paused ? "paused" : s.state}`}
+          role="status"
+        >
           {open > 0
             ? tab === "conversation"
               ? "Your turn: answer below."
@@ -100,8 +104,8 @@ export function SoftwareView({
         </p>
         <div className="head-facts small muted">
           <span>Size {s.sizeClass}</span>
-          <span>Priority {s.priority}</span>
         </div>
+        <SoftwareActions software={s} />
         <details className="idea">
           <summary>What you asked for</summary>
           <p>{s.idea}</p>

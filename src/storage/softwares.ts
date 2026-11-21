@@ -20,6 +20,11 @@ export interface Software {
   /** The first words the operator said about it. */
   idea: string;
   created: string;
+  /** When the operator paused it, and why; null while it is not paused by the operator. */
+  pausedAt: string | null;
+  pausedWhy: string | null;
+  /** When it was archived: kept, hidden from the main list, restorable. */
+  archivedAt: string | null;
 }
 
 interface SoftwareRow {
@@ -34,6 +39,9 @@ interface SoftwareRow {
   size_class: string;
   idea: string;
   created: string;
+  paused_at: string | null;
+  paused_why: string | null;
+  archived_at: string | null;
 }
 
 function fromRow(row: SoftwareRow): Software {
@@ -49,6 +57,9 @@ function fromRow(row: SoftwareRow): Software {
     sizeClass: row.size_class,
     idea: row.idea,
     created: row.created,
+    pausedAt: row.paused_at,
+    pausedWhy: row.paused_why,
+    archivedAt: row.archived_at,
   };
 }
 
@@ -176,5 +187,33 @@ export function setSoftwareRepository(db: Database, id: string, repository: stri
     module: "softwares",
     kind: "repository-set",
     detail: { repository },
+  });
+}
+
+/**
+ * The operator pauses a software, or resumes it (null). A paused software starts no agent job; its
+ * asks stay answerable.
+ */
+export function setSoftwarePaused(db: Database, id: string, why: string | null): void {
+  db.prepare("UPDATE softwares SET paused_at = ?, paused_why = ? WHERE id = ?").run(
+    why === null ? null : now(),
+    why,
+    id,
+  );
+  recordEvent(db, {
+    softwareId: id,
+    module: "softwares",
+    kind: why === null ? "software-resumed" : "software-paused",
+    ...(why !== null && { detail: { why } }),
+  });
+}
+
+/** Archive a software (kept, hidden from the main list), or restore it (false). Never deletes. */
+export function setSoftwareArchived(db: Database, id: string, archived: boolean): void {
+  db.prepare("UPDATE softwares SET archived_at = ? WHERE id = ?").run(archived ? now() : null, id);
+  recordEvent(db, {
+    softwareId: id,
+    module: "softwares",
+    kind: archived ? "software-archived" : "software-restored",
   });
 }

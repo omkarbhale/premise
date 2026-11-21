@@ -339,6 +339,11 @@ p.note {
   color: var(--accent);
   border-color: var(--accent);
 }
+.badge-needs {
+  background: var(--needs-soft);
+  color: var(--needs);
+  border-color: var(--needs);
+}
 .chip-role {
   background: var(--needs-soft);
   color: var(--needs);
@@ -425,6 +430,85 @@ details summary {
 }
 .status-needs-you {
   color: var(--needs);
+}
+.status-paused {
+  color: var(--muted);
+}
+
+/* Several softwares: badges in the list, actions on a software, the archive and the summary */
+.pick-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.software-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.75rem;
+  align-items: center;
+  margin-top: 0.4rem;
+}
+.archived {
+  margin-top: 0.75rem;
+}
+.archived ul {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0.3rem;
+}
+.summary .lead {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+.summary-list,
+.summary-change ul {
+  padding-left: 1.1rem;
+}
+.summary-change h3 {
+  margin: 0.6rem 0 0.2rem;
+  font-size: 1rem;
+}
+.summary-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.summary-table th,
+.summary-table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.summary-table .badge {
+  margin-left: 0.4rem;
+}
+.summary-table th {
+  white-space: nowrap;
+}
+.summary .link {
+  text-align: left;
+}
+.phone-only {
+  display: none;
+}
+@media (max-width: 640px) {
+  .summary-table .phone-only {
+    display: inline;
+  }
+  .summary-table thead {
+    display: none;
+  }
+  .summary-table tr,
+  .summary-table td {
+    display: block;
+    border: 0;
+    padding: 0.1rem 0;
+  }
+  .summary-table tr {
+    border-bottom: 1px solid var(--border);
+    padding: 0.4rem 0;
+  }
 }
 .head-facts {
   display: flex;

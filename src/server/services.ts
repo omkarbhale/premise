@@ -11,6 +11,7 @@ import type {
   RunView,
   SoftwareDetail,
   SoftwareSummary,
+  SummaryView,
 } from "../shared/api-types.js";
 import type { SizeClass, SoftwareEffort, StageId } from "../shared/stages.js";
 
@@ -52,7 +53,8 @@ export interface BringInInput {
 }
 
 export interface SoftwareService {
-  list(): Promise<SoftwareSummary[]>;
+  /** The main list, or with archived: true only the archived softwares. Needs-you first. */
+  list(options?: { archived?: boolean }): Promise<SoftwareSummary[]>;
   get(id: string): Promise<SoftwareDetail>;
   start(input: StartSoftwareInput): Promise<SoftwareSummary>;
   /** Take on a software that already exists, from a folder or a clone address. */
@@ -72,6 +74,19 @@ export interface SoftwareService {
   claim(id: string, input: { area: string; role?: string }): Promise<ClaimView>;
   /** Release a claim: premise decides the area itself again. */
   releaseClaim(claimId: number): Promise<ClaimView>;
+  /** Pause a software: nothing new starts for it, its sessions free up; its asks stay answerable. */
+  pause(id: string): Promise<void>;
+  resume(id: string): Promise<void>;
+  /** Archive a finished or abandoned software: kept, hidden, restorable; never deleted. */
+  archive(id: string): Promise<void>;
+  restore(id: string): Promise<void>;
+}
+
+/** The short summary across every software (decision 0197). */
+export interface SummaryService {
+  view(): Promise<SummaryView>;
+  /** You looked at the summary up to this event. */
+  markSeen(upTo: number): Promise<void>;
 }
 
 /** The operator's say over one piece of work's sizing (decision 0184). */
@@ -146,4 +161,5 @@ export interface SessionServices {
   /** Absent until the runner is wired in. */
   runs?: RunService;
   activity: ActivityService;
+  summary: SummaryService;
 }

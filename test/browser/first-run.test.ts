@@ -264,8 +264,9 @@ describe("first run, in a browser", () => {
       secondName,
     );
 
-    // Picking the first software, then refreshing, stays on the first.
-    await page.locator("button.software-pick").first().click();
+    // Picking the other software, then refreshing, stays on it. (What waits on you is listed
+    // first, so the other one is not necessarily first in the list.)
+    await page.locator('button.software-pick:not([aria-current="true"])').first().click();
     const firstName = (await page.getByRole("heading", { level: 1 }).first().textContent())!;
     expect(firstName).not.toBe(secondName);
     await page.reload();

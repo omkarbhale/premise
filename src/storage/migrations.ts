@@ -438,6 +438,15 @@ export const MIGRATIONS: readonly Migration[] = [
       CREATE INDEX claims_software ON claims(software_id, status);
     `,
   },
+  {
+    version: 12,
+    name: "several softwares: pausing and archiving a software",
+    sql: `
+      ALTER TABLE softwares ADD COLUMN paused_at TEXT;
+      ALTER TABLE softwares ADD COLUMN paused_why TEXT;
+      ALTER TABLE softwares ADD COLUMN archived_at TEXT;
+    `,
+  },
 ];
 
 export const CURRENT_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;
