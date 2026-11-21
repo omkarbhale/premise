@@ -494,6 +494,7 @@ export class Measures {
     // Reported as working, came back as a bug.
     const { misses, reportedWorking } = this.checkerMisses();
     const mineMisses = misses.filter((m) => mine(m.softwareId));
+    const missedItems = new Set(mineMisses.map((m) => `${m.softwareId}/${m.item}`)).size;
     const reported = [...reportedWorking.entries()]
       .filter(([id]) => mine(id))
       .reduce((n, [, items]) => n + items.size, 0);
@@ -502,16 +503,16 @@ export class Measures {
       key: "checker-misses",
       label: "Reported working, came back as a bug",
       value: missEnough
-        ? `${mineMisses.length} of ${reported} (${Math.round((mineMisses.length / reported) * 100)}%)`
+        ? `${missedItems} of ${reported} (${Math.round((missedItems / reported) * 100)}%)`
         : NOT_ENOUGH,
       enough: missEnough,
       events: reported,
       counts: missEnough
-        ? `${mineMisses.length} of the ${plural(reported, "thing")} premise's check said were met later came back as a bug.`
+        ? `${missedItems} of the ${plural(reported, "thing")} premise's check said were met later came back as a bug.`
         : reported === 0
           ? `No check has said anything works yet; a rate needs at least ${min} things checked as met.`
-          : `${mineMisses.length} of ${plural(reported, "thing")} premise's check said ${reported === 1 ? "was" : "were"} met came back as a bug; a rate needs at least ${min}.`,
-      how: 'Of the record items whose check said "met", how many an intake item triaged as a bug later touched while that was still the latest check. Each such bug is a miss by premise\'s check.',
+          : `${missedItems} of ${plural(reported, "thing")} premise's check said ${reported === 1 ? "was" : "were"} met came back as a bug; a rate needs at least ${min}.`,
+      how: 'Of the record items whose check said "met", how many an intake item triaged as a bug later touched while that was still the latest check. Each bug is listed as a miss; an item touched by several bugs counts once in the rate.',
     });
 
     // Agent sessions per change.

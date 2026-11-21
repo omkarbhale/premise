@@ -166,6 +166,7 @@ describe("the measures, from a scripted history", () => {
     for (const item of ["W-1", "W-2", "W-3", "W-4", "W-5"]) verdict(db, id, 110, item, "met");
     verdict(db, id, 111, "W-3", "not-met");
     intakeItem(db, id, 3, { kind: "bug", received: 119, triaged: 120, touches: ["W-2"] });
+    intakeItem(db, id, 6, { kind: "bug", received: 119, triaged: 120, touches: ["W-2"] });
     intakeItem(db, id, 4, { kind: "bug", received: 119, triaged: 120, touches: ["W-3"] });
     intakeItem(db, id, 5, { kind: "bug", received: 119, triaged: 120, touches: ["W-9"] });
     // A bug triaged before the item was ever met is not a miss either.
@@ -232,6 +233,7 @@ describe("the measures, from a scripted history", () => {
     expect(misses.counts).toContain("1 of the 5 things");
     expect(view.misses).toEqual([
       expect.objectContaining({ intake: "I-3", item: "W-2", softwareId: id }),
+      expect.objectContaining({ intake: "I-6", item: "W-2", softwareId: id }),
     ]);
 
     expect(figure(view, "sessions").value).toBe("1.5 on average");

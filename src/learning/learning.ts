@@ -909,23 +909,24 @@ export class Learning implements LessonSource {
         }[]
       ).map((r) => [r.correction_id, r.id]),
     );
-    const ended = (
-      this.db
-        .prepare(
-          "SELECT * FROM lessons WHERE state != 'live' ORDER BY ended DESC, id DESC LIMIT 10",
-        )
-        .all() as unknown as LessonRow[]
-    )
-      .filter(
-        (l) => softwareId === null || l.software_id === softwareId || l.destination === "taste",
-      )
-      .map((l): EndedLessonView => ({
-        label: label(l.id),
-        text: l.text,
-        destination: l.destination,
-        note: l.end_note ?? "",
-        ended: l.ended ?? l.created,
-      }));
+    const ended = (softwareId === null
+      ? this.db
+          .prepare(
+            "SELECT * FROM lessons WHERE state != 'live' ORDER BY ended DESC, id DESC LIMIT 10",
+          )
+          .all()
+      : this.db
+          .prepare(
+            "SELECT * FROM lessons WHERE state != 'live' AND (software_id = ? OR destination = 'taste') ORDER BY ended DESC, id DESC LIMIT 10",
+          )
+          .all(softwareId)) as unknown as LessonRow[];
+    const endedViews = ended.map((l): EndedLessonView => ({
+      label: label(l.id),
+      text: l.text,
+      destination: l.destination,
+      note: l.end_note ?? "",
+      ended: l.ended ?? l.created,
+    }));
     return {
       softwareId,
       explain: {
