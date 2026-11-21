@@ -68,9 +68,10 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
   );
   for (const item of sinceLast) {
     const priority = item.marks.priority ? `${item.marks.priority}: ` : "";
+    const tag = item.marks.priority ? ` (${item.marks.priority})` : "";
     decided.push({
       text: item.marks.leftOut
-        ? `Left out, not built: ${item.id}${priority}: ${sentence(item.text)} You chose to leave it out; bring it back by saying so in chat.`
+        ? `Left out, not built: ${item.id}${tag}: ${sentence(item.text)} To build it after all, send the software back to What on the Line tab; premise asks how much to build again.`
         : `${priority}${sentence(item.text)}`,
       evidence: `record item ${item.id}, ${item.file}`,
     });
