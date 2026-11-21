@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { loadConfig } from "../src/config/load.js";
 import { Gate, GateError } from "../src/gate/gate.js";
 import { getAsk } from "../src/storage/asks.js";
-import { type Database, openDatabase } from "../src/storage/database.js";
+import { type Database, openDatabase, transaction } from "../src/storage/database.js";
 import { createSoftware } from "../src/storage/softwares.js";
 import { tempFolder, testConfig } from "./helpers.js";
 
@@ -124,6 +124,67 @@ describe("gate", () => {
     expect(third.status).toBe("asked");
     await gate.idle();
     expect(gate.get(second.id)!.status).toBe("done");
+  });
+
+  it("marks a request left approved as failed on recovery, asks the person, and never performs it", async () => {
+    let calls = 0;
+    gate.registerPerformer("act", async () => {
+      calls++;
+      return { ok: true, outcome: "Did it." };
+    });
+    const request = gate.request({
+      softwareId,
+      kind: "expose",
+      action: "Open port 8080.",
+      why: "x",
+      requestedBy: "t",
+      perform: "act",
+    });
+    gate.decide(request.id, "approve-once");
+    const recovered = gate.recoverInterrupted();
+    await gate.idle();
+    expect(recovered.map((r) => r.id)).toEqual([request.id]);
+    expect(gate.get(request.id)).toMatchObject({ status: "failed" });
+    expect(gate.get(request.id)!.outcome).toMatch(/may be partly done/);
+    const needed = db.prepare("SELECT kind, status FROM asks WHERE kind = 'needed'").all();
+    expect(needed).toEqual([{ kind: "needed", status: "open" }]);
+    expect(gate.recoverInterrupted()).toEqual([]);
+    expect(calls).toBe(0);
+  });
+
+  it("does not perform a covered request made inside a transaction that rolls back", async () => {
+    let calls = 0;
+    gate.registerPerformer("act", async () => {
+      calls++;
+      return { ok: true, outcome: "Did it." };
+    });
+    const first = gate.request({ softwareId, kind: "post", action: "Post a.", why: "x", requestedBy: "t" });
+    gate.answerCard(first.askId!, "approve-kind", "ok");
+    expect(() =>
+      transaction(db, () => {
+        const covered = gate.request({
+          softwareId,
+          kind: "post",
+          action: "Post b.",
+          why: "x",
+          requestedBy: "t",
+          perform: "act",
+        });
+        expect(covered.status).toBe("approved");
+        expect(calls).toBe(0);
+        throw new Error("rollback");
+      }),
+    ).toThrow("rollback");
+    await gate.idle();
+    expect(calls).toBe(0);
+
+    const committed = transaction(db, () =>
+      gate.request({ softwareId, kind: "post", action: "Post c.", why: "x", requestedBy: "t", perform: "act" }),
+    );
+    expect(calls).toBe(0);
+    await gate.idle();
+    expect(calls).toBe(1);
+    expect(gate.get(committed.id)!.status).toBe("done");
   });
 
   it("refuses a decision twice", () => {

@@ -422,6 +422,17 @@ export class Gate {
 
   /** Carry out an approved request with its performer, and record the outcome. */
   private carryOut(request: GateRequest): void {
+    if (this.db.isTransaction) {
+      const deferred = new Promise<void>((resolve) => {
+        setImmediate(() => {
+          const current = this.get(request.id);
+          if (current?.status === "approved") this.carryOut(current);
+          resolve();
+        });
+      }).finally(() => this.performing.delete(deferred));
+      this.performing.add(deferred);
+      return;
+    }
     const performer = request.perform ? this.performers.get(request.perform) : undefined;
     if (!performer) {
       this.finish(request.id, {
@@ -439,6 +450,52 @@ export class Gate {
       .then((result) => this.finish(request.id, result))
       .finally(() => this.performing.delete(done));
     this.performing.add(done);
+  }
+
+  /**
+   * At start-up: a request left approved with no outcome was cut off before it was carried out. It
+   * is marked failed and handed back to the person; premise never repeats a floor action itself.
+   */
+  recoverInterrupted(): GateRequest[] {
+    const rows = this.db
+      .prepare("SELECT * FROM gate_requests WHERE status = 'approved' ORDER BY id")
+      .all() as unknown as RequestRow[];
+    const recovered: GateRequest[] = [];
+    for (const row of rows) {
+      const request = fromRequestRow(row);
+      const software = getSoftware(this.db, request.softwareId);
+      const outcome =
+        "premise stopped before this was carried out, so it may be partly done. Check whether it happened; if it did not, ask again to redo it.";
+      transaction(this.db, () => {
+        this.db
+          .prepare("UPDATE gate_requests SET status = 'failed', outcome = ? WHERE id = ?")
+          .run(outcome, request.id);
+        recordEvent(this.db, {
+          softwareId: request.softwareId,
+          module: "gate",
+          kind: "gate-failed",
+          reference: String(request.id),
+          detail: { outcome },
+        });
+        if (!software) return;
+        createAsk(this.db, {
+          softwareId: request.softwareId,
+          role: request.role,
+          kind: "needed",
+          stage: software.currentStage,
+          title: "An approved action was cut off",
+          instruction: `You approved this, but ${outcome} The action was: ${request.action}`,
+          extra: { meta: { gateRequest: request.id } },
+        });
+        addChatMessage(this.db, {
+          softwareId: request.softwareId,
+          author: "premise",
+          text: `premise stopped before it carried out something you approved, so it may be partly done: ${request.action} Check it, and ask again if it needs redoing.`,
+        });
+      });
+      recovered.push(this.get(request.id)!);
+    }
+    return recovered;
   }
 
   private finish(id: number, result: PerformResult): void {

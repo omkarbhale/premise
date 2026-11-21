@@ -147,6 +147,7 @@ export async function start(
     queue,
     services,
     agents,
+    gate,
     runner: runs,
   } = createSession({
     db,
@@ -169,6 +170,7 @@ export async function start(
   });
   runs.recoverStale();
   made.queue = queue;
+  gate.recoverInterrupted();
   const recovered = queue.recover();
   if (recovered.length > 0) {
     print(`Resumed ${recovered.length} job(s) that were cut off when premise last stopped.`);
