@@ -215,7 +215,7 @@ export class Runner {
     return {
       softwareId,
       state: row.status,
-      plain: `${plains[row.status]}${row.status === "running" || row.status === "starting" ? "" : ""}`,
+      plain: plains[row.status],
       kind: row.kind,
       commit: short,
       link: row.status === "running" ? row.link : null,
@@ -376,6 +376,7 @@ export class Runner {
         });
       }
     } catch (error) {
+      if (live.stopping) return this.view(softwareId);
       this.live.delete(softwareId);
       this.killTree(live);
       const message = (error as Error).message;

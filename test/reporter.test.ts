@@ -65,6 +65,16 @@ function verdict(softwareId: string, item: string, v: string, evidence: string) 
   });
 }
 
+function verdictAt(softwareId: string, item: string, v: string, commit: string) {
+  recordEvent(db, {
+    softwareId,
+    module: "checker",
+    kind: "verdict",
+    reference: item,
+    detail: { verdict: v, evidence: "Seen.", commit },
+  });
+}
+
 function allLines(view: ReportView) {
   return view.sections.flatMap((s) => s.lines);
 }
@@ -181,6 +191,31 @@ describe("a report from recorded facts", () => {
     expect(
       allLines(view).some((l) => /works|met/.test(l.text) && !l.text.includes("Nothing")),
     ).toBe(false);
+  });
+
+  it("treats a verdict recorded for an older commit as not checked at this version", async () => {
+    const s = makeSoftware(db, config, "Greeter", FILES, ["W-1", "W-2"]);
+    const first = s.git.headCommit(s.repo)!;
+    verdictAt(s.id, "W-1", "met", first);
+    verdictAt(s.id, "W-2", "met", first);
+    const before = await gatherFacts(
+      { db, config, records: new RecordKeeper({ db, config }), runner, ledger: new MockUsageLedger("mock-fixed", 1) },
+      s.id,
+    );
+    expect(draftReleaseNotes(before, first)).toContain("People can open the page");
+    s.commit({ "extra.txt": "x" }, ["W-1"]);
+    const view = await reporter.view(s.id);
+    const lines = section(view, "Failed or not checked");
+    const stale = lines.find((l) => l.includes("W-1"))!;
+    expect(stale).toContain("Not checked at this version");
+    expect(stale).toContain(first.slice(0, 7));
+    expect(stale).toContain("met");
+    const after = await gatherFacts(
+      { db, config, records: new RecordKeeper({ db, config }), runner, ledger: new MockUsageLedger("mock-fixed", 1) },
+      s.id,
+    );
+    const head = s.git.headCommit(s.repo)!;
+    expect(draftReleaseNotes(after, head)).toBeNull();
   });
 
   it("refuses an unknown software with a plain message", async () => {

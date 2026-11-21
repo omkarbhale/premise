@@ -17,6 +17,11 @@ export interface BuildOptions {
 
 const SHORT = (sha: string) => sha.slice(0, 7);
 
+function checkedAt(verdictCommit: string | null, current: string | undefined): boolean {
+  if (!verdictCommit || !current) return true;
+  return verdictCommit.startsWith(current) || current.startsWith(verdictCommit);
+}
+
 function sentence(text: string): string {
   const t = text.trim();
   return /[.!?]$/.test(t) ? t : `${t}.`;
@@ -37,6 +42,7 @@ interface Section {
 export function buildReport(facts: Facts, options: BuildOptions): ReportView {
   const verdictOf = new Map(facts.verdicts.map((v) => [v.item, v]));
   const itemById = new Map(facts.items.map((i) => [i.id, i]));
+  const current = facts.runs[0]?.commit ?? facts.commits[0]?.sha;
   const lastDay = facts.lastReport?.slice(0, 10) ?? null;
 
   // ---- Decided -----------------------------------------------------------------------------
@@ -151,6 +157,11 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
       failed.push({
         text: `Not checked: ${item.id} ${sentence(item.text)} No check has looked at it, so it is not known to work.`,
         evidence: `record item ${item.id}`,
+      });
+    } else if (!checkedAt(verdict.commit, current)) {
+      failed.push({
+        text: `Not checked at this version: ${item.id} ${sentence(item.text)} It was last checked at an earlier version (${SHORT(verdict.commit!)}) and the result then was: ${verdict.verdict === "met" ? "met" : verdict.verdict === "not-met" ? "not met" : "could not be checked"}.`,
+        evidence: `check of ${item.id}`,
       });
     } else if (verdict.verdict === "not-met") {
       failed.push({
@@ -280,7 +291,9 @@ export function draftReleaseNotes(facts: Facts, commit: string): string | null {
     (i) =>
       i.kind === "W" &&
       served.has(i.id) &&
-      facts.verdicts.find((v) => v.item === i.id)?.verdict === "met",
+      facts.verdicts.some(
+        (v) => v.item === i.id && v.verdict === "met" && checkedAt(v.commit, commit),
+      ),
   );
   if (met.length === 0) return null;
   return [

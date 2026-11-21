@@ -231,6 +231,23 @@ describe("a web software", () => {
     await expect(runner.start(s.id)).rejects.toThrow(/stopped by itself right after starting/);
   });
 
+  it("keeps a deliberate stop while starting as stopped, not failed", async () => {
+    const s = makeSoftware(db, config, "Slow", {
+      "server.js": "setTimeout(() => require('http').createServer((q, r) => r.end('ok')).listen(Number(process.env.PORT), '127.0.0.1'), 5000);",
+      "premise/run.md": runBlock(["kind: web", "start: node server.js"]),
+    });
+    const starting = runner.start(s.id);
+    for (let i = 0; i < 100 && runner.view(s.id).state !== "starting"; i++) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    await new Promise((r) => setTimeout(r, 300));
+    await runner.stop(s.id);
+    await starting.catch(() => undefined);
+    expect(runner.view(s.id).state).toBe("stopped");
+    const kinds = (db.prepare("SELECT kind FROM events WHERE module = 'runner' ORDER BY id").all() as { kind: string }[]).map((e) => e.kind);
+    expect(kinds).not.toContain("failed");
+  });
+
   it("fails with a way to fix it when there is no run.md", async () => {
     const s = makeSoftware(db, config, "Bare", { "readme.txt": "hi" });
     await expect(runner.start(s.id)).rejects.toThrow(/has no premise\/run\.md/);
