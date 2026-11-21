@@ -178,11 +178,10 @@ describe("first run, in a browser", () => {
 
     // premise stops after what was asked for: what follows is only its own additions.
     await page.getByRole("button", { name: /^Waiting on you/ }).click();
-    const reached = card(page, "M-1 reached: go on?");
+    const reached = card(page, /^Milestone reached: .+Go on\?$/);
     await reached.waitFor({ timeout: 20_000 });
     await shot(page, "07b-first-milestone-reached");
     await reached.getByRole("button", { name: "Go on" }).click();
-    await reached.getByRole("button", { name: "Answer" }).click();
 
     await page.getByRole("button", { name: /^Softwares/ }).click();
     await page
