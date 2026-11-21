@@ -146,6 +146,7 @@ export function createSession(options: {
       sendBack: (id, stage) => engine.sendBack(id, stage),
       setSize: (id, size) => engine.setSize(id, size),
       setPriority: (id, priority) => engine.setPriority(id, priority),
+      setEffort: (id, effort) => engine.setEffort(id, effort),
       setMilestoneWait: (id, milestone, wait) => engine.setMilestoneWait(id, milestone, wait),
       withdrawApproval: (id) => engine.withdrawApproval(id),
     },

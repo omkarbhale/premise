@@ -302,6 +302,7 @@ export class WorkQueue {
         typeof job.payload.repository === "string"
           ? job.payload.repository
           : (software?.repository ?? undefined);
+      const trace = typeof job.payload.trace === "string" ? job.payload.trace : undefined;
       const resumeSessionId = this.cutOffSession(job.id);
       // A stage's effort budget can be smaller than the task's own limits (decision 0085).
       const limits = (job.payload.limits ?? {}) as { turns?: unknown; minutes?: unknown };
@@ -328,6 +329,7 @@ export class WorkQueue {
           brief,
           ...(repository ? { repository } : {}),
           ...(ref ? { ref } : {}),
+          ...(trace ? { trace } : {}),
           ...(resumeSessionId ? { resumeSessionId } : {}),
           ...(context ? { context } : {}),
         },

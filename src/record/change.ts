@@ -36,8 +36,11 @@ export type Operation =
       wait?: boolean;
     }
   | { op: "strike"; id: string; reason: string }
-  /** Change a mark that is not the item's meaning: a milestone's wait, or a say-back's confirmation. */
-  | { op: "mark"; id: string; wait?: boolean; confirmed?: boolean };
+  /**
+   * Change a mark that is not the item's meaning: a milestone's wait, a say-back's confirmation, or
+   * whether the operator left a What item out of what is built (the scope check, decision 0191).
+   */
+  | { op: "mark"; id: string; wait?: boolean; confirmed?: boolean; leftOut?: boolean };
 
 /** Who proposes. A builder may only add decisions (docs/specs/agent-tools.md). */
 export interface Proposer {
@@ -265,10 +268,30 @@ export function applyOperations(
         if (operation.wait !== undefined && old.kind !== "M") {
           return refuse("MALFORMED", `${at}: only a milestone (M) has a wait mark.`);
         }
-        if (operation.wait === undefined && operation.confirmed === undefined) {
-          return refuse("MALFORMED", `${at}: say which mark to change: wait or confirmed.`);
+        if (operation.leftOut !== undefined && context.proposer?.agentRole) {
+          return refuse(
+            "NOT_ALLOWED",
+            `${at}: only the operator leaves an item out of what is built, or brings it back, at the scope check.`,
+          );
+        }
+        if (operation.leftOut !== undefined && old.kind !== "W") {
+          return refuse("MALFORMED", `${at}: only a W item can be left out of what is built.`);
+        }
+        if (
+          operation.wait === undefined &&
+          operation.confirmed === undefined &&
+          operation.leftOut === undefined
+        ) {
+          return refuse(
+            "MALFORMED",
+            `${at}: say which mark to change: wait, confirmed or left-out.`,
+          );
         }
         const marks: Marks = { ...old.marks };
+        if (operation.leftOut !== undefined) {
+          if (operation.leftOut) marks.leftOut = true;
+          else delete marks.leftOut;
+        }
         if (operation.wait !== undefined) {
           if (operation.wait) marks.wait = true;
           else delete marks.wait;

@@ -11,7 +11,7 @@ import type {
   SoftwareDetail,
   SoftwareSummary,
 } from "../shared/api-types.js";
-import type { SizeClass, StageId } from "../shared/stages.js";
+import type { SizeClass, SoftwareEffort, StageId } from "../shared/stages.js";
 
 /**
  * What the page server needs from the rest of premise, as small interfaces (docs/specs/page-server.md
@@ -37,6 +37,8 @@ export interface StartSoftwareInput {
   idea: string;
   /** Optional; made from the idea when missing. */
   name?: string;
+  /** How much effort it gets; the configured default when missing (decision 0191). */
+  effort?: SoftwareEffort;
 }
 
 /** Bring in software that already exists (decision 0189). */
@@ -59,6 +61,8 @@ export interface SoftwareService {
   sendBack(id: string, stage: StageId): Promise<void>;
   setSize(id: string, size: SizeClass): Promise<void>;
   setPriority(id: string, priority: number): Promise<void>;
+  /** How much effort it gets: low, medium or high (decision 0191). */
+  setEffort(id: string, effort: SoftwareEffort): Promise<void>;
   /** Stop, or not, after one of the software's milestones until the operator says go on. */
   setMilestoneWait(id: string, milestoneId: string, wait: boolean): Promise<void>;
   /** Withdraw a standing approval for a kind of floor action. */

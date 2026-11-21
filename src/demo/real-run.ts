@@ -8,7 +8,7 @@ import { envNameFor } from "../config/load.js";
 import { type Running, start } from "../server/start.js";
 import type { AskView } from "../shared/api-types.js";
 import { listChatMessages } from "../storage/chat.js";
-import type { OperatorAnswer } from "./demos.js";
+import { type OperatorAnswer, scopeAsIs, scopeWords } from "./demos.js";
 
 /**
  * One real run (decision 0187): a tiny command-line software taken through the whole line by real
@@ -47,6 +47,7 @@ export function realRunOperator(): (ask: AskView) => OperatorAnswer {
   const tried = new Map<string, number>();
   return (ask) => {
     if (ask.kind === "approval") return { kind: "approval", decision: "refuse" };
+    if (ask.kind === "scope") return scopeAsIs(ask);
     if (ask.items.length > 0 && (ask.kind === "draft" || ask.kind === "say-back")) {
       return { kind: "items", items: ask.items.map((i) => ({ key: i.key, decision: "keep" })) };
     }
@@ -147,7 +148,9 @@ export async function realRun(options: {
             ? answer.text
             : answer.kind === "approval"
               ? "No"
-              : "kept every item";
+              : answer.kind === "scope"
+                ? scopeWords(answer)
+                : "kept every item";
         print(`operator, to "${ask.title}": ${words}`);
         answered.push(`${ask.title} → ${words}`);
         try {

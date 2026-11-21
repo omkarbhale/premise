@@ -321,6 +321,7 @@ export class Intake implements IntakeHooks {
           touches: [],
           size: "small",
           touchesFloor: false,
+          changesWhat: true,
           route: "in-normally",
           reason: `Not triaged: ${why}, so it goes in normally, premise's default. The sizer decides what it needs.`,
           joins: null,
@@ -345,6 +346,7 @@ export class Intake implements IntakeHooks {
       touches: result.touches,
       size: result.size,
       touchesFloor: result.touchesFloor,
+      changesWhat: result.changesWhat,
       route: result.route,
       reason,
       routedBy: by,
@@ -422,6 +424,7 @@ export class Intake implements IntakeHooks {
         .join("\n"),
       purpose,
       kind: item.kind ?? "wish",
+      changesWhat: item.kind === "bug" ? false : (item.changesWhat ?? true),
     });
     setIntakeItem(this.db, item.id, {
       workItemId: work.id,
@@ -556,7 +559,11 @@ export class Intake implements IntakeHooks {
       // Taken in by the operator, it is work: a bug or a change of purpose stays what it is, and
       // anything else (noise, a duplicate, an opinion, a question) becomes a wish.
       const kind = item.kind === "bug" || item.kind === "change-of-purpose" ? item.kind : "wish";
-      setIntakeItem(this.db, item.id, { kind });
+      // What it would add is not in the record yet, so What is confirmed once with the operator.
+      setIntakeItem(this.db, item.id, {
+        kind,
+        ...(kind === "wish" && item.kind !== "wish" && { changesWhat: true }),
+      });
       const fresh = getIntakeItem(this.db, item.id)!;
       this.toLine(fresh, kind === "change-of-purpose");
       this.say(

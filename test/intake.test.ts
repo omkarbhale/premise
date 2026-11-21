@@ -185,7 +185,7 @@ describe("intake in a thin form", () => {
     const work = detail.work.find((w) => w.id === bug.workItemId)!;
     expect(work).toMatchObject({
       kind: "intake",
-      origin: "intake",
+      origin: "bug",
       state: "done",
       stages: ["build", "check", "run", "report"],
     });
@@ -211,7 +211,7 @@ describe("intake in a thin form", () => {
     expect(said.at(-1)).toContain("Back at Intake");
   });
 
-  it("takes a wish through What and a say-back before building it", async () => {
+  it("takes a wish that changes what it must do through one confirm of What, then builds it", async () => {
     const app = await testApp(
       {},
       {
@@ -233,16 +233,16 @@ describe("intake in a thin form", () => {
     const drafter = app.runner.requests.filter((r) => r.taskKind === "draft").at(-1)!;
     expect(drafter.brief).toContain("the intake item I-1, a change to the software");
 
+    // One plain confirm, and no say-back after it (decision 0192).
+    expect(what.title).toMatch(/^This changes what it must do; confirm to change it/);
     await keepAll(app, what);
-    const sayBack = (await openAsks(app, id))[0]!;
-    expect(sayBack.kind).toBe("say-back");
-    await keepAll(app, sayBack);
+    expect(await openAsks(app, id)).toEqual([]);
 
     const wish = await item(app, id, "I-1");
     expect(wish.status).toBe("running");
     const work = (await softwareDetail(app, id)).work.find((w) => w.id === wish.workItemId)!;
-    expect(work.stages).toEqual(["what", "say-back", "build", "check", "run", "report"]);
-    expect(work.sizing!.stages.reason).toContain("Say back was added");
+    expect(work.origin).toBe("change");
+    expect(work.stages).toEqual(["what", "build", "check", "run", "report"]);
   });
 
   it("asks the operator about a change of purpose, and takes it back to Why when confirmed", async () => {
@@ -381,9 +381,8 @@ describe("intake in a thin form", () => {
     await app.settle();
     const back = await item(app, id, "I-3");
     expect(back).toMatchObject({ route: "in-normally", routedBy: "operator", canUndo: false });
-    // Taken in by the operator, noise becomes a wish: drafted at What, said back, then built.
+    // Taken in by the operator, noise becomes a wish: its change to What is confirmed once, then built.
     expect(back.kind).toBe("wish");
-    await keepAll(app, (await openAsks(app, id))[0]!);
     await keepAll(app, (await openAsks(app, id))[0]!);
     expect((await item(app, id, "I-3")).status).toBe("running");
     expect(back.reason).toContain("You took it in (it was closed)");
@@ -392,7 +391,6 @@ describe("intake in a thin form", () => {
     expect(unmerge.status).toBe(200);
     await app.settle();
     expect((await item(app, id, "I-2")).joins).toBeNull();
-    await keepAll(app, (await openAsks(app, id))[0]!);
     await keepAll(app, (await openAsks(app, id))[0]!);
 
     // A running item cannot be undone.

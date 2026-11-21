@@ -111,7 +111,9 @@ const sayBack: ScriptBehaviour = (_request, call) => {
   const read = call("record_read", {});
   const lines = (
     (read.result as { lines?: { id: string; line: string }[] } | undefined)?.lines ?? []
-  ).filter((l) => /^[YUWE]-/.test(l.id) && !/Outcome:/.test(l.line));
+  ).filter(
+    (l) => /^[YUWE]-/.test(l.id) && !/Outcome:/.test(l.line) && !l.line.includes("left-out"),
+  );
   const assumed = lines.filter((l) => l.line.includes("from: assumed"));
   const said = lines.filter((l) => !l.line.includes("from: assumed"));
   const picked = [...assumed, ...said].slice(0, 10);
@@ -143,9 +145,13 @@ const research: ScriptBehaviour = (_request, call) => {
 
 const plan: ScriptBehaviour = (_request, call) => {
   const read = call("record_read", { items: ["what.md"] });
-  const firstMust = (
+  const lines = (
     (read.result as { lines?: { id: string; line: string }[] } | undefined)?.lines ?? []
-  ).find((l) => l.line.includes("must"));
+  ).filter((l) => l.id.startsWith("W-") && !l.line.includes("left-out"));
+  // Milestone 1 is what was asked for (the musts); premise's additions the operator kept come in
+  // milestone 2 (decision 0191). Each task serves outcomes of its own.
+  const first = lines.filter((l) => /\(must;/.test(l.line)).map((l) => l.id);
+  const later = lines.filter((l) => !/\(must;/.test(l.line)).map((l) => l.id);
   call("draft_submit", {
     stage: "plan",
     items: [
@@ -165,15 +171,14 @@ const plan: ScriptBehaviour = (_request, call) => {
       },
     ],
     milestones: [
-      { text: "The smallest version that runs and does the first must item." },
-      { text: "Everything else the record says it must do." },
+      { text: "What you asked for: the smallest version that runs." },
+      ...(later.length ? [{ text: "What premise recommended and you kept." }] : []),
     ],
     tasks: [
-      {
-        title: "The smallest version that runs, with run.md",
-        items: firstMust ? [firstMust.id] : [],
-      },
-      { title: "The remaining must items, one at a time", items: [] },
+      { title: "The smallest version that runs, with run.md", items: first, milestone: 1 },
+      ...(later.length
+        ? [{ title: "premise's additions you kept", items: later, milestone: 2 }]
+        : []),
     ],
   });
 };

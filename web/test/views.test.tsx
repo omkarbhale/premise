@@ -55,7 +55,7 @@ describe("first run", () => {
       "Write a sentence or two about it.",
     );
     await user.click(screen.getByRole("button", { name: "Start" }));
-    expect(start).toHaveBeenLastCalledWith("A reading list", undefined);
+    expect(start).toHaveBeenLastCalledWith("A reading list", undefined, undefined);
   });
 
   it("shows the open asks in the tab title", async () => {

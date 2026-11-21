@@ -27,7 +27,15 @@ export interface IntakeLine {
    */
   takeWork(
     softwareId: string,
-    work: { ref: string; title: string; words: string; purpose: boolean; kind: string },
+    work: {
+      ref: string;
+      title: string;
+      words: string;
+      purpose: boolean;
+      kind: string;
+      /** Whether it changes what the software must do; a bug never does (decision 0192). */
+      changesWhat?: boolean;
+    },
   ): WorkItem;
   /** Send the whole software back to Why, with the operator (a reading's short list). */
   backToWhy(softwareId: string): Promise<void>;

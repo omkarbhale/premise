@@ -1,5 +1,13 @@
 import { execFile } from "node:child_process";
-import { appendFileSync, cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import {
+  appendFileSync,
+  chmodSync,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { SANDBOX_PLACEHOLDERS } from "./claude-settings.js";
@@ -21,6 +29,36 @@ export interface WorkingCopyRequest {
   ref?: string | undefined;
   /** Keep what is already there: the session carries on a cut-off one. */
   reuse: boolean;
+  /**
+   * For a builder: the exact trace trailer line, such as "Premise-Trace: W-1, D-2". A commit-msg
+   * hook adds it to any commit message that names no trace, so it is hard to leave out (0192).
+   */
+  trace?: string;
+}
+
+/** A trailer line safe to put in a shell script: "Name: W-1, D-2", nothing else. */
+const TRACE_LINE = /^[A-Za-z][A-Za-z0-9-]*: [A-Z]-[1-9]\d*(, [A-Z]-[1-9]\d*)*$/;
+
+/**
+ * Install the commit-msg hook that adds the task's trace trailer when a message names none. It runs
+ * in the agent's own git, inside its confinement; the server still checks every commit (0083).
+ */
+export function installTraceHook(path: string, trace: string): void {
+  if (!TRACE_LINE.test(trace)) return;
+  const name = trace.slice(0, trace.indexOf(":"));
+  const hook = join(path, ".git", "hooks", "commit-msg");
+  mkdirSync(join(path, ".git", "hooks"), { recursive: true });
+  writeFileSync(
+    hook,
+    [
+      "#!/bin/sh",
+      "# Placed by premise: names the record items this task serves when the message names none.",
+      `grep -qi '^${name}:' "$1" && exit 0`,
+      `git interpret-trailers --in-place --trailer '${trace}' "$1"`,
+      "",
+    ].join("\n"),
+  );
+  chmodSync(hook, 0o755);
 }
 
 export interface WorkingCopy {
@@ -93,6 +131,7 @@ export async function prepareWorkingCopy(request: WorkingCopyRequest): Promise<W
   await git(join(path, ".."), ["clone", "--quiet", "--no-hardlinks", request.repository!, path]);
   if (request.ref) await git(path, ["checkout", "--quiet", "--detach", request.ref]);
   if (branch) await git(path, ["checkout", "--quiet", "-b", branch]);
+  if (branch && request.trace) installTraceHook(path, request.trace);
   // Commits are made inside the sandbox, where the owner's git identity is not readable.
   await git(path, ["config", "user.name", "premise agent"]);
   await git(path, ["config", "user.email", "agent@premise.invalid"]);

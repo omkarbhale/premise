@@ -21,6 +21,11 @@ export interface TriageResult {
   touches: Touch[];
   size: "small" | "medium" | "large";
   touchesFloor: boolean;
+  /**
+   * Whether building it changes what the software must do (decision 0192). A bug never does: it is
+   * something the record already requires, not working, and is built and checked straight away.
+   */
+  changesWhat: boolean;
   route: IntakeRoute;
   reason: string;
   /** For a duplicate: the number of the item it joins. */
@@ -88,6 +93,10 @@ export function readTriage(
   if (floor === undefined) problems.push('Give "touches_floor" as yes or no.');
   const reason = text(args.reason, MAX_REASON);
   if (!reason) problems.push('Give "reason": one line on why it goes where it goes.');
+  const changes = args.changes_what === undefined ? undefined : yes(args.changes_what);
+  if (args.changes_what !== undefined && changes === undefined) {
+    problems.push('Give "changes_what" as yes or no.');
+  }
 
   const touches: Touch[] = [];
   const given = args.touches ?? [];
@@ -163,6 +172,13 @@ export function readTriage(
     );
     route = "asked-at-once";
   }
+  let changesWhat = kind === "change-of-purpose" || (kind === "wish" && changes !== false);
+  if (kind === "bug" && changes === true) {
+    notes.push(
+      "premise builds and checks it straight away: a bug is something the record already requires that does not work, so what the software must do stays as it is.",
+    );
+    changesWhat = false;
+  }
   if (route === "held" && kind !== "opinion" && kind !== "wish") {
     notes.push(
       `premise took it in normally: a ${kind} is not held; only opinions and some wishes are.`,
@@ -175,6 +191,7 @@ export function readTriage(
       touches,
       size: size as TriageResult["size"],
       touchesFloor: floor === true,
+      changesWhat,
       route,
       reason,
       joins,

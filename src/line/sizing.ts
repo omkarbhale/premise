@@ -36,6 +36,18 @@ const MILESTONE: readonly StageId[] = ["build", "check", "run", "report"];
  */
 const EXISTING: readonly StageId[] = ["why", "exists", "say-back", "intake"];
 
+/**
+ * An intake item's work, by where it came from (decision 0192): a bug is built and checked straight
+ * away; only a change to what the software must do reopens What, and that one confirm is all it is
+ * asked; other new work is planned and built without reopening What; a change of purpose the
+ * operator confirmed may go through every stage.
+ */
+const INTAKE_ALLOWED: Record<"bug" | "change" | "intake", readonly StageId[]> = {
+  bug: ["build", "check", "run", "report"],
+  change: ["exists", "what", "plan", "build", "check", "run", "report"],
+  intake: ["exists", "plan", "build", "check", "run", "report"],
+};
+
 /** The stages a piece of this kind may go through. */
 export function allowedStages(piece: Piece): readonly StageId[] {
   if (piece.origin === "existing") return EXISTING;
@@ -43,7 +55,12 @@ export function allowedStages(piece: Piece): readonly StageId[] {
   if (piece.origin === "recover") return ["why"];
   if (piece.parentId === null) return STAGE_IDS;
   if (piece.kind === "milestone") return MILESTONE;
-  if (piece.kind === "intake") return STAGE_IDS.filter((s) => s !== "intake");
+  if (piece.kind === "intake") {
+    if (piece.origin === "bug" || piece.origin === "change" || piece.origin === "intake") {
+      return INTAKE_ALLOWED[piece.origin];
+    }
+    return STAGE_IDS.filter((s) => s !== "intake");
+  }
   // A part of a split piece, or a fix: built and checked on its own. Running it and reporting on it
   // is the whole piece's, once every part is done and the whole is checked.
   return EARLY_AND_BUILD;
@@ -63,7 +80,9 @@ export function requiredStages(piece: Piece): readonly StageId[] {
     // An intake item's change runs and is reported on (decision 0098); a change of purpose the
     // operator confirmed goes back to Why, and is said back before it is built (decision 0185).
     const runs: StageId[] = ["build", "check", "run", "report"];
-    return piece.origin === "purpose" ? ["why", "say-back", ...runs] : runs;
+    if (piece.origin === "purpose") return ["why", "say-back", ...runs];
+    if (piece.origin === "change") return ["what", ...runs];
+    return runs;
   }
   // Every piece is checked by an agent that did not build it (decision 0030).
   return ["build", "check"];
@@ -159,6 +178,7 @@ const EXISTING_REQUIRED_WHY: Partial<Record<StageId, string>> = {
 
 /** Why an intake item's work always has a stage, when the reason differs from the general one. */
 const INTAKE_REQUIRED_WHY: Partial<Record<StageId, string>> = {
+  what: "it changes what the software must do, so you confirm the change once before it is built.",
   why: "a change of what the software is for goes back to Why with you.",
   "say-back": "a change of what the software is for is said back before it is built.",
   run: "an intake item's change runs on this machine, so you can see it fixed.",
@@ -275,7 +295,11 @@ export function pieceWords(piece: Piece): string {
     case "intake":
       return piece.origin === "purpose"
         ? "a change of what the software is for, which the operator confirmed; it goes back to Why"
-        : "one item of new work that came in through intake (a bug, a wish, or another change)";
+        : piece.origin === "bug"
+          ? "a bug report: something the record already requires does not work; it is built and checked straight away"
+          : piece.origin === "change"
+            ? "new work that changes what the software must do; the operator confirms the changed What once, then it is planned and built"
+            : "new work that came in through intake and does not change what the software must do";
     default:
       return piece.origin === "fix"
         ? "a fix for what the check of a whole piece found"

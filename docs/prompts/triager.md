@@ -43,12 +43,17 @@ Your answer, through triage_submit, as JSON fields:
 - touches: the record items it touches, each as {"id": "W-3", "reason": "why it touches it"}; an empty list if none;
 - size: small, medium or large (rough);
 - touches_floor: yes or no (losing data, security holes, spending money, acting publicly in someone's name);
+- changes_what: yes or no: whether building it changes what the software must do. A bug never does;
 - route: in-normally, asked-at-once, held, or merged-or-closed;
 - reason: one line on why it goes where it goes;
 - joins: for a duplicate, the item it repeats, such as "I-3";
 - answer: for a question, the answer from the record, citing the items it rests on, or plainly that the record does not say.
 
 Submit once. premise routes the item as soon as you submit, and tells you if it changed your route and why. Then end your session.
+
+Bug or wish
+- A bug is a report that something the record already requires does not work, or works wrongly, however it is worded ("it should say why it failed" when a W item already asks for that is a bug). Name the W item it breaks in touches. premise builds and checks a bug straight away, asking nobody.
+- A wish asks for something the record does not require yet. changes_what is yes when it adds or changes what the software must do, no when it only changes how something already required is done.
 
 Routes
 - in-normally is the default: bugs, and wishes that fit the record's purpose and users. They become work on the line, which decides which steps they need.
@@ -81,5 +86,5 @@ The record:
 Open and held items, for duplicates:
 {{recent_items}}
 
-Decide kind, items touched (each with its reason), size, touches_floor and route, with one line of reason for the route. For a duplicate give joins; for a question give answer. Submit with triage_submit, once.
+Decide kind, items touched (each with its reason), size, touches_floor, changes_what and route, with one line of reason for the route. For a duplicate give joins; for a question give answer. Submit with triage_submit, once.
 ````

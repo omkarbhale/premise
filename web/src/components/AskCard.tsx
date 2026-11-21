@@ -6,6 +6,9 @@ import {
   type AskView,
   type ItemAnswer,
   NotCurrentLink,
+  type ScopeCut,
+  type ScopePlace,
+  type ScopeTier,
 } from "../api";
 import { useSession } from "../context";
 import { useLoad } from "../hooks";
@@ -100,6 +103,7 @@ export function AskCard({ ask, showSoftware = false }: { ask: AskView; showSoftw
           {ask.kind === "approval" && <ApprovalAnswer ask={ask} busy={busy} onSend={send} />}
           {ask.kind === "needed" && <NeededAnswer busy={busy} onSend={send} />}
           {ask.kind === "proposal" && <ProposalAnswer ask={ask} busy={busy} onSend={send} />}
+          {ask.kind === "scope" && <ScopeAnswer ask={ask} busy={busy} onSend={send} />}
           {problem && <Problem>{problem}</Problem>}
         </>
       ) : (
@@ -586,6 +590,119 @@ function ProposalAnswer({ ask, busy, onSend }: AnswerProps) {
           </button>
         </div>
       )}
+    </>
+  );
+}
+
+const TIER_HEADINGS: Record<ScopeTier, string> = {
+  asked: "What you asked for",
+  recommended: "premise recommends adding",
+  could: "premise could also add",
+};
+
+const PLACE_LABELS: Record<ScopePlace, string> = {
+  first: "First version",
+  later: "Later milestone",
+  out: "Leave out",
+};
+
+/** Where a tier goes under a cut; the same rule as the server's (src/line/scope.ts). */
+function placeFor(tier: ScopeTier, cut: ScopeCut["id"]): ScopePlace {
+  if (tier === "asked") return "first";
+  if (tier === "recommended") return cut === "asked" ? "out" : "later";
+  return cut === "everything" ? "later" : "out";
+}
+
+/** The scope check: one click picks a cut; any item can be moved; one confirm. */
+function ScopeAnswer({ ask, busy, onSend }: AnswerProps) {
+  const scope = ask.scope;
+  const [cut, setCut] = useState<ScopeCut["id"]>(scope?.preselected ?? "recommended");
+  const [moved, setMoved] = useState<Record<string, ScopePlace>>({});
+  const place = (item: AskItem): ScopePlace =>
+    moved[item.key] ?? placeFor(item.tier ?? "asked", cut);
+  const counts = { first: 0, later: 0, out: 0 } as Record<ScopePlace, number>;
+  for (const item of ask.items) counts[place(item)] += 1;
+
+  return (
+    <>
+      {scope && (
+        <fieldset className="scope-cuts">
+          <legend>How much to build</legend>
+          {scope.cuts.map((c) => (
+            <label key={c.id} className={`scope-cut ${cut === c.id ? "chosen" : ""}`}>
+              <input
+                type="radio"
+                name={`scope-${ask.id}`}
+                checked={cut === c.id}
+                onChange={() => {
+                  setCut(c.id);
+                  setMoved({});
+                }}
+              />
+              <strong>{c.label}</strong>{" "}
+              <span className="muted small">
+                about {c.sessions} agent sessions and {c.minutes} minutes
+              </span>
+            </label>
+          ))}
+          <p className="muted small">{scope.estimateNote}</p>
+        </fieldset>
+      )}
+      {(["asked", "recommended", "could"] as const).map((tier) => {
+        const items = ask.items.filter((i) => (i.tier ?? "asked") === tier);
+        if (items.length === 0) return null;
+        return (
+          <section key={tier} className="scope-tier">
+            <h4>{TIER_HEADINGS[tier]}</h4>
+            <ol className="items">
+              {items.map((item) => (
+                <li key={item.key} className={`item item-${place(item)}`}>
+                  <div className="item-text">
+                    <span className="text">
+                      <strong>{item.key}</strong> {item.text}
+                    </span>
+                    <span className={`mark mark-${item.mark}`}>{markLabel(item)}</span>
+                  </div>
+                  <div className="small">
+                    <select
+                      aria-label={`Where ${item.key} goes`}
+                      value={place(item)}
+                      onChange={(e) =>
+                        setMoved((all) => ({ ...all, [item.key]: e.target.value as ScopePlace }))
+                      }
+                    >
+                      {(["first", "later", "out"] as const).map((p) => (
+                        <option key={p} value={p}>
+                          {PLACE_LABELS[p]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </section>
+        );
+      })}
+      <div className="actions">
+        <button
+          type="button"
+          className="primary"
+          disabled={busy || counts.first === 0}
+          onClick={() =>
+            onSend({
+              kind: "scope",
+              items: ask.items.map((item) => ({ key: item.key, place: place(item) })),
+            })
+          }
+        >
+          {busy ? "Sending…" : "Build this much"}
+        </button>
+        <span className="muted small" aria-live="polite">
+          {counts.first} in the first version, {counts.later} later, {counts.out} left out
+          {counts.first === 0 && ". Put at least one item in the first version."}
+        </span>
+      </div>
     </>
   );
 }

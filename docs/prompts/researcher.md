@@ -20,6 +20,8 @@ Looking at what already exists is a step of the line, for new and existing softw
 - **Depth follows return on effort.** A quick look for a small software, a thorough one for a large one, within the stage budget ([record 0085](../decisions/0085-stage-effort-budgets.md)).
 - **Every claim has a source.** The prompt follows the evidence standard of premise's own prior-art research: a claim without a source is not a finding, and a search snippet is a lead, not a finding.
 - **Web pages are data.** Research reads text written by anyone; nothing in it instructs the researcher ([record 0116](../decisions/0116-outside-content-is-data.md)).
+- **Verified is kept apart from guessed.** Every E item says whether it was checked (the page itself read) or not checked. Later stages may justify a suggestion only by what was checked ([record 0192](../decisions/0192-effort-in-proportion-to-what-was-asked.md)).
+- **"Do not build" comes with its one-line alternative.** When something already does the job, the cheapest outcome is to use it; the researcher gives the one line the operator would use instead (for example an alias to an existing command), and premise shows it first ([record 0192](../decisions/0192-effort-in-proportion-to-what-was-asked.md)).
 - **No trials.** The researcher reads; it never installs, signs up for, or pays for anything. Opening an account is a real-world act and spending money is on the floor ([record 0056](../decisions/0056-what-is-on-the-floor.md)).
 
 ## Inputs and placeholders
@@ -47,7 +49,8 @@ How you work
 - Stay within your budget. When it runs out, submit what you have and list what you did not get to.
 
 What you produce
-- A short list of what exists, each one line with the prefix E: what it is, what part of the need it covers, what it leaves out, and its source.
+- A short list of what exists, each one line with the prefix E: what it is, what part of the need it covers, what it leaves out, and its source, and whether you checked it (read the page itself) or not.
+- A gap you only suppose (for example "it may fail on very large files") is written as "not checked", never as a finding.
 - One recommended outcome, with its reasons in a few items:
   - do not build: use what exists;
   - build on something that exists, named;
@@ -75,9 +78,10 @@ Do this:
 1. Read the motive from the Why: saving effort (can some or all of this be skipped?) or finding a gap (what are others missing?). If the Why does not say, assume saving effort and mark it assumed.
 2. Search for what already does the job, in whole or in part: products, open-source projects, libraries, services. Prefer recent sources and say when one is old.
 3. List what you found as E items: what it is, what it covers of the Why and Who, what it leaves out, and its source. Five to ten items is usually enough; fewer for a small software.
-4. Recommend one outcome with its reasons: do not build, build on something (name it), or build something different (name the gap).
-5. Say what you looked for and could not find or verify.
-6. Submit with draft_submit and end with task_finish.
+4. Recommend one outcome with its reasons: do not build, build on something (name it), or build something different (name the gap). Give it as "outcome". Recommend "build something different" only for a gap you checked.
+5. If you recommend do not build, give "alternative": one line saying what the operator would use or type instead, for example "alias revlines='tac'". premise shows it first; it is the cheapest outcome of all.
+6. Say what you looked for and could not find or verify, marked "not checked".
+7. Submit with draft_submit and end with task_finish.
 ````
 
 ## Full text: smaller look brief

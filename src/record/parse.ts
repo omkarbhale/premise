@@ -64,13 +64,16 @@ function parseMarks(
     } else if (token === "wait") {
       if (kind !== "M") fail("only a milestone (M) can be marked wait");
       marks.wait = true;
+    } else if (token === "left-out") {
+      if (kind !== "W") fail("only a W item can be marked left-out");
+      marks.leftOut = true;
     } else if (token.startsWith("confirmed: ")) {
       const when = token.slice(11);
       if (!isDate(when)) fail(`\`confirmed:\` must be a date as YYYY-MM-DD; it is "${when}"`);
       marks.confirmed = when;
     } else {
       fail(
-        `"${token}" is not a mark premise knows. Marks are: must/should/could (for W), from: <role>, replaces: <ID>, foundation (for D), wait (for M), confirmed: <date>, then the date`,
+        `"${token}" is not a mark premise knows. Marks are: must/should/could (for W), from: <role>, replaces: <ID>, foundation (for D), wait (for M), left-out (for W), confirmed: <date>, then the date`,
       );
     }
   }

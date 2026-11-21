@@ -35,10 +35,12 @@ import type {
   WorkItemView,
 } from "../shared/api-types.js";
 import {
+  EFFORT_WORDS,
   SIZE_CLASSES,
   STAGES,
   STAGE_IDS,
   type SizeClass,
+  type SoftwareEffort,
   type StageId,
   isStageId,
   stageName,
@@ -51,7 +53,9 @@ import {
   type Software,
   createSoftware,
   getSoftware,
+  isEffort,
   listSoftwares,
+  setSoftwareEffort,
   setSoftwarePriority,
   setSoftwareSizeClass,
   setSoftwareStage,
@@ -108,6 +112,16 @@ import {
   requiredStages,
   settleStages,
 } from "./sizing.js";
+import {
+  type ScopeChoice,
+  choiceFrom,
+  cutForEffort,
+  placeFor,
+  scopeCuts,
+  scopeTiers,
+  scopeWords,
+} from "./scope.js";
+import { planProblems, waitAfterFirst } from "./plan-checks.js";
 import { StandInWholeCheck, type WholeCheck } from "./whole-check.js";
 import {
   type SizedBy,
@@ -195,6 +209,7 @@ const PROBLEM_CHOICES = ["Try again", "Try again with twice the budget"] as cons
 type AskPurpose =
   | "draft"
   | "exists"
+  | "scope"
   | "say-back"
   | "recovered-say-back"
   | "milestones"
@@ -240,6 +255,8 @@ interface LineState extends ItemNotes {
   proposed?: number[];
   /** Answers people gave to agents' questions, passed to the next brief. */
   answers?: string[];
+  /** What the operator chose at the scope check (decision 0191); none when it was not needed. */
+  scope?: ScopeChoice;
 }
 
 interface StoredPlan {
@@ -343,7 +360,15 @@ export class LineEngine implements IntakeLine {
       stage === "why" && this.isRecovery(item) ? "recover" : STAGE_JOB[stage as EarlyStage].group;
     const base = this.config.line.budgets[group][size];
     const boost = this.state(software.id).boost ?? 1;
-    return { turns: base.turns * boost, minutes: base.minutes * boost };
+    // Effort scales the stages before building (decision 0191).
+    const percent =
+      software.effort === "low"
+        ? this.config.line.low_effort_budget_percent
+        : software.effort === "high"
+          ? this.config.line.high_effort_budget_percent
+          : 100;
+    const scaled = (n: number) => Math.max(1, Math.round((n * percent) / 100));
+    return { turns: scaled(base.turns) * boost, minutes: scaled(base.minutes) * boost };
   }
 
   /** The software's state, on its row. Its work items keep their own states. */
@@ -470,6 +495,7 @@ export class LineEngine implements IntakeLine {
       sizeClass: this.sizeOf(software),
       priority: software.priority,
       milestoneWaits: software.milestoneWaits,
+      effort: software.effort,
       openAsks,
       created: software.created,
       ...(this.isTakingOn(software.id) && { takingOn: true }),
@@ -675,6 +701,9 @@ export class LineEngine implements IntakeLine {
         `That is ${idea.length} characters; keep the first description under ${MAX_IDEA}. You can add detail in chat later.`,
       );
     }
+    if (input.effort !== undefined && !isEffort(input.effort)) {
+      throw new ServiceError("INVALID", "Choose the effort as low, medium or high.");
+    }
     const given = input.name?.trim();
     if (given && given.length > 80) {
       throw new ServiceError("INVALID", "Keep the name under 80 characters.");
@@ -690,7 +719,11 @@ export class LineEngine implements IntakeLine {
     for (let n = 2; taken.has(name.toLowerCase()); n++) name = `${nameFromIdea(idea)} ${n}`;
 
     const software = transaction(this.db, () => {
-      const created = createSoftware(this.db, { name, idea }, this.config.softwares);
+      const created = createSoftware(
+        this.db,
+        { name, idea, ...(input.effort && { effort: input.effort }) },
+        this.config.softwares,
+      );
       addChatMessage(this.db, {
         softwareId: created.id,
         author: "person",
@@ -1563,6 +1596,23 @@ export class LineEngine implements IntakeLine {
     this.queue.tick();
   }
 
+  /**
+   * How much effort the software gets (decision 0191). It sets the cut an open scope check starts
+   * on (when it is asked next) and the budgets of the stages before building from now on.
+   */
+  async setEffort(id: string, effort: SoftwareEffort): Promise<void> {
+    this.require(id);
+    if (!isEffort(effort)) {
+      throw new ServiceError("INVALID", "Choose the effort as low, medium or high.");
+    }
+    setSoftwareEffort(this.db, id, effort);
+    this.premiseSays(
+      id,
+      `Effort set to ${effort}: ${EFFORT_WORDS[effort]}. The stages before building get a ${effort === "medium" ? "usual" : effort === "low" ? "smaller" : "larger"} budget from the next one on.`,
+    );
+    this.queue.tick();
+  }
+
   /** Turn a milestone's wait on or off; premise stops after it until the operator says go on. */
   async setMilestoneWait(id: string, milestoneId: string, wait: boolean): Promise<void> {
     this.require(id);
@@ -1732,6 +1782,7 @@ export class LineEngine implements IntakeLine {
       splitting: splitting
         ? `allowed, into at most ${this.config.line.split_max_parts} parts`
         : "not allowed for this piece: keep it whole",
+      effort: `${software.effort}: ${EFFORT_WORDS[software.effort]}`,
     });
     this.queue.enqueue({
       softwareId,
@@ -2149,10 +2200,25 @@ export class LineEngine implements IntakeLine {
    */
   takeWork(
     softwareId: string,
-    work: { ref: string; title: string; words: string; purpose: boolean; kind: string },
+    work: {
+      ref: string;
+      title: string;
+      words: string;
+      purpose: boolean;
+      kind: string;
+      changesWhat?: boolean;
+    },
   ): WorkItem {
     const root = rootItem(this.db, softwareId);
-    const origin: WorkItemOrigin = work.purpose ? "purpose" : "intake";
+    // A bug on something the record requires is built and checked straight away; only a real
+    // change to what the software must do reopens What (decision 0192).
+    const origin: WorkItemOrigin = work.purpose
+      ? "purpose"
+      : work.kind === "bug"
+        ? "bug"
+        : work.changesWhat
+          ? "change"
+          : "intake";
     const piece = { kind: "intake" as const, origin, parentId: root.id };
     const item = createWorkItem(this.db, {
       softwareId,
@@ -2412,6 +2478,8 @@ export class LineEngine implements IntakeLine {
       proposed_change: "none",
       decision: "none",
       exists_look: "none",
+      scope: scopeWords(state.scope),
+      effort: `${software.effort}: ${EFFORT_WORDS[software.effort]}`,
       ...extra,
     });
   }
@@ -2703,7 +2771,13 @@ export class LineEngine implements IntakeLine {
 
   private askMilestones(software: Software, plan: StoredPlan): void {
     const defaults = software.milestoneWaits;
-    const items = plan.milestones.map((m) => ({ ...m, wait: m.wait ?? defaults }));
+    const firstWaits =
+      this.config.line.wait_after_asked &&
+      waitAfterFirst(plan.tasks, plan.milestones.length, this.state(software.id).scope);
+    const items = plan.milestones.map((m, i) => ({
+      ...m,
+      wait: m.wait ?? (defaults || (i === 0 && firstWaits)),
+    }));
     createAsk(this.db, {
       softwareId: software.id,
       role: OPERATOR,
@@ -2711,6 +2785,9 @@ export class LineEngine implements IntakeLine {
       stage: "plan",
       title: "Milestones: is this the right order?",
       instruction:
+        (firstWaits
+          ? "The first milestone is what you asked for; the later ones are premise's own additions, so premise stops after the first for you to try it before more is built (untick to go straight on). "
+          : "") +
         "Each milestone ends with running software and a report. Tick a milestone to make premise stop after it until you say go on. Strike or edit milestones, then confirm; the technical choices are in the Record tab afterwards.",
       items: items.map(toAskItem),
       extra: { meta: { purpose: "milestones", items } },
@@ -2729,7 +2806,8 @@ export class LineEngine implements IntakeLine {
       softwareId: ask.softwareId,
       softwareName: names.get(ask.softwareId) ?? "a removed software",
       role: ask.role,
-      kind: ask.kind,
+      // The scope check is kept as a draft ask (the asks table's kinds are fixed) and shown as its own kind.
+      kind: ask.extra.meta?.purpose === "scope" ? "scope" : ask.kind,
       stage: ask.stage && isStageId(ask.stage) ? ask.stage : null,
       title: ask.title,
       instruction: ask.instruction,
@@ -2746,6 +2824,10 @@ export class LineEngine implements IntakeLine {
               : ask.extra.meta.milestone,
         },
       }),
+      ...(ask.extra.meta?.purpose === "scope" &&
+        ask.extra.meta.scope !== undefined && {
+          scope: ask.extra.meta.scope as NonNullable<AskView["scope"]>,
+        }),
       ...(ask.status === "open" && ask.kind === "draft" && ask.stage ? this.struckBefore(ask) : {}),
       status: ask.status,
       ...(ask.answerSummary !== null && { answerSummary: ask.answerSummary }),
@@ -2981,6 +3063,10 @@ export class LineEngine implements IntakeLine {
               `Size set to ${keptSize}: each stage before building gets a ${keptSize} budget.`,
             );
           }
+          if (stage === "what" && item.parentId === null) {
+            this.askScope(getSoftware(this.db, id)!);
+            return;
+          }
           this.advance(id, stage, `${stage} confirmed`);
         };
       }
@@ -2991,11 +3077,18 @@ export class LineEngine implements IntakeLine {
         const findings = items
           .map((item) => addOperation({ item, text: item.text, edited: false })!)
           .filter(Boolean);
+        const alternative =
+          typeof ask.extra.meta?.alternative === "string" ? ask.extra.meta.alternative : "";
         this.land(
           id,
           [
             ...findings,
-            { op: "add", kind: "E", text: `Outcome: ${text.replace(/[()]/g, "")}`, from: OPERATOR },
+            {
+              op: "add",
+              kind: "E",
+              text: `Outcome: ${text.replace(/[()]/g, "")}${notBuild && alternative ? `. Instead: ${alternative.replace(/[()]/g, "")}` : ""}`,
+              from: OPERATOR,
+            },
           ],
           "The operator decided what to do about what already exists.",
         );
@@ -3038,6 +3131,8 @@ export class LineEngine implements IntakeLine {
           this.advance(id, "exists", "outcome decided");
         };
       }
+      case "scope":
+        return this.scopeEffects(software, ask, answer);
       case "say-back":
         return this.sayBackEffects(software, items, answer);
       case "recovered-say-back":
@@ -3126,6 +3221,113 @@ export class LineEngine implements IntakeLine {
         };
       }
     }
+  }
+
+  /** Minutes one agent session takes, as premise measured it; the configured guess until then. */
+  private minutesPerSession(): number {
+    const row = this.db
+      .prepare(
+        `SELECT COUNT(*) AS n, AVG((julianday(ended) - julianday(started)) * 1440) AS minutes
+         FROM agent_sessions WHERE ended IS NOT NULL`,
+      )
+      .get() as { n: number; minutes: number | null };
+    return row.n >= 5 && row.minutes && row.minutes > 0
+      ? Math.max(0.5, Math.round(row.minutes * 10) / 10)
+      : this.config.line.estimate_minutes_per_session;
+  }
+
+  /**
+   * The scope check (decision 0191): after What, one ask with three cuts and a rough cost each. It
+   * is skipped, with everything in the first version, when premise has nothing to add.
+   */
+  private askScope(software: Software): void {
+    const id = software.id;
+    const tiers = scopeTiers(this.recordLines(id));
+    const additions = tiers.filter((t) => t.tier !== "asked");
+    if (!this.config.line.scope_check || additions.length === 0) {
+      this.settleScope(id, {
+        first: tiers.map((t) => t.item.id),
+        later: [],
+        out: [],
+      });
+      this.advance(id, "what", "what confirmed");
+      return;
+    }
+    const measured = this.minutesPerSession();
+    const cuts = scopeCuts(tiers, {
+      minutesPerSession: measured,
+      itemsPerBuild: this.config.line.estimate_items_per_build,
+    });
+    const preselected = cutForEffort(software.effort);
+    createAsk(this.db, {
+      softwareId: id,
+      role: OPERATOR,
+      kind: "draft",
+      stage: "what",
+      title: "How much to build?",
+      instruction: `premise sorted what it must do into what you asked for, what premise recommends adding, and what it could also add. Pick how much to build; it starts on the choice your effort level (${software.effort}) gives. You can move any item. The first version is what you asked for; what premise adds comes in a later milestone, after you have tried the first. What you leave out stays in the record and is not built.`,
+      items: tiers.map((t) => ({
+        key: t.item.id,
+        text: `${t.item.marks.priority ?? "should"}: ${t.item.text}${t.note ? ` (${t.note})` : ""}`,
+        mark: t.item.marks.from === "assumed" ? "suggestion" : "from-role",
+        ...(t.item.marks.from !== "assumed" && { from: t.item.marks.from }),
+        tier: t.tier,
+      })),
+      extra: {
+        meta: {
+          purpose: "scope",
+          tiers: tiers.map((t) => ({ id: t.item.id, tier: t.tier })),
+          scope: {
+            cuts,
+            preselected,
+            estimateNote: `A rough estimate, not a promise: agent sessions from here to running software, at about ${measured} minutes each${measured === this.config.line.estimate_minutes_per_session ? " (premise's starting guess until it has measured its own)" : " (as premise measured its own sessions)"}.`,
+          },
+        },
+      },
+    });
+    this.premiseSays(
+      id,
+      `What it must do is confirmed. One question before planning: how much to build. premise suggests ${additions.length === 1 ? "one addition" : `${additions.length} additions`} to what you asked for; pick a choice under Waiting on you.`,
+    );
+  }
+
+  /** Keep what the operator chose, and mark in the record what is left out (and what is not). */
+  private settleScope(id: string, choice: ScopeChoice): void {
+    const live = new Map(this.recordLines(id).map((i) => [i.id, i]));
+    const ops: Operation[] = [];
+    for (const itemId of choice.out) {
+      if (live.get(itemId) && !live.get(itemId)!.marks.leftOut) {
+        ops.push({ op: "mark", id: itemId, leftOut: true });
+      }
+    }
+    for (const itemId of [...choice.first, ...choice.later]) {
+      if (live.get(itemId)?.marks.leftOut) ops.push({ op: "mark", id: itemId, leftOut: false });
+    }
+    if (ops.length > 0) this.land(id, ops, "The operator chose how much to build.");
+    this.setState(id, { scope: choice });
+  }
+
+  private scopeEffects(software: Software, ask: Ask, answer: AskAnswer): () => void {
+    const id = software.id;
+    const tiers = scopeTiers(this.recordLines(id));
+    const asked = new Set(ask.items.map((i) => i.key));
+    const places = new Map(
+      (answer.kind === "scope" ? answer.items : []).map((i) => [i.key, i.place] as const),
+    );
+    const shown = tiers.filter((t) => asked.has(t.item.id));
+    // An item that came into the record after the ask was made goes where its tier would.
+    const cut = cutForEffort(software.effort);
+    for (const t of tiers) if (!places.has(t.item.id)) places.set(t.item.id, placeFor(t.tier, cut));
+    const choice = choiceFrom(tiers, places);
+    this.settleScope(id, choice);
+    return () => {
+      const n = (k: keyof ScopeChoice) => choice[k].length;
+      this.premiseSays(
+        id,
+        `Scope chosen: ${n("first")} in the first version${n("later") ? `, ${n("later")} in a later milestone` : ""}${n("out") ? `, ${n("out")} left out (kept in the record, not built)` : ""}.${shown.length < tiers.length ? " An item added meanwhile went where its tier puts it." : ""}`,
+      );
+      this.advance(id, "what", "scope chosen");
+    };
   }
 
   private sayBackEffects(
@@ -3549,6 +3751,24 @@ export class LineEngine implements IntakeLine {
             };
           })
         : [];
+      const outcomeItems = this.recordLines(id).some((i) => i.kind === "W" || i.kind === "T");
+      // The scope check's choice binds the software's own plan; a later change from intake is the
+      // operator's new word and may bring back what was left out.
+      const whole = this.active(id).parentId === null;
+      const planned = planProblems(
+        tasks,
+        milestones.length,
+        whole ? this.state(id).scope : undefined,
+        { hasOutcomeItems: outcomeItems },
+      );
+      if (tasks.length === 0) planned.unshift('Give the working plan as "tasks": at least one.');
+      if (planned.length) {
+        return toolFail(
+          "MALFORMED",
+          "The plan needs a change before premise shows it. Fix these and submit it again.",
+          planned,
+        );
+      }
       const kind = typeof args.kind === "string" ? args.kind.trim().slice(0, 200) : "";
       const howToRun =
         typeof args.how_to_run === "string" ? args.how_to_run.trim().slice(0, 4000) : "";
@@ -3586,6 +3806,10 @@ export class LineEngine implements IntakeLine {
       const why =
         typeof args.reason === "string" && args.reason.trim() ? ` ${args.reason.trim()}` : "";
       const takingOn = this.isRecovery(this.active(id));
+      const alternative =
+        typeof args.alternative === "string"
+          ? args.alternative.replace(/\s+/g, " ").trim().slice(0, 300)
+          : "";
       const advice = takingOn
         ? /no longer|unnecessary|not needed|stop|do not/i.test(outcome)
           ? EXISTING_OUTCOMES[2]
@@ -3593,6 +3817,8 @@ export class LineEngine implements IntakeLine {
             ? EXISTING_OUTCOMES[1]
             : EXISTING_OUTCOMES[0]
         : recommended;
+      // "Do not build" is the cheapest outcome of all, so it is said first and plainly (0192).
+      const notBuild = !takingOn && recommended === EXISTS_OUTCOMES[3];
       const ask = createAsk(this.db, {
         softwareId: id,
         role: OPERATOR,
@@ -3600,15 +3826,28 @@ export class LineEngine implements IntakeLine {
         stage: "exists",
         title: takingOn
           ? "Is all of it still needed?"
-          : "Build it, build on something, or not build it?",
+          : notBuild
+            ? "premise recommends not building it: something already does this"
+            : "Build it, build on something, or not build it?",
         instruction: takingOn
           ? `This is what exists now that could do part of its job${items.length ? "" : " (nothing was found)"}. premise recommends: ${advice}.${why} Pick one, or write your own answer.`
-          : `This is what already exists${items.length ? "" : " (nothing was found)"}. premise recommends: ${recommended}.${why} Pick one, or write your own answer.`,
+          : notBuild
+            ? `${alternative ? `Instead: ${alternative}. ` : ""}Something that already exists does the job, which is the cheapest outcome: nothing to build, check or keep running.${why} Pick "Do not build it" to stop here with a short report, or another choice to build it anyway. What was found is listed below.`
+            : `This is what already exists${items.length ? "" : " (nothing was found)"}. premise recommends: ${recommended}.${why} Pick one, or write your own answer.`,
         items: items.map(toAskItem),
         extra: {
           bestAttempt: advice,
-          choices: takingOn ? [...EXISTING_OUTCOMES] : [...EXISTS_OUTCOMES],
-          meta: { purpose: "exists", items, job: job.id },
+          choices: takingOn
+            ? [...EXISTING_OUTCOMES]
+            : notBuild
+              ? [EXISTS_OUTCOMES[3], ...EXISTS_OUTCOMES.slice(0, 3)]
+              : [...EXISTS_OUTCOMES],
+          meta: {
+            purpose: "exists",
+            items,
+            job: job.id,
+            ...(alternative && { alternative }),
+          },
         },
       });
       replace(ask);
@@ -3659,13 +3898,19 @@ export class LineEngine implements IntakeLine {
     );
     if (problems.length)
       return toolFail("MALFORMED", "Some items would not fit the record.", problems);
+    const piece = this.active(id);
+    const change = stage === "what" && piece.kind === "intake";
     const ask = createAsk(this.db, {
       softwareId: id,
       role: OPERATOR,
       kind: "draft",
       stage,
-      title: DRAFT_TITLES[stage as "why"],
-      instruction: DRAFT_INSTRUCTIONS[stage as "why"],
+      title: change
+        ? `This changes what it must do; confirm to change it (${piece.ref ?? "new work"})`
+        : DRAFT_TITLES[stage as "why"],
+      instruction: change
+        ? "These lines are what changes in what the software must do. Strike or edit any that are wrong, then confirm to change it. Nothing else is asked before it is planned and built."
+        : DRAFT_INSTRUCTIONS[stage as "why"],
       items: items.map(toAskItem),
       extra: { meta: { purpose: "draft", items, job: job.id } },
     });

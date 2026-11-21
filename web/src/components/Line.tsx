@@ -1,7 +1,14 @@
 import { useState } from "react";
 import { ApiError, NotCurrentLink, type SoftwareDetail } from "../api";
 import { useSession } from "../context";
-import { PHASES, whereNow, type StageId } from "../../../src/shared/stages";
+import {
+  EFFORT_WORDS,
+  PHASES,
+  SOFTWARE_EFFORTS,
+  type SoftwareEffort,
+  type StageId,
+  whereNow,
+} from "../../../src/shared/stages";
 import { Define, Problem } from "./Badges";
 import { WorkItems } from "./WorkItems";
 import { BuildPanel } from "./BuildPanel";
@@ -211,6 +218,30 @@ export function Line({ software }: { software: SoftwareDetail }) {
             </ol>
           </>
         )}
+      </section>
+
+      <section className="card">
+        <h2>Effort</h2>
+        <label className="small">
+          How much premise puts into this software.{" "}
+          <select
+            value={software.effort}
+            disabled={busy}
+            onChange={(e) =>
+              void act(() => api.setEffort(software.id, e.target.value as SoftwareEffort))
+            }
+          >
+            {SOFTWARE_EFFORTS.map((e) => (
+              <option key={e} value={e}>
+                {e}: {EFFORT_WORDS[e]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="muted small">
+          It picks the starting choice when premise asks how much to build, and how long the steps
+          before building may take. New softwares get softwares.default_effort (see Settings).
+        </p>
       </section>
 
       <section className="card">

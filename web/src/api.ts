@@ -13,7 +13,7 @@ import type {
   SoftwareDetail,
   SoftwareSummary,
 } from "../../src/shared/api-types";
-import type { SizeClass, StageId } from "../../src/shared/stages";
+import type { SizeClass, SoftwareEffort, StageId } from "../../src/shared/stages";
 
 export type * from "../../src/shared/api-types";
 
@@ -44,7 +44,7 @@ export interface Api {
   overview(): Promise<Overview>;
   softwares(): Promise<SoftwareSummary[]>;
   software(id: string): Promise<SoftwareDetail>;
-  start(idea: string, name?: string): Promise<SoftwareSummary>;
+  start(idea: string, name?: string, effort?: SoftwareEffort): Promise<SoftwareSummary>;
   bringIn(source: string, name?: string, idea?: string): Promise<SoftwareSummary>;
   offerRecord(id: string): Promise<SoftwareDetail>;
   chat(id: string): Promise<ChatMessage[]>;
@@ -64,6 +64,7 @@ export interface Api {
   setItemStages(itemId: number, stages: StageId[]): Promise<SoftwareDetail>;
   undoSplit(itemId: number): Promise<SoftwareDetail>;
   setPriority(id: string, priority: number): Promise<SoftwareDetail>;
+  setEffort(id: string, effort: SoftwareEffort): Promise<SoftwareDetail>;
   setMilestoneWait(id: string, milestone: string, wait: boolean): Promise<SoftwareDetail>;
   withdrawApproval(id: number): Promise<{ ok: true }>;
   scriptedDemo(): Promise<{ ok: true }>;
@@ -115,7 +116,8 @@ export function createApi(token: string): Api {
     overview: () => get("/api/overview"),
     softwares: () => get("/api/softwares"),
     software: (id) => get(`/api/softwares/${enc(id)}`),
-    start: (idea, name) => post("/api/softwares", name ? { idea, name } : { idea }),
+    start: (idea, name, effort) =>
+      post("/api/softwares", { idea, ...(name && { name }), ...(effort && { effort }) }),
     bringIn: (source, name, idea) =>
       post("/api/softwares/existing", {
         source,
@@ -141,6 +143,7 @@ export function createApi(token: string): Api {
     setItemStages: (itemId, stages) => post(`/api/work-items/${itemId}/stages`, { stages }),
     undoSplit: (itemId) => post(`/api/work-items/${itemId}/undo-split`),
     setPriority: (id, priority) => post(`/api/softwares/${enc(id)}/priority`, { priority }),
+    setEffort: (id, effort) => post(`/api/softwares/${enc(id)}/effort`, { effort }),
     setMilestoneWait: (id, milestone, wait) =>
       post(`/api/softwares/${enc(id)}/milestones/${enc(milestone)}/wait`, { wait }),
     withdrawApproval: (id) => post(`/api/approvals/${id}/withdraw`),

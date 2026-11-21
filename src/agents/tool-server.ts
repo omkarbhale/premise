@@ -97,6 +97,7 @@ const TOOLS: ToolDefinition[] = [
         kind: { type: "string" },
         how_to_run: { type: "string" },
         outcome: { type: "string" },
+        alternative: { type: "string" },
         reason: { type: "string" },
       },
       ["stage", "items"],

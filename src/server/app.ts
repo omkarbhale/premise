@@ -9,7 +9,14 @@ import { CONFIG_FILE_NAME, envNameFor } from "../config/load.js";
 import { type PremiseConfig, SETTINGS } from "../config/settings.js";
 import type { DoctorReport } from "../doctor/doctor.js";
 import type { AskAnswer, Overview, SettingsView } from "../shared/api-types.js";
-import { SIZE_CLASSES, STAGE_IDS, type SizeClass, type StageId } from "../shared/stages.js";
+import {
+  SIZE_CLASSES,
+  SOFTWARE_EFFORTS,
+  STAGE_IDS,
+  type SizeClass,
+  type SoftwareEffort,
+  type StageId,
+} from "../shared/stages.js";
 import { registerRecordRoutes } from "../record/routes.js";
 import type { RecordKeeper } from "../record/record-keeper.js";
 import { type Database, recordEvent } from "../storage/database.js";
@@ -257,7 +264,7 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
 
     api.get("/api/softwares", async () => services.softwares.list());
 
-    api.post<{ Body: { idea: string; name?: string } }>(
+    api.post<{ Body: { idea: string; name?: string; effort?: SoftwareEffort } }>(
       "/api/softwares",
       {
         schema: {
@@ -266,14 +273,19 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
             properties: {
               idea: { type: "string", maxLength: 20000 },
               name: { type: "string", maxLength: 200 },
+              effort: { type: "string", enum: [...SOFTWARE_EFFORTS] },
             },
             required: ["idea"],
           },
         },
       },
       async (request, reply) => {
-        const { idea, name } = request.body;
-        const started = await services.softwares.start(name ? { idea, name } : { idea });
+        const { idea, name, effort } = request.body;
+        const started = await services.softwares.start({
+          idea,
+          ...(name && { name }),
+          ...(effort && { effort }),
+        });
         return reply.code(201).send(started);
       },
     );
@@ -462,6 +474,24 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
       },
     );
 
+    api.post<{ Params: { id: string }; Body: { effort: SoftwareEffort } }>(
+      "/api/softwares/:id/effort",
+      {
+        schema: {
+          params: idParam,
+          body: {
+            type: "object",
+            properties: { effort: { type: "string", enum: [...SOFTWARE_EFFORTS] } },
+            required: ["effort"],
+          },
+        },
+      },
+      async (request) => {
+        await services.softwares.setEffort(request.params.id, request.body.effort);
+        return services.softwares.get(request.params.id);
+      },
+    );
+
     api.post<{ Params: { id: string; milestone: string }; Body: { wait: boolean } }>(
       "/api/softwares/:id/milestones/:milestone/wait",
       {
@@ -590,7 +620,7 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
                 properties: {
                   kind: {
                     type: "string",
-                    enum: ["items", "text", "approval", "needed", "proposal"],
+                    enum: ["items", "text", "approval", "needed", "proposal", "scope"],
                   },
                 },
                 required: ["kind"],

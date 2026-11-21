@@ -13,6 +13,8 @@ export const TERMS = {
     "Intake: what you say that is not an answer, and problems or wishes reported on the Intake tab, are taken in. An agent reads each against the record: most become new work on the line, a question is answered, and only what needs it is held or asked of you.",
   standIn:
     "Stand-in: a part of premise that does not exist yet, so what you see there is scripted or kept without doing the real work. It is marked wherever it appears.",
+  effort:
+    "Effort: how much premise puts into a software. Low builds only what you asked for. Medium adds what premise recommends, in a later milestone. High adds everything premise could add. It also sets how long the steps before building may take. Change it at any time.",
   mocked:
     "Mocked: usage-ledger, which will report real usage and cost, does not exist yet. Until it does, these figures are made up so you can see where they will appear.",
 } as const;
@@ -47,6 +49,7 @@ export const ASK_KIND_LABEL: Record<AskKind, string> = {
   proposal: "A proposal",
   approval: "Approval needed",
   needed: "Something only a person can do",
+  scope: "How much to build",
 };
 
 export function markLabel(item: AskItem): string {

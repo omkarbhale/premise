@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { PremiseConfig } from "../config/settings.js";
+import { SOFTWARE_EFFORTS, type SoftwareEffort } from "../shared/stages.js";
 import { type Database, now, recordEvent } from "./database.js";
 
 export type SoftwareState =
@@ -10,6 +11,8 @@ export interface Software {
   name: string;
   priority: number;
   milestoneWaits: boolean;
+  /** How much effort the operator wants put into it (decision 0191). */
+  effort: SoftwareEffort;
   weeklySharePercent: number | null;
   state: SoftwareState;
   currentStage: string;
@@ -24,6 +27,7 @@ interface SoftwareRow {
   name: string;
   priority: number;
   milestone_waits: number;
+  effort: string;
   weekly_share_percent: number | null;
   state: SoftwareState;
   current_stage: string;
@@ -38,6 +42,7 @@ function fromRow(row: SoftwareRow): Software {
     name: row.name,
     priority: row.priority,
     milestoneWaits: row.milestone_waits === 1,
+    effort: isEffort(row.effort) ? row.effort : "medium",
     weeklySharePercent: row.weekly_share_percent,
     state: row.state,
     currentStage: row.current_stage,
@@ -52,7 +57,12 @@ export interface NewSoftware {
   idea?: string;
   priority?: number;
   milestoneWaits?: boolean;
+  effort?: SoftwareEffort;
   weeklySharePercent?: number | null;
+}
+
+export function isEffort(value: unknown): value is SoftwareEffort {
+  return (SOFTWARE_EFFORTS as readonly unknown[]).includes(value);
 }
 
 /** Add a software, with the configured defaults for what is not given. */
@@ -66,15 +76,20 @@ export function createSoftware(
   if (!Number.isInteger(priority) || priority < 1 || priority > 5) {
     throw new Error(`A software's priority must be a whole number from 1 to 5; it is ${priority}.`);
   }
+  const effort = input.effort ?? defaults.default_effort;
+  if (!isEffort(effort)) {
+    throw new Error(`A software's effort is low, medium or high; it is ${String(effort)}.`);
+  }
   db.prepare(
-    `INSERT INTO softwares (id, name, idea, priority, milestone_waits, weekly_share_percent, created)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO softwares (id, name, idea, priority, milestone_waits, effort, weekly_share_percent, created)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     id,
     input.name,
     input.idea ?? "",
     priority,
     (input.milestoneWaits ?? defaults.default_milestone_waits) ? 1 : 0,
+    effort,
     input.weeklySharePercent === undefined
       ? defaults.default_weekly_share_percent
       : input.weeklySharePercent,
@@ -117,6 +132,19 @@ export function setSoftwarePriority(db: Database, id: string, priority: number):
     module: "softwares",
     kind: "priority-changed",
     detail: { priority },
+  });
+}
+
+export function setSoftwareEffort(db: Database, id: string, effort: SoftwareEffort): void {
+  if (!isEffort(effort)) {
+    throw new Error(`A software's effort is low, medium or high; it is ${String(effort)}.`);
+  }
+  db.prepare("UPDATE softwares SET effort = ? WHERE id = ?").run(effort, id);
+  recordEvent(db, {
+    softwareId: id,
+    module: "softwares",
+    kind: "effort-changed",
+    detail: { effort },
   });
 }
 

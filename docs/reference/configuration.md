@@ -36,6 +36,7 @@ A wrong setting stops premise at start with a message naming the setting and why
 | `usage_ledger.seed` | `null` | a whole number, or null | Seed for "mock-random". null means a new seed each time premise starts. | [0133](../decisions/README.md) |
 | `softwares.default_priority` | `3` | 1 (most important) to 5 | Priority a new software gets. The work queue starts the most important first. | [0138](../decisions/README.md) |
 | `softwares.default_milestone_waits` | `false` | true or false | Whether a new software stops after each of its milestones until you say go on. | [0129](../decisions/README.md) |
+| `softwares.default_effort` | `"medium"` | low, medium or high | How much effort a new software gets, unless you choose when you start it. low: only what you asked for. medium: what you asked for, plus what premise recommends. high: everything premise could add. It sets which choice the scope check starts on, and how long the stages before building may take. You can change it for each software at any time. | [0191](../decisions/README.md) |
 | `softwares.default_weekly_share_percent` | `null` | 1 to 100, or null | Share of weekly usage a new software may use. null means no share is set. | [0128](../decisions/README.md) |
 | `line.say_back_max_items` | `10` | 1 to 30 | Most items in a say-back: what premise understood and assumed, for you to strike. | [0028](../decisions/README.md) |
 | `line.why_items_min` | `3` | 1 to 20 | Fewest items the Why draft should have. The drafter is told the range. |  |
@@ -69,6 +70,12 @@ A wrong setting stops premise at start with a message naming the setting and why
 | `line.budgets.plan.medium.minutes` | `40` | 1 to 1440 | Minutes a medium software's Plan stage may take. | [0117](../decisions/README.md) |
 | `line.budgets.plan.large.turns` | `160` | 1 to 2000 | Agent turns a large software's Plan stage may use. | [0117](../decisions/README.md) |
 | `line.budgets.plan.large.minutes` | `80` | 1 to 1440 | Minutes a large software's Plan stage may take. | [0117](../decisions/README.md) |
+| `line.low_effort_budget_percent` | `50` | 10 to 100 | For a software at low effort, the stages before building get this percent of their usual budget. | [0191](../decisions/README.md) |
+| `line.high_effort_budget_percent` | `150` | 100 to 400 | For a software at high effort, the stages before building get this percent of their usual budget. | [0191](../decisions/README.md) |
+| `line.scope_check` | `true` | true or false | Whether premise asks, once after What, how much to build: only what you asked for, plus what premise recommends, or everything. It is skipped when premise has nothing to add. false builds everything that is on the What list. | [0191](../decisions/README.md) |
+| `line.wait_after_asked` | `true` | true or false | Whether premise stops after the first milestone (what you asked for) when what follows is only premise's own additions, so you try the software before more is built. You can untick the stop on the milestone list, or say go on at once. | [0191](../decisions/README.md) |
+| `line.estimate_minutes_per_session` | `3` | 1 to 120 | For the scope check's rough estimate: the minutes one agent session is taken to last, until premise has measured its own. | [0191](../decisions/README.md) |
+| `line.estimate_items_per_build` | `3` | 1 to 20 | For the scope check's rough estimate: how many items of the What list one builder session is taken to cover. | [0191](../decisions/README.md) |
 | `line.budgets.recover.small.turns` | `40` | 1 to 2000 | Agent turns a small software's Recover (an existing software's record, drafted from its code, per part) stage may use. | [0117](../decisions/README.md) |
 | `line.budgets.recover.small.minutes` | `20` | 1 to 1440 | Minutes a small software's Recover (an existing software's record, drafted from its code, per part) stage may take. | [0117](../decisions/README.md) |
 | `line.budgets.recover.medium.turns` | `80` | 1 to 2000 | Agent turns a medium software's Recover (an existing software's record, drafted from its code, per part) stage may use. | [0117](../decisions/README.md) |
