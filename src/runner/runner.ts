@@ -36,6 +36,15 @@ export class RunnerError extends Error {
   }
 }
 
+/** Every port of the configured range is taken: the message says which setting to change. */
+class PortRangeError extends RunnerError {
+  constructor(message: string) {
+    super("RUN_FAILED", message);
+  }
+}
+
+const PORT_IN_USE = /EADDRINUSE|address already in use/i;
+
 export interface RunnerDeps {
   db: Database;
   config: PremiseConfig;
@@ -75,6 +84,10 @@ interface Live {
   /** first-start: start() reports a failure itself; up and restarting: a stop by itself is a crash. */
   phase: "first-start" | "up" | "restarting";
   restartTimes: number[];
+  /** Ports this run found taken by another program, not to be tried again. */
+  busyPorts: Set<number>;
+  /** The latest start failed because its port was in use; that is not a crash. */
+  portCollision: boolean;
   lines: string[];
   logFile: string;
   timer: NodeJS.Timeout | null;
@@ -349,6 +362,8 @@ export class Runner {
       stopping: false,
       phase: "first-start",
       restartTimes: [],
+      busyPorts: new Set(),
+      portCollision: false,
       lines: [],
       logFile,
       timer: null,
@@ -359,9 +374,7 @@ export class Runner {
         await this.runSample(live, sha);
       } else {
         this.live.set(softwareId, live);
-        live.port = await this.choosePort(softwareId);
-        if (live.stopping) return this.view(softwareId);
-        await this.launchWeb(live);
+        await this.launchOnFreePort(live);
         if (live.stopping) return this.view(softwareId);
         live.phase = "up";
         this.update(runId, {
@@ -412,18 +425,41 @@ export class Runner {
       .run(...(keys.map((k) => values[k]) as never[]), runId);
   }
 
-  private async choosePort(softwareId: string): Promise<number> {
+  private async choosePort(live: Live): Promise<number> {
     const range = parsePortRange(this.deps.config.runner.port_range)!;
     const taken = new Set(
-      [...this.live.values()].filter((l) => l.softwareId !== softwareId).map((l) => l.port),
+      [...this.live.values()].filter((l) => l.softwareId !== live.softwareId).map((l) => l.port),
     );
     for (let port = range.first; port <= range.last; port++) {
-      if (!taken.has(port) && (await canListen(port))) return port;
+      if (!taken.has(port) && !live.busyPorts.has(port) && (await canListen(port))) return port;
     }
-    throw new RunnerError(
-      "RUN_FAILED",
+    throw new PortRangeError(
       `Every port from ${range.first} to ${range.last} is in use, so there is nowhere to start it. Stop something else, or widen runner.port_range in the settings.`,
     );
+  }
+
+  /**
+   * Pick a free port and start on it. Another program can take the port between the check and the
+   * start; then the software says the port is in use, and the next free port is tried, until the
+   * range runs out. That is not a crash, so it does not count toward the restart limit.
+   */
+  private async launchOnFreePort(live: Live): Promise<void> {
+    for (;;) {
+      live.port = await this.choosePort(live);
+      if (live.stopping || this.closed) return;
+      live.portCollision = false;
+      try {
+        await this.launchWeb(live);
+        return;
+      } catch (error) {
+        if (live.stopping || this.closed) return;
+        await sleep(150); // let the software's last words arrive
+        if (!live.portCollision) throw error;
+        live.busyPorts.add(live.port);
+        this.killTree(live);
+        live.child = null;
+      }
+    }
   }
 
   private environment(live: Live): NodeJS.ProcessEnv {
@@ -467,6 +503,7 @@ export class Runner {
   }
 
   private takeOutput(live: Live, text: string): void {
+    if (PORT_IN_USE.test(text)) live.portCollision = true;
     appendFileSync(live.logFile, text);
     const lines = text.split("\n");
     if (lines.at(-1) === "") lines.pop();
@@ -616,6 +653,14 @@ export class Runner {
     if (live.child !== child) return;
     live.child = null;
     if (live.stopping || this.closed || live.phase === "first-start") return;
+    if (live.phase === "restarting") {
+      // Wait for its last words: a port in use is the next port's turn, not a crash.
+      setTimeout(() => {
+        if (live.stopping || this.closed || live.portCollision) return;
+        this.crashed(live, code, signal);
+      }, 150);
+      return;
+    }
     this.crashed(live, code, signal);
   }
 
@@ -657,18 +702,34 @@ export class Runner {
     if (live.stopping || this.closed) return;
     const { db } = this.deps;
     try {
-      await this.launchWeb(live);
+      await this.launchOnFreePort(live);
       live.phase = "up";
       const row = this.latestRow(live.softwareId)!;
-      this.update(live.runId, { status: "running", restarts: row.restarts + 1 });
+      this.update(live.runId, {
+        status: "running",
+        restarts: row.restarts + 1,
+        port: live.port,
+        link: `http://127.0.0.1:${live.port}${live.instructions.open}`,
+      });
       recordEvent(db, {
         softwareId: live.softwareId,
         module: "runner",
         kind: "restarted",
         detail: { run: live.runId },
       });
-    } catch {
+    } catch (error) {
       if (live.stopping || this.closed) return;
+      if (error instanceof PortRangeError) {
+        this.live.delete(live.softwareId);
+        this.update(live.runId, { status: "failed", failure: error.message, ended: now() });
+        recordEvent(db, {
+          softwareId: live.softwareId,
+          module: "runner",
+          kind: "failed",
+          detail: { run: live.runId },
+        });
+        return;
+      }
       const child = live.child;
       if (!child) return; // it exited by itself, and that was already counted as a crash
       if (child.pid === undefined) {

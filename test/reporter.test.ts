@@ -10,7 +10,7 @@ import { createAsk } from "../src/storage/asks.js";
 import { type Database, openDatabase, recordEvent } from "../src/storage/database.js";
 import { MockUsageLedger } from "../src/usage-ledger/mock-usage-ledger.js";
 import { WEB_SERVER, makeSoftware, runBlock } from "./fixtures/fixture-software.js";
-import { tempFolder, testConfig } from "./helpers.js";
+import { tempFolder, testConfig, uniquePortRange } from "./helpers.js";
 import { dirname } from "node:path";
 
 let db: Database;
@@ -29,10 +29,11 @@ const WHAT = [
 ].join("\n");
 const WHY = "# Why\n\n- [Y-1] People want a friendly page. (from: operator; 2026-11-22)\n";
 
-beforeEach(() => {
+beforeEach(async () => {
   dataFolder = tempFolder();
   config = testConfig(dataFolder, {
     PREMISE_RUNNER__CONFINEMENT: "none",
+    PREMISE_RUNNER__PORT_RANGE: JSON.stringify((await uniquePortRange()).range),
     PREMISE_RUNNER__READ_ONLY_PATHS: JSON.stringify([dirname(dirname(process.execPath))]),
   });
   db = openDatabase(dataFolder).db;
