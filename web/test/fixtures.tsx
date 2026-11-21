@@ -1,6 +1,16 @@
 import { render } from "@testing-library/react";
 import { vi } from "vitest";
-import type { Api, AskView, Overview, SoftwareDetail, WorkItemView } from "../src/api";
+import type {
+  Api,
+  AskView,
+  BudgetView,
+  Overview,
+  SoftwareDetail,
+  SoftwareUsageView,
+  UsageOverview,
+  UsageRowView,
+  WorkItemView,
+} from "../src/api";
 import { SessionContext, type Session } from "../src/context";
 import { STAGES } from "../../src/shared/stages";
 
@@ -130,6 +140,70 @@ export function workItem(change: Partial<WorkItemView> = {}): WorkItemView {
   };
 }
 
+export function usageRow(change: Partial<UsageRowView> = {}): UsageRowView {
+  return {
+    key: "build",
+    label: "Build",
+    measured: { sessions: 3, minutes: 12 },
+    cost: {
+      mocked: true,
+      inputTokens: 180000,
+      outputTokens: 36000,
+      costUsd: 1.44,
+      weeklyShare: 0.0144,
+    },
+    ...change,
+  };
+}
+
+export function budgetView(change: Partial<BudgetView> = {}): BudgetView {
+  return {
+    kind: "none",
+    percent: null,
+    usd: null,
+    words: "No budget: premise does not limit what it spends on this software.",
+    state: "active",
+    spentUsd: 0,
+    spentShare: 0,
+    mocked: true,
+    overrun: null,
+    ...change,
+  };
+}
+
+export function softwareUsage(change: Partial<SoftwareUsageView> = {}): SoftwareUsageView {
+  return {
+    softwareId: "s1",
+    name: "Reading list",
+    total: usageRow({ key: "total", label: "All of it" }),
+    byPhase: [usageRow({ key: "build", label: "Build" })],
+    byStage: [
+      usageRow({ key: "build", label: "Build" }),
+      usageRow({ key: "check", label: "Check", measured: { sessions: 1, minutes: 2 } }),
+    ],
+    byChange: [usageRow({ key: "1", label: "Reading list, from the idea" })],
+    byItem: [usageRow({ key: "W-1", label: "W-1" })],
+    budget: budgetView(),
+    problem: null,
+    ...change,
+  };
+}
+
+export function usageOverview(change: Partial<UsageOverview> = {}): UsageOverview {
+  return {
+    mode: "mock-fixed",
+    mocked: true,
+    weekly: {
+      mocked: true,
+      utilization: 0.42,
+      windowStart: "2026-11-16T00:00:00Z",
+      resetsAt: "2026-11-23T00:00:00Z",
+    },
+    softwares: [softwareUsage()],
+    ...change,
+  };
+}
+
 /** An Api whose every call is a mock; tests set what they need. */
 export function fakeApi(change: Partial<Api> = {}): Api {
   const fail = () => Promise.reject(new Error("not set in this test"));
@@ -174,6 +248,10 @@ export function fakeApi(change: Partial<Api> = {}): Api {
     activity: vi.fn(fail),
     stopJob: vi.fn(fail),
     settings: vi.fn(fail),
+    usage: vi.fn(() => Promise.resolve(usageOverview())),
+    softwareUsage: vi.fn(() => Promise.resolve(softwareUsage())),
+    setBudget: vi.fn(fail),
+    answerOverrun: vi.fn(fail),
     measures: vi.fn(fail),
     softwareMeasures: vi.fn(fail),
     presence: vi.fn(() => Promise.resolve({ ok: true as const })),

@@ -906,6 +906,20 @@ p.warn {
   );
 }
 
+.overrun {
+  border-color: var(--needs);
+  background: var(--needs-soft);
+}
+.budget-edit fieldset,
+.budget-raise fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0.4rem 0;
+}
+.overrun .actions {
+  margin: 0.6rem 0;
+}
+
 /* Settings */
 .settings {
   margin: 0;

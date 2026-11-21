@@ -562,8 +562,9 @@ describe("the other views", () => {
     expect(screen.getByText("Nothing yet. Written when the Who stage is confirmed.")).toBeTruthy();
   });
 
-  it("labels usage as mocked", () => {
-    inSession(<Usage overview={overview()} />);
+  it("labels usage as mocked", async () => {
+    inSession(<Usage overview={overview({ softwares: [software()] })} />);
+    await screen.findByText(/All of it/);
     expect(screen.getAllByText("Mocked").length).toBeGreaterThan(1);
     expect(screen.getByText(/42% of the subscription's weekly usage used \(mocked\)/)).toBeTruthy();
   });

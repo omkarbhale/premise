@@ -31,6 +31,7 @@ Carved from section 7 of the plan. Part of the [architecture](overview.md). Spec
 
 - premise builds no cost tracking and no spending limit of its own. It uses usage-ledger, which is built as its own project, outside premise. Until usage-ledger exists, a mock answers for it, fixed or seeded-random, and every figure it gives is marked as mocked on the page ([0133](../decisions/0133-usage-ledger-is-mocked-until-it-exists.md)).
 - By its own vision, usage-ledger reads what agents and accounts already record: the per-session cost and token totals Claude Code writes, the subscription's limits, and which task each session was doing. It never sits between an agent and its model.
+- Built in milestone 2 ([0200](../decisions/0200-how-cost-and-the-spending-limit-are-built.md); the contract is [usage-ledger](../specs/usage-ledger.md), premise's side is [usage and budgets](../specs/usage.md)).
 - premise's part:
   - it records, for every agent session, the task it did (software, stage, job, record items, role), where usage-ledger reads it and in the format usage-ledger defines;
   - it tells usage-ledger where its Claude Code sessions are recorded (the Claude Code configuration folder in use, [0140](../decisions/0140-the-owners-existing-claude-code-login.md));
@@ -38,5 +39,5 @@ Carved from section 7 of the plan. Part of the [architecture](overview.md). Spec
   - it sets per-software budgets in usage-ledger; when usage-ledger reports one overrun, premise pauses that software's queue and tells the operator.
 - Effort per software (the owner's requirement, [0128](../decisions/0128-effort-per-software-and-milestone-waits.md)), as the builders read it ([0129](../decisions/0129-builders-reading-of-effort-and-milestone-waits.md), open to the owner's correction): a share of weekly usage relies on usage-ledger, and the weekly usage figure is visible in Claude Code's own stream ([test record](../record/subscription-sandbox-test-2026-11-21.md)); a priority orders the work queue between softwares. Shares come with cost in milestone 2; priority is a field on each software from milestone 1 ([0138](../decisions/0138-priority-is-a-field-from-milestone-1.md)).
 - Because sessions carry their record items, rework shows up: an item that keeps failing its check shows its whole cost.
-- Until usage-ledger is usable, reports say that cost is not tracked yet. The turn and time limits of [0088](../decisions/0088-turn-and-time-limits.md) still stop runaway sessions; they are not cost tracking.
+- Until usage-ledger exists, reports show the mock's figures, each labelled mocked, beside premise's own counts of sessions and time. The turn and time limits of [0088](../decisions/0088-turn-and-time-limits.md) still stop runaway sessions; they are not cost tracking.
 - Building usage-ledger is not premise work; usage-ledger being usable is the prerequisite of milestone 2 ([roadmap](../product/roadmap.md)).

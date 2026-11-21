@@ -14,6 +14,7 @@ import type {
   ReportView,
   RunView,
   ScopePlace,
+  SoftwareUsageView,
 } from "../shared/api-types.js";
 import { placeFor } from "../line/scope.js";
 import { listChatMessages } from "../storage/chat.js";
@@ -213,6 +214,8 @@ export interface DemoResult {
   /** premise's words in the session, in order. */
   said: string[];
   answered: { title: string; answer: string }[];
+  /** What it used, by step, change and item (mocked), and its budget and any overrun. */
+  usage: SoftwareUsageView;
 }
 
 function bubblewrapWorks(): boolean {
@@ -239,6 +242,11 @@ export async function runDemo(
     script?: AgentScript;
     operator?: (ask: AskView) => OperatorAnswer;
     env?: NodeJS.ProcessEnv;
+    /**
+     * A deliberately small budget in dollars a week (mocked figures): the software overruns it, its
+     * queue pauses, and the result shows what the operator is told.
+     */
+    smallBudgetUsd?: number;
   },
 ): Promise<DemoResult> {
   const demo = DEMOS[which];
@@ -283,6 +291,9 @@ export async function runDemo(
     log(`Demo: ${demo.title}. The idea: ${demo.idea}`);
     const started = await session.services.softwares.start({ idea: demo.idea });
     const id = started.id;
+    if (options.smallBudgetUsd !== undefined) {
+      await session.usage.setBudget(id, { kind: "amount", usd: options.smallBudgetUsd });
+    }
     let heard = 0;
     const tell = () => {
       const messages = listChatMessages(db, id).filter((m) => m.author === "premise");
@@ -344,6 +355,7 @@ export async function runDemo(
         .filter((m) => m.author === "premise")
         .map((m) => m.text),
       answered,
+      usage: await session.usage.view(id),
     };
   } finally {
     await session.queue.close();

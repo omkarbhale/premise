@@ -447,6 +447,25 @@ export const MIGRATIONS: readonly Migration[] = [
       ALTER TABLE softwares ADD COLUMN archived_at TEXT;
     `,
   },
+  {
+    version: 13,
+    name: "budgets: an amount per software, and what the operator answered to an overrun",
+    sql: `
+      ALTER TABLE softwares ADD COLUMN budget_usd REAL;
+
+      CREATE TABLE budget_overruns (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        software_id TEXT NOT NULL REFERENCES softwares(id),
+        time TEXT NOT NULL,
+        budget TEXT NOT NULL,
+        spent TEXT NOT NULL,
+        answer TEXT CHECK (answer IN ('raised', 'finish-change', 'left-paused')),
+        answered TEXT,
+        finish_item INTEGER
+      );
+      CREATE INDEX budget_overruns_software ON budget_overruns(software_id, id);
+    `,
+  },
 ];
 
 export const CURRENT_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

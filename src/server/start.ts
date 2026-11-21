@@ -163,6 +163,7 @@ export async function start(options: StartOptions): Promise<Running> {
     line,
     measures,
     learning,
+    usage,
   } = createSession({
     db,
     config,
@@ -205,6 +206,7 @@ export async function start(options: StartOptions): Promise<Running> {
     tools,
     measures,
     learning,
+    usage,
     webRoot: options.webRoot ?? defaultWebRoot(),
   });
   try {
@@ -219,6 +221,8 @@ export async function start(options: StartOptions): Promise<Running> {
     }
     throw error;
   }
+  // Tell usage-ledger each software's budget and look for any already overrun, before work starts.
+  await usage.start();
   queue.tick();
   intake.start();
   learning.start();

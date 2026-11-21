@@ -22,9 +22,11 @@ Usage:
   premise doctor [--data <folder>]                    Check this machine and the settings.
   premise record check <folder>                       Check a software's record folder for mistakes.
   premise config reference                            Print every setting, as Markdown.
-  premise demo <cli|web> [--data <folder>]            Run a kept demo: a scripted agent (no AI) and a
+  premise demo <cli|web|budget> [--data <folder>]     Run a kept demo: a scripted agent (no AI) and a
                                                       scripted operator take a small software from
-                                                      its idea to running software.
+                                                      its idea to running software. budget: with a
+                                                      deliberately small budget that it overruns, so
+                                                      you see it pause and what you are told.
   premise real-run --confirm [--data <folder>] [--minutes <n>]
                                                       Take a tiny tool through the whole line with
                                                       real agents on YOUR Claude login (haiku, low
@@ -155,16 +157,27 @@ async function trial(args: Parsed, env: NodeJS.ProcessEnv): Promise<number> {
   const folder = args.data ?? mkdtempSync(join(tmpdir(), `premise-${args.command}-`));
   if (args.command === "demo") {
     const which = args.rest[0];
-    if (which !== "cli" && which !== "web") {
+    if (which !== "cli" && which !== "web" && which !== "budget") {
       console.error(
-        "Usage: premise demo cli   (a command-line utility)\n       premise demo web   (a small web app)",
+        "Usage: premise demo cli     (a command-line utility)\n       premise demo web     (a small web app)\n       premise demo budget  (a software that overruns a small budget and pauses)",
       );
       return 2;
     }
     console.log(`Data folder for this demo: ${folder}
 `);
-    const result = await runDemo(which, { dataFolder: folder, log: (line) => console.log(line) });
+    const result = await runDemo(which === "budget" ? "cli" : which, {
+      dataFolder: folder,
+      log: (line) => console.log(line),
+      ...(which === "budget" && { smallBudgetUsd: 0.5 }),
+    });
     console.log("");
+    if (result.usage.budget.overrun) {
+      console.log(`Budget: ${result.usage.budget.words}. ${result.usage.budget.overrun.message}`);
+      console.log(
+        "(The dollar figures are mocked: usage-ledger does not exist yet. The software is paused; open Usage on the page to raise the budget, let it finish the change, or leave it paused.)",
+      );
+      return 0;
+    }
     console.log(`Stages, in order: ${result.stages.join(" → ")}`);
     for (const check of result.build?.checks ?? []) {
       console.log(

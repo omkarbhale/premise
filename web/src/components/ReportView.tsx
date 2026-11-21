@@ -103,6 +103,35 @@ export function ReportView({ softwareId }: { softwareId: string }) {
           {r.cost.text}
           {r.cost.mocked && " These figures are made up until usage-ledger exists."}
         </p>
+        {r.cost.lines && r.cost.lines.length > 0 && (
+          <details>
+            <summary>
+              What it went on, by step, change and item {r.cost.mocked && <MockedBadge />}
+            </summary>
+            <p className="small muted">
+              The counts of sessions and minutes are premise's own. The dollar figures come from
+              usage-ledger{r.cost.mocked ? " and are mocked" : ""}.
+            </p>
+            {(["stage", "change", "item"] as const).map((group) => {
+              const lines = r.cost.lines!.filter((l) => l.group === group);
+              if (lines.length === 0) return null;
+              return (
+                <div key={group}>
+                  <h3>
+                    {{ stage: "By step", change: "By change", item: "By record item" }[group]}
+                  </h3>
+                  <ul>
+                    {lines.map((l) => (
+                      <li key={l.label}>
+                        {l.label}: {l.measured}; {l.cost} {l.mocked && <MockedBadge />}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
+          </details>
+        )}
       </section>
       {r.limits.length > 0 && (
         <section className="card note" aria-label="What this report cannot tell you">

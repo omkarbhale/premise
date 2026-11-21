@@ -149,6 +149,92 @@ export interface UsageFigures {
   weeklyShare: number;
 }
 
+/** What usage-ledger says a group of sessions used. Always carries the mock's mark. */
+export interface UsageCost {
+  mocked: boolean;
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: number;
+  /** The cost as a share of a week's usage; it can pass 1. */
+  weeklyShare: number;
+}
+
+/** What premise itself recorded about the same sessions: real, never marked as mocked. */
+export interface UsageMeasured {
+  sessions: number;
+  minutes: number;
+}
+
+export interface UsageRowView {
+  key: string;
+  label: string;
+  measured: UsageMeasured;
+  cost: UsageCost;
+}
+
+export type BudgetAnswer = "raised" | "finish-change" | "left-paused";
+
+/** What a budget overrun is, and what was spent on what, in plain words. */
+export interface OverrunView {
+  id: number;
+  time: string;
+  /** One plain paragraph: what happened and what happens now. */
+  message: string;
+  spentByStage: { label: string; sessions: number; costUsd: number }[];
+  spentByChange: { label: string; sessions: number; costUsd: number }[];
+  spentUsd: number;
+  mocked: boolean;
+  answer: BudgetAnswer | null;
+  /** The change it is allowed to finish, after the operator chose that. */
+  finishing: string | null;
+  /** Work is in progress that could be finished. */
+  canFinish: boolean;
+}
+
+export interface BudgetView {
+  kind: "none" | "share" | "amount";
+  percent: number | null;
+  usd: number | null;
+  /** The budget in plain words, or that there is none. */
+  words: string;
+  state: SoftwareState;
+  /** What was used this week, and whether it has reached the budget. */
+  spentUsd: number;
+  spentShare: number;
+  mocked: boolean;
+  /** Set while the software's queue is paused for a budget overrun. */
+  overrun: OverrunView | null;
+}
+
+export interface SoftwareUsageView {
+  softwareId: string;
+  name: string;
+  total: UsageRowView;
+  byPhase: UsageRowView[];
+  byStage: UsageRowView[];
+  byChange: UsageRowView[];
+  byItem: UsageRowView[];
+  budget: BudgetView;
+  /** Set when usage-ledger could not be read; the page says so instead of showing zeros. */
+  problem: string | null;
+}
+
+export interface UsageOverview {
+  mode: string;
+  mocked: boolean;
+  weekly: { mocked: boolean; utilization: number; windowStart: string; resetsAt: string };
+  softwares: SoftwareUsageView[];
+}
+
+/** What the operator decides about a software's budget. */
+export type BudgetInput =
+  { kind: "none" } | { kind: "share"; percent: number } | { kind: "amount"; usd: number };
+
+export type OverrunAnswerInput =
+  | { answer: "raise"; budget: BudgetInput }
+  | { answer: "finish-change" }
+  | { answer: "leave-paused" };
+
 export interface SoftwareDetail extends SoftwareSummary {
   idea: string;
   stages: StageView[];
@@ -416,6 +502,17 @@ export interface MilestoneView {
   position: "reached" | "current" | "ahead";
 }
 
+/** One line of a report's cost: measured by premise, then what usage-ledger says it cost. */
+export interface ReportCostLine {
+  group: "stage" | "change" | "item";
+  label: string;
+  /** premise's own figures, such as "3 agent sessions, 4 minutes"; not mocked. */
+  measured: string;
+  /** usage-ledger's figure, such as "about $1.20 at list prices"; carries the mock's mark. */
+  cost: string;
+  mocked: boolean;
+}
+
 export interface ReportView {
   softwareId: string;
   source: "stand-in" | "reporter";
@@ -429,7 +526,12 @@ export interface ReportView {
   running: { how: string; where: string; folder?: string } | null;
   /** One plain sentence first: what was built and checked, out of what was asked. */
   headline: string;
-  cost: { mocked: boolean; text: string };
+  cost: {
+    mocked: boolean;
+    text: string;
+    /** Per stage and per piece of work: premise's own counts beside usage-ledger's figures. */
+    lines?: ReportCostLine[];
+  };
   /** Facts the report could not read, said plainly; empty when all were read. */
   limits: string[];
   /** "How premise is doing": its own return, from recorded events (decision 0172). */
