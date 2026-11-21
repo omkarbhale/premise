@@ -3,7 +3,7 @@ import { ApiError, type JobView, NotCurrentLink } from "../api";
 import { useSession } from "../context";
 import { useLoad } from "../hooks";
 import { whereNow } from "../../../src/shared/stages";
-import { JOB_LABEL, plural, when } from "../words";
+import { jobLabel, plural, when } from "../words";
 import { Problem } from "./Badges";
 
 /** What agents are doing now, what waits, and what is queued (the work queue). */
@@ -79,9 +79,14 @@ export function Activity() {
               {g.jobs.map((job) => (
                 <li key={job.id} className={`job job-${job.status}`}>
                   <div>
-                    <strong>{JOB_LABEL[job.kind] ?? job.kind}</strong> for {job.softwareName}
+                    <strong>{jobLabel(job.kind)}</strong> for {job.softwareName}
                     {job.stage && <span className="muted"> ({whereNow(job.stage)})</span>}
                     <span className="chip">{job.status}</span>
+                    {(job.finished ?? job.started) && (
+                      <div className="muted small">
+                        {job.finished ? "Finished" : "Started"} {when(job.finished ?? job.started)}
+                      </div>
+                    )}
                     {job.line && <div className="muted small">{job.line}</div>}
                     {job.waitingOn && <div className="small">Waiting on: {job.waitingOn}</div>}
                   </div>

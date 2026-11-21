@@ -61,7 +61,7 @@ export function BuildPanel({ build }: { build: BuildView }) {
               <li key={w}>{w}</li>
             ))}
           </ul>
-          <span className="small">Answer under Waiting on you, in the Conversation tab.</span>
+          <span className="small">It is in the Conversation tab.</span>
         </div>
       )}
 

@@ -30,7 +30,11 @@ describe("first run", () => {
     await screen.findByRole("heading", { name: "Welcome to premise" });
     expect(screen.getByLabelText("What should the software do, and for whom?")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "What happens next" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "This is a trial run" })).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: "What is real here, and what is not" }),
+    ).toBeTruthy();
+    // Scripted agents: the note says it is a demo and that nothing real is built.
+    expect(screen.getByText(/nothing real is built/)).toBeTruthy();
     expect(document.title).toBe("premise");
   });
 
@@ -109,8 +113,8 @@ describe("answering an ask in place", () => {
       />,
       api,
     );
-    await user.click(screen.getByRole("button", { name: "Use this" }));
-    await user.click(screen.getByRole("button", { name: "Answer" }));
+    // One click answers.
+    await user.click(screen.getByRole("button", { name: "Go with this" }));
     expect(api.answer).toHaveBeenCalledWith(1, { kind: "text", text: "Build it" });
   });
 
@@ -331,15 +335,15 @@ describe("the other views", () => {
     expect(screen.getAllByText("Comes later").length).toBe(2);
   });
 
-  it("marks steps the work does not need as not needed, with the reason, and no way to send back there", () => {
+  it("marks steps the work does not need as skipped, with the reason, and no way to send back there", () => {
     const stages = software().stages.map((s) =>
       s.id === "who" || s.id === "exists"
         ? { ...s, position: "skipped" as const, why: "It is for you alone." }
         : s,
     );
     inSession(<Line software={software({ stages })} />);
-    expect(screen.getAllByText("Not needed", { selector: ".stage .chip" }).length).toBe(2);
-    expect(screen.getAllByText("Not needed here: It is for you alone.").length).toBe(2);
+    expect(screen.getAllByText("Skipped", { selector: ".stage .chip" }).length).toBe(2);
+    expect(screen.getAllByText("Skipped: It is for you alone.").length).toBe(2);
     // Why is done and What is current: two send-back buttons, none on the skipped steps.
     expect(
       screen.getAllByRole("button", { name: /Send back here|Start this step again/ }),

@@ -1,5 +1,5 @@
 import { PHASES, STAGES } from "../../../src/shared/stages";
-import { TERMS } from "../words";
+import { GLOSS, TERMS } from "../words";
 
 /** Everything a newcomer might wonder about, on one short page. */
 export function Help() {
@@ -18,8 +18,8 @@ export function Help() {
             Agents build and check it without you. premise asks only where your answer matters.
           </li>
           <li>
-            Whatever needs you is under <strong>Waiting on you</strong>; the browser tab shows how
-            many things are waiting.
+            Whatever needs you is under <strong>Waiting on you</strong>, and on the software's own
+            page; the browser tab shows how many things are waiting.
           </li>
         </ul>
       </section>
@@ -91,6 +91,12 @@ export function Help() {
           <dd>{TERMS.standIn}</dd>
           <dt>Mocked</dt>
           <dd>{TERMS.mocked}</dd>
+          <dt>Milestone</dt>
+          <dd>{GLOSS.milestone[0]!.toUpperCase() + GLOSS.milestone.slice(1)}.</dd>
+          <dt>Approval</dt>
+          <dd>{GLOSS.approval[0]!.toUpperCase() + GLOSS.approval.slice(1)}.</dd>
+          <dt>Scripted agents</dt>
+          <dd>{GLOSS.scriptedAgents[0]!.toUpperCase() + GLOSS.scriptedAgents.slice(1)}.</dd>
         </dl>
       </section>
       <section className="card">

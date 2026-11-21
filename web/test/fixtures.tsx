@@ -174,6 +174,7 @@ export function inSession(ui: React.ReactNode, api: Api = fakeApi()) {
     notCurrent: vi.fn(),
     report: vi.fn(),
     refresh: vi.fn(),
+    explained: new Set<string>(),
   };
   return {
     session,

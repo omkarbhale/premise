@@ -55,7 +55,7 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
   const decided: ReportLine[] = [];
   if (facts.milestone) {
     decided.push({
-      text: `Milestone ${facts.milestone.id} is reached${facts.milestone.text ? `: ${sentence(facts.milestone.text)}` : "."}`,
+      text: `This milestone is reached${facts.milestone.text ? `: ${sentence(facts.milestone.text)}` : "."}`,
       evidence: `record item ${facts.milestone.id}`,
     });
   }
@@ -63,9 +63,9 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
     (i) => options.detail || !lastDay || i.marks.date >= lastDay,
   );
   for (const item of sinceLast) {
-    const priority = item.marks.priority ? ` (${item.marks.priority})` : "";
+    const priority = item.marks.priority ? `${item.marks.priority}: ` : "";
     decided.push({
-      text: `${item.id}${priority}: ${sentence(item.text)}`,
+      text: `${priority}${sentence(item.text)}`,
       evidence: `record item ${item.id}, ${item.file}`,
     });
   }
@@ -91,8 +91,8 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
     switch (latest.status) {
       case "running":
         running.push({
-          text: `Running at ${at}. Open ${latest.link} on this computer.`,
-          evidence: `run ${latest.id}`,
+          text: `Running. Open ${latest.link} on this computer.`,
+          evidence: `run ${latest.id}, ${at}`,
         });
         runningBlock = {
           how: "Open the link in a browser on this computer.",
@@ -100,29 +100,30 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
         };
         break;
       case "starting":
-        running.push({ text: `Starting up at ${at}.`, evidence: `run ${latest.id}` });
+        running.push({ text: "Starting up.", evidence: `run ${latest.id}, ${at}` });
         break;
       case "finished":
         running.push({
-          text: `A command-line program, run once on a sample at ${at}. It printed: ${firstLine(view?.output[0] ?? "") || "(nothing)"}`,
-          evidence: `run ${latest.id}`,
+          text: `A command-line program, run once on a sample. It printed: ${firstLine(view?.output[0] ?? "") || "(nothing)"}`,
+          evidence: `run ${latest.id}, ${at}`,
         });
         runningBlock = {
           how: "Type this command in a terminal.",
           where: latest.command ?? "",
+          ...(view?.folder && { folder: view.folder }),
         };
         break;
       case "built":
         running.push({
-          text: `Built at ${at}, but premise does not start desktop programs. ${latest.command ?? ""}`.trim(),
-          evidence: `run ${latest.id}`,
+          text: `Built, but premise does not start desktop programs. ${latest.command ?? ""}`.trim(),
+          evidence: `run ${latest.id}, ${at}`,
         });
         runningBlock = { how: "Start it on your computer.", where: latest.command ?? "" };
         break;
       default:
         running.push({
-          text: `Not running. The last start (${at}) ended as "${latest.status}".`,
-          evidence: `run ${latest.id}`,
+          text: `Not running. The last start ended as "${latest.status}".`,
+          evidence: `run ${latest.id}, ${at}`,
         });
     }
     if (latest.restarts > 0) {
@@ -133,8 +134,8 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
     }
     if (current && !sameVersion(latest.commit, current)) {
       running.push({
-        text: `This report is about version ${SHORT(current)}, but the software last started was version ${SHORT(latest.commit)}.`,
-        evidence: `run ${latest.id}`,
+        text: "This report is about a newer version than the one last started.",
+        evidence: `run ${latest.id}, this report is about version ${SHORT(current)}, the last start was version ${SHORT(latest.commit)}`,
       });
     }
     const newer = facts.commits.findIndex((c) => c.sha === latest.commit);
@@ -167,22 +168,22 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
     const verdict = verdictOf.get(item.id);
     if (!verdict) {
       failed.push({
-        text: `Not checked: ${item.id} ${sentence(item.text)} No check has looked at it, so it is not known to work.`,
+        text: `Not checked: ${sentence(item.text)} No check has looked at it, so it is not known to work.`,
         evidence: `record item ${item.id}`,
       });
     } else if (!checkedAt(verdict.commit, current)) {
       failed.push({
-        text: `Not checked at this version: ${item.id} ${sentence(item.text)} It was last checked at version ${SHORT(verdict.commit!)}, and the result there was: ${verdict.verdict === "met" ? "met" : verdict.verdict === "not-met" ? "not met" : "could not be checked"}.`,
-        evidence: `check of ${item.id}`,
+        text: `Not checked at this version: ${sentence(item.text)} It was last checked at an earlier version, and the result there was: ${verdict.verdict === "met" ? "met" : verdict.verdict === "not-met" ? "not met" : "could not be checked"}.`,
+        evidence: `check of ${item.id}, version ${SHORT(verdict.commit!)}`,
       });
     } else if (verdict.verdict === "not-met") {
       failed.push({
-        text: `Not met: ${item.id} ${sentence(item.text)}${verdict.evidence ? ` ${sentence(verdict.evidence)}` : ""}`,
+        text: `Not met: ${sentence(item.text)}${verdict.evidence ? ` ${sentence(verdict.evidence)}` : ""}`,
         evidence: `check of ${item.id}`,
       });
     } else if (verdict.verdict === "could-not-check") {
       failed.push({
-        text: `Could not be checked: ${item.id} ${sentence(item.text)}${verdict.evidence ? ` ${sentence(verdict.evidence)}` : ""}`,
+        text: `Could not be checked: ${sentence(item.text)}${verdict.evidence ? ` ${sentence(verdict.evidence)}` : ""}`,
         evidence: `check of ${item.id}`,
       });
     }
@@ -269,8 +270,22 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
       section.lines = section.lines.slice(0, keep);
     }
   }
+  const met = mustCheck.filter((i) => {
+    const v = verdictOf.get(i.id);
+    return v?.verdict === "met" && checkedAt(v.commit, current);
+  }).length;
+  const headline = !latest
+    ? mustCheck.length > 0
+      ? `Nothing has been built or checked yet. ${mustCheck.length} ${mustCheck.length === 1 ? "thing" : "things"} you asked for ${mustCheck.length === 1 ? "is" : "are"} still to do.`
+      : "Nothing has been built or checked yet."
+    : mustCheck.length === 0
+      ? "Built, but nothing in the record says what it must do, so nothing could be checked against it."
+      : met === mustCheck.length
+        ? `Built and checked: all ${mustCheck.length} ${mustCheck.length === 1 ? "thing" : "things"} you asked for ${mustCheck.length === 1 ? "is" : "are"} met.`
+        : `Built and checked: ${met} of ${mustCheck.length} things you asked for ${met === 1 ? "is" : "are"} met; ${mustCheck.length - met} not met or not checked.`;
   return {
     softwareId: facts.softwareId,
+    headline,
     source: options.source ?? "reporter",
     written: options.written ?? null,
     detail: options.detail,

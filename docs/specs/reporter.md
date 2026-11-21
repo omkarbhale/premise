@@ -57,7 +57,7 @@ Always current, for each software ([0012](../decisions/0012-reporting-with-a-pro
 | Failed or not checked | Every item not met or not checked |
 | Cost | From usage-ledger, once it is usable (milestone 2). Until then: "Cost is not tracked yet." |
 
-It is in lists ([0029](../decisions/0029-lists-over-long-paragraphs.md)), and states the known limit that the checker shares the builder's model ([0091](../decisions/0091-checker-same-provider-strongest-tier.md)).
+It opens with one plain sentence saying what was built and checked out of what was asked, and "Running" gives the folder a command is typed in ([0190](../decisions/0190-how-the-first-visit-is-made-clear.md)). It is in lists ([0029](../decisions/0029-lists-over-long-paragraphs.md)), and states the known limit that the checker shares the builder's model ([0091](../decisions/0091-checker-same-provider-strongest-tier.md)).
 
 ### 5.3 When reports are written
 

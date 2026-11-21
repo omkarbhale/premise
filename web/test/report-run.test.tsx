@@ -21,6 +21,7 @@ function run(change: Partial<RunView> = {}): RunView {
     outputIsSample: false,
     restarts: 0,
     confined: true,
+    folder: null,
     started: "2026-11-22T10:00:00.000Z",
     ended: null,
     canStart: true,
@@ -32,6 +33,7 @@ function run(change: Partial<RunView> = {}): RunView {
 function report(change: Partial<ReportView> = {}): ReportView {
   return {
     softwareId: "s1",
+    headline: "Built and checked: 1 of 2 things you asked for are met; 1 not met or not checked.",
     source: "reporter",
     written: "2026-11-22T10:00:00.000Z",
     detail: false,
@@ -40,9 +42,7 @@ function report(change: Partial<ReportView> = {}): ReportView {
       {
         title: "Failed or not checked",
         plain: "Everything not known to work.",
-        lines: [
-          { text: "Not checked: W-3 The page works on a phone.", evidence: "record item W-3" },
-        ],
+        lines: [{ text: "Not checked: The page works on a phone.", evidence: "record item W-3" }],
       },
     ],
     running: null,
@@ -62,8 +62,10 @@ describe("the report and run views", () => {
     await screen.findByText(/taken only from what it recorded/);
     expect(await screen.findByRole("link", { name: "http://127.0.0.1:4700/" })).toBeTruthy();
     expect(screen.getByText(/works on this computer only/)).toBeTruthy();
-    expect(screen.getByText("Not checked: W-3 The page works on a phone.")).toBeTruthy();
-    expect(screen.getByText("(record item W-3)")).toBeTruthy();
+    expect(screen.getByText("Not checked: The page works on a phone.")).toBeTruthy();
+    // The headline comes first; ids and versions sit behind "details".
+    expect(screen.getByRole("heading", { name: /Built and checked: 1 of 2/ })).toBeTruthy();
+    expect(screen.getByText("record item W-3").closest("details")).toBeTruthy();
     expect(screen.getByText(/4 more lines are left out/)).toBeTruthy();
     expect(screen.getByText("The check is done by the same kind of AI as the build.")).toBeTruthy();
     expect(screen.getByText("Mocked")).toBeTruthy();
@@ -94,13 +96,13 @@ describe("the report and run views", () => {
         report: vi.fn(() => Promise.resolve(report())),
         run: vi.fn(() =>
           Promise.resolve(
-            run({ state: "none", link: null, canStop: false, output: [], commit: null }),
+            run({ state: "stopped", link: null, canStop: false, output: [], commit: null }),
           ),
         ),
         startRun,
       }),
     );
-    await user.click(await screen.findByRole("button", { name: "Start it" }));
+    await user.click(await screen.findByRole("button", { name: "Start it again" }));
     await waitFor(() =>
       expect(screen.getByText(/Nothing has been built for this software yet/)).toBeTruthy(),
     );

@@ -8,7 +8,7 @@ One product that takes software from an idea to running software, and keeps taki
 
 The full statement is in [VISION.md](VISION.md).
 
-> **Status: being built.** The owner said to build the whole of premise ([0130](docs/decisions/0130-the-build-starts-and-covers-all-of-premise.md)). The foundation is in (configuration, storage, the work queue, a scripted agent used by tests and demos, a mock of usage-ledger, the setup check), so is the record keeper (each software's lasting record, its trace trailers and its own git repository), and so is the page with its server: start a software from an idea and walk it through the line (shown as three phases, [0165](docs/decisions/0165-the-page-shows-three-phases.md)). The runner (starts a built software from a clean copy, confined, on a local port, restarting it if it crashes) and the reporter (reports from recorded facts only, including what failed and what was not checked) are in too ([0162](docs/decisions/0162-how-the-runner-is-built.md)–[0164](docs/decisions/0164-how-the-reporter-is-built.md)). The real agent runner is in too: Claude Code run headless, each session confined by its sandbox, and on by default ([0180](docs/decisions/0180-premise-uses-real-agents-by-default.md)). So are the line engine (Why, Who, What exists, What, Say back and Plan, run by agents) and the gate (premise asks before it acts outside this machine, including creating a repository on GitHub) ([0183](docs/decisions/0183-how-the-line-engine-is-built.md), [0182](docs/decisions/0182-how-the-gate-is-built.md)). So are Build, Check and Run: a builder agent per task in its own working copy, a separate checker that uses the software as a user would and judges each item with evidence, and the server landing the checked commit and starting it ([0186](docs/decisions/0186-how-build-check-and-run-are-built.md)). Intake is in, in a thin form: what you say that is not an answer, and problems or wishes reported on a software's Intake tab, are read by a triager agent against the record and mostly go onto the line as new work, sized like any piece ([0185](docs/decisions/0185-how-intake-in-a-thin-form-is-built.md)). Existing software is in, in a thin form: bring in a repository from a folder or a clone address, and premise recovers its record from the code on its own copy, says it back for you to strike what is wrong, and asks before adding the record to your repository on a branch of its own; changes then come in as intake ([0189](docs/decisions/0189-how-taking-on-existing-software-is-built.md)). ([roadmap](docs/product/roadmap.md)). Questions that were open with the owner were chosen for the owner and can be corrected ([open questions](docs/open-questions.md)).
+premise is being built, and most of the line already works: see the [status page](docs/status.md) for what is in and what is not.
 
 ## Quick start
 
@@ -19,19 +19,27 @@ git clone https://github.com/omkarbhale/premise.git
 cd premise
 npm install
 npm run build
-npm start
+npm run doctor    # checks this machine; creates nothing
 ```
 
-`npm start` prints a link such as `http://localhost:4610/#token=…`. Open it in your browser and describe a software in a sentence or two; the page says what happens next. The link holds a private token; restarting premise gives a new one, and `npm run new-link` prints a new one at any time (older links stop working).
+Then pick one:
 
-- **Agents are real by default.** They run as Claude Code sessions on your existing Claude Code login, with no API key ([0180](docs/decisions/0180-premise-uses-real-agents-by-default.md)). On Linux and WSL2 they need Claude Code, bubblewrap and socat (`sudo apt install bubblewrap socat`), because every agent runs inside Claude Code's sandbox. If real agents cannot start, premise still starts, holds agent work, says on the page what is missing, and offers "look around with scripted agents (not real)". `npm run doctor` checks all of it.
-- **To try it without calling an AI,** start with scripted agents: `npm run demo`, or `npm start -- --scripted`. Scripted agents are labelled on the page. Tests and CI always use them (`"agents": { "mode": "scripted" }`).
-- **See the whole line without AI:** `npm run demo:cli` (a command-line utility) or `npm run demo:web` (a small web app), after `npm run build`. A scripted agent and a scripted operator take the software from its idea to running software: one assumption is struck at the say-back, the check catches a defect planted in the build, the builder fixes it, and it runs ([0187](docs/decisions/0187-kept-demos-and-one-real-run.md)).
-- **One real run with real agents,** on your Claude login (every task on haiku at low effort, one session at a time): `npm run real-run -- --confirm`. It takes a tiny tool through the whole line and writes its evidence to its data folder. Use it sparingly.
-- **Usage figures are mocked** until usage-ledger exists, and the page labels them "Mocked".
-- **Check your machine** with `npm run doctor`: it lists what premise needs, what is missing, and how to get it.
-- **Change settings** (how many agents run at once, the model and effort for each type of task, and more) in `config.json` in the data folder (`~/.premise` by default), or with environment variables. Every setting: [configuration reference](docs/reference/configuration.md).
-- Start on another port with `npm start -- --port 4700`, or use another data folder with `npm start -- --data <folder>`.
+| I want to… | Run | What happens |
+| --- | --- | --- |
+| **Use my Claude Code login** (real agents) | `npm start` | Agents are Claude Code sessions on your login; no API key. On Linux and WSL2 they also need bubblewrap and socat (`sudo apt install bubblewrap socat`); `npm run doctor` says what is missing. |
+| **Look around without AI** | `npm run demo` | Scripted agents follow a script and call no AI; nothing real is built. The page labels them. |
+
+Either prints a link such as `http://localhost:4610/#token=…`. Open it, describe a software in a sentence or two, and the page says what happens next. The link holds a private token; restarting gives a new one, and `npm run new-link` prints a new one any time (older links stop working). If real agents cannot start, premise still starts, says on the page what is missing, and offers "look around with scripted agents".
+
+`npm install` may print a note that esbuild's install script is allowed; that is expected and harmless. It should report no vulnerabilities.
+
+More:
+
+- `npm run demo:cli` and `npm run demo:web` run a whole scripted build, check and run in the terminal, and stop ([0187](docs/decisions/0187-kept-demos-and-one-real-run.md)). `npm run demo:web` does not leave a link running; use `npm run demo` to click around.
+- `npm run real-run -- --confirm` takes a tiny tool through the whole line with real agents on your login (haiku, low effort). Use it sparingly.
+- Usage figures are mocked until usage-ledger exists; the page labels them "Mocked".
+- Change settings (how many agents run at once, the model and effort for each type of task, and more) in `config.json` in the data folder (`~/.premise` by default), or with environment variables: [configuration reference](docs/reference/configuration.md).
+- Another port or data folder: `npm start -- --port 4700`, `npm start -- --data <folder>`. `--help` anywhere prints help; a flag premise does not know is an error and starts nothing.
 
 For working on premise: `npm run dev` (rebuilds the server on change), `npm test`, `npm run lint`, `npm run typecheck`. `npm test` needs the page built (`npm run build`) and Playwright's headless Chromium (`npx playwright install chromium-headless-shell`) for its one browser test, which saves screenshots of each main state in `test-artifacts/screenshots/`. Every change goes through the no-mistakes validation pipeline ([0131](docs/decisions/0131-changes-go-through-the-validation-pipeline.md)); CI runs the same checks.
 
@@ -123,6 +131,7 @@ Details: [scope](docs/product/scope.md); order: [roadmap](docs/product/roadmap.m
 - [VISION.md](VISION.md): what premise is, who it is for, its principles, the line, the record, and what is not yet worked out. Stays at the root ([0111](docs/decisions/0111-vision-stays-at-the-root.md)).
 - [Executive summary](docs/executive-summary.md): premise in two pages.
 - [Glossary](docs/glossary.md): the words the documents use.
+- [Status](docs/status.md): what is built and what is not.
 - [Open questions](docs/open-questions.md): what is still open, and the questions the assistant chose for the owner.
 - [Configuration reference](docs/reference/configuration.md): every setting, its default and its meaning.
 

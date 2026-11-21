@@ -1,10 +1,9 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import type { AskView } from "../api";
 import { useSession } from "../context";
 import { useLoad } from "../hooks";
 import { stageName, whereNow } from "../../../src/shared/stages";
-import { percent } from "../words";
-import { MockedBadge, Problem } from "./Badges";
+import { Define, Problem } from "./Badges";
 import { Conversation } from "./Conversation";
 import { ExistingPanel } from "./ExistingPanel";
 import { IntakeView } from "./IntakeView";
@@ -14,12 +13,21 @@ import { ReportView } from "./ReportView";
 
 export type SoftwareTab = "conversation" | "line" | "record" | "report" | "intake";
 
-const TABS: { id: SoftwareTab; label: string }[] = [
-  { id: "conversation", label: "Conversation" },
-  { id: "line", label: "Line" },
-  { id: "record", label: "Record" },
-  { id: "report", label: "Report" },
-  { id: "intake", label: "Intake" },
+const TABS: { id: SoftwareTab; label: string; help: string; more?: boolean }[] = [
+  {
+    id: "conversation",
+    label: "Conversation",
+    help: "Questions for you, and what you have said to premise",
+  },
+  { id: "report", label: "Report", help: "What was built, whether it works, and how to try it" },
+  {
+    id: "line",
+    label: "Line",
+    help: "The steps the work goes through, and where it is now",
+    more: true,
+  },
+  { id: "record", label: "Record", help: "What was decided, and why", more: true },
+  { id: "intake", label: "Intake", help: "Report a problem or ask for a change", more: true },
 ];
 
 /** One software: where it is, what waits on you, and its conversation, line, record, report and intake. */
@@ -37,6 +45,7 @@ export function SoftwareView({
   const { api, version, notCurrent } = useSession();
   const software = useLoad(() => api.software(softwareId), [softwareId], version, notCurrent);
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const [showMore, setShowMore] = useState(false);
 
   if (software.state === "loading") return <p className="muted">Loading…</p>;
   if (software.state === "error") return <Problem>{software.message}</Problem>;
@@ -44,33 +53,47 @@ export function SoftwareView({
   const copyNotReady = s.existing?.status === "copying" || s.existing?.status === "copy-failed";
   const open = asks.filter((a) => a.status === "open" && a.softwareId === s.id).length;
 
+  // Only the tabs a newcomer needs show at first; the rest are one click away, and stay open when
+  // one of them is the tab being looked at.
+  const expanded = showMore || TABS.find((t) => t.id === tab)?.more === true;
+  const tabs = TABS.filter((t) => !t.more || expanded);
+
   function onTabKey(event: React.KeyboardEvent, index: number) {
     const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
     if (!step) return;
     event.preventDefault();
-    const next = (index + step + TABS.length) % TABS.length;
-    onTab(TABS[next]!.id);
+    const next = (index + step + tabs.length) % tabs.length;
+    onTab(tabs[next]!.id);
     tabRefs.current[next]?.focus();
   }
+  const ended = s.state === "ended";
 
   return (
     <div className="software">
       <header className="software-head">
         <h1>{s.name}</h1>
         <p className="where">
-          <strong>{whereNow(s.stage, s.takingOn)}</strong>{" "}
-          <span className="muted small">(step: {stageName(s.stage)})</span>
+          {ended ? (
+            <strong>Ended: you decided not to build it</strong>
+          ) : (
+            <>
+              <strong>{whereNow(s.stage, s.takingOn)}</strong>{" "}
+              <span className="muted small">
+                (<Define term="step">step</Define>: {stageName(s.stage)})
+              </span>
+            </>
+          )}
         </p>
         <p className={`status status-${open > 0 ? "needs-you" : s.state}`} role="status">
-          {s.status}
+          {open > 0
+            ? tab === "conversation"
+              ? "Your turn: answer below."
+              : "Your turn: the answer is in the Conversation tab."
+            : s.status}
         </p>
         <div className="head-facts small muted">
           <span>Size {s.sizeClass}</span>
           <span>Priority {s.priority}</span>
-          <span>
-            Usage: {s.usage.sessions} sessions, ${s.usage.costUsd.toFixed(2)},{" "}
-            {percent(s.usage.weeklyShare)} of the week {s.usage.mocked && <MockedBadge />}
-          </span>
         </div>
         <details className="idea">
           <summary>What you asked for</summary>
@@ -80,9 +103,10 @@ export function SoftwareView({
       </header>
 
       <div className="tabs" role="tablist" aria-label={`${s.name} views`}>
-        {TABS.map((t, i) => (
+        {tabs.map((t, i) => (
           <button
             key={t.id}
+            title={t.help}
             ref={(el) => {
               tabRefs.current[i] = el;
             }}
@@ -99,6 +123,11 @@ export function SoftwareView({
             {t.id === "conversation" && open > 0 && <span className="count">{open}</span>}
           </button>
         ))}
+        {!expanded && (
+          <button type="button" className="quiet" onClick={() => setShowMore(true)}>
+            More views
+          </button>
+        )}
       </div>
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="panel">
         {tab === "conversation" && <Conversation softwareId={s.id} asks={asks} />}

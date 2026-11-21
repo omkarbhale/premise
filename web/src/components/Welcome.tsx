@@ -1,5 +1,7 @@
+import { stageName } from "../../../src/shared/stages";
 import type { Overview, SoftwareSummary } from "../api";
 import { BringInForm } from "./BringInForm";
+import { Define } from "./Badges";
 import { StartForm } from "./StartForm";
 
 /** The first thing someone new sees: what premise is, what to type, and what happens next. */
@@ -15,8 +17,9 @@ export function Welcome({
       <section className="card hero">
         <h1>Welcome to premise</h1>
         <p className="lead">
-          premise takes software from an idea to running software. You say what it is for; agents
-          draft, plan, build and check it. premise asks you only where your answer matters.
+          premise takes software from an idea to running software. You say what it is for;{" "}
+          <Define term="agent">agents</Define> draft, plan, build and check it. premise asks you
+          only where your answer matters.
         </p>
         <StartForm onStarted={onStarted} autoFocus />
       </section>
@@ -49,33 +52,51 @@ export function Welcome({
           </li>
         </ol>
         <p>
-          Whenever something needs you, it appears under <strong>Waiting on you</strong>, and the
-          browser tab shows how many things are waiting.
+          Whenever something needs you, it appears under{" "}
+          <strong>
+            <Define term="waitingOnYou">Waiting on you</Define>
+          </strong>
+          , and the browser tab shows how many things are waiting.
         </p>
       </section>
 
-      <section className="card note" aria-label="This is a trial run">
-        <h2>This is a trial run</h2>
-        <p>premise is still being built. What you see here is real, except:</p>
-        <ul>
-          <li>
-            Building, checking and running are a <strong>stand-in</strong> for now: premise drafts
-            and plans for real, then walks through the later stages without building anything. Each
-            one is labelled where it appears.
-          </li>
-          {overview.agents.mode === "scripted" && (
-            <li>
-              Agents are <strong>scripted</strong>: their lists come from fixed templates and they
-              do no real work. No AI is called, and your Claude login is not used.
-            </li>
-          )}
-          {overview.usage.mocked && (
-            <li>
-              Usage and cost figures are <strong>mocked</strong>: made up until usage-ledger, which
-              will measure them, exists. They are labelled Mocked wherever they appear.
-            </li>
-          )}
-        </ul>
+      <section className="card note" aria-label="What is real here and what is not">
+        <h2>What is real here, and what is not</h2>
+        {overview.agents.mode === "scripted" ? (
+          <>
+            <p>
+              <strong>This is a demo.</strong> The agents are{" "}
+              <Define term="scriptedAgents">scripted</Define>: no AI is called, your Claude login is
+              not used, and nothing real is built. The lists, the plan and the "software" at the end
+              come from fixed templates, so they will not match your idea closely. Every one is
+              labelled where it appears.
+            </p>
+            <p>
+              To see a whole scripted build, check and run, use <code>npm run demo:cli</code>. To
+              build for real, restart premise without <code>--scripted</code> (
+              <code>npm start</code>
+              ).
+            </p>
+          </>
+        ) : (
+          <p>
+            <strong>The agents are real.</strong> They are Claude Code sessions on your own login:
+            they draft, plan, build, check and run your software, and premise asks you before
+            anything leaves this machine. This uses part of your Claude plan.
+          </p>
+        )}
+        {overview.line.standInStages.length > 0 && (
+          <p>
+            Not built yet in premise, so <Define term="standIn">stand-ins</Define>:{" "}
+            {overview.line.standInStages.map(stageName).join(", ")}.
+          </p>
+        )}
+        {overview.usage.mocked && (
+          <p>
+            Usage and cost figures are <Define term="mocked">mocked</Define>: made up until
+            usage-ledger exists. They are labelled Mocked wherever they appear.
+          </p>
+        )}
       </section>
     </div>
   );

@@ -1,4 +1,7 @@
-import { TERMS } from "../words";
+import { useState } from "react";
+import { useContext } from "react";
+import { SessionContext } from "../context";
+import { GLOSS, type GlossTerm, TERMS } from "../words";
 
 export function MockedBadge() {
   return (
@@ -35,5 +38,24 @@ export function Problem({ children }: { children: React.ReactNode }) {
     <p className="problem" role="alert">
       {children}
     </p>
+  );
+}
+
+/**
+ * A premise word. The first time it appears on the page, its plain meaning follows it in place;
+ * after that it is the word alone, with the meaning as a tooltip.
+ */
+export function Define({ term, children }: { term: GlossTerm; children: React.ReactNode }) {
+  const explained = useContext(SessionContext)?.explained;
+  const [first] = useState(() => {
+    if (!explained || explained.has(term)) return false;
+    explained.add(term);
+    return true;
+  });
+  return (
+    <span className="define" title={GLOSS[term]}>
+      {children}
+      {first && <span className="define-gloss muted"> ({GLOSS[term]})</span>}
+    </span>
   );
 }

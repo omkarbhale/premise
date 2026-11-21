@@ -7,10 +7,25 @@ function show(value: unknown): string {
   return value === null ? "none" : JSON.stringify(value);
 }
 
+/** The settings someone is most likely to want; the rest sit under "advanced". */
+const COMMON = [
+  "agents.mode",
+  "queue.max_agent_sessions",
+  "usage_ledger.mode",
+  "server.port",
+  "softwares.default_priority",
+  "softwares.default_milestone_waits",
+];
+
 /** The configuration in use, read only, with where to change it. */
 export function Settings({ overview }: { overview: Overview }) {
   const { api, version, notCurrent } = useSession();
   const settings = useLoad(() => api.settings(), [], version, notCurrent);
+  const general =
+    settings.state === "ready"
+      ? settings.data.settings.filter((s) => !s.key.startsWith("agents.tasks."))
+      : [];
+  const common = general.filter((s) => COMMON.includes(s.key)).length;
   const problems = overview.setup.filter((c) => c.status !== "ok");
   return (
     <section aria-labelledby="settings-title">
@@ -36,6 +51,10 @@ export function Settings({ overview }: { overview: Overview }) {
       {settings.state === "error" && <Problem>{settings.message}</Problem>}
       {settings.state === "ready" && (
         <>
+          <p className="muted">
+            premise works with the defaults. Change a setting only when you want something
+            different, such as how many agents run at once, or which model each type of task uses.
+          </p>
           <section className="card">
             <h2>How to change a setting</h2>
             <ol>
@@ -55,12 +74,24 @@ export function Settings({ overview }: { overview: Overview }) {
             <p className="muted small">The page shows settings; it does not change them.</p>
           </section>
           <SettingsTable
-            title="General"
-            settings={settings.data.settings.filter((s) => !s.key.startsWith("agents.tasks."))}
+            title="The settings most people change"
+            settings={general.filter((s) => COMMON.includes(s.key))}
           />
           <TaskTable
             settings={settings.data.settings.filter((s) => s.key.startsWith("agents.tasks."))}
           />
+          <details className="card advanced">
+            <summary>
+              <strong>All other settings</strong>{" "}
+              <span className="muted small">
+                ({general.length - common} more, for advanced use)
+              </span>
+            </summary>
+            <SettingsTable
+              title="Everything else"
+              settings={general.filter((s) => !COMMON.includes(s.key))}
+            />
+          </details>
         </>
       )}
     </section>

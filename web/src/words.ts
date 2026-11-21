@@ -17,6 +17,29 @@ export const TERMS = {
     "Mocked: usage-ledger, which will report real usage and cost, does not exist yet. Until it does, these figures are made up so you can see where they will appear.",
 } as const;
 
+/**
+ * One short plain gloss for each premise word, shown in place the first time the word appears on
+ * the page (see Define), and in the Help glossary.
+ */
+export const GLOSS = {
+  waitingOnYou: "the questions premise needs you to answer",
+  agent: "an AI worker premise gives one job to",
+  scriptedAgents: "stand-in workers that follow a fixed script and call no AI",
+  step: "one stage of the work, such as Why or Plan",
+  line: "the steps a software goes through, from idea to running",
+  record:
+    "a short list of what was decided about the software, kept with its code; each item has an ID such as W-3",
+  milestone: "a stopping point that ends with running software and a report",
+  intake: "where what you say after it runs, such as a problem or a wish, is taken in",
+  approval: "premise asks before it does anything outside this machine",
+  standIn: "a part that is not built yet, so it is scripted and marked",
+  mocked: "made-up figures, until usage-ledger exists to measure the real ones",
+  usage: "how much of your Claude plan the work used",
+  sayBack: "premise lists what it understood and assumed so you can strike what is wrong",
+} as const;
+
+export type GlossTerm = keyof typeof GLOSS;
+
 export const ASK_KIND_LABEL: Record<AskKind, string> = {
   question: "A question",
   draft: "A list to check",
@@ -42,13 +65,18 @@ export const JOB_LABEL: Record<string, string> = {
   build: "Building",
   prototype: "Making a prototype",
   check: "Checking",
+  size: "Sizing the work",
   triage: "Reading new items",
   reading: "Reading held items",
   report: "Writing a report",
   run: "Starting the software",
-  size: "Sizing the work",
   recover: "Recovering a record from the code",
 };
+
+/** A label for a kind of job, starting with a capital even for kinds premise has no words for. */
+export function jobLabel(kind: string): string {
+  return JOB_LABEL[kind] ?? kind.charAt(0).toUpperCase() + kind.slice(1);
+}
 
 export function plural(n: number, one: string, many = `${one}s`): string {
   return `${n} ${n === 1 ? one : many}`;

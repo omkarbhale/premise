@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { type CommandRunner, formatDoctorReport, runDoctor } from "../src/doctor/doctor.js";
 import { tempFolder } from "./helpers.js";
@@ -20,6 +22,30 @@ describe("setup check", () => {
     expect(report.checks.every((c) => c.status === "ok")).toBe(true);
     expect(report.canStart).toBe(true);
     expect(formatDoctorReport(report)).toContain("Everything premise needs to start is here.");
+  });
+
+  it("does not create the data folder, and says whether it exists", async () => {
+    const missing = join(tempFolder(), "not-yet", "premise");
+    const report = await runDoctor({
+      dataFolder: missing,
+      env: {},
+      nodeVersion: "v24.1.0",
+      platform: "linux",
+      run: machine(everything),
+    });
+    expect(existsSync(missing)).toBe(false);
+    const folder = report.checks.find((c) => c.name === "Data folder")!;
+    expect(folder.status).toBe("ok");
+    expect(folder.detail).toContain("does not exist yet");
+    expect(folder.detail).toContain("did not create it");
+    const there = await runDoctor({
+      dataFolder: tempFolder(),
+      env: {},
+      nodeVersion: "v24.1.0",
+      platform: "linux",
+      run: machine(everything),
+    });
+    expect(there.checks.find((c) => c.name === "Data folder")!.detail).toContain("exists");
   });
 
   it("starts with scripted agents when Claude Code and the sandbox tools are missing, and says how to get them", async () => {

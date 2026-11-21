@@ -23,6 +23,22 @@ export function ReportView({ softwareId }: { softwareId: string }) {
         This is what premise knows, taken only from what it recorded: the record, the code, the
         checks, what is running and the work queue. If something is not here, it is not known.
       </p>
+      <section className="card headline" aria-label="The short version">
+        <h2>{r.headline}</h2>
+        {r.running ? (
+          <p>
+            <strong>To try it:</strong> {r.running.how}{" "}
+            {r.running.folder && (
+              <>
+                In the folder <code>{r.running.folder}</code>:{" "}
+              </>
+            )}
+            <code>{r.running.where}</code>
+          </p>
+        ) : (
+          <p className="muted">Nothing is running yet, so there is nothing to try.</p>
+        )}
+      </section>
       <RunPanel softwareId={softwareId} />
       {r.written ? (
         <p>
@@ -45,7 +61,12 @@ export function ReportView({ softwareId }: { softwareId: string }) {
               {section.lines.map((line, i) => (
                 <li key={i}>
                   {line.text}
-                  {line.evidence && <span className="muted small"> ({line.evidence})</span>}
+                  {line.evidence && (
+                    <details className="evidence">
+                      <summary className="small muted">details</summary>
+                      <span className="muted small">{line.evidence}</span>
+                    </details>
+                  )}
                 </li>
               ))}
             </ul>

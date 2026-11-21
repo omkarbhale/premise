@@ -37,13 +37,27 @@ function Notice({ title, children }: { title: string; children: React.ReactNode 
   );
 }
 
-export function NoLink() {
+/** The link to open premise looks like this one, with the real address and port of this page. */
+function exampleLink(): string {
+  return `${window.location.origin}/#token=…`;
+}
+
+export function NoLink({ stale = false }: { stale?: boolean }) {
   return (
-    <Notice title="Open premise from its link">
-      <p>
-        This page needs the private link premise printed in its terminal when it started. It looks
-        like <code>http://localhost:4610/#token=…</code>
-      </p>
+    <Notice title={stale ? "This link is old" : "Open premise from its link"}>
+      {stale ? (
+        <p>
+          premise was restarted, or given a new link, since this one was made, so this link no
+          longer works. Your work is safe. Copy the new link from premise's terminal, or run{" "}
+          <code>npm run new-link</code> in another terminal to print one, then open it (pasting it
+          into this tab works).
+        </p>
+      ) : (
+        <p>
+          This page needs the private link premise printed in its terminal when it started. It looks
+          like <code>{exampleLink()}</code>
+        </p>
+      )}
       <ul>
         <li>
           premise not running? In the premise folder run <code>npm start</code>, then open the link
@@ -58,20 +72,47 @@ export function NoLink() {
   );
 }
 
+/** The `software=` part of the link's fragment: the software this page is showing. */
+function softwareFromLink(): string | null {
+  const match = /(?:^#|&)software=([^&]+)/.exec(window.location.hash);
+  return match ? decodeURIComponent(match[1]!) : null;
+}
+
+/** Remember the open software in the link, so a refresh comes back to it (the token stays as is). */
+function rememberSoftware(id: string) {
+  const parts = window.location.hash
+    .replace(/^#/, "")
+    .split("&")
+    .filter((p) => p && !p.startsWith("software="));
+  parts.push(`software=${encodeURIComponent(id)}`);
+  window.history.replaceState(null, "", `#${parts.join("&")}`);
+}
+
 /** The whole page: one session where everything is open (decision 0065). */
 export function App({ api: given }: { api?: Api } = {}) {
-  const token = useMemo(() => sessionToken(), []);
+  // The link's token can change under the page (a new link pasted into this tab): follow it.
+  const [hash, setHash] = useState(() => window.location.hash);
+  useEffect(() => {
+    const changed = () => setHash(window.location.hash);
+    window.addEventListener("hashchange", changed);
+    return () => window.removeEventListener("hashchange", changed);
+  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const token = useMemo(() => sessionToken(), [hash]);
   const api = useMemo(() => given ?? (token ? createApi(token) : null), [given, token]);
-  const [linkOk, setLinkOk] = useState(true);
-  if (!api || !linkOk) return <NoLink />;
-  return <Session api={api} onNotCurrent={() => setLinkOk(false)} />;
+  const [refused, setRefused] = useState<string | null>(null);
+  if (!api) return <NoLink />;
+  if (refused !== null && refused === token) return <NoLink stale />;
+  return <Session key={token ?? "given"} api={api} onNotCurrent={() => setRefused(token)} />;
 }
 
 function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) {
   const [version, setVersion] = useState(0);
   const [problem, setProblem] = useState<string | null>(null);
-  const [view, setView] = useState<View>({ name: "software", id: null });
+  const [view, setView] = useState<View>(() => ({ name: "software", id: softwareFromLink() }));
   const [tab, setTab] = useState<SoftwareTab>("conversation");
+  const [more, setMore] = useState(false);
+  const [explained] = useState(() => new Set<string>());
   const pending = useRef<number | null>(null);
 
   // Many events arrive together; reload once for each burst.
@@ -84,11 +125,26 @@ function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) 
   }, []);
   const connection = useEventStream(api.eventsUrl(), refresh);
 
-  const session: Session = useMemo(
-    () => ({ api, version, notCurrent: onNotCurrent, report: setProblem, refresh }),
-    [api, version, onNotCurrent, refresh],
-  );
+  const openSoftware = useCallback((id: string, to?: SoftwareTab) => {
+    rememberSoftware(id);
+    if (to) setTab(to);
+    setView({ name: "software", id });
+  }, []);
   const overview = useLoad(() => api.overview(), [], version, onNotCurrent);
+  const known = overview.state === "ready" ? overview.data : null;
+  const session: Session = useMemo(
+    () => ({
+      api,
+      version,
+      notCurrent: onNotCurrent,
+      report: setProblem,
+      refresh,
+      go: openSoftware,
+      ...(known && { softwares: known.softwares, agentsMode: known.agents.mode }),
+      explained,
+    }),
+    [api, version, onNotCurrent, refresh, openSoftware, known, explained],
+  );
   const asks = useLoad(() => api.asks({ status: "open" }), [], version, onNotCurrent);
   const openAsks = asks.state === "ready" ? asks.data : [];
 
@@ -117,29 +173,48 @@ function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) 
     );
   }
   const o = overview.data;
+  // Which software to show: the one asked for, else the one waiting on you, else the first.
   const selected =
     view.name === "software"
-      ? (o.softwares.find((s) => s.id === view.id) ?? o.softwares[0] ?? null)
+      ? (o.softwares.find((s) => s.id === view.id) ??
+        o.softwares.find((s) => s.openAsks > 0) ??
+        o.softwares[0] ??
+        null)
       : null;
   const firstRun = o.softwares.length === 0;
 
-  const nav: { view: View; label: string; extra?: React.ReactNode }[] = [
+  const nav: { view: View; label: string; extra?: React.ReactNode; more?: boolean }[] = [
     { view: { name: "software", id: selected?.id ?? null }, label: "Softwares" },
-    {
-      view: { name: "needed" },
-      label: "Waiting on you",
-      extra: o.openAsks > 0 ? <span className="count">{o.openAsks}</span> : null,
-    },
+    ...(o.openAsks > 0 || !firstRun
+      ? [
+          {
+            view: { name: "needed" } as View,
+            label: "Waiting on you",
+            extra: o.openAsks > 0 ? <span className="count">{o.openAsks}</span> : null,
+          },
+        ]
+      : []),
     {
       view: { name: "activity" },
       label: "Activity",
+      more: true,
       extra:
         o.activity.running > 0 ? <span className="count live">{o.activity.running}</span> : null,
     },
-    { view: { name: "usage" }, label: "Usage", extra: o.usage.mocked ? <MockedBadge /> : null },
-    { view: { name: "settings" }, label: "Settings" },
+    {
+      view: { name: "usage" },
+      label: "Usage",
+      more: true,
+      extra: o.usage.mocked ? <MockedBadge /> : null,
+    },
+    { view: { name: "settings" }, label: "Settings", more: true },
     { view: { name: "help" }, label: "Help" },
   ];
+  // A first visit shows only what is needed; the rest is one click away (and stays open when it is
+  // the page being looked at).
+  const onMorePage = nav.some((n) => n.more && n.view.name === view.name);
+  const showMore = more || onMorePage;
+  const shownNav = nav.filter((n) => !n.more || showMore);
 
   return (
     <SessionContext.Provider value={session}>
@@ -162,7 +237,7 @@ function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) 
           <ConnectionState connection={connection} />
         </div>
         <nav aria-label="premise">
-          {nav.map((item) => (
+          {shownNav.map((item) => (
             <button
               key={item.view.name}
               type="button"
@@ -174,6 +249,16 @@ function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) 
               {item.extra}
             </button>
           ))}
+          {!onMorePage && (
+            <button
+              type="button"
+              className="nav quiet"
+              aria-expanded={showMore}
+              onClick={() => setMore((m) => !m)}
+            >
+              {showMore ? "Fewer" : "More"}
+            </button>
+          )}
         </nav>
       </header>
 
@@ -195,13 +280,7 @@ function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) 
       <main className="page" id="main" tabIndex={-1}>
         {view.name === "software" &&
           (firstRun ? (
-            <Welcome
-              overview={o}
-              onStarted={(s) => {
-                setTab("conversation");
-                setView({ name: "software", id: s.id });
-              }}
-            />
+            <Welcome overview={o} onStarted={(s) => openSoftware(s.id, "conversation")} />
           ) : (
             <div className="split">
               <aside className="softwares" aria-label="Softwares">
@@ -218,15 +297,15 @@ function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) 
                         type="button"
                         className="software-pick"
                         aria-current={selected?.id === s.id ? "true" : undefined}
-                        onClick={() => setView({ name: "software", id: s.id })}
+                        onClick={() => openSoftware(s.id)}
                       >
                         <span className="name">{s.name}</span>
                         <span className="small muted">
-                          {whereNow(s.stage, s.takingOn)}
+                          {s.state === "ended" ? "Ended: not built" : whereNow(s.stage, s.takingOn)}
                           <span className="sr-only"> (step: {stageName(s.stage)})</span>
                         </span>
                         <span className={`small ${s.openAsks > 0 ? "needs-you" : "muted"}`}>
-                          {s.status}
+                          {s.openAsks > 0 && s.id === selected?.id ? "Your turn." : s.status}
                         </span>
                       </button>
                     </li>
@@ -250,22 +329,11 @@ function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) 
           <>
             <section className="card narrow-card" aria-labelledby="start-title">
               <h1 id="start-title">Start another software</h1>
-              <StartForm
-                autoFocus
-                onStarted={(s) => {
-                  setTab("conversation");
-                  setView({ name: "software", id: s.id });
-                }}
-              />
+              <StartForm autoFocus onStarted={(s) => openSoftware(s.id, "conversation")} />
             </section>
             <section className="card narrow-card" aria-labelledby="bring-in-title">
               <h2 id="bring-in-title">Or bring in software you already have</h2>
-              <BringInForm
-                onStarted={(s) => {
-                  setTab("conversation");
-                  setView({ name: "software", id: s.id });
-                }}
-              />
+              <BringInForm onStarted={(s) => openSoftware(s.id, "conversation")} />
             </section>
           </>
         )}

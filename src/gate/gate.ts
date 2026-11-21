@@ -279,6 +279,7 @@ export class Gate {
             approval: {
               action: input.action.trim(),
               why: input.why.trim(),
+              ...(input.waiting && { waiting: input.waiting }),
               floor: `This is on the floor, the things premise never does without asking: ${FLOOR_WORDS[input.kind]}.`,
               ...(kindApprovable && { kindLabel: KIND_LABELS[input.kind] }),
             },

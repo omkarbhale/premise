@@ -1106,3 +1106,107 @@ pre.output {
 .build-landed {
   margin-top: 0.75rem;
 }
+
+/* First-visit fixes: nothing overflows, and the open question comes first on a narrow screen. */
+.split > *,
+.detail,
+.software,
+.conversation,
+.panel,
+.card,
+.ask,
+.item,
+.item-text,
+.start-form,
+.welcome {
+  min-width: 0;
+  max-width: 100%;
+}
+.ask,
+.card,
+.item .text,
+.software-head h1,
+.status,
+.where,
+.software-pick,
+.message .said {
+  overflow-wrap: anywhere;
+}
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.4rem 0;
+}
+.actions {
+  flex-wrap: wrap;
+}
+.tabs {
+  flex-wrap: wrap;
+}
+.topbar nav {
+  min-width: 0;
+}
+.messages {
+  max-height: none;
+  overflow: visible;
+}
+.message {
+  max-width: 100%;
+}
+.earlier {
+  list-style: none;
+}
+.define-gloss {
+  font-size: 0.9em;
+}
+.button-link {
+  display: inline-block;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  text-decoration: none;
+}
+.button-link.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.struck-before {
+  border-left: 4px solid var(--needs);
+  padding: 0.2rem 0.75rem;
+  margin: 0.5rem 0;
+}
+.record-superseded {
+  opacity: 0.75;
+}
+.evidence {
+  display: inline-block;
+  margin-left: 0.4rem;
+}
+.evidence summary {
+  cursor: pointer;
+  display: inline;
+}
+.advanced > summary {
+  cursor: pointer;
+}
+.existing-software {
+  margin-top: 0.75rem;
+}
+@media (max-width: 760px) {
+  /* The open question and the software come before the list of softwares. */
+  .split {
+    display: flex;
+    flex-direction: column;
+  }
+  .split > .detail {
+    order: 1;
+  }
+  .split > .softwares {
+    order: 2;
+  }
+  .topbar {
+    padding: 0.5rem 0.6rem;
+  }
+}

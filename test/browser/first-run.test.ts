@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync } from "node:fs";
 import { createServer } from "node:net";
 import { join, resolve } from "node:path";
@@ -81,7 +82,7 @@ describe("first run, in a browser", () => {
     // Welcome: what premise is, what to type, what happens next, and that this is a trial.
     await page.getByRole("heading", { name: "Welcome to premise" }).waitFor();
     await page.getByText("What happens next").waitFor();
-    await page.getByText("This is a trial run").waitFor();
+    await page.getByText("What is real here, and what is not").waitFor();
     await shot(page, "02-welcome");
 
     // Keyboard only: the idea box has focus, Ctrl+Enter starts.
@@ -114,16 +115,20 @@ describe("first run, in a browser", () => {
     // A correction in chat goes to the open list.
     const who = card(page, "Who it is for: is this right?");
     await who.waitFor({ timeout: 15_000 });
-    await page.getByLabel("Say something to premise").fill("My partner reads it too.");
-    await page.getByLabel("Say something to premise").press("Enter");
+    await page.getByLabel("Add a correction to the open list").fill("My partner reads it too.");
+    await page.getByLabel("Add a correction to the open list").press("Enter");
     await who.getByText("My partner reads it too.").waitFor();
     await who.getByRole("button", { name: "Confirm this list" }).click();
 
     // What exists: a scripted research job runs, then a question with premise's best guess.
     const exists = card(page, /Build it, build on something/);
     await exists.waitFor({ timeout: 15_000 });
-    await exists.getByRole("button", { name: "Use this" }).click();
-    await exists.getByRole("button", { name: "Answer" }).click();
+    // One click answers: no second "Answer" press. Declining to build asks once more.
+    await exists.getByRole("button", { name: "Do not build it" }).click();
+    await exists.getByText(/premise stops here and builds nothing/).waitFor();
+    await shot(page, "05a-confirm-do-not-build");
+    await exists.getByRole("button", { name: "Cancel" }).click();
+    await exists.getByRole("button", { name: "Go with this" }).click();
 
     const what = card(page, "What it must do: is this right?");
     await what.waitFor({ timeout: 15_000 });
@@ -148,10 +153,14 @@ describe("first run, in a browser", () => {
     const approval = card(page, "Allow premise to act in your name outside this machine?");
     await approval.waitFor({ timeout: 15_000 });
     await approval.getByText("What will happen").waitFor();
+    // The card says plainly that it is not real in scripted mode, and why it asks now.
+    await approval.getByText(/This is a demo, so it is not real/).waitFor();
+    await approval.getByText("Why premise asks now").waitFor();
     await shot(page, "06b-approval");
     await approval.getByRole("button", { name: "Approve once" }).click();
 
-    // Build, check and run go by themselves; the activity view shows the work.
+    // Build, check and run go by themselves; the activity view shows the work (under "More").
+    await page.getByRole("button", { name: "More", exact: true }).click();
     await page.getByRole("button", { name: /^Activity/ }).click();
     await page.getByRole("heading", { name: "Activity" }).waitFor();
     await page.getByText(/agent sessions in use/).waitFor();
@@ -165,12 +174,18 @@ describe("first run, in a browser", () => {
     await expect(page.title()).resolves.toBe("premise");
     await shot(page, "08-end-of-line-conversation");
 
+    // A newcomer sees Conversation and Report; Line, Record and Intake are under "More views".
+    await expect(page.getByRole("tab", { name: "Record" }).count()).resolves.toBe(0);
+    await page.getByRole("button", { name: "More views" }).click();
     await page.getByRole("tab", { name: "Line" }).click();
     await shot(page, "09-line");
     await page.getByRole("tab", { name: "Record" }).click();
     await page.getByText("Struck: I do it on paper and like it").waitFor();
     await shot(page, "10-record");
     await page.getByRole("tab", { name: "Report" }).click();
+    await page
+      .getByRole("heading", { name: /^Built and checked|^Nothing has been built/ })
+      .waitFor();
     await page.getByRole("heading", { name: "Failed or not checked" }).waitFor();
     await expect(page.locator(".badge-mocked").first().isVisible()).resolves.toBe(true);
     await shot(page, "11-report");
@@ -213,4 +228,89 @@ describe("first run, in a browser", () => {
     await shot(page, "17-phone-dark-start");
     await page.close();
   }, 30_000);
+
+  it("comes back to the software you were on after a refresh, or the one waiting on you", async () => {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.goto(running.link);
+    await page.getByRole("button", { name: "Start or bring in" }).click();
+    await page.keyboard.type("A tiny tool that counts the words in a file.");
+    await page.keyboard.press("Control+Enter");
+    const second = card(page, "Why build it: is this right?");
+    await second.waitFor({ timeout: 15_000 });
+    const secondName = (await page.getByRole("heading", { level: 1 }).first().textContent())!;
+    await shot(page, "18-second-software-waiting");
+
+    // A refresh lands on the software that was open, with its question still there.
+    await page.reload();
+    await card(page, "Why build it: is this right?").waitFor({ timeout: 15_000 });
+    await expect(page.getByRole("heading", { level: 1 }).first().textContent()).resolves.toBe(
+      secondName,
+    );
+
+    // Picking the first software, then refreshing, stays on the first.
+    await page.locator("button.software-pick").first().click();
+    const firstName = (await page.getByRole("heading", { level: 1 }).first().textContent())!;
+    expect(firstName).not.toBe(secondName);
+    await page.reload();
+    await page.getByRole("heading", { level: 1, name: firstName }).waitFor();
+
+    // A link with no software named opens the one that is waiting on you.
+    await page.close();
+    const fresh = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await fresh.goto(running.link);
+    await fresh.getByRole("heading", { level: 1, name: secondName }).waitFor();
+    await fresh.close();
+  }, 60_000);
+
+  it("shows the question before the list of softwares at phone width, with nothing overflowing", async () => {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await page.goto(running.link);
+    await card(page, "Why build it: is this right?").waitFor({ timeout: 15_000 });
+    const overflow = (await page.evaluate(
+      "document.documentElement.scrollWidth - document.documentElement.clientWidth",
+    )) as number;
+    expect(overflow).toBeLessThanOrEqual(0);
+    const order = (await page.evaluate(
+      `(() => {
+        const ask = document.querySelector("article.ask").getBoundingClientRect().top;
+        const list = document.querySelector("aside.softwares").getBoundingClientRect().top;
+        return ask - list;
+      })()`,
+    )) as number;
+    expect(order).toBeLessThan(0);
+    await shot(page, "19-phone-question-first");
+    await page.close();
+  }, 30_000);
+
+  it("pastes a new link into the same tab and carries on, and says plainly when a link is old", async () => {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    const base = running.link.split("#")[0]!;
+    await page.goto(`${base}#token=not-the-real-one`);
+    await page.getByRole("heading", { name: "This link is old" }).waitFor();
+    await shot(page, "20-old-link");
+    // Only the part after # changes: the page follows it without a reload.
+    await page.evaluate(`window.location.hash = ${JSON.stringify(running.link.split("#")[1])}`);
+    await page.getByRole("heading", { level: 1 }).first().waitFor();
+    await expect(page.getByRole("heading", { name: "This link is old" }).count()).resolves.toBe(0);
+    await page.close();
+  }, 30_000);
+
+  it("prints help and starts nothing when --help is given to start", () => {
+    const folder = join(tempFolder(), "data-folder");
+    const result = spawnSync(
+      process.execPath,
+      [join(process.cwd(), "dist", "server", "cli.js"), "start", "--help", "--data", folder],
+      { encoding: "utf8", timeout: 20_000 },
+    );
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("Usage:");
+    expect(existsSync(folder)).toBe(false);
+    const unknown = spawnSync(
+      process.execPath,
+      [join(process.cwd(), "dist", "server", "cli.js"), "start", "--hepl", "--data", folder],
+      { encoding: "utf8", timeout: 20_000 },
+    );
+    expect(unknown.status).toBe(2);
+    expect(existsSync(folder)).toBe(false);
+  });
 });
