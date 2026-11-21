@@ -407,7 +407,9 @@ const reading: ScriptBehaviour = (request, call) => {
     ? (request.context.held as { number: number; text: string }[])
     : [];
   call("reading_submit", {
-    wanted: held.slice(0, 7).map((h) => `I-${h.number}: ${h.text.slice(0, 120)}`),
+    wanted: held
+      .slice(0, 10)
+      .map((h) => ({ line: h.text.slice(0, 120), items: [`I-${h.number}`] })),
     recurring: [],
     purpose: "Scripted reader: it reads no pattern into the items, so it suggests no change.",
     back_to_why: "no",

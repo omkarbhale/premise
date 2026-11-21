@@ -31,7 +31,7 @@ premise's own return, worked out from what it recorded. No agent is asked and no
 ## 4. Where they show
 
 - In every report, as "How premise is doing" (each milestone report carries it as it was when written).
-- On the **How premise is doing** page (under More): every software together, then each one, with attention by role and by change, sessions by change and each checker miss; with what premise learned from corrections below.
+- On the **How premise is doing** page (under More): every software together, then each one, with attention by role and by change, sessions by change, each checker miss, and where intake items went (counts per route and per source, [0243](../decisions/0243-duplicates-across-sources-and-counts-per-route.md)); with what premise learned from corrections below.
 
 ## 5. Interfaces
 

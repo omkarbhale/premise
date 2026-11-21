@@ -6,6 +6,7 @@ import type { AgentToolServer } from "../agents/tool-server.js";
 import type { PremiseConfig } from "../config/settings.js";
 import { Gate } from "../gate/gate.js";
 import { Intake } from "../intake/intake.js";
+import { FixtureIssueSource, GhCliIssueSource, type IssueSource } from "../intake/issues.js";
 import { Briefs } from "../line/briefs.js";
 import { Learning } from "../learning/learning.js";
 import { LineEngine } from "../line/line-engine.js";
@@ -27,7 +28,7 @@ import { Taste } from "../taste/taste.js";
 import { QueueActivity } from "./activity.js";
 import { ServiceError } from "./services.js";
 import { docsFolder } from "./package-root.js";
-import type { SessionServices } from "./services.js";
+import type { FeedbackService, SessionServices } from "./services.js";
 
 /** Whether agents can work, for the page (decision 0180). */
 export interface AgentsStatus {
@@ -58,6 +59,8 @@ export interface Session {
   learning: Learning;
   /** Taste claims and their proposals (src/taste). */
   taste: Taste;
+  /** The feedback page's own interface: no session behind it (decision 0119). */
+  feedback: FeedbackService;
   /** Pausing, archiving and ordering across softwares (src/portfolio). */
   portfolio: Portfolio;
   /** The short summary across softwares. */
@@ -84,6 +87,8 @@ export function createSession(options: {
   agents?: AgentsStatus;
   /** Other later stages than Build, Check and Run (tests of the line itself use a stand-in). */
   later?: LaterStages;
+  /** Where GitHub issues are read from; the local fixture when agents are scripted. */
+  issues?: IssueSource;
 }): Session {
   const { db, config, ledger, runner, tools } = options;
   let line: LineEngine | null = null;
@@ -113,7 +118,10 @@ export function createSession(options: {
   };
   const gate = new Gate({ db, config });
   const briefs = new Briefs(options.docs ?? docsFolder());
-  intake = new Intake({ db, config, queue, keeper: record, briefs });
+  const issues =
+    options.issues ??
+    (config.agents.mode === "scripted" ? new FixtureIssueSource() : new GhCliIssueSource());
+  intake = new Intake({ db, config, queue, keeper: record, briefs, gate, issues });
   const taker = intake;
   const runs = new Runner({
     db,
@@ -274,6 +282,10 @@ export function createSession(options: {
       report: (id, text) => taker.report(id, text),
       undo: (id) => taker.undo(id),
       readNow: (id) => taker.readNow(id),
+      decideLine: (id, input) => taker.decideLine(id, input),
+      backToWhy: (id) => taker.backToWhy(id),
+      newFeedbackLink: (id) => taker.newFeedbackLink(id),
+      readIssuesNow: (id) => taker.readIssuesNow(id),
     },
     reports: reporter,
     runs: runService,
@@ -296,6 +308,11 @@ export function createSession(options: {
     measures,
     learning: learner,
     taste,
+    feedback: {
+      page: (token) => taker.feedbackPage(token),
+      submit: (token, text) => taker.submitFeedback(token, text),
+      standing: (token, receipt) => taker.feedbackStanding(token, receipt),
+    },
     portfolio,
     summary,
     usage,

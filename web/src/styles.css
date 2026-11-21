@@ -1372,3 +1372,16 @@ pre.output {
 .figure-thin strong {
   color: var(--muted);
 }
+
+.short-lines {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem;
+}
+.short-line {
+  border-top: 1px solid var(--line, #c3c9d0);
+  padding: 0.5rem 0;
+}
+.line-actions button {
+  margin-right: 0.25rem;
+}

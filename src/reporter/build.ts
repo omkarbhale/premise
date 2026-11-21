@@ -297,6 +297,18 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
     }
   }
 
+  // ---- Intake -------------------------------------------------------------------------------
+  const intake: ReportLine[] = [];
+  if (facts.intake && facts.intake.total > 0) {
+    intake.push({ text: facts.intake.words, evidence: "intake items" });
+    if (facts.intake.sources.length > 1) {
+      intake.push({
+        text: `They came from ${facts.intake.sources.map((s) => `${s.name} (${s.count})`).join(", ")}.`,
+        evidence: "intake items",
+      });
+    }
+  }
+
   // ---- Short or full -----------------------------------------------------------------------
   const sections: Section[] = [
     {
@@ -324,6 +336,12 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
         "How much work premise put in, as premise measured it itself (not the usage figures below).",
       lines: effort,
       rank: 1.5,
+    },
+    {
+      title: "Intake",
+      plain: "What people asked for or reported, and where each item went.",
+      lines: intake,
+      rank: 2.5,
     },
     {
       title: "Failed or not checked",

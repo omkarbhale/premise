@@ -85,6 +85,12 @@ export interface IntakeItem {
   /** When the change it led to was running. */
   fixRunning: string | null;
   finished: string | null;
+  /** Where it lives outside premise, such as "github:owner/repo#12"; null for other sources. */
+  externalRef: string | null;
+  /** The sender's receipt on the feedback page; null when the item had none. */
+  receipt: string | null;
+  /** When it was last held (or kept held by the operator); a reading's time count starts here. */
+  heldAt: string | null;
 }
 
 interface Row {
@@ -113,6 +119,9 @@ interface Row {
   triaged: string | null;
   fix_running: string | null;
   finished: string | null;
+  external_ref: string | null;
+  receipt: string | null;
+  held_at: string | null;
 }
 
 function fromRow(row: Row): IntakeItem {
@@ -142,13 +151,23 @@ function fromRow(row: Row): IntakeItem {
     triaged: row.triaged,
     fixRunning: row.fix_running,
     finished: row.finished,
+    externalRef: row.external_ref,
+    receipt: row.receipt,
+    heldAt: row.held_at,
   };
 }
 
 /** Take an item in: it gets the next `I-n` of its software. */
 export function addIntakeItem(
   db: Database,
-  input: { softwareId: string; source: IntakeSource; sender: string; text: string },
+  input: {
+    softwareId: string;
+    source: IntakeSource;
+    sender: string;
+    text: string;
+    externalRef?: string;
+    receipt?: string;
+  },
 ): IntakeItem {
   const next =
     (
@@ -158,10 +177,19 @@ export function addIntakeItem(
     ).n ?? 0;
   const row = db
     .prepare(
-      `INSERT INTO intake_items (software_id, number, source, sender, text, status, received)
-       VALUES (?, ?, ?, ?, ?, 'taken', ?)`,
+      `INSERT INTO intake_items (software_id, number, source, sender, text, status, received, external_ref, receipt)
+       VALUES (?, ?, ?, ?, ?, 'taken', ?, ?, ?)`,
     )
-    .run(input.softwareId, next + 1, input.source, input.sender, input.text, now());
+    .run(
+      input.softwareId,
+      next + 1,
+      input.source,
+      input.sender,
+      input.text,
+      now(),
+      input.externalRef ?? null,
+      input.receipt ?? null,
+    );
   const id = Number(row.lastInsertRowid);
   recordEvent(db, {
     softwareId: input.softwareId,
@@ -186,6 +214,23 @@ export function intakeItemByNumber(
   const row = db
     .prepare("SELECT * FROM intake_items WHERE software_id = ? AND number = ?")
     .get(softwareId, number) as Row | undefined;
+  return row ? fromRow(row) : undefined;
+}
+
+export function intakeItemByExternalRef(
+  db: Database,
+  softwareId: string,
+  externalRef: string,
+): IntakeItem | undefined {
+  const row = db
+    .prepare("SELECT * FROM intake_items WHERE software_id = ? AND external_ref = ?")
+    .get(softwareId, externalRef) as Row | undefined;
+  return row ? fromRow(row) : undefined;
+}
+
+export function intakeItemByReceipt(db: Database, receipt: string): IntakeItem | undefined {
+  const row = db.prepare("SELECT * FROM intake_items WHERE receipt = ?").get(receipt) as
+    Row | undefined;
   return row ? fromRow(row) : undefined;
 }
 
@@ -238,6 +283,7 @@ export interface IntakeChange {
   triaged?: string | null;
   fixRunning?: string | null;
   finished?: string | null;
+  heldAt?: string | null;
 }
 
 const COLUMNS: Record<keyof IntakeChange, string> = {
@@ -259,6 +305,7 @@ const COLUMNS: Record<keyof IntakeChange, string> = {
   triaged: "triaged",
   fixRunning: "fix_running",
   finished: "finished",
+  heldAt: "held_at",
 };
 
 export function setIntakeItem(db: Database, id: number, change: IntakeChange): void {
@@ -290,12 +337,52 @@ export function minutesToRunning(item: Pick<IntakeItem, "received" | "fixRunning
 
 export type ReadingTrigger = "count" | "time" | "operator";
 
+/** What the operator did with one line of a short list. */
+export interface LineDecision {
+  choice: "work" | "keep" | "close";
+  /** The operator's reason, when they gave one. */
+  reason: string | null;
+  at: string;
+}
+
+/** One line of a short list, with the items behind it. */
+export interface ShortLine {
+  text: string;
+  /** The numbers of the items behind it; how many people are asking is its length. */
+  items: number[];
+  decision: LineDecision | null;
+}
+
 /** The short list a reading ends in. */
 export interface ShortList {
-  wanted: string[];
-  recurring: string[];
+  wanted: ShortLine[];
+  recurring: ShortLine[];
   purpose: string;
   backToWhy: boolean;
+  /** The items that say people do not want what the software does; the evidence for going back to Why. */
+  notWanted: number[];
+}
+
+/** Short lists written before lines carried their items were plain text; read them as lines. */
+function normaliseShortList(raw: unknown): ShortList {
+  const list = raw as Partial<Record<keyof ShortList, unknown>>;
+  const lines = (value: unknown): ShortLine[] =>
+    (Array.isArray(value) ? value : []).map((v) =>
+      typeof v === "string"
+        ? { text: v, items: [], decision: null }
+        : {
+            text: String((v as ShortLine).text ?? ""),
+            items: Array.isArray((v as ShortLine).items) ? (v as ShortLine).items : [],
+            decision: (v as ShortLine).decision ?? null,
+          },
+    );
+  return {
+    wanted: lines(list.wanted),
+    recurring: lines(list.recurring),
+    purpose: String(list.purpose ?? ""),
+    backToWhy: list.backToWhy === true,
+    notWanted: Array.isArray(list.notWanted) ? (list.notWanted as number[]) : [],
+  };
 }
 
 export interface Reading {
@@ -331,7 +418,7 @@ function readingFromRow(row: ReadingRow): Reading {
     softwareId: row.software_id,
     trigger: row.trigger,
     items: JSON.parse(row.items) as number[],
-    shortList: row.short_list ? (JSON.parse(row.short_list) as ShortList) : null,
+    shortList: row.short_list ? normaliseShortList(JSON.parse(row.short_list)) : null,
     status: row.status,
     jobId: row.job_id,
     askId: row.ask_id,

@@ -6,7 +6,8 @@ import type { RecordItem } from "../record/format.js";
 import { parseRecord } from "../record/parse.js";
 import { readTrailer } from "../record/trace.js";
 import type { Runner } from "../runner/runner.js";
-import type { ReportCostLine, ReportLine, RunView, UsageRowView } from "../shared/api-types.js";
+import { intakeCounts } from "../intake/counts.js";
+import type { IntakeRouteCounts, ReportCostLine, ReportLine, RunView, UsageRowView } from "../shared/api-types.js";
 import { listAsks } from "../storage/asks.js";
 import type { Database } from "../storage/database.js";
 import type { Usage } from "../usage/usage.js";
@@ -158,6 +159,8 @@ export interface Facts {
   milestone: { id: string; text: string } | null;
   /** "How premise is doing": premise's own return, from recorded events (src/measures). */
   doing: { plain: string; lines: ReportLine[] } | null;
+  /** How many intake items went each route, from the intake table (src/intake). */
+  intake: IntakeRouteCounts | null;
 }
 
 export interface FactSources {
@@ -342,5 +345,6 @@ export async function gatherFacts(
     lastReport,
     milestone,
     doing: sources.measures ? sources.measures.reportBlock(softwareId) : null,
+    intake: intakeCounts(db, softwareId),
   };
 }

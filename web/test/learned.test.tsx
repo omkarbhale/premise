@@ -168,6 +168,7 @@ describe("How premise is doing", () => {
           how: "Counted while the page was in front of someone.",
         },
       ],
+      intakeRoutes: { byRoute: {}, bySource: {}, total: 0, words: "", sources: [] },
       attentionByRole: [{ name: "operator", minutes: 15, asks: 2 }],
       attentionByChange: [],
       sessionsByChange: [],

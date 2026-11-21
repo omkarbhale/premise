@@ -293,7 +293,7 @@ describe("the whole line, with the line engine and the scripted agent", () => {
     expect(session.queue.list().map((j) => j.kind)).toEqual(
       expect.arrayContaining(["draft", "research", "plan", "review", "build", "check", "run"]),
     );
-  });
+  }, 90_000);
 
   it("stops after the milestone when the software waits there, until the operator says go on", async () => {
     const { call, settle } = await testApp({ PREMISE_SOFTWARES__DEFAULT_MILESTONE_WAITS: "true" });

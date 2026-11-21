@@ -466,6 +466,40 @@ export const MIGRATIONS: readonly Migration[] = [
       CREATE INDEX budget_overruns_software ON budget_overruns(software_id, id);
     `,
   },
+  {
+    version: 14,
+    name: "intake beyond the thin form: feedback links, GitHub issues, receipts and comments",
+    sql: `
+      ALTER TABLE intake_items ADD COLUMN external_ref TEXT;
+      ALTER TABLE intake_items ADD COLUMN receipt TEXT;
+      ALTER TABLE intake_items ADD COLUMN held_at TEXT;
+      CREATE UNIQUE INDEX intake_items_external ON intake_items(software_id, external_ref)
+        WHERE external_ref IS NOT NULL;
+      CREATE UNIQUE INDEX intake_items_receipt ON intake_items(receipt) WHERE receipt IS NOT NULL;
+
+      CREATE TABLE feedback_links (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        software_id TEXT NOT NULL REFERENCES softwares(id),
+        token TEXT NOT NULL UNIQUE,
+        created TEXT NOT NULL,
+        revoked TEXT
+      );
+      CREATE INDEX feedback_links_software ON feedback_links(software_id, id);
+
+      CREATE TABLE intake_comments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        software_id TEXT NOT NULL REFERENCES softwares(id),
+        item_id INTEGER NOT NULL REFERENCES intake_items(id),
+        about TEXT NOT NULL,
+        text TEXT NOT NULL,
+        request_id INTEGER,
+        status TEXT NOT NULL CHECK (status IN ('asked', 'sent', 'refused', 'failed')),
+        outcome TEXT,
+        created TEXT NOT NULL
+      );
+      CREATE INDEX intake_comments_item ON intake_comments(item_id, id);
+    `,
+  },
 ];
 
 export const CURRENT_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

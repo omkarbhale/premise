@@ -164,6 +164,7 @@ export async function start(options: StartOptions): Promise<Running> {
     measures,
     learning,
     usage,
+    feedback,
   } = createSession({
     db,
     config,
@@ -207,6 +208,7 @@ export async function start(options: StartOptions): Promise<Running> {
     measures,
     learning,
     usage,
+    feedback,
     webRoot: options.webRoot ?? defaultWebRoot(),
   });
   try {
