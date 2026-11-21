@@ -59,3 +59,12 @@ Carved from section 5 of the plan (the confinement and security-default choices 
 - Release notes for each change that reaches running are drafted from the record items it served.
 - When a software needs what an LLM cannot provide (an account with an outside service, a licensed system to run against, a payment), premise names the role and exactly what is needed, and runs what it can meanwhile.
 - Keeping software live for its real users is milestone 7 ([roadmap](../product/roadmap.md)).
+
+## As built
+
+[0185](../decisions/0185-how-build-check-and-run-are-built.md), in `src/build`, one milestone at a time:
+
+- Build opens with a checker job that writes the scenarios from the record into `scenarios/` in premise's data folder. Then each task of the milestone is one builder job, on its own branch, starting from the commit the task before it made. premise checks what each job left (a commit whose trace trailer names record items) and takes the branch into the software's repository; the same problem three times stops the task and premise asks the operator. A task whose builder asked a person waits; the next task goes on.
+- Check is one fresh checker job on its own clone of the exact commit, with the scenarios in its brief and nothing of the builder's. It judges the items the milestone serves and the must items of milestones already landed. A must item not met, or a blocking finding, starts a fix round: one builder task with the checker's evidence. At `line.check_rounds_before_stop` rounds premise stops and asks the operator: more rounds, or land it as it is.
+- Run is the server's: it merges the checked branch, lands the record changes builders proposed, pushes to the second copy when there is one, and the runner starts the merged commit. The reporter then writes the milestone's report.
+- Per software, the planner says what kind of software it is and how to build, start and check it; the builder writes that into `premise/run.md`; the checker follows it and notes corrections.

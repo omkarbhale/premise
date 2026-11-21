@@ -151,7 +151,8 @@ async function trial(args: Parsed, env: NodeJS.ProcessEnv): Promise<number> {
         `Check round ${check.round} of version ${check.commit.slice(0, 7)}: ${check.status}; ${check.verdicts.map((v) => `${v.item} ${v.verdict}`).join(", ")}`,
       );
     }
-    console.log(`Running: ${result.run.plain}`);
+    console.log(`Running: ${result.run.link ?? result.run.command ?? result.run.state}`);
+    for (const line of result.run.output.slice(-10)) console.log(`  ${line}`);
     return result.stage === "intake" ? 0 : 1;
   }
   if (!args.confirm) {

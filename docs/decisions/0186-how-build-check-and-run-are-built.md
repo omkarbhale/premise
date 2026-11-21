@@ -29,6 +29,7 @@ Each is a builders' choice, open to correction, unless marked as chosen for the 
 12. **Landing is the server's:** the checked branch is merged into the default branch of the software's repository with the trace of every commit it brings, the record changes builders proposed in this milestone go in, the result is pushed to the second copy when there is one, and the runner starts the merged commit. A software that lands but does not start stays landed; the report and the session say so.
 13. **The checker's evidence** is saved in `.premise-evidence/` in its working copy, kept out of every commit, and copied into premise's data folder when the session ends.
 14. **The scripted agent's look-around builds a placeholder.** With no script file, a scripted builder writes a one-line program that says it is a trial, and the scripted checker reports every item as "could not check", saying why. Nothing is presented as built.
+15. **The runner always lets running software read the Node.js premise runs on,** besides `runner.read_only_paths`, so software written for Node.js starts when Node.js is installed under the home folder (a person who has not read the guide would otherwise see "node: not found").
 
 ## Reason
 

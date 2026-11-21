@@ -43,6 +43,8 @@ export interface DemoSoftware {
   scenarios: { match: RegExp; scenario: ScenarioSpec }[];
   /** The record item the planted defect breaks, matched by its words. */
   planted: RegExp;
+  /** premise stops after the milestone until the scripted operator says go on. */
+  waitAfterMilestone: boolean;
 }
 
 const runBlock = (lines: string[]) => ["```premise-run", ...lines, "```"].join("\n");
@@ -229,6 +231,7 @@ export const COUNT_DEMO: DemoSoftware = {
     },
   ],
   planted: /number of words/,
+  waitAfterMilestone: false,
 };
 
 // ---- A small web app: a reading list -------------------------------------------------------------
@@ -384,6 +387,7 @@ export const READING_LIST_DEMO: DemoSoftware = {
     },
   ],
   planted: /appears on the list/,
+  waitAfterMilestone: true,
 };
 
 export const DEMOS: Record<"cli" | "web", DemoSoftware> = {

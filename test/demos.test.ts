@@ -89,5 +89,9 @@ describe.each(["cli", "web"] as const)("the %s demo", (which) => {
     }
     expect(result.report.written).not.toBeNull();
     expect(result.said).toContain("The report is ready: open the Report tab.");
+    // The web demo stops after its milestone until the operator says go on.
+    const wait = result.answered.find((a) => a.title === "M-1 reached: go on?");
+    if (which === "web") expect(wait?.answer).toBe("Go on");
+    else expect(wait).toBeUndefined();
   }, 60_000);
 });

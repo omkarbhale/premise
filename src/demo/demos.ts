@@ -221,6 +221,7 @@ export async function runDemo(
       PREMISE_AGENTS__MODE: "scripted",
       PREMISE_AGENTS__SCRIPTED__STEP_SECONDS: "0",
       PREMISE_LINE__REMOTE: "local",
+      PREMISE_SOFTWARES__DEFAULT_MILESTONE_WAITS: String(demo.waitAfterMilestone),
       PREMISE_RUNNER__CONFINEMENT:
         options.confinement ?? (bubblewrapWorks() ? "bubblewrap" : "none"),
       PREMISE_RUNNER__READ_ONLY_PATHS: JSON.stringify([dirname(dirname(process.execPath))]),
