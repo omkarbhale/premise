@@ -1,6 +1,7 @@
 import { ServiceError } from "../server/services.js";
 import type { AskAnswer, ItemAnswer } from "../shared/api-types.js";
 import type { Ask } from "../storage/asks.js";
+import { roleWords } from "../taste/taste.js";
 
 function short(text: string, max = 80): string {
   const flat = text.replace(/\s+/g, " ").trim();
@@ -135,4 +136,34 @@ function validateScope(ask: Ask, answer: AskAnswer): string {
     invalid("Put at least one item in the first version: it is the smallest version that runs.");
   }
   return `First version ${count("first")}, later ${count("later")}, left out ${count("out")}.`;
+}
+
+/** An answer in words, for the agent that asked. `builder` adds the builder's guidance. */
+export function answerWords(ask: Ask, answer: AskAnswer, to: "agent" | "builder" = "agent"): string {
+  if (answer.kind === "text") return answer.text;
+  if (answer.kind === "needed") {
+    const who = roleWords(ask.role);
+    const secret = ask.extra.meta?.secret as { key: string } | undefined;
+    if (answer.decision === "done") {
+      if (!secret) return `The ${who} did it and marked it done.`;
+      return to === "builder"
+        ? `The ${who} did it and marked it done. ${secret.key} is in the software's secrets file; the running software gets it as ${secret.key} from its .env file, and you never see it.`
+        : `The ${who} did it and marked it done; ${secret.key} is in the software's secrets file.`;
+    }
+    const why = answer.reason?.trim() ? `: ${answer.reason.trim()}` : ".";
+    return to === "builder"
+      ? `The ${who} cannot do it${why} Go on without it where you can, and say plainly what does not work without it.`
+      : `The ${who} cannot do it${why}`;
+  }
+  if (answer.kind === "approval") return answer.decision === "refuse" ? "Declined." : "Approved.";
+  if (answer.kind === "proposal") {
+    if (answer.decision === "change") return answer.text?.trim() || "Change it.";
+    const chosen = answer.choice
+      ? ask.items.find((i) => i.key === answer.choice)
+      : ask.items.length === 1
+        ? ask.items[0]
+        : undefined;
+    return chosen ? chosen.text : "Kept as proposed.";
+  }
+  return JSON.stringify(answer);
 }

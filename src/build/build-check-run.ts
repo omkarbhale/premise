@@ -1275,11 +1275,11 @@ export class BuildCheckRun implements LaterStages {
       if (!task) return null;
       if (task.status !== "waiting") {
         // Answered while the builder still works: the answer reaches its next attempt, if any.
-        task.answers.push(`${ask.title} → ${text || answerWords(ask, answer)}`);
+        task.answers.push(`${ask.title} → ${text || answerWords(ask, answer, "builder")}`);
         this.save(id, state);
         return null;
       }
-      task.answers.push(`${ask.title} → ${text || answerWords(ask, answer)}`);
+      task.answers.push(`${ask.title} → ${text || answerWords(ask, answer, "builder")}`);
       task.ask = null;
       if ((task.claims ?? []).length === 0) {
         task.status = "pending";
@@ -1722,17 +1722,4 @@ export class BuildCheckRun implements LaterStages {
   evidenceFolder(softwareId: string, jobId: number): string {
     return evidencePath(this.config.data.folder, softwareId, jobId);
   }
-}
-
-/** An answer in words, for the builder's next brief. */
-function answerWords(ask: Ask, answer: AskAnswer): string {
-  if (answer.kind === "needed") {
-    const who = roleWords(ask.role);
-    const secret = ask.extra.meta?.secret as { key: string } | undefined;
-    return answer.decision === "done"
-      ? `The ${who} did it and marked it done.${secret ? ` ${secret.key} is in the software's secrets file; the running software gets it as ${secret.key} from its .env file, and you never see it.` : ""}`
-      : `The ${who} cannot do it${answer.reason?.trim() ? `: ${answer.reason.trim()}` : "."} Go on without it where you can, and say plainly what does not work without it.`;
-  }
-  if (answer.kind === "approval") return answer.decision === "refuse" ? "Declined." : "Approved.";
-  return JSON.stringify(answer);
 }

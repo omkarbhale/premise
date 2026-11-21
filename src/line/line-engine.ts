@@ -92,7 +92,7 @@ import {
   listExisting,
   setExisting,
 } from "../existing/store.js";
-import { validateAnswer } from "./answers.js";
+import { answerWords, validateAnswer } from "./answers.js";
 import type { BriefName, Briefs } from "./briefs.js";
 import {
   type DraftItem,
@@ -3340,14 +3340,7 @@ export class LineEngine implements IntakeLine {
       }
       case "agent":
       default: {
-        const said =
-          answer.kind === "text"
-            ? answer.text
-            : answer.kind === "needed"
-              ? answer.decision === "done"
-                ? `The ${roleWords(ask.role)} did it and marked it done${ask.extra.meta?.secret ? `; ${(ask.extra.meta.secret as { key: string }).key} is in the software's secrets file` : ""}.`
-                : `The ${roleWords(ask.role)} cannot do it${answer.reason?.trim() ? `: ${answer.reason.trim()}` : "."}`
-              : JSON.stringify(answer);
+        const said = answerWords(ask, answer);
         if (
           this.takenOn(id) &&
           ask.waitingJob !== null &&
