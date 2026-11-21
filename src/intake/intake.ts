@@ -1292,7 +1292,9 @@ export class Intake implements IntakeHooks {
   private senderWords(item: IntakeItem): { headline: string; detail: string } {
     const lead = this.leadOf(item);
     const joined = lead.id !== item.id;
-    const again = joined ? "It repeats something already in hand, so it follows that item. " : "";
+    const again = joined
+      ? "It was joined with an earlier report of the same thing, so it follows that one. "
+      : "";
     switch (lead.status) {
       case "taken":
       case "triaging":
@@ -1320,7 +1322,9 @@ export class Intake implements IntakeHooks {
       case "answered":
         return {
           headline: "Answered",
-          detail: `${again}${lead.answer ?? "It was a question, and it has been answered."}`,
+          detail: joined
+            ? `${again}That report has been answered.`
+            : `${lead.answer ?? "It was a question, and it has been answered."}`,
         };
       case "merged":
         return { headline: "Merged", detail: "It repeats something already in hand." };

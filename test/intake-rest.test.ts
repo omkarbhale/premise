@@ -514,6 +514,35 @@ describe("a wish that changes purpose, duplicates and noise from other sources",
   });
 });
 
+describe("a feedback item joined to another item", () => {
+  it("shows its sender the joined item's plain status, never the answer written for it", async () => {
+    const secret = "Because the record says the shelf is sorted by title, see I-1.";
+    const app = await testApp(
+      {},
+      {
+        script: script(
+          triager((text) =>
+            text.includes("sorted")
+              ? routed("question", "in-normally", { answer: secret })
+              : routed("bug", "in-normally"),
+          ),
+        ),
+      },
+    );
+    const id = await runningSoftware(app);
+    const path = await feedbackPath(app, id);
+    await say(app, id, "How is the shelf sorted?");
+    expect((await item(app, id, "I-1")).status).toBe("answered");
+
+    const receipt = await sendFeedback(app, path, "how is the shelf sorted");
+    expect(await item(app, id, "I-2")).toMatchObject({ status: "merged", joins: "I-1" });
+    const page = (await plain(app, "GET", receipt)).html;
+    expect(page).toContain("joined with an earlier report of the same thing");
+    expect(page).toContain("Answered");
+    expect(page).not.toContain(secret);
+  });
+});
+
 describe("reading a short list", () => {
   const read = new Set([1, 2, 3]);
 
