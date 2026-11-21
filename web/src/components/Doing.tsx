@@ -109,7 +109,7 @@ function Figures({
           <h3>Said to work, came back as a bug</h3>
           <ul>
             {view.misses.map((m) => (
-              <li key={`${m.softwareId}-${m.intake}`}>
+              <li key={`${m.softwareId}-${m.intake}-${m.item}`}>
                 {m.intake} against {m.item}: {m.text}
               </li>
             ))}
