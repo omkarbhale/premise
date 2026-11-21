@@ -68,7 +68,7 @@ Intake goes in normally; only what needs holding is held ([0062](../decisions/00
 | Held | Only the items that need holding (5.4) | Kept for a reading |
 | Merged or closed | Duplicates, and noise | Duplicates join their item; noise is closed with its reason. Both are counted in reports |
 
-A question asking for more detail ("more on W-7") is answered by the reporter from the record and the evidence ([reporter](reporter.md)).
+A question asking for more detail ("more on W-7") is always in normally: the triager answers it from the record and the evidence, and nothing is built or asked ([0185](../decisions/0185-how-intake-in-a-thin-form-is-built.md)).
 
 ### 5.4 What is held
 
