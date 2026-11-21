@@ -3561,7 +3561,8 @@ export class LineEngine implements IntakeLine {
   /** The draft that chat goes to: the current stage's open list. */
   private openDraft(softwareId: string, stage: string): Ask | undefined {
     return listAsks(this.db, { softwareId, status: "open" }).find(
-      (a) => a.kind === "draft" && a.stage === stage,
+      // The scope check is kept as a draft ask, but it is no list to correct in chat.
+      (a) => a.kind === "draft" && a.stage === stage && a.extra.meta?.purpose !== "scope",
     );
   }
 
@@ -4210,6 +4211,7 @@ function itemMarks(item: RecordItem): string[] {
     item.marks.from === "assumed" ? "assumed" : `from: ${item.marks.from}`,
     item.marks.foundation ? "foundation" : undefined,
     item.marks.wait ? "stop after it" : undefined,
+    item.marks.leftOut ? "left out: not built" : undefined,
     item.marks.date,
   ].filter((m): m is string => Boolean(m));
 }

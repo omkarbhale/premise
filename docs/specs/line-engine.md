@@ -46,6 +46,7 @@ Not responsible for:
 | Set a piece's stages | Page server (operator) | Work item, the stages it should go through | Its stages; what is always needed stays, and the answer says so | `INVALID` (finished, or nothing changed) |
 | Undo a split | Page server (operator) | Work item | Its parts withdrawn; it goes through the line whole | `INVALID` (not split, or a part is built) |
 | Set priority | Page server (operator) | Software, priority | The work queue orders by it | none |
+| Set effort | Page server (operator) | Software, low, medium or high | The cut the next scope check starts on; budgets of the stages before building ([5.2b](#52b-the-scope-check-and-effort)) | `INVALID` |
 | Milestone wait | Page server (operator) | Software, milestone, wait or not | The software stops after that milestone, or no longer does ([5.8a](#58a-milestones-and-waits)) | none |
 | Job finished | Work queue | Job, result | Next step for the software | none |
 
@@ -84,11 +85,14 @@ As built ([0184](../decisions/0184-how-sizing-of-work-is-built.md)); the owner's
 | A new software | every stage | Why, What, Say back, Plan, Build, Check, Run, Report, Intake (so only Who and What exists can be skipped) |
 | A milestone of a confirmed plan | Build, Check, Run, Report | all four |
 | A part of a split piece, or a fix | Why to Check | Build, Check |
-| An intake item's work | Why to Report | Build, Check, Run, Report; for a change of purpose the operator confirmed, also Why and Say back ([0185](../decisions/0185-how-intake-in-a-thin-form-is-built.md)) |
 | An existing software being taken on | Why (its record recovered from the code), What exists, Say back, Intake | Why, Say back, Intake ([0189](../decisions/0189-how-taking-on-existing-software-is-built.md)) |
 | One part of an existing software whose record is recovered part by part | Why | Why |
+| An intake item's work: a bug | Build, Check, Run, Report| all four ([0192](../decisions/0192-effort-in-proportion-to-what-was-asked.md)) |
+| An intake item's work: a change to what it must do | What exists, What, Plan, Build, Check, Run, Report | What (one plain confirm, no say-back), Build, Check, Run, Report |
+| An intake item's work: other new work | What exists, Plan, Build, Check, Run, Report | Build, Check, Run, Report |
+| An intake item's work: a change of purpose the operator confirmed | Why to Report | Why, Say back, Build, Check, Run, Report ([0185](../decisions/0185-how-intake-in-a-thin-form-is-built.md)) |
 
-  A say-back is added whenever Why or What is. Every change premise makes to the sizer's answer is part of the reason the page shows.
+  A say-back is added whenever Why or What is, where the piece may have one. Every change premise makes to the sizer's answer is part of the reason the page shows.
 - Splitting: only completely separate parts, or a very long part; one heavy piece is not by itself a reason; when unsure, not at all. Two to `line.split_max_parts` parts. Parts and fixes are not split again. `line.splitting` turns it off.
 - A sizer that fails or gives no answer leaves the piece at its size, through every stage it may have, whole; the reason says so.
 - One piece of a software is worked on at a time. A split piece's parts go through the line one after another up to Check. Then the whole is checked through the `WholeCheck` hand-off (a labelled stand-in until the Check stage takes it), and the piece goes on with Run, Report and, for a software, Intake. When the whole does not pass, a fix goes through as one more part, up to three rounds.
@@ -98,16 +102,24 @@ As built ([0184](../decisions/0184-how-sizing-of-work-is-built.md)); the owner's
 - The software's stage view gives each stage's position for the piece being worked on: done, current, ahead, or skipped with the reason.
 - The first time a piece reaches Build, the time it spent before building is recorded on it and on every piece above it that had not reached Build yet (`build-started` events), so the first stages can be measured ([0172](../decisions/0172-premise-measures-its-own-return.md)).
 
+### 5.2b The scope check and effort
+
+As built ([0191](../decisions/0191-scope-check-effort-and-milestones.md), the owner's decision with the builders' reading):
+
+- **Effort** is low, medium or high per software, chosen at the start (default `softwares.default_effort`) and changed at any time. It sets the cut the scope check starts on, scales the budgets of the stages before building (`line.low_effort_budget_percent`, `line.high_effort_budget_percent`), and is told to the sizer, the drafter and the planner.
+- **The scope check** is one ask after the whole software's What is confirmed (a draft ask shown as kind `scope`). premise sorts the live W items into what the operator asked for (their own items and the musts, except a must that names only users premise assumed), what premise recommends (should) and what it could add (could). It shows three cuts, only what I asked for, plus recommended, everything, each with a rough estimate of agent sessions and minutes from there to running software (premise's own measured minutes per session once it has five, `line.estimate_minutes_per_session` until then). One click picks a cut; any item can be moved to the first version, a later milestone, or left out. It is skipped, everything in the first version, when premise has nothing to add, or when `line.scope_check` is false.
+- What is left out is marked `left-out` in the record: kept, not planned, built, checked or said back. The plan brief gives the planner the scope; premise refuses a plan whose tasks serve a left-out item or put an addition in the first milestone.
+
 ### 5.3 The stages
 
 | # | Stage | Agent role and job | What happens | Exit condition | Writes |
 |---|---|---|---|---|---|
 | 1 | Why | drafter, `draft` | premise asks the operator once what the software is for, in the operator's own words. The drafter drafts the problem as three to seven items, plus the size class. The operator strikes or edits. | The operator has seen the list and nothing struck is left open | `why.md` |
 | 2 | Who | drafter, `draft` | The drafter drafts plausible kinds of user, and the roles the software needs: people with taste in a part, people who decide or do what an LLM cannot. The operator corrects the list. The roles become the labels on what premise asks from then on ([0065](../decisions/0065-one-open-session.md)). | As for Why | `who.md` |
-| 3 | What exists | researcher, `research` | The researcher searches the web and reads sources, within its budget. It lists what exists, with sources, and recommends one outcome: do not build, build on something, or build something different. It reads the motive from Why: saving effort, or finding a gap ([0023](../decisions/0023-looking-at-what-exists.md)). | The operator has decided the outcome. "Do not build" ends the line with a report | `exists.md` |
-| 4 | What | drafter, `draft` | The drafter drafts what the software must do, in purpose terms, with priorities (must, should, could). It offers its own ideas, marked as suggestions, and asks only where being wrong is costly. People claim areas for their taste here (5.6). | The operator has seen the list and nothing struck is left open | `what.md`, `taste.md` |
+| 3 | What exists | researcher, `research` | The researcher searches the web and reads sources, within its budget. It lists what exists, with sources, each marked checked or not checked, and recommends one outcome: do not build, build on something, or build something different. It reads the motive from Why: saving effort, or finding a gap ([0023](../decisions/0023-looking-at-what-exists.md)). A "do not build" recommendation comes with its one-line alternative and is shown first ([0192](../decisions/0192-effort-in-proportion-to-what-was-asked.md)). | The operator has decided the outcome. "Do not build" ends the line with a report | `exists.md` |
+| 4 | What | drafter, `draft` | The drafter drafts what the software must do, in purpose terms, with priorities (must, should, could). It offers its own ideas, marked as suggestions, citing only what the research checked, and asks only where being wrong is costly. People claim areas for their taste here (5.6). For the whole software the scope check follows (5.2b). | The operator has seen the list and nothing struck is left open; the scope is chosen | `what.md`, `taste.md` |
 | 5 | Say back | drafter, `draft` | A list of at most ten items: what premise understood and assumed, in purpose terms, with assumptions marked. The operator strikes what is wrong; each struck item goes back to its stage. | Nothing is struck, or every struck item has been redone at its stage and the say-back shown again | Nothing new; it confirms |
-| 6 | Plan | planner, `plan`; researcher and reviewer for foundations | The planner makes the technical decisions, each a `D` item with its reason and the alternative rejected. Foundation decisions get a small "what exists" look and a review by the reviewer before building ([0014](../decisions/0014-guard-against-further-big-mistakes.md), [0113](../decisions/0113-agent-roles.md)). The security defaults apply ([0092](../decisions/0092-security-defaults.md)). It writes a working plan: ordered tasks, each naming its items and small enough to check. The first task is the smallest version that runs. | Every foundation decision reviewed with no objection left open; the working plan exists | `decisions.md`; the working plan in the data folder |
+| 6 | Plan | planner, `plan`; researcher and reviewer for foundations | The planner makes the technical decisions, each a `D` item with its reason and the alternative rejected. Foundation decisions get a small "what exists" look and a review by the reviewer before building ([0014](../decisions/0014-guard-against-further-big-mistakes.md), [0113](../decisions/0113-agent-roles.md)). The security defaults apply ([0092](../decisions/0092-security-defaults.md)). It writes a working plan: ordered tasks, each naming its items and a separate outcome a checker can check. The first task is the smallest version that runs; the first milestone is what the operator asked for. premise refuses, with the reason, a task that serves no W item, only items another task of its milestone serves, a left-out item, or an addition in milestone 1 ([0192](../decisions/0192-effort-in-proportion-to-what-was-asked.md)). | Every foundation decision reviewed with no objection left open; the working plan exists | `decisions.md`; the working plan in the data folder |
 | 7 | Build | builder, `build` | Unattended ([build, check and run](../architecture/build-check-run.md)) | Every task of the change built and committed | Code; `D` items it proposes |
 | 8 | Check | checker, `check` | Scenarios are written from the record in their own checker session as soon as the working plan names a change's items, before any build task for it starts; a separate fresh checker session judges the commit ([0122](../decisions/0122-scenarios-written-before-the-build.md), [build, check and run](../architecture/build-check-run.md)) | Outcomes in 5.7 | Scenarios (data folder), verdicts |
 | 9 | Run | server, `run` | [Runner](runner.md) | The checked commit runs | `RELEASE-NOTES.md` |
@@ -164,6 +176,7 @@ Builders' reading, open to the owner's correction ([0129](../decisions/0129-buil
 
 - premise proposes a software's milestones from the plan; the operator edits them. A software's milestones are not premise's own roadmap milestones.
 - Each milestone ends at running software and a report.
+- The first milestone is what the operator asked for; premise's additions the operator kept come in later milestones. When what follows the first milestone is only those additions, its wait is on by default (`line.wait_after_asked`, [0191](../decisions/0191-scope-check-effort-and-milestones.md)); the operator can untick it on the milestone list.
 - Where the operator set a wait after a milestone, the software stops there: no new job starts for it ([work queue](work-queue.md)) until the operator says to go on. That is where the operator judges whether the software is fixing the right problem; the way back to Why is open ([the line](../architecture/the-line.md)).
 - Milestone 1 builds this.
 
@@ -210,6 +223,11 @@ Stage budgets, in agent turns and minutes per stage, by size class ([0117](../de
 | `line.check_rounds_before_stop` | 3 | Rounds an item may fail before work on it stops |
 | `line.splitting` | true | Whether the sizer may split a piece into parts |
 | `line.split_max_parts` | 5 | Most parts one piece may be split into |
+| `softwares.default_effort` | medium | Effort a new software gets: low, medium or high (5.2b) |
+| `line.low_effort_budget_percent`, `line.high_effort_budget_percent` | 50, 150 | Budgets of the stages before building at low and high effort |
+| `line.scope_check` | true | Whether premise asks how much to build after What |
+| `line.wait_after_asked` | true | Whether premise stops after the first milestone when only its own additions follow |
+| `line.estimate_minutes_per_session`, `line.estimate_items_per_build` | 3, 3 | The scope check's rough estimate, until premise has measured its own sessions |
 | `line.agents_per_stage` | 1 | Agents one stage of one piece may use at once; only 1 is used today ([0181](../decisions/0181-the-line-works-on-work-items.md)) |
 | `agents.tasks.size.*` | fast tier, low effort, 20 turns, 5 minutes | The sizer's model, effort and limits |
 | `agents.tasks.recover.*` | strongest tier, medium effort, 60 turns, 20 minutes | The drafter's model, effort and limits when recovering an existing software's record |

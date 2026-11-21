@@ -43,6 +43,7 @@ flowchart LR
    - It repeats at a smaller size before a large feature or a foundation choice. Writes `exists.md`.
 4. **What.**
    - premise drafts what the software must do, in purpose terms, with priorities. It offers its own ideas, marked as suggestions, and asks only where being wrong is costly.
+   - Then one ask on how much to build: what the operator asked for, plus what premise recommends, or everything, each with a rough cost; the software's effort level picks the starting choice. The first milestone is what was asked for, and premise stops after it when only its own additions follow ([0191](../decisions/0191-scope-check-effort-and-milestones.md)).
    - People claim areas for their taste here ([taste](intake-and-reporting.md#taste-0022)). Writes `what.md` and `taste.md`.
 5. **Say back.**
    - A list of at most ten items: what premise understood and assumed, in purpose terms, with assumptions marked ([0028](../decisions/0028-say-back-as-assumptions-to-strike.md)).

@@ -8,6 +8,7 @@ import { envNameFor } from "../config/load.js";
 import { type Running, start } from "../server/start.js";
 import type { AskView } from "../shared/api-types.js";
 import { listChatMessages } from "../storage/chat.js";
+import { type MeasureFacts, readMeasures } from "../reporter/facts.js";
 import { type OperatorAnswer, scopeAsIs, scopeWords } from "./demos.js";
 
 /**
@@ -21,6 +22,15 @@ import { type OperatorAnswer, scopeAsIs, scopeWords } from "./demos.js";
 export const REAL_RUN_IDEA =
   "A command-line tool that prints the lines of a text file in reverse order: the last line first and the first line last. It reads the file named on the command line and says plainly when it cannot read it.";
 
+/**
+ * What the real run is expected to show now that effort follows what was asked (decision 0192).
+ * The first real run, before that, took 26 agent sessions, three milestones and 18 minutes for the
+ * two behaviours asked for. At low effort only what was asked is built: one milestone, and about
+ * twelve sessions (sizing, Why, Who, What exists, What, the say-back, the plan and its review, the
+ * scenarios, the milestone's sizing, one or two builds and the check).
+ */
+export const REAL_RUN_EXPECTED = { milestones: 1, mostSessions: 15 } as const;
+
 /** The settings a real run uses, on top of anything the environment already sets. */
 export function realRunEnv(port: number): Record<string, string> {
   const env: Record<string, string> = {
@@ -31,6 +41,8 @@ export function realRunEnv(port: number): Record<string, string> {
     [envNameFor("runner.read_only_paths")]: JSON.stringify(nodePrefix() ? [nodePrefix()] : []),
     [envNameFor("server.port")]: String(port),
     [envNameFor("softwares.default_milestone_waits")]: "false",
+    // Only what the operator asked for: the scope check starts on it, and the operator keeps it.
+    [envNameFor("softwares.default_effort")]: "low",
   };
   for (const kind of AGENT_TASK_KINDS) {
     env[envNameFor(`agents.tasks.${kind}.model`)] = "haiku";
@@ -98,6 +110,10 @@ export interface RealRunEvidence {
     result: string | null;
   }[];
   verdicts: { item: string; verdict: string; commit: string | null; evidence: string }[];
+  /** Milestones the plan made, and premise's own measures (decision 0192). */
+  milestones: number;
+  measures: MeasureFacts | null;
+  expected: typeof REAL_RUN_EXPECTED;
   commits: string[];
   run: unknown;
   said: string[];
@@ -242,6 +258,14 @@ function gather(
       id,
     ).map((j) => ({ ...j, result: j.result ? j.result.slice(0, 300) : null })),
     verdicts,
+    milestones: id
+      ? rows<{ n: number }>(
+          "SELECT COUNT(*) AS n FROM work_items WHERE software_id = ? AND kind = 'milestone'",
+          id,
+        )[0]!.n
+      : 0,
+    measures: id ? readMeasures(db, id) : null,
+    expected: REAL_RUN_EXPECTED,
     commits,
     run: rows<Record<string, unknown>>(
       "SELECT commit_sha, kind, status, command, failure FROM runs WHERE software_id = ? ORDER BY id",

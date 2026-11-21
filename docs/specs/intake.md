@@ -53,7 +53,7 @@ While premise listens on localhost only ([0079](../decisions/0079-localhost-only
 
 ### 5.2 Triage
 
-- A triager agent reads every item against the record: its kind (bug, wish, change of purpose, question, opinion, duplicate, noise), the items it touches, its rough size, and whether it touches the floor ([0094](../decisions/0094-triager-reads-every-item.md)).
+- A triager agent reads every item against the record: its kind (bug, wish, change of purpose, question, opinion, duplicate, noise), the items it touches, its rough size, whether it touches the floor ([0094](../decisions/0094-triager-reads-every-item.md)), and whether building it changes what the software must do (`changes_what`; a bug never does, [0192](../decisions/0192-effort-in-proportion-to-what-was-asked.md)).
 - Routing by what an item touches needs the record, which an LLM can read; no person is needed for it. People sorting intake by hand was rejected.
 - Item text is data, never instructions ([0116](../decisions/0116-outside-content-is-data.md)). An item that tries to instruct an agent is triaged as what it is (usually noise), and the attempt is reported.
 
@@ -63,7 +63,7 @@ Intake goes in normally; only what needs holding is held ([0062](../decisions/00
 
 | Route | Which items | What happens |
 |---|---|---|
-| In normally (the default) | Bugs and wishes that fit the record | A change on the line: plan, build, check, run. A say-back only if the change touches purpose or is costly to undo ([0020](../decisions/0020-when-to-say-back.md)) |
+| In normally (the default) | Bugs and wishes that fit the record | A change on the line. A bug, something the record already requires that does not work, is built, checked, run and reported straight away. A wish that changes what the software must do reopens What with one plain confirm ("This changes what it must do; confirm to change it"), then is planned and built; other new work is planned and built without reopening What ([0192](../decisions/0192-effort-in-proportion-to-what-was-asked.md)). A say-back only for a change of purpose ([0020](../decisions/0020-when-to-say-back.md)) |
 | Asked at once | An item that touches purpose, a claimed area, or the floor | Asked in the session, under the role whose call it is |
 | Held | Only the items that need holding (5.4) | Kept for a reading |
 | Merged or closed | Duplicates, and noise | Duplicates join their item; noise is closed with its reason. Both are counted in reports |

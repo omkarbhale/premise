@@ -62,7 +62,7 @@ Not responsible for:
 The record is Markdown, one item per list line, each with a stable ID ([0082](../decisions/0082-record-as-markdown-with-ids.md)). It is lists ([0029](../decisions/0029-lists-over-long-paragraphs.md)).
 
 - `- [W-7] People can export their list as a CSV file. (must; from: operator; 2026-11-21)`
-- The parentheses hold, in order: priority (W items only), `from:`, `replaces:` when it replaces, `foundation` (D items), `wait` (M items), `confirmed:` and the date, which is always last ([0159](../decisions/0159-how-the-record-keeper-is-built.md)).
+- The parentheses hold, in order: priority (W items only), `from:`, `replaces:` when it replaces, `foundation` (D items), `wait` (M items), `left-out` (W items the operator left out of what is built at the scope check; only the operator sets or clears it, [0191](../decisions/0191-scope-check-effort-and-milestones.md)), `confirmed:` and the date, which is always last ([0159](../decisions/0159-how-the-record-keeper-is-built.md)).
 - `from:` is a role from `who.md`, or `assumed` for an assumption of premise's that nobody struck, or `recovered` for an item rebuilt from existing software.
 - A changed item gets a new ID and `replaces: W-3`. The old line stays, struck through, with the reason.
 - A dropped item is struck through with its reason, not deleted, so rejected alternatives stay ([0025](../decisions/0025-two-kinds-of-record.md)): `- ~~[W-3] text (marks)~~ struck 2026-11-22: reason`. An item's text and a reason are each one line; a line break in either is refused.
