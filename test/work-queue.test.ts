@@ -19,6 +19,31 @@ function setup(script: unknown = { rules: [] }, env: NodeJS.ProcessEnv = {}, clo
 const hangBuilds = { rules: [{ when: { task: "build" }, end: { outcome: "hang" } }] };
 
 describe("work queue", () => {
+  it("stops a running server job and ignores its late result", async () => {
+    const folder = tempFolder();
+    const config = testConfig(folder);
+    const { db } = openDatabase(folder);
+    let release!: () => void;
+    const queue = new WorkQueue({
+      db,
+      config,
+      runner: new ScriptedAgentRunner(parseScript({ rules: [] })),
+      serverJobs: () =>
+        new Promise((resolve) => {
+          release = () => resolve({ kind: "done", summary: "late" });
+        }),
+    });
+    const software = createSoftware(db, { name: "sample" }, config.softwares);
+    const id = queue.enqueue({ softwareId: software.id, kind: "run" });
+    queue.tick();
+    expect(queue.get(id)!.status).toBe("running");
+    queue.stop(id);
+    expect(queue.get(id)!.status).toBe("stopped");
+    release();
+    await queue.idle();
+    expect(queue.get(id)!.status).toBe("stopped");
+  });
+
   it("runs at most queue.max_agent_sessions agent sessions at once", () => {
     const { queue, software } = setup(hangBuilds);
     const ids = [1, 2, 3].map(() => queue.enqueue({ softwareId: software.id, kind: "build" }));

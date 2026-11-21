@@ -91,7 +91,7 @@ function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) 
   const openAsks = asks.state === "ready" ? asks.data : [];
 
   useTabTitle(openAsks.length);
-  useNotifications(openAsks, overview.state === "ready" ? overview.data.page.notifications : "off");
+  useNotifications(asks.state === "ready" ? openAsks : null, overview.state === "ready" ? overview.data.page.notifications : "off");
 
   if (overview.state === "loading") {
     return (
@@ -289,9 +289,10 @@ function useTabTitle(open: number) {
 }
 
 /** A browser notification for each new ask while the page is hidden, once allowed. */
-function useNotifications(asks: AskView[], setting: "offer" | "off") {
+function useNotifications(asks: AskView[] | null, setting: "offer" | "off") {
   const seen = useRef<Set<number> | null>(null);
   useEffect(() => {
+    if (!asks) return;
     const ids = new Set(asks.map((a) => a.id));
     if (seen.current === null) {
       seen.current = ids;

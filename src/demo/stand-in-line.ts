@@ -929,6 +929,8 @@ export function validateAnswer(ask: Ask, answer: AskAnswer): string {
       const keys = new Set(ask.items.map((i) => i.key));
       const seen = new Set<string>();
       for (const item of answer.items as ItemAnswer[]) {
+        if (!item || typeof item !== "object" || typeof item.key !== "string")
+          invalid("One answer is not an item answer. Reload the page.");
         if (!keys.has(item.key))
           invalid("One answer names an item that is not on this list. Reload the page.");
         if (seen.has(item.key)) invalid("One item was answered twice. Reload the page.");
@@ -938,7 +940,7 @@ export function validateAnswer(ask: Ask, answer: AskAnswer): string {
         if (item.decision === "edit") {
           if (ask.kind === "say-back")
             invalid("A say-back item can only be kept or struck. Say more in chat.");
-          if (!item.text?.trim()) invalid("An edited item cannot be empty. Strike it instead.");
+          if (typeof item.text !== "string" || !item.text.trim()) invalid("An edited item cannot be empty. Strike it instead.");
         }
       }
       const count = (d: string) => answer.items.filter((i) => i.decision === d).length;
@@ -946,7 +948,7 @@ export function validateAnswer(ask: Ask, answer: AskAnswer): string {
       return `Kept ${kept}, struck ${count("strike")}, edited ${count("edit")}.`;
     }
     case "question":
-      if (answer.kind !== "text" || !answer.text?.trim()) {
+      if (answer.kind !== "text" || typeof answer.text !== "string" || !answer.text.trim()) {
         return invalid("Write an answer, or pick one of the choices.");
       }
       return `Answered: ${shortIdea(answer.text, 80)}`;
@@ -964,7 +966,7 @@ export function validateAnswer(ask: Ask, answer: AskAnswer): string {
       if (answer.kind !== "proposal" || !["accept", "change"].includes(answer.decision)) {
         return invalid("Accept the proposal, or say what to change.");
       }
-      if (answer.decision === "change" && !answer.text?.trim()) {
+      if (answer.decision === "change" && (typeof answer.text !== "string" || !answer.text.trim())) {
         return invalid("Say what to change.");
       }
       return answer.decision === "accept" ? "Accepted." : "Asked for changes.";

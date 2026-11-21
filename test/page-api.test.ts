@@ -69,6 +69,19 @@ describe("starting a software", () => {
 });
 
 describe("answering asks", () => {
+  it("answers 422, not 500, for malformed item answers", async () => {
+    const { call } = await testApp();
+    const { body: sw } = await call("POST", "/api/softwares", { idea: "Track plant watering" });
+    const ask = await openAsk(call, sw.id);
+    const key = ask.items[0]!.key;
+    for (const items of [[null], [{ key, decision: "edit", text: 5 }]]) {
+      const res = await call("POST", `/api/asks/${ask.id}/answer`, {
+        answer: { kind: "items", items },
+      });
+      expect(res.status).toBe(422);
+    }
+  });
+
   it("takes per-item strike, keep and edit, and writes them to the record", async () => {
     const { call } = await testApp();
     const { body: sw } = await call("POST", "/api/softwares", { idea: "Track plant watering" });
