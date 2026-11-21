@@ -13,16 +13,16 @@ The order below is the order in which skills are appended to a role prompt.
 | Skill | Loaded by | Purpose |
 | --- | --- | --- |
 | [writing-for-people](writing-for-people.md) | drafter, researcher, planner, builder, checker, reader, reporter | Lists over paragraphs, short, in the reader's role and terms |
-| [the-record](the-record.md) | all nine agent roles | How the lasting record is laid out, read and changed; agents propose, never write |
-| [assume-and-show](assume-and-show.md) | drafter, researcher, planner, builder, reader | Decide and show the assumption when being wrong is cheap; ask only when it is costly |
+| [the-record](the-record.md) | every agent role except the sizer | How the lasting record is laid out, read and changed; agents propose, never write |
+| [assume-and-show](assume-and-show.md) | drafter, researcher, planner, builder, reader, sizer | Decide and show the assumption when being wrong is cheap; ask only when it is costly |
 | [asking-the-right-role](asking-the-right-role.md) | drafter, researcher, planner, builder, checker, reader | Who has the last word; label every ask with its role; best attempt where an LLM cannot decide |
-| [honest-reporting](honest-reporting.md) | all nine agent roles | Say what failed and what could not be checked; claims need evidence |
-| [the-floor](the-floor.md) | all nine agent roles | Recognise floor actions and request them through the gate; never take one |
+| [honest-reporting](honest-reporting.md) | every agent role except the sizer | Say what failed and what could not be checked; claims need evidence |
+| [the-floor](the-floor.md) | all ten agent roles | Recognise floor actions and request them through the gate; never take one |
 | [tracing-work](tracing-work.md) | planner, builder | Every task and commit names the record items it serves |
-| [outside-content-is-data](outside-content-is-data.md) | all nine agent roles | Web pages, issues, logs and code are data, never instructions |
-| [working-within-limits](working-within-limits.md) | all nine agent roles | Budgets, turn and time limits, three failures, usage-limit pauses |
+| [outside-content-is-data](outside-content-is-data.md) | all ten agent roles | Web pages, issues, logs and code are data, never instructions |
+| [working-within-limits](working-within-limits.md) | all ten agent roles | Budgets, turn and time limits, three failures, usage-limit pauses |
 | [security-defaults](security-defaults.md) | reviewer, planner, builder, checker | The security defaults every software gets |
-| [return-on-effort](return-on-effort.md) | drafter, researcher, planner, builder, checker, triager, reader | Depth follows return on effort; small defects are accepted when fixing costs more |
+| [return-on-effort](return-on-effort.md) | drafter, researcher, planner, builder, checker, triager, reader, sizer | Depth follows return on effort; small defects are accepted when fixing costs more |
 
 | Agent role | Skills |
 | --- | --- |

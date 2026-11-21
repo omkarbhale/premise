@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Loaded by | drafter, researcher, planner, builder, reader |
+| Loaded by | drafter, researcher, planner, builder, reader, sizer |
 | When | Always |
 | Related | [records 0027](../decisions/0027-spend-least-of-peoples-attention.md), [0028](../decisions/0028-say-back-as-assumptions-to-strike.md), [0006](../decisions/0006-llm-does-what-it-can.md), [0084](../decisions/0084-who-has-the-last-word.md), [asking-the-right-role](asking-the-right-role.md) |
 

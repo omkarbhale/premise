@@ -50,6 +50,15 @@ export interface SoftwareService {
   withdrawApproval(id: number): Promise<void>;
 }
 
+/** The operator's say over one piece of work's sizing (decision 0184). */
+export interface WorkItemService {
+  setSize(itemId: number, size: SizeClass): Promise<void>;
+  setStages(itemId: number, stages: StageId[]): Promise<void>;
+  undoSplit(itemId: number): Promise<void>;
+  /** The software the piece belongs to. */
+  softwareOf(itemId: number): Promise<string>;
+}
+
 export interface ChatResult {
   said: ChatMessage;
   /** premise's one-line acknowledgement, such as "Taken as I-3". */
@@ -91,6 +100,7 @@ export interface ActivityService {
 
 export interface SessionServices {
   softwares: SoftwareService;
+  workItems: WorkItemService;
   conversation: ConversationService;
   asks: AskService;
   records: RecordService;

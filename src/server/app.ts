@@ -422,6 +422,63 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
       },
     );
 
+    // A piece of work's sizing, which the operator can change (decision 0184). Each answers with
+    // the software the piece belongs to, as the page shows it.
+    const workItem = async (itemId: number, change: () => Promise<void>) => {
+      const softwareId = await services.workItems.softwareOf(itemId);
+      await change();
+      return services.softwares.get(softwareId);
+    };
+
+    api.post<{ Params: { id: number }; Body: { size: SizeClass } }>(
+      "/api/work-items/:id/size",
+      {
+        schema: {
+          params: numberIdParam,
+          body: {
+            type: "object",
+            properties: { size: { type: "string", enum: [...SIZE_CLASSES] } },
+            required: ["size"],
+          },
+        },
+      },
+      async (request) =>
+        workItem(request.params.id, () =>
+          services.workItems.setSize(request.params.id, request.body.size),
+        ),
+    );
+
+    api.post<{ Params: { id: number }; Body: { stages: StageId[] } }>(
+      "/api/work-items/:id/stages",
+      {
+        schema: {
+          params: numberIdParam,
+          body: {
+            type: "object",
+            properties: {
+              stages: {
+                type: "array",
+                items: { type: "string", enum: [...STAGE_IDS] },
+                maxItems: STAGE_IDS.length,
+              },
+            },
+            required: ["stages"],
+          },
+        },
+      },
+      async (request) =>
+        workItem(request.params.id, () =>
+          services.workItems.setStages(request.params.id, request.body.stages),
+        ),
+    );
+
+    api.post<{ Params: { id: number } }>(
+      "/api/work-items/:id/undo-split",
+      { schema: { params: numberIdParam } },
+      async (request) =>
+        workItem(request.params.id, () => services.workItems.undoSplit(request.params.id)),
+    );
+
     api.post<{ Params: { id: number } }>(
       "/api/approvals/:id/withdraw",
       { schema: { params: numberIdParam } },

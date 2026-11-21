@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Loaded by | all nine agent roles |
+| Loaded by | every agent role except the sizer |
 | When | Always |
 | Related | [records 0014](../decisions/0014-guard-against-further-big-mistakes.md), [0056](../decisions/0056-what-is-on-the-floor.md), [0097](../decisions/0097-reports-from-recorded-facts.md), [0030](../decisions/0030-independent-check.md) |
 

@@ -41,6 +41,9 @@ A wrong setting stops premise at start with a message naming the setting and why
 | `line.why_items_min` | `3` | 1 to 20 | Fewest items the Why draft should have. The drafter is told the range. |  |
 | `line.why_items_max` | `7` | 1 to 30 | Most items the Why draft may have; a longer draft is sent back to the drafter. |  |
 | `line.remote` | `"github"` | "github", "local" or "none" | "github": at the end of Plan, premise asks you (through the gate) before creating the software's repository on your GitHub account; that step is not approved yet, so the software stays on this machine. "local": a second copy in the data folder's remotes folder, no question asked. "none": the software stays on this machine only. | [0161](../decisions/README.md) |
+| `line.splitting` | `true` | true or false | Whether the sizer may split a piece of work into parts that go through the line one after another. Only parts that are completely separate, or a part that is very long, are split. false keeps every piece whole. | [0170](../decisions/README.md) |
+| `line.split_max_parts` | `5` | 2 to 20 | Most parts the sizer may split one piece of work into. | [0184](../decisions/README.md) |
+| `line.agents_per_stage` | `1` | 1 to 8 | How many agents one stage of one piece of work may use at once. premise uses one per stage today; higher values are kept for later and change nothing yet. | [0181](../decisions/README.md) |
 | `line.budgets.draft.small.turns` | `15` | 1 to 2000 | Agent turns a small software's Why, Who and What (each) stage may use. | [0117](../decisions/README.md) |
 | `line.budgets.draft.small.minutes` | `10` | 1 to 1440 | Minutes a small software's Why, Who and What (each) stage may take. | [0117](../decisions/README.md) |
 | `line.budgets.draft.medium.turns` | `30` | 1 to 2000 | Agent turns a medium software's Why, Who and What (each) stage may use. | [0117](../decisions/README.md) |
@@ -88,7 +91,7 @@ A wrong setting stops premise at start with a message naming the setting and why
 
 ## Per type of task
 
-Each type of agent task has its own model, effort and limits. The types are: draft, research, review, plan, build, prototype, check, triage, reading, report.
+Each type of agent task has its own model, effort and limits. The types are: draft, research, review, plan, build, prototype, check, triage, reading, report, size.
 
 | Setting | Default | Allowed | Meaning | Record |
 | --- | --- | --- | --- | --- |
@@ -132,3 +135,7 @@ Each type of agent task has its own model, effort and limits. The types are: dra
 | `agents.tasks.report.effort` | `"medium"` | low, medium, high, xhigh, max | Reasoning effort for report sessions. | [0132](../decisions/README.md) |
 | `agents.tasks.report.max_turns` | `60` | 1 to 2000 | Turn limit for one report session; at the limit the job ends stuck. | [0088](../decisions/README.md) |
 | `agents.tasks.report.max_minutes` | `20` | 1 to 1440 | Time limit in minutes for one report session. | [0088](../decisions/README.md) |
+| `agents.tasks.size.model` | `"sonnet"` | a model alias (opus, sonnet, haiku) or a full model name | Model for size sessions. Fast tier by default. | [0104](../decisions/README.md) |
+| `agents.tasks.size.effort` | `"low"` | low, medium, high, xhigh, max | Reasoning effort for size sessions. | [0132](../decisions/README.md) |
+| `agents.tasks.size.max_turns` | `20` | 1 to 2000 | Turn limit for one size session; at the limit the job ends stuck. | [0088](../decisions/README.md) |
+| `agents.tasks.size.max_minutes` | `5` | 1 to 1440 | Time limit in minutes for one size session. | [0088](../decisions/README.md) |

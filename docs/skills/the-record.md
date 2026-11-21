@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Loaded by | all nine agent roles |
+| Loaded by | every agent role except the sizer |
 | When | Always |
 | Related | [records 0025](../decisions/0025-two-kinds-of-record.md), [0026](../decisions/0026-no-maintained-description-of-what-exists.md), [0080](../decisions/0080-record-in-the-softwares-repository.md), [0081](../decisions/0081-nothing-about-people-in-the-repository.md), [0082](../decisions/0082-record-as-markdown-with-ids.md), [the record](../architecture/the-record.md), [record keeper](../specs/record-keeper.md) |
 

@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Loaded by | drafter, researcher, planner, builder, checker, triager, reader |
+| Loaded by | drafter, researcher, planner, builder, checker, triager, reader, sizer |
 | When | Always |
 | Related | [records 0006](../decisions/0006-llm-does-what-it-can.md), [0085](../decisions/0085-stage-effort-budgets.md), [0117](../decisions/0117-size-classes-set-stage-budgets.md), [0013](../decisions/0013-mismatch-of-intent-is-the-mistake-that-matters.md), [0056](../decisions/0056-what-is-on-the-floor.md) |
 

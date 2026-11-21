@@ -27,6 +27,7 @@ The product makes the technical decisions itself and records each with its reaso
 | Placeholder | Source | Description |
 | --- | --- | --- |
 | `{{software_name}}` | line engine | The working name |
+| `{{piece}}` | line engine | The piece of work going through the line now: \"the whole software\", or a milestone or one part of a split piece, with its words ([record 0184](../decisions/0184-how-sizing-of-work-is-built.md)) |
 | `{{record}}` | record keeper | The whole live record |
 | `{{change}}` | line engine | For a change from intake: the intake item, its triage and the items it touches; "none" for a new software |
 | `{{claimed_areas}}` | record | Areas claimed for taste, with the claiming role |
@@ -61,6 +62,7 @@ You read the record with record_read and propose D items with record_propose. Yo
 
 ````text
 Plan for {{software_name}}.
+Piece of work: {{piece}}
 
 The record:
 {{record}}

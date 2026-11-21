@@ -21,6 +21,7 @@ export const AGENT_TASK_KINDS = [
   "triage",
   "reading",
   "report",
+  "size",
 ] as const;
 export type AgentTaskKind = (typeof AGENT_TASK_KINDS)[number];
 
@@ -181,10 +182,13 @@ const STRONGEST: AgentTaskKind[] = [
   "reading",
 ];
 const LONG_TASKS: AgentTaskKind[] = ["build", "prototype", "check"];
+/** Short tasks: sizing must keep the first stages quick (decision 0184). */
+const SHORT_TASKS: AgentTaskKind[] = ["size"];
 
 function taskSettings(kind: AgentTaskKind): Setting[] {
   const strongest = STRONGEST.includes(kind);
   const long = LONG_TASKS.includes(kind);
+  const short = SHORT_TASKS.includes(kind);
   return [
     {
       key: `agents.tasks.${kind}.model`,
@@ -195,21 +199,21 @@ function taskSettings(kind: AgentTaskKind): Setting[] {
     },
     {
       key: `agents.tasks.${kind}.effort`,
-      default: "medium",
+      default: short ? "low" : "medium",
       check: summarised(oneOf(EFFORTS), EFFORTS.join(", ")),
       meaning: `Reasoning effort for ${kind} sessions.`,
       record: "0132",
     },
     {
       key: `agents.tasks.${kind}.max_turns`,
-      default: long ? 200 : 60,
+      default: long ? 200 : short ? 20 : 60,
       check: summarised(wholeNumber(1, 2000), "1 to 2000"),
       meaning: `Turn limit for one ${kind} session; at the limit the job ends stuck.`,
       record: "0088",
     },
     {
       key: `agents.tasks.${kind}.max_minutes`,
-      default: long ? 60 : 20,
+      default: long ? 60 : short ? 5 : 20,
       check: summarised(wholeNumber(1, 1440), "1 to 1440"),
       meaning: `Time limit in minutes for one ${kind} session.`,
       record: "0088",
@@ -411,6 +415,29 @@ export const SETTINGS: readonly Setting[] = [
     meaning:
       '"github": at the end of Plan, premise asks you (through the gate) before creating the software\'s repository on your GitHub account; that step is not approved yet, so the software stays on this machine. "local": a second copy in the data folder\'s remotes folder, no question asked. "none": the software stays on this machine only.',
     record: "0161",
+  },
+  {
+    key: "line.splitting",
+    default: true,
+    check: summarised(yesNo, "true or false"),
+    meaning:
+      "Whether the sizer may split a piece of work into parts that go through the line one after another. Only parts that are completely separate, or a part that is very long, are split. false keeps every piece whole.",
+    record: "0170",
+  },
+  {
+    key: "line.split_max_parts",
+    default: 5,
+    check: summarised(wholeNumber(2, 20), "2 to 20"),
+    meaning: "Most parts the sizer may split one piece of work into.",
+    record: "0184",
+  },
+  {
+    key: "line.agents_per_stage",
+    default: 1,
+    check: summarised(wholeNumber(1, 8), "1 to 8"),
+    meaning:
+      "How many agents one stage of one piece of work may use at once. premise uses one per stage today; higher values are kept for later and change nothing yet.",
+    record: "0181",
   },
   ...budgetSettings(),
   {
@@ -619,6 +646,9 @@ export interface PremiseConfig {
     why_items_min: number;
     why_items_max: number;
     remote: Remote;
+    splitting: boolean;
+    split_max_parts: number;
+    agents_per_stage: number;
     budgets: Record<BudgetGroup, Record<"small" | "medium" | "large", StageBudget>>;
   };
   gate: { kind_approvals_allowed: FloorKind[] };

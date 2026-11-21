@@ -52,6 +52,9 @@ export interface Api {
   stopRun(id: string): Promise<RunView>;
   sendBack(id: string, stage: StageId): Promise<SoftwareDetail>;
   setSize(id: string, size: SizeClass): Promise<SoftwareDetail>;
+  setItemSize(itemId: number, size: SizeClass): Promise<SoftwareDetail>;
+  setItemStages(itemId: number, stages: StageId[]): Promise<SoftwareDetail>;
+  undoSplit(itemId: number): Promise<SoftwareDetail>;
   setPriority(id: string, priority: number): Promise<SoftwareDetail>;
   setMilestoneWait(id: string, milestone: string, wait: boolean): Promise<SoftwareDetail>;
   withdrawApproval(id: number): Promise<{ ok: true }>;
@@ -115,6 +118,9 @@ export function createApi(token: string): Api {
     stopRun: (id) => post(`/api/softwares/${enc(id)}/run/stop`),
     sendBack: (id, stage) => post(`/api/softwares/${enc(id)}/send-back`, { stage }),
     setSize: (id, size) => post(`/api/softwares/${enc(id)}/size`, { size }),
+    setItemSize: (itemId, size) => post(`/api/work-items/${itemId}/size`, { size }),
+    setItemStages: (itemId, stages) => post(`/api/work-items/${itemId}/stages`, { stages }),
+    undoSplit: (itemId) => post(`/api/work-items/${itemId}/undo-split`),
     setPriority: (id, priority) => post(`/api/softwares/${enc(id)}/priority`, { priority }),
     setMilestoneWait: (id, milestone, wait) =>
       post(`/api/softwares/${enc(id)}/milestones/${enc(milestone)}/wait`, { wait }),

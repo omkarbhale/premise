@@ -33,7 +33,7 @@
 
 ## Consequences
 
-- The sizing prompt is written to this rule; each split and its reason are recorded with the work item. Splitting into child items is not built yet ([issue 58](https://github.com/omkarbhale/premise/issues/58)).
+- The sizing prompt is written to this rule; each split and its reason are recorded with the work item. Splitting into child items is built in [0184](0184-how-sizing-of-work-is-built.md), with the sizing prompt in [docs/prompts/sizer.md](../prompts/sizer.md).
 - Work sized per piece is in milestone 1 ([roadmap](../product/roadmap.md)).
 
 ## Related

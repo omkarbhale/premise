@@ -19,6 +19,7 @@ These prompts are the builders' design. Nothing here is the owner's wording or t
 | [triager.md](triager.md) | triager | fast | Intake (triage jobs) | Read one intake item against the record and choose its route |
 | [reader.md](reader.md) | reader | strongest | Intake (reading jobs) | Read held items together and write the short list for the operator |
 | [reporter.md](reporter.md) | reporter | fast | Report (report jobs); "more on" answers | Write reports from recorded facts only, each line linked to its evidence |
+| [sizer.md](sizer.md) | sizer | fast, low effort | size jobs: once for every piece of work before its first stage | Decide a piece's size, the stages it needs, and whether it splits, each with a reason |
 | [fixed-wording.md](fixed-wording.md) | none | none | gate, intake, notices | Text the server shows without a model |
 
 ## How the prompts fit the line
@@ -54,7 +55,7 @@ premise names models by Claude Code's tier aliases, never by pinned versions ([r
 | Tier | Agent roles | Character of the work |
 | --- | --- | --- |
 | strongest | drafter, researcher, reviewer, planner, builder, checker, reader | Work where a mistake in intent or in the build costs more rounds than the usage saved |
-| fast | triager, reporter | Easy work: sorting one item; putting recorded facts into short lines |
+| fast | triager, reporter, sizer | Easy work: sorting one item; putting recorded facts into short lines; sizing one piece of work quickly |
 
 The prompts are written for a competent general model. They hold no workarounds for one model's weaknesses ([record 0031](../decisions/0031-the-product-is-general.md)), so a better model makes premise better without a change to them.
 

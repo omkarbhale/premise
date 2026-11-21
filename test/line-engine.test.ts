@@ -104,8 +104,9 @@ describe("the line engine, Why to Plan", () => {
     const id = await start(app);
     await toSayBack(app, id);
     const milestones = await toMilestones(app, id);
-    const line = app.session.line as unknown as { enterLater: () => never };
-    line.enterLater = () => {
+    // The first milestone begins (with its sizing) right after the repository step.
+    const line = app.session.line as unknown as { beginItem: () => never };
+    line.beginItem = () => {
       throw new Error("the confirmation failed after the repository step");
     };
     const res = await app.call("POST", `/api/asks/${milestones.id}/answer`, {
@@ -130,8 +131,8 @@ describe("the line engine, Why to Plan", () => {
     expect(why.items.at(-1)!.text).toMatch(/^Size: small/);
 
     // The drafter got the published Why brief, filled in, and the small budget for its stage.
-    const request = app.runner.requests[0]!;
-    expect(request.taskKind).toBe("draft");
+    const request = app.runner.requests.find((r) => r.taskKind === "draft")!;
+    expect(app.runner.requests[0]!.taskKind).toBe("size");
     expect(request.brief).toContain("Stage: Why, for");
     expect(request.brief).toContain("A small page where I keep my reading list");
     expect(request).toMatchObject({ maxTurns: 15, maxMinutes: 10 });
@@ -487,7 +488,9 @@ describe("chat and stage problems", () => {
     };
     const app = await testApp({}, { script });
     await start(app);
-    expect(app.runner.calls.map((c) => c.result.error?.code)).toEqual(["MALFORMED", "MALFORMED"]);
+    expect(
+      app.runner.calls.filter((c) => c.tool === "draft_submit").map((c) => c.result.error?.code),
+    ).toEqual(["MALFORMED", "MALFORMED"]);
   });
 }, 30_000);
 
