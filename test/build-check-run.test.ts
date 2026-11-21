@@ -131,6 +131,26 @@ describe("build tasks", () => {
     expect(result.stage).toBe("intake");
   }, 60_000);
 
+  it("takes a task the builder found already done, with no commit, and leaves the judging to the check", async () => {
+    const alreadyDone: ScriptBehaviour = (_request, call) => {
+      call("task_finish", { status: "done", note: "An earlier task already did this." });
+    };
+    const result = await run({
+      script: countScript({
+        when: { task: "build", brief_contains: "2. Count words" },
+        behave: alreadyDone,
+        end: { outcome: "done" },
+      }),
+    });
+    expect(result.said.join("\n")).toContain(
+      "Task 2 of 3 needed no change: the builder found it already done by an earlier task.",
+    );
+    expect(result.said.join("\n")).not.toContain("Task 2 is tried again");
+    // The check is not taken in by the builder's word: words are missing, so it goes back.
+    expect(result.build!.checks.map((c) => c.status)).toEqual(["not-passed", "passed"]);
+    expect(result.stage).toBe("intake");
+  }, 60_000);
+
   it("lets the other tasks go on while one waits for a person's answer", async () => {
     const asking: ScriptBehaviour = (request, call) => {
       const answers = (request.context?.answers as string[] | undefined) ?? [];

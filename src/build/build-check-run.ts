@@ -733,7 +733,16 @@ export class BuildCheckRun implements LaterStages {
       );
     } else if (job.status === "done") {
       const result = this.inspect(job, state);
-      if ("commit" in result) {
+      if ("unchanged" in result) {
+        task.status = "built";
+        task.commit = state.head?.commit ?? null;
+        task.note =
+          "Nothing new was needed: the builder found it already done. The check judges it.";
+        this.say(
+          id,
+          `Task ${task.number} of ${state.tasks.length} needed no change: the builder found it already done by an earlier task. The check will judge it.`,
+        );
+      } else if ("commit" in result) {
         task.status = "built";
         task.commit = result.commit;
         task.branch = result.branch;
@@ -764,7 +773,10 @@ export class BuildCheckRun implements LaterStages {
   private inspect(
     job: Job,
     state: BuildState,
-  ): { commit: string; branch: string } | { signature: string; message: string } {
+  ):
+    | { commit: string; branch: string }
+    | { unchanged: true }
+    | { signature: string; message: string } {
     const { keeper } = this.deps;
     const copy = workingCopyPath(this.config.data.folder, job.softwareId, job.id);
     const branch = branchFor(job.id);
@@ -785,6 +797,9 @@ export class BuildCheckRun implements LaterStages {
       };
     }
     if (commits.length === 0) {
+      // Nothing to commit can be right: an earlier task may already have done this one. The
+      // builder says so with task_finish "done"; the check still judges the result (0184).
+      if (this.finishedDone(job.id)) return { unchanged: true };
       return {
         signature: "no-commit",
         message: "The builder finished without committing anything.",
@@ -806,6 +821,23 @@ export class BuildCheckRun implements LaterStages {
       };
     }
     return { commit: keeper.git.log(copy, [branch, "-1"])[0]!.sha, branch };
+  }
+
+  /** The builder ended its job with task_finish "done" (an event the tool server records). */
+  private finishedDone(jobId: number): boolean {
+    const rows = this.db
+      .prepare(
+        "SELECT detail FROM events WHERE module = 'agent-tools' AND kind = 'tool-call' AND reference = ?",
+      )
+      .all(String(jobId)) as { detail: string }[];
+    return rows.some((r) => {
+      const d = JSON.parse(r.detail) as {
+        tool?: string;
+        ok?: boolean;
+        input?: { status?: string };
+      };
+      return d.tool === "task_finish" && d.ok === true && d.input?.status === "done";
+    });
   }
 
   private taskFailed(
