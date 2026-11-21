@@ -158,7 +158,13 @@ describe("gate", () => {
       calls++;
       return { ok: true, outcome: "Did it." };
     });
-    const first = gate.request({ softwareId, kind: "post", action: "Post a.", why: "x", requestedBy: "t" });
+    const first = gate.request({
+      softwareId,
+      kind: "post",
+      action: "Post a.",
+      why: "x",
+      requestedBy: "t",
+    });
     gate.answerCard(first.askId!, "approve-kind", "ok");
     expect(() =>
       transaction(db, () => {
@@ -179,7 +185,14 @@ describe("gate", () => {
     expect(calls).toBe(0);
 
     const committed = transaction(db, () =>
-      gate.request({ softwareId, kind: "post", action: "Post c.", why: "x", requestedBy: "t", perform: "act" }),
+      gate.request({
+        softwareId,
+        kind: "post",
+        action: "Post c.",
+        why: "x",
+        requestedBy: "t",
+        perform: "act",
+      }),
     );
     expect(calls).toBe(0);
     await gate.idle();

@@ -117,7 +117,9 @@ describe("the line engine, Why to Plan", () => {
     expect(res.status).toBeGreaterThanOrEqual(400);
     await app.settle();
     const remotes = join(app.folder, "remotes");
-    expect(existsSync(remotes) ? readdirSync(remotes).filter((n) => n.endsWith(".git")) : []).toEqual([]);
+    expect(
+      existsSync(remotes) ? readdirSync(remotes).filter((n) => n.endsWith(".git")) : [],
+    ).toEqual([]);
   });
 
   it("drafts each stage with an agent, writes what the operator confirmed to the record, and gives each job its stage budget", async () => {
