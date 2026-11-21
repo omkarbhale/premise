@@ -5,7 +5,10 @@ What is still open in premise's documents, and why. Everything else is decided; 
 ## Open with the owner
 
 - **When building starts.** The owner says ([0061](decisions/0061-nothing-built-until-the-owner-says.md)). Nothing is built until then.
-- **The owner's read of vision draft 3.** Open since 2026-11-20 ([VISION.md](../VISION.md)).
+- **The owner's read of the vision.** Open since 2026-11-20; the vision is now draft 4, which adds one line in the owner's meaning for effort per software and milestone waits ([VISION.md](../VISION.md)).
+- **Which software goes through premise first.** One the owner actually needs, as early as possible, before the later milestones are built ([0127](decisions/0127-first-software-is-one-the-owner-needs.md)). The owner picks it when they want ([0050](decisions/0050-first-software-is-the-owners-pick.md)); until then nothing past milestone 1 follows from the record.
+- **Whether the builders' reading of effort and milestone waits is right.** Milestones proposed by premise and edited by the operator; each ending at running software and a report; a wait stopping premise until the operator says to go on; shares from usage-ledger and Claude Code's stream; priority ordering the queue; waits in milestone 1, shares in milestone 2, priority in milestone 7. Each is a builders' choice ([0129](decisions/0129-builders-reading-of-effort-and-milestone-waits.md)) the owner can correct.
+- **Where a rebuild could still come from.** The conversation itself (eleven fixed stages may feel like paperwork; the record's shape may not suit), which only use can settle, and the record's format, which is costly to undo ([0126](decisions/0126-what-is-being-built-confirmed.md)).
 - **Whether finding out if real people want the software is "out" or "later".** The owner said both "out" and "So later it is". It is written as out, with an active version at most a later idea; the assistant asked to be told if the owner meant it the other way, and no answer is recorded ([0036](decisions/0036-finding-out-if-people-want-it-is-out.md)). Nothing in the plan depends on it.
 - **The other Premise project** in an adjacent space, seen only through a search summary. keel is the assistant's fallback name if it has grown ([0037](decisions/0037-name-premise.md)). Nothing in the plan depends on it.
 
@@ -13,7 +16,7 @@ What is still open in premise's documents, and why. Everything else is decided; 
 
 These are not open now; the plan says they wait for the owner when they arrive.
 
-- **The first software to prove the line on.** The owner picks it when they want; building premise does not wait for it ([0050](decisions/0050-first-software-is-the-owners-pick.md), [0060](decisions/0060-first-software-does-not-hold-up-premise.md)).
+- **The first software to prove the line on.** The owner picks it when they want ([0050](decisions/0050-first-software-is-the-owners-pick.md)); milestone 1 does not wait for it, but the later milestones are not built before it has gone through ([0127](decisions/0127-first-software-is-one-the-owner-needs.md), [0060](decisions/0060-first-software-does-not-hold-up-premise.md)).
 - **If milestone 1's first step fails.** If premise cannot drive Claude Code unattended on the owner's subscription, or the server cannot create and push a repository, work stops for the owner with the options, for example an API key, which spends money ([roadmap](product/roadmap.md#milestone-1-the-thinnest-line-end-to-end-for-any-small-software)). The first test passed points 1 to 5 and 7 of its own numbering, and the owner ruled the use allowed ([0124](decisions/0124-unattended-claude-code-on-the-subscription-is-allowed.md)); the repository step is still untested (below). If bubblewrap or socat is missing, work stops for the owner.
 - **Being reached from other machines.** Security-sensitive; a later decision for the owner ([0065](decisions/0065-one-open-session.md), [0079](decisions/0079-localhost-only.md)). Milestone 5 prepares it and does not decide it.
 - **Using an API key**, for milestone 5's clean-machine demo or for other people's setups on the owner's account. It spends money, so it waits for the owner ([0103](decisions/0103-subscription-only-for-the-owner.md), [0053](decisions/0053-when-work-stops-for-the-owner.md)).
@@ -31,7 +34,7 @@ These are not open now; the plan says they wait for the owner when they arrive.
 
 - **The feedback page while premise listens on localhost only.** The plan gives each software a feedback page for its users, but premise is reachable only on the owner's machine ([0079](decisions/0079-localhost-only.md)). Until the owner decides on being reached from other machines, users elsewhere reach a software through its GitHub issues ([0119](decisions/0119-feedback-page-has-its-own-link.md), [intake spec](specs/intake.md)).
 - **Asking for more detail before triage exists.** Milestone 1 has no triager, so a request for more detail is made with a control on the page; asking for it in chat comes with triage in milestone 4 ([0118](decisions/0118-how-chat-messages-are-routed.md), [reporter spec](specs/reporter.md)).
-- **VISION.md's "Not yet worked out" list.** The vision still lists four things as not yet worked out. The plan answers each as builders' choices ([scope](product/scope.md#not-yet-worked-out-in-the-vision)). The builders did not change the vision text: it is the owner's statement, and the owner's read of draft 3 is open.
+- **VISION.md's "Not yet worked out" list.** The vision still lists four things as not yet worked out. The plan answers each as builders' choices ([scope](product/scope.md#not-yet-worked-out-in-the-vision)). The builders did not change those parts of the vision: it is the owner's statement, and the owner's read of it is open.
 
 ## Handed to the builders and answered
 

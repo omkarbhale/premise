@@ -8,7 +8,7 @@ One product that takes software from an idea to running software, and keeps taki
 
 The full statement is in [VISION.md](VISION.md).
 
-> **Status: specification stage.** Nothing is built yet. This repository holds the vision, the records of the conversation that shaped premise (2026-11-20), every decision since with who made it, the architecture, a specification per module, and the prompts and skills its agents will run on. Building starts only when the owner says so ([0061](docs/decisions/0061-nothing-built-until-the-owner-says.md)). The owner's read of vision draft 3 is still open.
+> **Status: specification stage.** Nothing is built yet. This repository holds the vision, the records of the conversation that shaped premise (2026-11-20) and the exchange of 2026-11-21 that doubled back on the planning, every decision since with who made it, the architecture, a specification per module, and the prompts and skills its agents will run on. Building starts only when the owner says so ([0061](docs/decisions/0061-nothing-built-until-the-owner-says.md)). The owner's read of the vision (now draft 4) is still open.
 
 ## The problem
 
@@ -101,6 +101,7 @@ Details: [scope](docs/product/scope.md); order: [roadmap](docs/product/roadmap.m
 
 **Raw history, never edited**
 - [docs/record/conversation-2026-11-20.md](docs/record/conversation-2026-11-20.md): the whole conversation in order, both sides.
+- [docs/record/conversation-2026-11-21.md](docs/record/conversation-2026-11-21.md): the exchange of 2026-11-21 in which the owner doubled back on the planning.
 - [docs/record/shaping-notes-2026-11-20.md](docs/record/shaping-notes-2026-11-20.md): the assistant's running notes during the conversation.
 - [docs/record/subscription-sandbox-test-2026-11-21.md](docs/record/subscription-sandbox-test-2026-11-21.md): the first test of the plan, unattended Claude Code on the owner's subscription inside Claude Code's sandbox.
 - [docs/record/scope-page-draft-0.1.html](docs/record/scope-page-draft-0.1.html): a review page drafted mid-conversation and later dropped in favour of the vision statement.

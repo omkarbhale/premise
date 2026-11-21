@@ -1,6 +1,6 @@
 # Vision: premise
 
-Draft 3, 2026-11-20.
+Draft 4, 2026-11-21.
 Words: the **product** is premise. The **software** is what the product builds.
 
 ## What it is
@@ -62,6 +62,7 @@ Existing software enters the same line: the product rebuilds the record a from-s
 - It knows what each piece of work costs.
 - It writes what the software's users read: help text, guides, release notes.
 - It looks after several softwares at once.
+- For a software, the operator can decide how much effort it gets, as a share of weekly usage or by priority, and can make milestones and have the product wait after them. Optional per software.
 - Other people can set it up and run it themselves.
 - Nobody has to use another tool alongside it. It may be built on other tools underneath.
 

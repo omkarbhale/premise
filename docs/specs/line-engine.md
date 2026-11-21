@@ -122,6 +122,15 @@ Applied to every decision a stage meets ([0084](../decisions/0084-who-has-the-la
 - An ask holds only the job that made it. A builder's task that needs a decision only a person can make waits; other tasks go on.
 - The "needed" list on the page is every open ask, grouped by role ([page](page.md)).
 
+### 5.8a Milestones and waits
+
+Builders' reading, open to the owner's correction ([0129](../decisions/0129-builders-reading-of-effort-and-milestone-waits.md)); the owner's requirement is [0128](../decisions/0128-effort-per-software-and-milestone-waits.md). Optional per software.
+
+- premise proposes a software's milestones from the plan; the operator edits them. A software's milestones are not premise's own roadmap milestones.
+- Each milestone ends at running software and a report.
+- Where the operator set a wait after a milestone, the software stops there: no new job starts for it ([work queue](work-queue.md)) until the operator says to go on. That is where the operator judges whether the software is fixing the right problem; the way back to Why is open ([the line](../architecture/the-line.md)).
+- Milestone 1 builds this.
+
 ### 5.9 Chat
 
 - An answer given on an ask's card is an answer.
@@ -181,7 +190,7 @@ Stage budgets, in agent turns and minutes per stage, by size class ([0117](../de
 
 ## 11. Milestones
 
-- Milestone 1 step 2: stages Why to Plan in their thinnest form: one draft per stage, corrections in chat, a strike-out say-back, a short look at what exists. Only the operator; no taste claims; one software at a time.
+- Milestone 1 step 2: stages Why to Plan in their thinnest form: one draft per stage, corrections in chat, a strike-out say-back, a short look at what exists. Only the operator; no taste claims; one software at a time. Milestones and waits (5.8a).
 - Milestone 3: roles as labels on every ask; questions in each role's terms; taste claims and proposals before building.
 - Milestone 4: the way back to Why from intake ([intake](intake.md)).
 - Milestone 6: existing software (5.10).

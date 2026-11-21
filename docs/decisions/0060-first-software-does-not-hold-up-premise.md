@@ -1,6 +1,6 @@
 # 0060. The first software does not hold up building premise
 
-- Status: Accepted
+- Status: Partly superseded by [0127](0127-first-software-is-one-the-owner-needs.md): that the first software does not hold up building premise; the owner's first software now goes through premise as early as possible, before the later milestones
 - Scope: The plan
 - Date: 2026-11-21
 - Decided by: The owner (follow-up C): "C: I'll decide. Premise doesn't need to need me to pick one anyway, it should work for any that I pick."
@@ -31,6 +31,8 @@
 
 - Changes how [0050](0050-first-software-is-the-owners-pick.md) is used; that record stands.
 - Milestone 1 is shown on two sample softwares; after it the owner can run their own pick whenever they want ([0110](0110-two-sample-softwares.md), [roadmap](../product/roadmap.md)).
+
+- **Adjusted by** [0127](0127-first-software-is-one-the-owner-needs.md): the first software is one the owner needs, going through as early as possible, before the later milestones are built. Milestone 1 still does not wait for the pick.
 
 ## Related
 

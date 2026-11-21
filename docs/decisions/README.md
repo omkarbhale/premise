@@ -7,7 +7,7 @@ Each record captures one decision that shaped premise: what prompted it, what wa
 Every record has a **Decided by** line, so nothing inferred passes as the owner's:
 - **The owner:** the call was the owner's, quoted in the owner's own words. Where the assistant proposed and the owner agreed, the record says so and quotes the agreement.
 - **The assistant:** the assistant made the call; the record gives the owner's reaction exactly as recorded (only [0032](0032-drop-the-review-page.md)).
-- **The builders:** the owner did not make this choice. The builders made it, with the reason and the rejected alternatives. Records 0067–0110 are the choices the plan numbered P1–P44; records 0111 onward were made later.
+- **The builders:** the owner did not make this choice. The builders made it, with the reason and the rejected alternatives. Records 0067–0110 are the choices the plan numbered P1–P44; records 0111 onward were made later, except 0124 and 0126–0128, which are the owner's.
 
 Words: the **owner** is the person premise is being made for; the **assistant** is the LLM agent the owner shaped premise with; the **builders** are the agents that build premise. Quotes are the speakers' own words. Where no reason was given, the record says "No reason was recorded."
 
@@ -17,6 +17,7 @@ Words: the **owner** is the person premise is being made for; the **assistant** 
 - Record 0066 is the owner's decision to lay the documents out this way.
 - Records 0067–0110 are the old `docs/plan.md` choices: P*n* is record 0066 + *n* (P1 is 0067, P44 is 0110).
 - Records 0111–0125 are builders' choices made while writing these documents, the specifications, the prompts and the skills; 0124 is the owner's ruling after the first test of the plan, and 0125 is the builders' choice from that test.
+- Records 0126–0129 come from the conversation of 2026-11-21 in which the owner doubled back on the planning ([conversation record](../record/conversation-2026-11-21.md)): 0126–0128 are the owner's; 0129 is the builders' reading of 0128, open to the owner's correction.
 - Every record has a **Source** line. For records 0001–0040 it points into the [conversation record](../record/conversation-2026-11-20.md) and, where used, the [shaping notes](../record/shaping-notes-2026-11-20.md) and the [scope page draft](../record/scope-page-draft-0.1.html). Records 0041–0065 quote the owner from the assistant's notes of the 2026-11-21 conversations, which are not kept in this repository. The old single files are in git history at commit f62615a.
 - **Status** is Accepted, Superseded by NNNN, or Partly superseded by NNNN (naming the part). A record is never edited to reverse its decision: a new record supersedes it and both are kept. The new record carries a "Supersedes" or "Partly supersedes" line.
 - **Scope** says where a decision holds: *The product* (premise as envisioned), *The plan* (premise as planned, across milestones), *Milestone N*, or *Making premise* (how premise itself is made).
@@ -27,6 +28,7 @@ Superseded so far:
 - [0058](0058-cost-tracking-inside-premise.md) by [0064](0064-cost-and-spending-limit-from-usage-ledger.md): cost and the spending limit come from usage-ledger.
 - [0033](0033-answers-to-the-ten-assumptions.md), item 8, partly by [0049](0049-any-kind-of-software.md): no first kind of software.
 - [0045](0045-a-link-per-person-no-accounts.md), the link per person, partly by [0065](0065-one-open-session.md): one open session; no accounts still stands.
+- [0060](0060-first-software-does-not-hold-up-premise.md) and [0110](0110-two-sample-softwares.md), partly by [0127](0127-first-software-is-one-the-owner-needs.md): the owner's first software goes through premise as early as possible; the samples stay as extra proof.
 - [0087](0087-agents-run-confined.md), the container fallback, partly by [0125](0125-the-claude-code-sandbox-is-the-confinement.md): the sandbox is the confinement; every agent still runs confined.
 
 How the decisions fit together is in the [architecture overview](../architecture/overview.md); the order of building is in the [roadmap](../product/roadmap.md); what is still open is in [open questions](../open-questions.md).
@@ -56,6 +58,8 @@ How the decisions fit together is in the [architecture overview](../architecture
 | 0049 | [Any kind of software; no first kind](0049-any-kind-of-software.md) | owner | Accepted |
 | 0057 | [The vision stays "any software"](0057-vision-stays-any-software.md) | owner | Accepted |
 | 0063 | [Nobody has to use another tool alongside premise; premise may depend on other tools](0063-premise-may-depend-on-other-tools.md) | owner | Accepted |
+| 0126 | [What is being built is confirmed: eight points, and the problem statement as written](0126-what-is-being-built-confirmed.md) | owner | Accepted |
+| 0128 | [Per software, the owner decides how much effort it gets, and can set milestones to wait after](0128-effort-per-software-and-milestone-waits.md) | owner | Accepted |
 
 ### Principles: LLMs, people and mistakes
 
@@ -98,6 +102,7 @@ How the decisions fit together is in the [architecture overview](../architecture
 | 0085 | [Each stage has an effort budget sized to the software](0085-stage-effort-budgets.md) | builders | Accepted |
 | 0117 | [Three size classes set the stage budgets](0117-size-classes-set-stage-budgets.md) | builders | Accepted |
 | 0118 | [How chat messages are routed](0118-how-chat-messages-are-routed.md) | builders | Accepted |
+| 0129 | [The builders' reading of effort per software and milestone waits](0129-builders-reading-of-effort-and-milestone-waits.md) | builders | Accepted, as the builders' reading; open to the owner's correction |
 
 ### Build, independent check and run
 
@@ -204,12 +209,13 @@ How the decisions fit together is in the [architecture overview](../architecture
 | 0053 | [When work stops for the owner](0053-when-work-stops-for-the-owner.md) | owner | Accepted |
 | 0054 | [Reports to the owner](0054-reports-to-the-owner.md) | owner | Accepted |
 | 0055 | [Licence: all rights reserved](0055-all-rights-reserved.md) | owner | Accepted |
-| 0060 | [The first software does not hold up building premise](0060-first-software-does-not-hold-up-premise.md) | owner | Accepted |
+| 0060 | [The first software does not hold up building premise](0060-first-software-does-not-hold-up-premise.md) | owner | Partly superseded by [0127](0127-first-software-is-one-the-owner-needs.md): that the first software does not hold up building premise |
+| 0127 | [The first software through premise is one the owner needs, as early as possible](0127-first-software-is-one-the-owner-needs.md) | owner | Accepted |
 | 0061 | [The whole plan is committed; nothing is built until the owner says to start](0061-nothing-built-until-the-owner-says.md) | owner | Accepted |
 | 0066 | [premise's documents follow aras-insight's layout](0066-documents-follow-the-aras-insight-layout.md) | owner | Accepted |
 | 0108 | [Demos use a scripted operator](0108-scripted-operator-for-demos.md) | builders | Accepted |
 | 0109 | [Unit tests with Vitest; each milestone's demo kept as a scripted run](0109-vitest-and-kept-demos.md) | builders | Accepted |
-| 0110 | [Two small softwares of different kinds shown running in milestone 1](0110-two-sample-softwares.md) | builders | Accepted |
+| 0110 | [Two small softwares of different kinds shown running in milestone 1](0110-two-sample-softwares.md) | builders | Partly superseded by [0127](0127-first-software-is-one-the-owner-needs.md): the step after the samples; the samples stay as extra proof |
 | 0111 | [VISION.md stays at the root](0111-vision-stays-at-the-root.md) | builders | Accepted |
 | 0112 | [Decision records keep the old entry numbers](0112-record-numbering-keeps-old-entry-numbers.md) | builders | Accepted |
 
