@@ -13,6 +13,9 @@ export interface Software {
   weeklySharePercent: number | null;
   state: SoftwareState;
   currentStage: string;
+  sizeClass: string;
+  /** The first words the operator said about it. */
+  idea: string;
   created: string;
 }
 
@@ -24,6 +27,8 @@ interface SoftwareRow {
   weekly_share_percent: number | null;
   state: SoftwareState;
   current_stage: string;
+  size_class: string;
+  idea: string;
   created: string;
 }
 
@@ -36,12 +41,15 @@ function fromRow(row: SoftwareRow): Software {
     weeklySharePercent: row.weekly_share_percent,
     state: row.state,
     currentStage: row.current_stage,
+    sizeClass: row.size_class,
+    idea: row.idea,
     created: row.created,
   };
 }
 
 export interface NewSoftware {
   name: string;
+  idea?: string;
   priority?: number;
   milestoneWaits?: boolean;
   weeklySharePercent?: number | null;
@@ -59,11 +67,12 @@ export function createSoftware(
     throw new Error(`A software's priority must be a whole number from 1 to 5; it is ${priority}.`);
   }
   db.prepare(
-    `INSERT INTO softwares (id, name, priority, milestone_waits, weekly_share_percent, created)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO softwares (id, name, idea, priority, milestone_waits, weekly_share_percent, created)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     id,
     input.name,
+    input.idea ?? "",
     priority,
     (input.milestoneWaits ?? defaults.default_milestone_waits) ? 1 : 0,
     input.weeklySharePercent === undefined
@@ -108,5 +117,25 @@ export function setSoftwarePriority(db: Database, id: string, priority: number):
     module: "softwares",
     kind: "priority-changed",
     detail: { priority },
+  });
+}
+
+export function setSoftwareStage(db: Database, id: string, stage: string, why: string): void {
+  db.prepare("UPDATE softwares SET current_stage = ? WHERE id = ?").run(stage, id);
+  recordEvent(db, {
+    softwareId: id,
+    module: "softwares",
+    kind: "stage-entered",
+    detail: { stage, why },
+  });
+}
+
+export function setSoftwareSizeClass(db: Database, id: string, sizeClass: string): void {
+  db.prepare("UPDATE softwares SET size_class = ? WHERE id = ?").run(sizeClass, id);
+  recordEvent(db, {
+    softwareId: id,
+    module: "softwares",
+    kind: "size-changed",
+    detail: { sizeClass },
   });
 }

@@ -33,6 +33,9 @@ export type AgentMode = (typeof AGENT_MODES)[number];
 export const USAGE_LEDGER_MODES = ["mock-fixed", "mock-random", "real"] as const;
 export type UsageLedgerMode = (typeof USAGE_LEDGER_MODES)[number];
 
+export const PAGE_NOTIFICATIONS = ["offer", "off"] as const;
+export type PageNotifications = (typeof PAGE_NOTIFICATIONS)[number];
+
 export const LOOPBACK_HOSTS = ["127.0.0.1", "::1", "localhost"] as const;
 
 /** One setting: its dotted key, default, check and meaning. */
@@ -216,8 +219,16 @@ export const SETTINGS: readonly Setting[] = [
     default: null,
     check: summarised(orNone(text), "a file path, or null"),
     meaning:
-      "JSON script the scripted agent follows. null means every job finishes at once as done.",
+      "JSON script the scripted agent follows. null means every job ends done after agents.scripted.step_seconds.",
     record: "0148",
+  },
+  {
+    key: "agents.scripted.step_seconds",
+    default: 2,
+    check: summarised(wholeNumber(0, 600), "0 to 600"),
+    meaning:
+      "When no script file is set: how long each scripted job takes, so you can watch work move on the page. 0 finishes every job at once.",
+    record: "0154",
   },
   ...AGENT_TASK_KINDS.flatMap(taskSettings),
   {
@@ -269,6 +280,14 @@ export const SETTINGS: readonly Setting[] = [
     record: "0128",
   },
   {
+    key: "page.notifications",
+    default: "offer",
+    check: summarised(oneOf(PAGE_NOTIFICATIONS), `"offer" or "off"`),
+    meaning:
+      '"offer": the page offers browser notifications for new questions, and asks the browser only when you accept. "off": it never offers them.',
+    record: "0157",
+  },
+  {
     key: "doctor.command_timeout_seconds",
     default: 10,
     check: summarised(wholeNumber(1, 120), "1 to 120"),
@@ -302,7 +321,7 @@ export interface PremiseConfig {
     claude: { command: string; stop_grace_seconds: number };
     network: { allowed_domains: string[] };
     confinement: { extra_denied_paths: string[] };
-    scripted: { script_file: string | null };
+    scripted: { script_file: string | null; step_seconds: number };
     tasks: Record<AgentTaskKind, TaskSettings>;
   };
   tools: { progress_max_chars: number; ask_max_items: number };
@@ -312,5 +331,6 @@ export interface PremiseConfig {
     default_milestone_waits: boolean;
     default_weekly_share_percent: number | null;
   };
+  page: { notifications: PageNotifications };
   doctor: { command_timeout_seconds: number };
 }

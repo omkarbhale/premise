@@ -3,10 +3,10 @@
 # Tests never call Claude or any LLM and never touch the network or GitHub (decision 0134).
 commands:
   lint: "(test -d node_modules || npm ci --no-audit --no-fund) && npm run lint && npm run typecheck"
-  test: "(test -d node_modules || npm ci --no-audit --no-fund) && npm run build && npm test"
+  test: "(test -d node_modules || npm ci --no-audit --no-fund) && npx playwright install chromium-headless-shell && npm run build && npm test"
 
 test:
   instructions: |
-    Install with `npm ci` if node_modules is missing; then `npm run build` and `npm test`.
+    Install with `npm ci` if node_modules is missing, and Playwright's headless Chromium with `npx playwright install chromium-headless-shell`; then `npm run build` and `npm test`.
     Never use a Claude login, an API key, or any LLM in tests: agents are scripted (agents.mode "scripted").
     Never create GitHub repositories or reach the network from tests; use temporary folders and local git remotes only.

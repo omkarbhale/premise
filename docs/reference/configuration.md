@@ -28,7 +28,8 @@ A wrong setting stops premise at start with a message naming the setting and why
 | `agents.claude.stop_grace_seconds` | `10` | 1 to 300 | When a real agent session is stopped, how long it gets to end by itself before it is ended forcibly. |  |
 | `agents.network.allowed_domains` | `["registry.npmjs.org","pypi.org","files.pythonhosted.org","crates.io","static.crates.io","index.crates.io","proxy.golang.org","sum.golang.org"]` | a list of host names | Hosts that build, prototype and check sessions may reach (package registries). Other sessions reach no host. | [0087](../decisions/README.md) |
 | `agents.confinement.extra_denied_paths` | `[]` | a list of folder or file paths | More folders or files real agents may never read or write, besides premise's data folder and the usual credential files (SSH keys, GitHub and Claude Code logins, cloud credentials). | [0087](../decisions/README.md) |
-| `agents.scripted.script_file` | `null` | a file path, or null | JSON script the scripted agent follows. null means every job finishes at once as done. | [0148](../decisions/README.md) |
+| `agents.scripted.script_file` | `null` | a file path, or null | JSON script the scripted agent follows. null means every job ends done after agents.scripted.step_seconds. | [0148](../decisions/README.md) |
+| `agents.scripted.step_seconds` | `2` | 0 to 600 | When no script file is set: how long each scripted job takes, so you can watch work move on the page. 0 finishes every job at once. | [0154](../decisions/README.md) |
 | `tools.progress_max_chars` | `200` | 20 to 2000 | Longest progress line an agent may send; longer lines are cut. |  |
 | `tools.ask_max_items` | `10` | 1 to 50 | Most items an agent may put in one question to a person. |  |
 | `usage_ledger.mode` | `"mock-fixed"` | "mock-fixed", "mock-random" or "real" (not built yet) | Where usage figures come from. "mock-fixed": the same made-up figures every time. "mock-random": made-up figures from a seed. Mocked figures are labelled on the page. | [0133](../decisions/README.md) |
@@ -36,6 +37,7 @@ A wrong setting stops premise at start with a message naming the setting and why
 | `softwares.default_priority` | `3` | 1 (most important) to 5 | Priority a new software gets. The work queue starts the most important first. | [0138](../decisions/README.md) |
 | `softwares.default_milestone_waits` | `false` | true or false | Whether a new software stops after each of its milestones until you say go on. | [0129](../decisions/README.md) |
 | `softwares.default_weekly_share_percent` | `null` | 1 to 100, or null | Share of weekly usage a new software may use. null means no share is set. | [0128](../decisions/README.md) |
+| `page.notifications` | `"offer"` | "offer" or "off" | "offer": the page offers browser notifications for new questions, and asks the browser only when you accept. "off": it never offers them. | [0157](../decisions/README.md) |
 | `doctor.command_timeout_seconds` | `10` | 1 to 120 | How long the setup check waits for each program to answer. |  |
 
 ## Per type of task

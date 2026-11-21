@@ -85,6 +85,44 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+  {
+    version: 2,
+    name: "session: chat and asks",
+    sql: `
+      CREATE TABLE chat_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        software_id TEXT REFERENCES softwares(id),
+        author TEXT NOT NULL CHECK (author IN ('person', 'premise')),
+        text TEXT NOT NULL,
+        routed_to TEXT,
+        ask_id INTEGER,
+        time TEXT NOT NULL
+      );
+      CREATE INDEX chat_messages_software ON chat_messages(software_id, id);
+
+      CREATE TABLE asks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        software_id TEXT NOT NULL REFERENCES softwares(id),
+        role TEXT NOT NULL,
+        kind TEXT NOT NULL
+          CHECK (kind IN ('question', 'draft', 'say-back', 'proposal', 'approval', 'needed')),
+        stage TEXT,
+        title TEXT NOT NULL,
+        instruction TEXT NOT NULL,
+        items TEXT NOT NULL DEFAULT '[]',
+        extra TEXT NOT NULL DEFAULT '{}',
+        waiting_job INTEGER REFERENCES jobs(id),
+        status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'answered', 'withdrawn')),
+        answer TEXT,
+        answer_summary TEXT,
+        asked TEXT NOT NULL,
+        answered TEXT
+      );
+      CREATE INDEX asks_status ON asks(status, software_id);
+
+      ALTER TABLE softwares ADD COLUMN idea TEXT NOT NULL DEFAULT '';
+    `,
+  },
 ];
 
 export const CURRENT_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

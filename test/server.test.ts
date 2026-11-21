@@ -1,63 +1,32 @@
 import { describe, expect, it } from "vitest";
-import { ScriptedAgentRunner } from "../src/agents/scripted-agent.js";
-import { runDoctor } from "../src/doctor/doctor.js";
-import { WorkQueue } from "../src/queue/work-queue.js";
-import { TOKEN_HEADER, createApp } from "../src/server/app.js";
+import { TOKEN_HEADER } from "../src/server/app.js";
 import { issueSessionToken } from "../src/server/session-token.js";
-import { openDatabase } from "../src/storage/database.js";
-import { createSoftware } from "../src/storage/softwares.js";
-import { MockUsageLedger } from "../src/usage-ledger/mock-usage-ledger.js";
-import { tempFolder, testConfig } from "./helpers.js";
+import { testApp } from "./helpers.js";
 
-async function setup() {
-  const folder = tempFolder();
-  const config = testConfig(folder);
-  const { db, schemaVersion } = openDatabase(folder);
-  const queue = new WorkQueue({ db, config, runner: new ScriptedAgentRunner() });
-  const setupReport = await runDoctor({
-    dataFolder: folder,
-    env: {},
-    run: () => Promise.resolve({ ok: true, output: "1.0" }),
-  });
-  createSoftware(db, { name: "sample" }, config.softwares);
-  const app = await createApp({
-    config,
-    db,
-    schemaVersion,
-    queue,
-    ledger: new MockUsageLedger("mock-fixed", 1),
-    setup: setupReport,
-    webRoot: tempFolder(),
-  });
-  const token = issueSessionToken(db, config.server.token_bytes);
-  const host = `localhost:${config.server.port}`;
-  return { app, token, host, db };
-}
-
-describe("page server", () => {
+describe("page server: the session check", () => {
   it("answers the health check without a token", async () => {
-    const { app, host } = await setup();
+    const { app, host } = await testApp();
     const response = await app.inject({ url: "/api/health", headers: { host } });
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({ ok: true, name: "premise" });
   });
 
-  it("refuses the API without the session token", async () => {
-    const { app, host } = await setup();
+  it("refuses the API without the session token, and says what to do", async () => {
+    const { app, host } = await testApp();
     const response = await app.inject({ url: "/api/overview", headers: { host } });
     expect(response.statusCode).toBe(401);
-    expect(response.json().error).toContain("Open the link premise printed");
+    expect(response.json().error).toContain("npm run new-link");
   });
 
   it("refuses the API without a token when the path is percent-encoded", async () => {
-    const { app, host } = await setup();
+    const { app, host } = await testApp();
     const response = await app.inject({ url: "/%61pi/overview", headers: { host } });
     expect(response.statusCode).not.toBe(200);
     expect(response.body).not.toContain("dataFolder");
   });
 
   it("refuses a token once a newer link is issued", async () => {
-    const { app, host, token, db } = await setup();
+    const { app, host, token, db } = await testApp();
     issueSessionToken(db, 32);
     const response = await app.inject({
       url: "/api/overview",
@@ -67,7 +36,7 @@ describe("page server", () => {
   });
 
   it("refuses other host names and other sites", async () => {
-    const { app, host, token } = await setup();
+    const { app, host, token } = await testApp();
     expect(
       (await app.inject({ url: "/api/health", headers: { host: "evil.example" } })).statusCode,
     ).toBe(403);
@@ -78,27 +47,52 @@ describe("page server", () => {
     expect(fromOtherSite.statusCode).toBe(403);
   });
 
-  it("gives the overview, with usage marked as mocked", async () => {
-    const { app, host, token } = await setup();
-    const response = await app.inject({
-      url: "/api/overview",
-      headers: { host, [TOKEN_HEADER]: token },
-    });
-    expect(response.statusCode).toBe(200);
-    const body = response.json();
-    expect(body.agents.mode).toBe("scripted");
-    expect(body.queue.maxAgentSessions).toBe(2);
-    expect(body.usage).toMatchObject({ mocked: true, weekly: { mocked: true } });
-    expect(body.softwares[0]).toMatchObject({
-      name: "sample",
-      priority: 3,
-      usage: { mocked: true },
-    });
+  it("takes the token in the URL only for the event stream", async () => {
+    const { app, host, token } = await testApp();
+    const response = await app.inject({ url: `/api/overview?token=${token}`, headers: { host } });
+    expect(response.statusCode).toBe(401);
+  });
+
+  it("sends headers that keep other sites from framing or reading the page", async () => {
+    const { app, host } = await testApp();
+    const response = await app.inject({ url: "/", headers: { host } });
+    expect(response.headers["content-security-policy"]).toContain("frame-ancestors 'none'");
+    expect(response.headers["referrer-policy"]).toBe("no-referrer");
   });
 
   it("says how to build the page when it is missing", async () => {
-    const { app, host } = await setup();
+    const { app, host } = await testApp();
     const response = await app.inject({ url: "/", headers: { host } });
     expect(response.body).toContain("npm run build");
+  });
+});
+
+describe("page server: overview and settings", () => {
+  it("gives the overview, with usage marked as mocked and the line as a stand-in", async () => {
+    const { call } = await testApp();
+    await call("POST", "/api/softwares", { idea: "A tool that renames photos by date" });
+    const { status, body } = await call("GET", "/api/overview");
+    expect(status).toBe(200);
+    expect(body.agents.mode).toBe("scripted");
+    expect(body.line.mode).toBe("stand-in");
+    expect(body.activity.max).toBe(2);
+    expect(body.usage).toMatchObject({ mocked: true, weekly: { mocked: true } });
+    expect(body.softwares[0]).toMatchObject({ name: "Tool that renames photos", stage: "why" });
+    expect(body.openAsks).toBe(1);
+  });
+
+  it("shows every setting with its value, default and where to change it", async () => {
+    const { call } = await testApp({ PREMISE_QUEUE__MAX_AGENT_SESSIONS: "3" });
+    const { body } = await call("GET", "/api/settings");
+    expect(body.configFile).toMatch(/config\.json$/);
+    const max = body.settings.find((s: { key: string }) => s.key === "queue.max_agent_sessions");
+    expect(max).toMatchObject({
+      value: 3,
+      default: 2,
+      changed: true,
+      envName: "PREMISE_QUEUE__MAX_AGENT_SESSIONS",
+    });
+    const model = body.settings.find((s: { key: string }) => s.key === "agents.tasks.build.model");
+    expect(model).toMatchObject({ value: "opus", changed: false });
   });
 });

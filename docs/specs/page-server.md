@@ -33,8 +33,8 @@ Not responsible for:
 
 | Operation | Caller | Inputs | Outputs | Errors |
 |---|---|---|---|---|
-| Start | A person on the owner's machine | Optional data folder, optional port | The prerequisite check's result; the session's link printed on the terminal | Exits with the list of what is missing |
-| New link | A person on the owner's machine | none | A new token; the old one revoked | none |
+| Start (`premise start`, `npm start`) | A person on the owner's machine | Optional data folder, optional port | The prerequisite check's result; the session's link printed on the terminal | Exits with the list of what is missing |
+| New link (`premise new-link`, `npm run new-link`) | A person on the owner's machine, while premise runs or not | Optional data folder | A new token and its link printed; every older link revoked at once ([0158](../decisions/0158-the-event-stream-reads-the-events-table.md)) | none |
 
 ### 3.2 The HTTP API
 
@@ -43,10 +43,17 @@ All routes are on localhost. Every request except the static page itself and the
 | Route | Method | Does | Hands to |
 |---|---|---|---|
 | `/` | GET | Serves the page; reads the token from the link and keeps it in the page's memory | – |
-| `/api/softwares` | GET, POST | Lists softwares; starts one | Line engine |
-| `/api/softwares/:id` | GET | The software's stages, record view and report view | Line engine, record keeper, reporter |
-| `/api/softwares/:id/chat` | POST | A chat message | Line engine ([0118](../decisions/0118-how-chat-messages-are-routed.md)) |
+| `/api/health` | GET | Whether premise is up; needs no token | – |
+| `/api/overview` | GET | Versions, modes (scripted agents, stand-in line, mocked usage), softwares, open asks, activity counts, setup check | All |
+| `/api/softwares` | GET, POST | Lists softwares; starts one from an idea and an optional name | Line engine |
+| `/api/softwares/:id` | GET | The software: its stage, the eleven stages with where it is, its state and status line, its usage | Line engine |
+| `/api/softwares/:id/record` | GET | The record view | Record keeper |
+| `/api/softwares/:id/report` | GET | The report view | Reporter |
+| `/api/softwares/:id/chat` | GET, POST | The conversation; a chat message, answered with premise's one-line acknowledgement | Line engine ([0118](../decisions/0118-how-chat-messages-are-routed.md)) |
+| `/api/asks` | GET | Asks, open first; optionally one software's, or only open or answered ones | Line engine, gate |
 | `/api/asks/:id/answer` | POST | Answers an ask: per item kept, struck or edited, a text answer, approve or refuse | Line engine, gate |
+| `/api/activity` | GET | Jobs running, waiting, queued and recently finished, the parallel limit, the pause | Work queue |
+| `/api/settings` | GET | Every setting's value, default and meaning, read only, with where to change it | – |
 | `/api/softwares/:id/send-back` | POST | Sends a software back to a stage | Line engine |
 | `/api/softwares/:id/claims` | POST | Claims an area for taste under a role | Line engine |
 | `/api/softwares/:id/size` | POST | Changes the size class | Line engine |
@@ -58,7 +65,11 @@ All routes are on localhost. Every request except the static page itself and the
 | `/api/events` | GET (server-sent events) | Live updates: asks, progress lines, job changes, reports, notices | – |
 | `/feedback/:token` | GET, POST | A software's feedback page; submits an item; shows one's own item's status | Intake |
 
-Errors are returned as an HTTP status with a short message: 401 for a missing or wrong token, 403 for a bad Host or Origin, 404 for an unknown id, 409 for an ask already closed, 422 for an invalid answer.
+Errors are returned as an HTTP status with a short message that says what to do: 401 for a missing or wrong token, 403 for a bad Host or Origin, 404 for an unknown id, 409 for an ask already closed or a name already taken, 422 for an invalid request or answer.
+
+Built in milestone 1: every route above except claims, withdrawing approvals, "more", readings, deleting working records and feedback pages, which come with the milestones that need them (section 11).
+
+Until the line engine, record keeper and reporter exist, a stand-in line answers their routes through the same small service interfaces (`src/server/services.ts`), and the page labels it ([0154](../decisions/0154-a-stand-in-line-until-the-line-engine-exists.md)).
 
 ## 4. Data owned
 
@@ -94,14 +105,17 @@ Anything missing is printed, with exactly what to do. The same check runs on its
 
 - Page to server: an HTTP request for every action. Server to page: one server-sent event stream per open page ([0070](../decisions/0070-http-and-server-sent-events.md)). WebSockets (two-way machinery the page does not need) and polling (slow to show progress) were rejected.
 - Each event carries an increasing id, so a page that reconnects gets what it missed from `events`.
+- The stream sends each new row of `events` as its id, time, software, module and kind; the page fetches what changed through the API. Only the stream takes the token in its URL ([0158](../decisions/0158-the-event-stream-reads-the-events-table.md)).
 
 ## 6. Configuration
 
 | Key | Default | Meaning |
 |---|---|---|
 | `server.port` | 4610 | Local port for the page and API |
-| `server.host` | localhost | Fixed in every milestone before the owner decides on reach |
+| `server.host` | 127.0.0.1 | An address on this machine only ([0144](../decisions/0144-reach-from-other-machines-stays-off.md)) |
 | `server.token_bytes` | 32 | Length of the random token |
+
+Every setting is in the [configuration reference](../reference/configuration.md).
 
 ## 7. Limits
 
@@ -121,6 +135,7 @@ Anything missing is printed, with exactly what to do. The same check runs on its
 
 - Localhost only; the token; Host and Origin checks ([0078](../decisions/0078-session-token-and-header-checks.md), [0079](../decisions/0079-localhost-only.md)). A token-free mode for requests from the owner's own machine was rejected.
 - The token is printed on the terminal and kept in the page's memory, not in the browser's storage, so other pages cannot read it.
+- Responses tell the browser not to frame the page, not to send a referrer, and to load nothing from other sites.
 - The feedback link can only submit feedback and see one's own item's status ([0119](../decisions/0119-feedback-page-has-its-own-link.md)).
 - The page server never performs floor actions; the gate does ([gate](gate.md)).
 

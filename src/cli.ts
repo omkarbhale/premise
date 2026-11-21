@@ -2,13 +2,14 @@
 import { ConfigError, envNameFor, resolveDataFolder } from "./config/load.js";
 import { configurationReference } from "./config/reference.js";
 import { formatDoctorReport, runDoctor } from "./doctor/doctor.js";
-import { start } from "./server/start.js";
+import { newLink, start } from "./server/start.js";
 import { VERSION } from "./version.js";
 
 const HELP = `premise ${VERSION}: from an idea to running software.
 
 Usage:
   premise start [--data <folder>] [--port <number>]   Start premise and print the link to open.
+  premise new-link [--data <folder>]                  Print a new link; older links stop working.
   premise doctor [--data <folder>]                    Check this machine and the settings.
   premise config reference                            Print every setting, as Markdown.
   premise --version
@@ -51,6 +52,14 @@ async function main(argv: string[]): Promise<number> {
       process.once("SIGINT", stop);
       process.once("SIGTERM", stop);
       return -1;
+    }
+    case "new-link": {
+      const link = newLink({ dataFolder, env });
+      console.log(`Open this link: ${link}`);
+      console.log(
+        "Older links, and pages opened from them, stop working now. Reload with this one.",
+      );
+      return 0;
     }
     case "doctor": {
       const report = await runDoctor({ dataFolder, env });
