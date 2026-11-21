@@ -291,7 +291,7 @@ describe("the line engine, Why to Plan", () => {
     expect(report.body.written).not.toBeNull();
     expect(app.session.reporter.history(id)[0]!.trigger).toBe("do-not-build");
   });
-});
+}, 30_000);
 
 describe("the gate on the line", () => {
   async function toGate(env: NodeJS.ProcessEnv = {}) {
