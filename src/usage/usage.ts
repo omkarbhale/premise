@@ -203,9 +203,9 @@ export class Usage {
       return;
     }
     if (!status.overrun) return;
+    const spent = await this.spentRecord(softwareId);
     // Another check may have paused it while this one waited.
     if (getSoftware(this.db, softwareId)?.state !== "active") return;
-    const spent = await this.spentRecord(softwareId);
     this.db
       .prepare("INSERT INTO budget_overruns (software_id, time, budget, spent) VALUES (?, ?, ?, ?)")
       .run(softwareId, now(), JSON.stringify(status.budget), JSON.stringify(spent));
