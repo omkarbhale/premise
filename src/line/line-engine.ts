@@ -1475,9 +1475,12 @@ export class LineEngine {
     const name = repositoryName(software.name);
     if (remote === "none") return;
     if (remote === "local") {
-      void this.createRemoteRepository({ softwareId: software.id } as GateRequest).then((result) =>
-        this.premiseSays(software.id, result.outcome),
-      );
+      setImmediate(() => {
+        if (!getSoftware(this.db, software.id)) return;
+        void this.createRemoteRepository({ softwareId: software.id }).then((result) =>
+          this.premiseSays(software.id, result.outcome),
+        );
+      });
       return;
     }
     const visibility = this.config.runner.default_visibility;

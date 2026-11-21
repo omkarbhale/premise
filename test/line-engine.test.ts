@@ -1,3 +1,5 @@
+import { existsSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { AgentScript } from "../src/agents/scripted-agent.js";
 import { standInScript } from "../src/demo/stand-in-script.js";
@@ -80,6 +82,23 @@ async function toMilestones(app: App, id: string) {
 }
 
 describe("the line engine, Why to Plan", () => {
+  it("makes the local second copy only once the plan confirmation has committed", async () => {
+    const app = await testApp({ PREMISE_LINE__REMOTE: "local" });
+    const id = await start(app);
+    await toSayBack(app, id);
+    const milestones = await toMilestones(app, id);
+    const remotes = join(app.folder, "remotes");
+    expect(existsSync(remotes) ? readdirSync(remotes) : []).toEqual([]);
+    await app.call("POST", `/api/asks/${milestones.id}/answer`, {
+      answer: {
+        kind: "items",
+        items: milestones.items.map((i) => ({ key: i.key, decision: "keep" })),
+      },
+    });
+    await app.settle();
+    expect(readdirSync(remotes).filter((n) => n.endsWith(".git"))).toHaveLength(1);
+  });
+
   it("drafts each stage with an agent, writes what the operator confirmed to the record, and gives each job its stage budget", async () => {
     const app = await testApp();
     const id = await start(app);
