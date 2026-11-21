@@ -19,6 +19,7 @@ Any piece of work goes through the same line at its own size ([record 0168](../d
 - **Splitting is the exception.** The owner's rule is quoted almost word for word: completely separate parts may be split, very long parts may be split, one heavy piece of work is not by itself a reason ([record 0170](../decisions/0170-what-may-be-split-is-decided-by-strong-prompting.md)). The prompt adds: when unsure, do not split. Splitting costs more, and it is the least proven part of working with several agents.
 - **Stages follow what the piece touches.** A one-line fix needs Build and Check only. Something that changes what the software must do needs What and a say-back. Something touching what the software is for goes back to Why ([record 0020](../decisions/0020-when-to-say-back.md)). The server adds what must never be skipped (Build and Check always, and a say-back after Why or What), so the sizer cannot skip the floor by mistake.
 - **No output for people.** The sizer's reasons are shown on the page as they are, so they are written as one short plain sentence each.
+- **No floor request.** The sizer has no `gate_request` because it never acts outside premise: it only reads and submits sizing, so the-floor skill is loaded but never exercised by it.
 
 ## Inputs and placeholders
 
