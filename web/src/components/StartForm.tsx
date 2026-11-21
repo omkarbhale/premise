@@ -25,6 +25,7 @@ export function StartForm({
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
+    if (busy) return;
     if (!idea.trim()) {
       setProblem("Write a sentence or two about what the software should do first.");
       return;

@@ -26,7 +26,7 @@ export function Conversation({ softwareId, asks }: { softwareId: string; asks: A
   }, [count]);
 
   async function send() {
-    if (!text.trim()) return;
+    if (busy || !text.trim()) return;
     setBusy(true);
     setProblem(null);
     try {
