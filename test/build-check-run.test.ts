@@ -240,7 +240,10 @@ describe("restart in the middle of build and of check", () => {
       const cut = first.session.queue.list("running");
       expect(cut.map((j) => j.kind)).toEqual([where]);
 
-      // premise stops without the job finishing; a new premise opens the same data folder.
+      // premise stops without the job finishing; a new premise opens the same data folder. The
+      // stopped premise does nothing more: a budget check still in flight would tick its queue
+      // and start the job again, behind the new premise's back.
+      await first.session.usage.idle();
       const second = await testApp(env, { script: countScript(), folder: first.folder });
       expect(second.session.queue.recover().map((j) => j.id)).toEqual(cut.map((j) => j.id));
       await drive(second, id);
