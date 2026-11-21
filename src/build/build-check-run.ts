@@ -1239,7 +1239,7 @@ export class BuildCheckRun implements LaterStages {
       .map((item) => `${item} (${verdicts.get(item)?.evidence ?? "no reason given"})`)
       .join("; ");
     const about = `The check of commit ${short(check.commit)}`;
-    if (unverified.length === 0) {
+    if (required.length > 0 && unverified.length === 0) {
       check.status = "passed";
       this.save(id, state);
       this.say(
