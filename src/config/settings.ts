@@ -539,6 +539,30 @@ export const SETTINGS: readonly Setting[] = [
     record: "0185",
   },
   {
+    key: "intake.issue_poll_minutes",
+    default: 10,
+    check: summarised(wholeNumber(1, 1440), "1 to 1440"),
+    meaning:
+      "How often premise reads a software's GitHub issues as intake, in minutes. Only a software that has a GitHub repository is read.",
+    record: "0240",
+  },
+  {
+    key: "intake.feedback_per_hour",
+    default: 30,
+    check: summarised(wholeNumber(1, 10000), "1 to 10000"),
+    meaning:
+      "Most items one software's feedback page takes in an hour. More than that is refused until the hour is over, so a flood cannot bury everything else.",
+    record: "0241",
+  },
+  {
+    key: "intake.feedback_page",
+    default: true,
+    check: summarised(yesNo, "true or false"),
+    meaning:
+      "Whether each software has a feedback page for its users. Turn it off to refuse every feedback link.",
+    record: "0241",
+  },
+  {
     key: "existing.record_branch",
     default: "premise",
     check: summarised(branchName, "a branch name"),
@@ -854,6 +878,9 @@ export interface PremiseConfig {
     reading_max_days: number;
     max_text_chars: number;
     recent_items_in_brief: number;
+    issue_poll_minutes: number;
+    feedback_per_hour: number;
+    feedback_page: boolean;
   };
   gate: { kind_approvals_allowed: FloorKind[] };
   record: {

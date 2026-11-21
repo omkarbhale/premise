@@ -27,7 +27,13 @@ import { type Database, recordEvent } from "../storage/database.js";
 import type { UsageLedger } from "../usage-ledger/usage-ledger.js";
 import { VERSION } from "../version.js";
 import { EventHub } from "./events.js";
-import { ServiceError, type ServiceErrorCode, type SessionServices } from "./services.js";
+import { registerFeedbackRoutes } from "../intake/feedback-routes.js";
+import {
+  type FeedbackService,
+  ServiceError,
+  type ServiceErrorCode,
+  type SessionServices,
+} from "./services.js";
 import { isValidSessionToken } from "./session-token.js";
 import type { AgentsStatus } from "./wiring.js";
 
@@ -54,6 +60,8 @@ export interface AppDeps {
   measures?: Measures;
   /** Learning from corrections (src/learning); its routes are left out when not given. */
   learning?: Learning;
+  /** The feedback page (src/intake); left out when not given. */
+  feedback?: FeedbackService;
 }
 
 const NOT_BUILT_PAGE = `<!doctype html><html lang="en"><meta charset="utf-8"><title>premise</title>
@@ -203,6 +211,9 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
         .send({ error: "premise's agent tools take POST only." }),
     );
   }
+
+  // The feedback page: its own link, no session token, and nothing else behind it (decision 0119).
+  if (deps.feedback) registerFeedbackRoutes(app, deps.feedback);
 
   await app.register(async (api) => {
     api.addHook("onRequest", async (request, reply) => {
@@ -398,6 +409,52 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
       "/api/softwares/:id/intake/read-now",
       { schema: { params: idParam } },
       async (request) => services.intake.readNow(request.params.id),
+    );
+
+    api.post<{ Params: { id: string } }>(
+      "/api/softwares/:id/intake/new-feedback-link",
+      { schema: { params: idParam } },
+      async (request) => services.intake.newFeedbackLink(request.params.id),
+    );
+
+    api.post<{ Params: { id: string } }>(
+      "/api/softwares/:id/intake/read-issues",
+      { schema: { params: idParam } },
+      async (request) => services.intake.readIssuesNow(request.params.id),
+    );
+
+    api.post<{
+      Params: { id: number };
+      Body: {
+        list: "wanted" | "recurring";
+        index: number;
+        choice: "work" | "keep" | "close";
+        reason?: string;
+      };
+    }>(
+      "/api/readings/:id/decide",
+      {
+        schema: {
+          params: numberIdParam,
+          body: {
+            type: "object",
+            properties: {
+              list: { type: "string", enum: ["wanted", "recurring"] },
+              index: { type: "integer", minimum: 0, maximum: 50 },
+              choice: { type: "string", enum: ["work", "keep", "close"] },
+              reason: { type: "string", maxLength: 500 },
+            },
+            required: ["list", "index", "choice"],
+          },
+        },
+      },
+      async (request) => services.intake.decideLine(request.params.id, request.body),
+    );
+
+    api.post<{ Params: { id: number } }>(
+      "/api/readings/:id/back-to-why",
+      { schema: { params: numberIdParam } },
+      async (request) => services.intake.backToWhy(request.params.id),
     );
 
     api.post<{ Params: { id: number } }>(
