@@ -148,7 +148,9 @@ export function readTriage(
     route = "in-normally";
   }
   if (kind === "question" && route !== "in-normally") {
-    notes.push("premise took it in normally: a question is answered from the record, never asked or built.");
+    notes.push(
+      "premise took it in normally: a question is answered from the record, never asked or built.",
+    );
     route = "in-normally";
   }
   if (kind === "change-of-purpose" && route !== "asked-at-once") {
