@@ -75,6 +75,7 @@ Anything that must survive a crash goes through the work queue's table ([archite
 - When the subscription's usage limit is reached, Claude Code reports rate-limit retries. The agent runner tells the queue, which pauses all agent work until the limit resets, and the report says so ([models and cost](../architecture/models-and-cost.md)).
 - Running sessions are stopped cleanly and their jobs return to `queued`.
 - The page shows the pause and the expected reset time.
+- The queue resumes by itself at the reset time. A reset time that is missing, not a date, or already past is replaced by `queue.usage_pause_fallback_minutes` from now.
 - premise never turns on paid extra usage ([0100](../decisions/0100-floor-actions.md)).
 
 ### 5.5 Pausing for a budget overrun
