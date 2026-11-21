@@ -25,7 +25,7 @@ describe("setup check", () => {
   it("starts with scripted agents when Claude Code and the sandbox tools are missing, and says how to get them", async () => {
     const report = await runDoctor({
       dataFolder: tempFolder(),
-      env: {},
+      env: { PREMISE_AGENTS__MODE: "scripted" },
       nodeVersion: "v24.1.0",
       platform: "linux",
       run: machine(["git"]),
@@ -47,7 +47,7 @@ describe("setup check", () => {
     });
     expect(report.checks.find((c) => c.name === "bubblewrap")!.status).toBe("missing");
     expect(report.canRunRealAgents).toBe(false);
-    expect(formatDoctorReport(report)).toContain("premise will not start until what is MISSING");
+    expect(formatDoctorReport(report)).toContain("premise starts, but its agents wait");
   });
 
   it("cannot start with an old Node.js, without git, or with wrong settings", async () => {

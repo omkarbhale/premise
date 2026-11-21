@@ -9,7 +9,10 @@ import { VERSION } from "./version.js";
 const HELP = `premise ${VERSION}: from an idea to running software.
 
 Usage:
-  premise start [--data <folder>] [--port <number>]   Start premise and print the link to open.
+  premise start [--data <folder>] [--port <number>] [--scripted]
+                                                      Start premise and print the link to open.
+                                                      --scripted: agents follow a script and call
+                                                      no AI (a demo; nothing real is built).
   premise new-link [--data <folder>]                  Print a new link; older links stop working.
   premise doctor [--data <folder>]                    Check this machine and the settings.
   premise record check <folder>                       Check a software's record folder for mistakes.
@@ -24,14 +27,22 @@ interface Parsed {
   rest: string[];
   data: string | undefined;
   port: string | undefined;
+  scripted: boolean;
 }
 
 function parse(argv: string[]): Parsed {
-  const parsed: Parsed = { command: undefined, rest: [], data: undefined, port: undefined };
+  const parsed: Parsed = {
+    command: undefined,
+    rest: [],
+    data: undefined,
+    port: undefined,
+    scripted: false,
+  };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
     if (arg === "--data") parsed.data = argv[++i];
     else if (arg === "--port") parsed.port = argv[++i];
+    else if (arg === "--scripted") parsed.scripted = true;
     else if (parsed.command === undefined) parsed.command = arg;
     else parsed.rest.push(arg);
   }
@@ -42,6 +53,7 @@ async function main(argv: string[]): Promise<number> {
   const args = parse(argv);
   const env = { ...process.env };
   if (args.port !== undefined) env[envNameFor("server.port")] = args.port;
+  if (args.scripted) env[envNameFor("agents.mode")] = "scripted";
   const dataFolder = resolveDataFolder({ flag: args.data, env });
 
   switch (args.command) {

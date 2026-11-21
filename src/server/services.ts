@@ -13,9 +13,8 @@ import type { SizeClass, StageId } from "../shared/stages.js";
 
 /**
  * What the page server needs from the rest of premise, as small interfaces (docs/specs/page-server.md
- * 2: the server hands actions on; it does not decide what they mean). Today the stand-in line
- * (src/demo) answers all but activity; the line engine, record keeper and reporter replace it one
- * interface at a time.
+ * 2: the server hands actions on; it does not decide what they mean). The line engine (src/line)
+ * answers them, with the record keeper and the gate behind it; activity comes from the work queue.
  */
 
 export type ServiceErrorCode = "NOT_FOUND" | "ASK_CLOSED" | "INVALID" | "NAME_TAKEN";
@@ -44,6 +43,11 @@ export interface SoftwareService {
   start(input: StartSoftwareInput): Promise<SoftwareSummary>;
   sendBack(id: string, stage: StageId): Promise<void>;
   setSize(id: string, size: SizeClass): Promise<void>;
+  setPriority(id: string, priority: number): Promise<void>;
+  /** Stop, or not, after one of the software's milestones until the operator says go on. */
+  setMilestoneWait(id: string, milestoneId: string, wait: boolean): Promise<void>;
+  /** Withdraw a standing approval for a kind of floor action. */
+  withdrawApproval(id: number): Promise<void>;
 }
 
 export interface ChatResult {

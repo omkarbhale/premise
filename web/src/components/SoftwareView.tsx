@@ -67,7 +67,9 @@ export function SoftwareView({
             Usage: {s.usage.sessions} sessions, ${s.usage.costUsd.toFixed(2)},{" "}
             {percent(s.usage.weeklyShare)} of the week {s.usage.mocked && <MockedBadge />}
           </span>
-          <StandInBadge />
+          {(["build", "check", "run", "report", "intake"] as const).includes(
+            s.stage as "build",
+          ) && <StandInBadge />}
         </div>
         <details className="idea">
           <summary>What you asked for</summary>

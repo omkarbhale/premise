@@ -8,8 +8,8 @@ export function overview(change: Partial<Overview> = {}): Overview {
   return {
     version: "0.1.0",
     dataFolder: "/data",
-    agents: { mode: "scripted" },
-    line: { mode: "stand-in" },
+    agents: { mode: "scripted", ready: true, unavailable: null, scriptedDemo: false },
+    line: { mode: "engine", standInStages: ["build", "check", "run", "report", "intake"] },
     page: { notifications: "offer" },
     usage: {
       mode: "mock-fixed",
@@ -76,6 +76,9 @@ export function software(change: Partial<SoftwareDetail> = {}): SoftwareDetail {
       costUsd: 8.4,
       weeklyShare: 0.15,
     },
+    milestones: [],
+    approvals: [],
+    budget: { turns: 15, minutes: 10, usedMinutes: 1.5 },
     ...change,
   };
 }
@@ -97,6 +100,10 @@ export function fakeApi(change: Partial<Api> = {}): Api {
     stopRun: vi.fn(fail),
     sendBack: vi.fn(fail),
     setSize: vi.fn(fail),
+    setPriority: vi.fn(fail),
+    setMilestoneWait: vi.fn(fail),
+    withdrawApproval: vi.fn(fail),
+    scriptedDemo: vi.fn(fail),
     asks: vi.fn(() => Promise.resolve([])),
     answer: vi.fn((id: number) => Promise.resolve(ask({ id, status: "answered" }))),
     activity: vi.fn(fail),

@@ -18,6 +18,8 @@ interface ItemState {
   decision: Decision;
   text: string;
   reason: string;
+  /** For a milestone: stop after it until the operator says go on. */
+  wait?: boolean;
 }
 
 /** One ask, answerable in place. Every kind says its role, what to do, and what happens after. */
@@ -91,12 +93,25 @@ function ItemsAnswer({ ask, busy, onSend }: AnswerProps) {
   const sayBack = ask.kind === "say-back";
   const [items, setItems] = useState<Record<string, ItemState>>(() =>
     Object.fromEntries(
-      ask.items.map((i) => [i.key, { decision: "keep", text: i.text, reason: "" }]),
+      ask.items.map((i) => [
+        i.key,
+        {
+          decision: "keep",
+          text: i.text,
+          reason: "",
+          ...(i.wait !== undefined && { wait: i.wait }),
+        },
+      ]),
     ),
   );
   // Items added in chat while the card is open start as kept.
   const state = (item: AskItem): ItemState =>
-    items[item.key] ?? { decision: "keep", text: item.text, reason: "" };
+    items[item.key] ?? {
+      decision: "keep",
+      text: item.text,
+      reason: "",
+      ...(item.wait !== undefined && { wait: item.wait }),
+    };
   const set = (key: string, change: Partial<ItemState>, item: AskItem) =>
     setItems((all) => ({ ...all, [key]: { ...state(item), ...all[key], ...change } }));
 
@@ -115,10 +130,11 @@ function ItemsAnswer({ ask, busy, onSend }: AnswerProps) {
             ? { key: item.key, decision: "strike", reason: s.reason.trim() }
             : { key: item.key, decision: "strike" };
         }
+        const wait = item.wait !== undefined && s.wait !== undefined ? { wait: s.wait } : {};
         if (s.decision === "edit" && s.text.trim() !== item.text) {
-          return { key: item.key, decision: "edit", text: s.text };
+          return { key: item.key, decision: "edit", text: s.text, ...wait };
         }
-        return { key: item.key, decision: "keep" };
+        return { key: item.key, decision: "keep", ...wait };
       }),
     });
   }
@@ -172,6 +188,16 @@ function ItemsAnswer({ ask, busy, onSend }: AnswerProps) {
                   </button>
                 )}
               </div>
+              {item.wait !== undefined && s.decision !== "strike" && (
+                <label className="wait small">
+                  <input
+                    type="checkbox"
+                    checked={s.wait ?? false}
+                    onChange={(e) => set(item.key, { wait: e.target.checked }, item)}
+                  />
+                  Stop after this milestone until I say go on
+                </label>
+              )}
               {s.decision === "strike" && (
                 <input
                   className="reason"
@@ -203,6 +229,15 @@ function QuestionAnswer({ ask, busy, onSend }: AnswerProps) {
   const inputId = useId();
   return (
     <>
+      {ask.items.length > 0 && (
+        <ul className="items plain">
+          {ask.items.map((i) => (
+            <li key={i.key}>
+              {i.text} <span className={`mark mark-${i.mark}`}>{markLabel(i)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
       {ask.bestAttempt && (
         <p className="best">
           premise's best guess: <strong>{ask.bestAttempt}</strong>{" "}
@@ -261,7 +296,7 @@ function ApprovalAnswer({ ask, busy, onSend }: AnswerProps) {
       {refusing ? (
         <>
           <input
-            aria-label="Why refuse (optional)"
+            aria-label="Why decline (optional)"
             placeholder="Why not? (optional)"
             value={reason}
             onChange={(e) => setReason(e.target.value)}
@@ -279,7 +314,7 @@ function ApprovalAnswer({ ask, busy, onSend }: AnswerProps) {
                 )
               }
             >
-              Refuse
+              Decline
             </button>
             <button type="button" onClick={() => setRefusing(false)}>
               Back
@@ -296,8 +331,18 @@ function ApprovalAnswer({ ask, busy, onSend }: AnswerProps) {
           >
             Approve once
           </button>
+          {ask.approval?.kindLabel && (
+            <button
+              type="button"
+              disabled={busy}
+              title="Later requests of this kind for this software go ahead without asking. You can withdraw this on the Line tab."
+              onClick={() => onSend({ kind: "approval", decision: "approve-kind" })}
+            >
+              Approve {ask.approval.kindLabel} for {ask.softwareName}
+            </button>
+          )}
           <button type="button" disabled={busy} onClick={() => setRefusing(true)}>
-            Refuse…
+            Decline…
           </button>
         </div>
       )}

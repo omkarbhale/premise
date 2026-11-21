@@ -18,6 +18,7 @@ import { VERSION } from "../version.js";
 import { EventHub } from "./events.js";
 import { ServiceError, type ServiceErrorCode, type SessionServices } from "./services.js";
 import { isValidSessionToken } from "./session-token.js";
+import type { AgentsStatus } from "./wiring.js";
 
 export const TOKEN_HEADER = "x-premise-token";
 
@@ -26,6 +27,8 @@ export interface AppDeps {
   db: Database;
   schemaVersion: number;
   services: SessionServices;
+  /** Whether agents can work; real agents are assumed ready when not given. */
+  agents?: AgentsStatus;
   ledger: UsageLedger;
   /** Reads a software's lasting record for the page. */
   record?: RecordKeeper;
@@ -107,6 +110,12 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
   const app = Fastify({ logger: false, bodyLimit: 256 * 1024 });
   const events = deps.events ?? new EventHub(deps.db);
   const { services } = deps;
+  const agents: AgentsStatus = deps.agents ?? {
+    ready: () => true,
+    unavailable: () => null,
+    scriptedDemo: () => false,
+    useScriptedDemo: () => {},
+  };
 
   const port = (): number => {
     const address = app.server.address() as AddressInfo | null;
@@ -210,8 +219,13 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
       return {
         version: VERSION,
         dataFolder: deps.config.data.folder,
-        agents: { mode: deps.config.agents.mode },
-        line: { mode: "stand-in" },
+        agents: {
+          mode: agents.scriptedDemo() ? "scripted" : deps.config.agents.mode,
+          ready: agents.ready(),
+          unavailable: agents.unavailable(),
+          scriptedDemo: agents.scriptedDemo(),
+        },
+        line: { mode: "engine", standInStages: ["build", "check", "run", "report", "intake"] },
         page: { notifications: deps.config.page.notifications },
         usage: { mode: deps.ledger.mode, mocked: deps.ledger.mocked, weekly },
         softwares,
@@ -361,6 +375,62 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
       },
     );
 
+    api.post<{ Params: { id: string }; Body: { priority: number } }>(
+      "/api/softwares/:id/priority",
+      {
+        schema: {
+          params: idParam,
+          body: {
+            type: "object",
+            properties: { priority: { type: "integer", minimum: 1, maximum: 5 } },
+            required: ["priority"],
+          },
+        },
+      },
+      async (request) => {
+        await services.softwares.setPriority(request.params.id, request.body.priority);
+        return services.softwares.get(request.params.id);
+      },
+    );
+
+    api.post<{ Params: { id: string; milestone: string }; Body: { wait: boolean } }>(
+      "/api/softwares/:id/milestones/:milestone/wait",
+      {
+        schema: {
+          params: {
+            type: "object",
+            properties: {
+              id: idParam.properties.id,
+              milestone: { type: "string", pattern: "^M-[1-9][0-9]*$" },
+            },
+            required: ["id", "milestone"],
+          },
+          body: {
+            type: "object",
+            properties: { wait: { type: "boolean" } },
+            required: ["wait"],
+          },
+        },
+      },
+      async (request) => {
+        await services.softwares.setMilestoneWait(
+          request.params.id,
+          request.params.milestone,
+          request.body.wait,
+        );
+        return services.softwares.get(request.params.id);
+      },
+    );
+
+    api.post<{ Params: { id: number } }>(
+      "/api/approvals/:id/withdraw",
+      { schema: { params: numberIdParam } },
+      async (request) => {
+        await services.softwares.withdrawApproval(request.params.id);
+        return { ok: true };
+      },
+    );
+
     api.get<{ Querystring: { software?: string; status?: "open" | "answered" } }>(
       "/api/asks",
       {
@@ -406,6 +476,19 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
       },
       async (request) => services.asks.answer(request.params.id, request.body.answer),
     );
+
+    api.post("/api/agents/scripted-demo", async () => {
+      if (agents.ready() && !agents.scriptedDemo()) {
+        throw new ServiceError(
+          "INVALID",
+          "Real agents are working, so there is nothing to switch. The scripted look-around is only for when they cannot start.",
+        );
+      }
+      agents.useScriptedDemo();
+      recordEvent(deps.db, { module: "page-server", kind: "scripted-demo-chosen" });
+      await services.activity.view();
+      return { ok: true };
+    });
 
     api.get("/api/activity", async () => services.activity.view());
 

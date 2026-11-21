@@ -52,6 +52,10 @@ export interface Api {
   stopRun(id: string): Promise<RunView>;
   sendBack(id: string, stage: StageId): Promise<SoftwareDetail>;
   setSize(id: string, size: SizeClass): Promise<SoftwareDetail>;
+  setPriority(id: string, priority: number): Promise<SoftwareDetail>;
+  setMilestoneWait(id: string, milestone: string, wait: boolean): Promise<SoftwareDetail>;
+  withdrawApproval(id: number): Promise<{ ok: true }>;
+  scriptedDemo(): Promise<{ ok: true }>;
   asks(filter?: { software?: string; status?: "open" | "answered" }): Promise<AskView[]>;
   answer(id: number, answer: AskAnswer): Promise<AskView>;
   activity(): Promise<ActivityView>;
@@ -111,6 +115,11 @@ export function createApi(token: string): Api {
     stopRun: (id) => post(`/api/softwares/${enc(id)}/run/stop`),
     sendBack: (id, stage) => post(`/api/softwares/${enc(id)}/send-back`, { stage }),
     setSize: (id, size) => post(`/api/softwares/${enc(id)}/size`, { size }),
+    setPriority: (id, priority) => post(`/api/softwares/${enc(id)}/priority`, { priority }),
+    setMilestoneWait: (id, milestone, wait) =>
+      post(`/api/softwares/${enc(id)}/milestones/${enc(milestone)}/wait`, { wait }),
+    withdrawApproval: (id) => post(`/api/approvals/${id}/withdraw`),
+    scriptedDemo: () => post("/api/agents/scripted-demo"),
     asks: (filter = {}) => {
       const query = new URLSearchParams();
       if (filter.software) query.set("software", filter.software);

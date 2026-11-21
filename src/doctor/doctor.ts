@@ -223,7 +223,7 @@ export function formatDoctorReport(report: DoctorReport): string {
     lines.push("premise cannot start until what is MISSING above is fixed.");
   } else if (report.config?.agents.mode === "claude" && !report.canRunRealAgents) {
     lines.push(
-      'agents.mode is "claude", so premise will not start until what is MISSING above is fixed: it never runs real agents unconfined. To try premise without real agents meanwhile, set agents.mode to "scripted".',
+      "premise starts, but its agents wait until what is MISSING above is fixed: it never runs real agents unconfined. Once it is fixed, restart premise. Meanwhile the page offers a look around with scripted agents, which call no AI and do no real work.",
     );
   } else {
     lines.push(

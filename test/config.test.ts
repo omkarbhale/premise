@@ -19,7 +19,8 @@ describe("configuration", () => {
   it("has a default for every setting", () => {
     const config = loadConfig({ dataFolder: tempFolder() });
     expect(config.queue.max_agent_sessions).toBe(2);
-    expect(config.agents.mode).toBe("scripted");
+    // premise works with real agents by default; tests set "scripted" (decision 0180).
+    expect(config.agents.mode).toBe("claude");
     expect(config.agents.claude_config_folder).toBeNull();
     expect(config.agents.tasks.build).toEqual({
       model: "opus",

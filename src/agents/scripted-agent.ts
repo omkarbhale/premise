@@ -7,6 +7,8 @@ import type {
   AgentRunner,
   AgentSession,
 } from "./agent-runner.js";
+import { accessFor } from "./roles.js";
+import type { AgentToolServer, ToolEnvelope } from "./tool-server.js";
 
 /**
  * The scripted agent: a deterministic stand-in for Claude that calls no LLM (decisions 0134, 0148).
@@ -19,9 +21,16 @@ import type {
  *       "progress": ["Writing the code", "Running the tests"],
  *       "delay_ms": 10,
  *       "end": { "outcome": "failed", "summary": "Tests fail", "failure": "tests-fail" } },
- *     { "when": { "task": "check" }, "end": { "outcome": "hang" } }
+ *     { "when": { "task": "check" }, "end": { "outcome": "hang" } },
+ *     { "when": { "task": "draft", "stage": "why" },
+ *       "calls": [{ "tool": "draft_submit", "arguments": { "stage": "why", "items": ["..."] } }],
+ *       "end": { "outcome": "done" } }
  *   ]
  * }
+ *
+ * "calls" are premise tool calls the session makes before it ends, through the same checks as a
+ * real agent's (the tool server's callDirect). "stage" and "purpose" match the task's context, set
+ * by the line engine. A rule written in code may instead have "behave", a function that makes calls.
  */
 
 export type ScriptEnd =
@@ -31,10 +40,29 @@ export type ScriptEnd =
   | { outcome: "usage-limit"; reset_at?: string | null }
   | { outcome: "hang" };
 
+export interface ScriptCall {
+  tool: string;
+  arguments?: Record<string, unknown>;
+}
+
+/** Makes tool calls; "call" returns the tool's result envelope. */
+export type ScriptBehaviour = (
+  request: AgentRequest,
+  call: (tool: string, args: Record<string, unknown>) => ToolEnvelope,
+) => void | Promise<void>;
+
 export interface ScriptRule {
-  when?: { task?: string; attempt?: number; brief_contains?: string };
+  when?: {
+    task?: string;
+    attempt?: number;
+    brief_contains?: string;
+    stage?: string;
+    purpose?: string;
+  };
   progress?: string[];
   delay_ms?: number;
+  calls?: ScriptCall[];
+  behave?: ScriptBehaviour;
   end: ScriptEnd;
 }
 
@@ -80,6 +108,19 @@ export function parseScript(value: unknown, source = "the script"): AgentScript 
     if (rule.delay_ms !== undefined && (!Number.isInteger(rule.delay_ms) || rule.delay_ms < 0)) {
       fail(`${where} has a delay_ms that is not a whole number of milliseconds`);
     }
+    if (rule.calls !== undefined) {
+      if (!Array.isArray(rule.calls)) fail(`${where} has "calls" that is not a list`);
+      rule.calls.forEach((c, n) => {
+        if (!c || typeof c.tool !== "string")
+          fail(`${where}, call ${n + 1}, does not name its "tool"`);
+        if (
+          c.arguments !== undefined &&
+          (typeof c.arguments !== "object" || Array.isArray(c.arguments))
+        ) {
+          fail(`${where}, call ${n + 1}, has "arguments" that is not an object`);
+        }
+      });
+    }
   });
   return { rules };
 }
@@ -101,7 +142,9 @@ function matches(rule: ScriptRule, request: AgentRequest): boolean {
   return (
     (when.task === undefined || when.task === request.taskKind) &&
     (when.attempt === undefined || when.attempt === request.attempt) &&
-    (when.brief_contains === undefined || request.brief.includes(when.brief_contains))
+    (when.brief_contains === undefined || request.brief.includes(when.brief_contains)) &&
+    (when.stage === undefined || request.context?.stage === when.stage) &&
+    (when.purpose === undefined || request.context?.purpose === when.purpose)
   );
 }
 
@@ -129,7 +172,21 @@ export class ScriptedAgentRunner implements AgentRunner {
   /** Every request this runner was given, in order; tests read it. */
   readonly requests: AgentRequest[] = [];
 
-  constructor(private readonly script: AgentScript = { rules: [] }) {}
+  /** Every tool call sessions made, with its result; tests read it. */
+  readonly calls: { jobId: number; tool: string; result: ToolEnvelope }[] = [];
+  private tools: AgentToolServer | undefined;
+
+  constructor(
+    private readonly script: AgentScript = { rules: [] },
+    tools?: AgentToolServer,
+  ) {
+    this.tools = tools;
+  }
+
+  /** Give sessions premise's tools (the tool server), so script calls reach the line engine. */
+  useTools(tools: AgentToolServer): void {
+    this.tools = tools;
+  }
 
   start(request: AgentRequest, onProgress: (progress: AgentProgress) => void): AgentSession {
     this.requests.push(request);
@@ -139,11 +196,32 @@ export class ScriptedAgentRunner implements AgentRunner {
     const stopped = new Promise<AgentOutcome>((resolve) => {
       stop = () => resolve({ kind: "stopped" });
     });
+    let ended = false;
     const finished = (async (): Promise<AgentOutcome> => {
       for (const text of rule?.progress ?? []) {
         onProgress({ time: new Date().toISOString(), text });
       }
       if (rule?.delay_ms) await new Promise((r) => setTimeout(r, rule.delay_ms));
+      if (!ended && (rule?.calls?.length || rule?.behave) && this.tools) {
+        const tools = this.tools;
+        const token = tools.issue({
+          role: accessFor(request.taskKind).role,
+          softwareId: request.softwareId,
+          jobId: request.jobId,
+          onProgress: (text) => onProgress({ time: new Date().toISOString(), text }),
+        });
+        const call = (tool: string, args: Record<string, unknown>) => {
+          const result = tools.callDirect(token, tool, args);
+          this.calls.push({ jobId: request.jobId, tool, result });
+          return result;
+        };
+        try {
+          for (const c of rule.calls ?? []) call(c.tool, c.arguments ?? {});
+          await rule.behave?.(request, call);
+        } finally {
+          tools.revoke(token);
+        }
+      }
       const outcome = toOutcome(end, request);
       return outcome ?? new Promise<AgentOutcome>(() => {});
     })();
@@ -151,7 +229,10 @@ export class ScriptedAgentRunner implements AgentRunner {
       sessionId: `scripted-${request.jobId}-${request.attempt}`,
       runtime: this.runtime,
       outcome: Promise.race([finished, stopped]),
-      stop: () => stop(),
+      stop: () => {
+        ended = true;
+        stop();
+      },
     };
   }
 }

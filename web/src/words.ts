@@ -12,7 +12,7 @@ export const TERMS = {
   intake:
     "Intake: what you say after a software runs (a wish, a bug) becomes new work for the line.",
   standIn:
-    "Stand-in: the line is walked with fixed templates while premise's real drafting and building parts are being built. No AI is called and nothing is built.",
+    "Stand-in: building, checking, running, reporting and intake are not part of premise yet. Until they are, those stages are walked through without doing anything, so you can see where they will be. Everything before them (why, who, what exists, what, say back, plan) is real.",
   mocked:
     "Mocked: usage-ledger, which will report real usage and cost, does not exist yet. Until it does, these figures are made up so you can see where they will appear.",
 } as const;

@@ -261,6 +261,7 @@ export class WorkQueue {
         continue;
       }
       if (!isAgent && !this.options.serverJobs) continue;
+      if (isAgent && this.options.runner.ready && !this.options.runner.ready()) continue;
       this.startJob(job);
       started.push(job.id);
     }
@@ -294,6 +295,18 @@ export class WorkQueue {
         .get(job.softwareId) as { repository: string | null } | undefined;
       const ref = typeof job.payload.ref === "string" ? job.payload.ref : undefined;
       const resumeSessionId = this.cutOffSession(job.id);
+      // A stage's effort budget can be smaller than the task's own limits (decision 0085).
+      const limits = (job.payload.limits ?? {}) as { turns?: unknown; minutes?: unknown };
+      const maxTurns =
+        typeof limits.turns === "number" ? Math.min(task.max_turns, limits.turns) : task.max_turns;
+      const maxMinutes =
+        typeof limits.minutes === "number"
+          ? Math.min(task.max_minutes, limits.minutes)
+          : task.max_minutes;
+      const context =
+        job.payload.context && typeof job.payload.context === "object"
+          ? (job.payload.context as Record<string, unknown>)
+          : undefined;
       const session = this.options.runner.start(
         {
           jobId: job.id,
@@ -302,12 +315,13 @@ export class WorkQueue {
           attempt,
           model: task.model,
           effort: task.effort,
-          maxTurns: task.max_turns,
-          maxMinutes: task.max_minutes,
+          maxTurns,
+          maxMinutes,
           brief,
           ...(software?.repository ? { repository: software.repository } : {}),
           ...(ref ? { ref } : {}),
           ...(resumeSessionId ? { resumeSessionId } : {}),
+          ...(context ? { context } : {}),
         },
         (progress) =>
           recordEvent(this.db, {

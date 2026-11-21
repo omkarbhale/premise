@@ -1,6 +1,6 @@
 # 0134. The owner's Claude login is used only when strictly necessary, on Haiku at low effort
 
-- Status: Accepted
+- Status: Accepted; clarified by [0180](-premise-uses-real-agents-by-default.md): this limit is on making premise (tests, demos while building, CI), not on premise's own agents
 - Scope: Making premise
 - Date: 2026-11-21
 - Decided by: The owner: "Don't use my claude login for regular tasks. Only strictly use it when very very much necessary, on Haiku low effort only, very sparingly. This only proves the product procedure, not the agent's intelligence."

@@ -37,11 +37,13 @@ afterEach(() => {
   for (const folder of folders.splice(0)) rmSync(folder, { recursive: true, force: true });
 });
 
+/** Tests never call AI: agents are scripted unless a test says otherwise. */
 export function testConfig(dataFolder: string, env: NodeJS.ProcessEnv = {}): PremiseConfig {
-  return loadConfig({ dataFolder, env });
+  return loadConfig({ dataFolder, env: { PREMISE_AGENTS__MODE: "scripted", ...env } });
 }
 
-import { ScriptedAgentRunner } from "../src/agents/scripted-agent.js";
+import { type AgentScript, ScriptedAgentRunner } from "../src/agents/scripted-agent.js";
+import { AgentToolServer } from "../src/agents/tool-server.js";
 import { standInScript } from "../src/demo/stand-in-script.js";
 import { runDoctor } from "../src/doctor/doctor.js";
 import { TOKEN_HEADER, createApp } from "../src/server/app.js";
@@ -50,29 +52,37 @@ import { createSession } from "../src/server/wiring.js";
 import { openDatabase } from "../src/storage/database.js";
 import { MockUsageLedger } from "../src/usage-ledger/mock-usage-ledger.js";
 
-/** A page server on a fresh data folder, with the stand-in line and scripted agents that finish at once. */
-export async function testApp(env: NodeJS.ProcessEnv = {}) {
-  const folder = tempFolder();
+/** A page server on a fresh data folder, with the line engine and scripted agents that finish at once. */
+export async function testApp(
+  env: NodeJS.ProcessEnv = {},
+  options: { script?: AgentScript; folder?: string } = {},
+) {
+  const folder = options.folder ?? tempFolder();
   const config = testConfig(folder, { PREMISE_AGENTS__SCRIPTED__STEP_SECONDS: "0", ...env });
   const { db, schemaVersion } = openDatabase(folder);
   const ledger = new MockUsageLedger("mock-fixed", 1);
+  const tools = new AgentToolServer({ db, config });
+  const runner = new ScriptedAgentRunner(options.script ?? standInScript(0));
+  const record = new RecordKeeper({ db, config, today: () => "2026-11-22" });
   const session = createSession({
     db,
     config,
     ledger,
-    runner: new ScriptedAgentRunner(standInScript(0)),
+    runner,
+    tools,
+    record,
   });
   const setup = await runDoctor({
     dataFolder: folder,
     env: {},
     run: () => Promise.resolve({ ok: true, output: "1.0" }),
   });
-  const record = new RecordKeeper({ db, config, today: () => "2026-11-22" });
   const app = await createApp({
     config,
     db,
     schemaVersion,
     services: session.services,
+    agents: session.agents,
     ledger,
     record,
     setup,
@@ -95,14 +105,15 @@ export async function testApp(env: NodeJS.ProcessEnv = {}) {
   };
   /** Let every queued scripted job run to its end, and the line move on after each. */
   const settle = async () => {
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 40; i++) {
       session.queue.tick();
       await session.queue.idle();
+      await session.gate.idle();
       await new Promise((r) => setTimeout(r, 5));
       if (session.queue.list("queued").length === 0 && session.queue.list("running").length === 0) {
         return;
       }
     }
   };
-  return { app, db, config, token, host, headers, call, settle, session, folder, record };
+  return { app, db, config, token, host, headers, call, settle, session, folder, record, runner };
 }

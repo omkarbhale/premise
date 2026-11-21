@@ -33,6 +33,11 @@ export interface AgentRequest {
    * limit, or premise stopped). The runner carries that session on instead of starting afresh.
    */
   resumeSessionId?: string;
+  /**
+   * Facts about the task the line engine already holds (stage, the operator's words, the message
+   * to work in). The brief says the same in prose; the scripted agent reads it from here.
+   */
+  context?: Record<string, unknown>;
 }
 
 /** A line of progress, as the page shows it. */
@@ -73,5 +78,7 @@ export interface AgentSession {
 
 export interface AgentRunner {
   readonly runtime: string;
+  /** False while no agent can start (real agents missing); agent jobs then wait in the queue. */
+  ready?(): boolean;
   start(request: AgentRequest, onProgress: (progress: AgentProgress) => void): AgentSession;
 }

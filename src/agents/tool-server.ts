@@ -12,9 +12,9 @@ import { type AgentRole, PREMISE_TOOLS_BY_ROLE } from "./roles.js";
  * MCP is spoken in its plain HTTP form: one JSON-RPC message per POST, answered with JSON. No
  * stream is held open, because no tool needs to call the agent back.
  *
- * Tools whose module is not built yet (the record keeper, the gate, the line engine) are stubs:
- * every call is checked and recorded as an event, and the agent is told plainly that nothing more
- * comes of it yet.
+ * Tools are acted on by the modules handed in with setHandlers (the line engine, the record keeper
+ * and the gate). A tool whose module is not built yet is a stub: every call is checked and recorded
+ * as an event, and the agent is told plainly that nothing more comes of it yet.
  */
 
 export const TOOL_ERROR_CODES = [
@@ -209,6 +209,21 @@ function okResult(result: unknown): ToolEnvelope {
   return { ok: true, result, diagnostics: [] };
 }
 
+/** A refusal, for the modules that serve tools. */
+export const toolFail = fail;
+/** A result, for the modules that serve tools. */
+export const toolOk = okResult;
+
+/** A module serving one tool. Called after the call passed its checks. */
+export type ToolHandler = (binding: ToolBinding, args: Record<string, unknown>) => ToolEnvelope;
+
+/** The modules that act on tools: the line engine, the record keeper and the gate. */
+export interface ToolHandlers {
+  tools: Partial<Record<string, ToolHandler>>;
+  /** Told of every task_finish, besides the session's own listener. */
+  onFinish?: (binding: ToolBinding, account: { status: string; note: string | null }) => void;
+}
+
 export interface HttpAnswer {
   status: number;
   body?: unknown;
@@ -230,8 +245,29 @@ export interface AgentToolServerOptions {
 
 export class AgentToolServer {
   private readonly tokens = new Map<string, TokenEntry>();
+  private handlers: ToolHandlers = { tools: {} };
 
   constructor(private readonly options: AgentToolServerOptions) {}
+
+  /** Hand tools to the modules that act on them, once those modules exist. */
+  setHandlers(handlers: ToolHandlers): void {
+    this.handlers = handlers;
+  }
+
+  /** Whether a tool is acted on by a module now, rather than only recorded. */
+  private served(tool: string): boolean {
+    return this.handlers.tools[tool] !== undefined;
+  }
+
+  /**
+   * One tool call made in this process, for runtimes that do not speak MCP (the scripted agent).
+   * It passes the same checks and is recorded the same way as a call over HTTP.
+   */
+  callDirect(token: string, tool: string, args: Record<string, unknown>): ToolEnvelope {
+    const entry = this.tokens.get(hashToken(token));
+    if (!entry) return fail("TASK_CLOSED", "Unknown session token. Stop.");
+    return this.call(entry, tool, args);
+  }
 
   /** A new token for one session. Only its hash is kept. */
   issue(binding: ToolBinding): string {
@@ -346,7 +382,8 @@ export class AgentToolServer {
         role: binding.role,
         ok: envelope.ok,
         error: envelope.error?.code ?? null,
-        ...(envelope.ok && (TOOLS_BY_NAME.get(tool)?.notBuilt || tool === "task_finish")
+        ...(envelope.ok &&
+        ((TOOLS_BY_NAME.get(tool)?.notBuilt && !this.served(tool)) || tool === "task_finish")
           ? { input: args }
           : {}),
       },
@@ -385,6 +422,7 @@ export class AgentToolServer {
         }
         const note = typeof args.note === "string" ? args.note : null;
         binding.onFinish?.({ status, note });
+        this.handlers.onFinish?.(binding, { status, note });
         return okResult(null);
       }
       case "ask": {
@@ -401,9 +439,10 @@ export class AgentToolServer {
         }
         if (problems.length)
           return fail("MALFORMED", "The question cannot be asked as it is.", problems);
-        return this.stub(tool);
+        return this.serve(binding, tool, args);
       }
       case "record_read":
+        if (this.served(tool)) return this.serve(binding, tool, args);
         return okResult({
           lines: [],
           note: "premise does not keep this software's record yet, so there is nothing to read. Work from your task brief.",
@@ -414,7 +453,17 @@ export class AgentToolServer {
           note: "premise does not collect facts for reports yet, so there are none to read.",
         });
       default:
-        return this.stub(tool);
+        return this.serve(binding, tool, args);
+    }
+  }
+
+  private serve(binding: ToolBinding, tool: string, args: Record<string, unknown>): ToolEnvelope {
+    const handler = this.handlers.tools[tool];
+    if (!handler) return this.stub(tool);
+    try {
+      return handler(binding, args);
+    } catch (error) {
+      return fail("INTERNAL", `premise could not handle this call: ${(error as Error).message}`);
     }
   }
 
