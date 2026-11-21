@@ -7,14 +7,14 @@ Carved from section 2 of the plan. Part of the [architecture](overview.md). Spec
 - premise runs on the owner's machine ([0043](../decisions/0043-runs-on-the-owners-machine-first.md)). One command starts it and prints the session's link.
 - Installed once and checked at every start; premise names whatever is missing:
   - Node.js LTS and git;
-  - Claude Code, logged in once with the owner's subscription in premise's own configuration folder ([0076](../decisions/0076-own-claude-code-configuration.md));
+  - Claude Code, logged in with the owner's subscription; by default the owner's existing login, or the configuration folder named in the settings ([0140](../decisions/0140-the-owners-existing-claude-code-login.md));
   - the GitHub CLI, logged in as the owner ([0077](../decisions/0077-github-through-existing-cli-login.md));
   - on Linux and WSL2, bubblewrap and socat, which Claude Code's sandbox needs ([0087](../decisions/0087-agents-run-confined.md)). Installing them needs the owner's administrator password, so premise names them and the owner installs them;
-  - usage-ledger, once it is usable ([0064](../decisions/0064-cost-and-spending-limit-from-usage-ledger.md); milestone 2).
+  - usage-ledger, once it exists; until then a mock stands in ([0064](../decisions/0064-cost-and-spending-limit-from-usage-ledger.md), [0133](../decisions/0133-usage-ledger-is-mocked-until-it-exists.md)).
 
 | Record | Choice | Why, in short |
 | --- | --- | --- |
-| [0076](../decisions/0076-own-claude-code-configuration.md) (P10) | premise runs Claude Code with its own configuration folder, logged in once by the owner. | The owner's personal hooks, skills, memory and settings would otherwise load into every agent and change what it does; premise's sessions also stay apart from the owner's own. |
+| [0076](../decisions/0076-own-claude-code-configuration.md) (P10), superseded by [0140](../decisions/0140-the-owners-existing-claude-code-login.md) | premise ran Claude Code with its own configuration folder; now it uses the owner's existing login by default, and the folder is a setting. | The owner's personal hooks, skills, memory and settings would otherwise load into every agent and change what it does; premise's sessions also stay apart from the owner's own. |
 | [0077](../decisions/0077-github-through-existing-cli-login.md) (P11) | premise reaches GitHub through the machine's existing GitHub CLI login, used only by the server. | No new secret to create or store, and agents never hold it. |
 
 ## One session ([0065](../decisions/0065-one-open-session.md))

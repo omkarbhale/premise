@@ -1,6 +1,6 @@
 # Runner specification
 
-Status: specification. Nothing is built until the owner says to start ([0061](../decisions/0061-nothing-built-until-the-owner-says.md)). Related: [build, check and run](../architecture/build-check-run.md), [record keeper](record-keeper.md), [gate](gate.md), [intake](intake.md), [reporter](reporter.md), [storage](storage.md).
+Status: specification, being built ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Related: [build, check and run](../architecture/build-check-run.md), [record keeper](record-keeper.md), [gate](gate.md), [intake](intake.md), [reporter](reporter.md), [storage](storage.md).
 
 ## 1. Purpose
 

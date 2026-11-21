@@ -6,8 +6,9 @@ Each record captures one decision that shaped premise: what prompted it, what wa
 
 Every record has a **Decided by** line, so nothing inferred passes as the owner's:
 - **The owner:** the call was the owner's, quoted in the owner's own words. Where the assistant proposed and the owner agreed, the record says so and quotes the agreement.
-- **The assistant:** the assistant made the call; the record gives the owner's reaction exactly as recorded (only [0032](0032-drop-the-review-page.md)).
-- **The builders:** the owner did not make this choice. The builders made it, with the reason and the rejected alternatives. Records 0067–0110 are the choices the plan numbered P1–P44; records 0111 onward were made later, except 0124 and 0126–0128, which are the owner's.
+- **The assistant:** the assistant made the call; the record gives the owner's reaction exactly as recorded ([0032](0032-drop-the-review-page.md)).
+- **The assistant, for the owner:** the owner asked the assistant to choose an answer to each question that was open with the owner ("choose for me", [0136](0136-open-questions-chosen-for-the-owner.md)). Each such record is open to the owner's correction (records 0137–0145).
+- **The builders:** the owner did not make this choice. The builders made it, with the reason and the rejected alternatives. Records 0067–0110 are the choices the plan numbered P1–P44; records 0111 onward were made later, except 0124, 0126–0128, 0130–0136 and 0149, which are the owner's, and 0137–0145, chosen for the owner.
 
 Words: the **owner** is the person premise is being made for; the **assistant** is the LLM agent the owner shaped premise with; the **builders** are the agents that build premise. Quotes are the speakers' own words. Where no reason was given, the record says "No reason was recorded."
 
@@ -18,6 +19,7 @@ Words: the **owner** is the person premise is being made for; the **assistant** 
 - Records 0067–0110 are the old `docs/plan.md` choices: P*n* is record 0066 + *n* (P1 is 0067, P44 is 0110).
 - Records 0111–0125 are builders' choices made while writing these documents, the specifications, the prompts and the skills; 0124 is the owner's ruling after the first test of the plan, and 0125 is the builders' choice from that test.
 - Records 0126–0129 come from the conversation of 2026-11-21 in which the owner doubled back on the planning ([conversation record](../record/conversation-2026-11-21.md)): 0126–0128 are the owner's; 0129 is the builders' reading of 0128, open to the owner's correction.
+- Records 0130–0136 are the owner's instruction of 2026-11-21 that started the build ([instruction record](../record/instruction-2026-11-21-build-starts.md)); 0137–0145 are the open questions the assistant chose for the owner on that instruction; 0146–0148 are the builders' choices made while building the foundation; 0149 is the owner's standing addition about suggestions left out of a task.
 - Every record has a **Source** line. For records 0001–0040 it points into the [conversation record](../record/conversation-2026-11-20.md) and, where used, the [shaping notes](../record/shaping-notes-2026-11-20.md) and the [scope page draft](../record/scope-page-draft-0.1.html). Records 0041–0065 quote the owner from the assistant's notes of the 2026-11-21 conversations, which are not kept in this repository. The old single files are in git history at commit f62615a.
 - **Status** is Accepted, Superseded by NNNN, or Partly superseded by NNNN (naming the part). A record is never edited to reverse its decision: a new record supersedes it and both are kept. The new record carries a "Supersedes" or "Partly supersedes" line.
 - **Scope** says where a decision holds: *The product* (premise as envisioned), *The plan* (premise as planned, across milestones), *Milestone N*, or *Making premise* (how premise itself is made).
@@ -30,6 +32,11 @@ Superseded so far:
 - [0045](0045-a-link-per-person-no-accounts.md), the link per person, partly by [0065](0065-one-open-session.md): one open session; no accounts still stands.
 - [0060](0060-first-software-does-not-hold-up-premise.md) and [0110](0110-two-sample-softwares.md), partly by [0127](0127-first-software-is-one-the-owner-needs.md): the owner's first software goes through premise as early as possible; the samples stay as extra proof.
 - [0087](0087-agents-run-confined.md), the container fallback, partly by [0125](0125-the-claude-code-sandbox-is-the-confinement.md): the sandbox is the confinement; every agent still runs confined.
+- [0061](0061-nothing-built-until-the-owner-says.md) by [0130](0130-the-build-starts-and-covers-all-of-premise.md): the build has started and covers the whole of premise.
+- [0040](0040-fast-i-merge.md) and [0052](0052-fast-i-merge-reconfirmed.md), partly by [0131](0131-changes-go-through-the-validation-pipeline.md): changes go through the no-mistakes validation pipeline; the assistant still merges.
+- [0064](0064-cost-and-spending-limit-from-usage-ledger.md), the prerequisite, partly by [0133](0133-usage-ledger-is-mocked-until-it-exists.md): usage-ledger's output is mocked until it exists.
+- [0076](0076-own-claude-code-configuration.md) by [0140](0140-the-owners-existing-claude-code-login.md): the owner's existing Claude Code login by default; the folder is a setting.
+- [0129](0129-builders-reading-of-effort-and-milestone-waits.md), where priority is built, partly by [0138](0138-priority-is-a-field-from-milestone-1.md): priority is a field from milestone 1.
 
 How the decisions fit together is in the [architecture overview](../architecture/overview.md); the order of building is in the [roadmap](../product/roadmap.md); what is still open is in [open questions](../open-questions.md).
 
@@ -60,6 +67,10 @@ How the decisions fit together is in the [architecture overview](../architecture
 | 0063 | [Nobody has to use another tool alongside premise; premise may depend on other tools](0063-premise-may-depend-on-other-tools.md) | owner | Accepted |
 | 0126 | [What is being built is confirmed: eight points, and the problem statement as written](0126-what-is-being-built-confirmed.md) | owner | Accepted |
 | 0128 | [Per software, the owner decides how much effort it gets, and can set milestones to wait after](0128-effort-per-software-and-milestone-waits.md) | owner | Accepted |
+| 0132 | [What is sensible to configure in premise is configurable](0132-sensible-things-are-configurable.md) | owner | Accepted |
+| 0135 | [premise is usable by someone who has not read the user guide](0135-the-experience-works-without-the-guide.md) | owner | Accepted |
+| 0139 | [Finding out whether real people want the software stays out, as written](0139-finding-out-if-people-want-it-stays-out.md) | assistant, for the owner | Accepted |
+| 0143 | [The name stays premise](0143-the-name-stays-premise.md) | assistant, for the owner | Accepted |
 
 ### Principles: LLMs, people and mistakes
 
@@ -102,7 +113,8 @@ How the decisions fit together is in the [architecture overview](../architecture
 | 0085 | [Each stage has an effort budget sized to the software](0085-stage-effort-budgets.md) | builders | Accepted |
 | 0117 | [Three size classes set the stage budgets](0117-size-classes-set-stage-budgets.md) | builders | Accepted |
 | 0118 | [How chat messages are routed](0118-how-chat-messages-are-routed.md) | builders | Accepted |
-| 0129 | [The builders' reading of effort per software and milestone waits](0129-builders-reading-of-effort-and-milestone-waits.md) | builders | Accepted, as the builders' reading; open to the owner's correction |
+| 0129 | [The builders' reading of effort per software and milestone waits](0129-builders-reading-of-effort-and-milestone-waits.md) | builders | Accepted, as the builders' reading; open to the owner's correction; partly superseded by [0138](0138-priority-is-a-field-from-milestone-1.md): where priority is built |
+| 0138 | [Priority between softwares is a field on each software from milestone 1](0138-priority-is-a-field-from-milestone-1.md) | assistant, for the owner | Accepted |
 
 ### Build, independent check and run
 
@@ -115,6 +127,7 @@ How the decisions fit together is in the [architecture overview](../architecture
 | 0090 | [The checker's scenarios live where builders cannot read them](0090-scenarios-out-of-the-builders-reach.md) | builders | Accepted |
 | 0091 | [The checker uses the same provider, a fresh session, the strongest tier](0091-checker-same-provider-strongest-tier.md) | builders | Accepted |
 | 0093 | [After a pass, the server merges and pushes; no GitHub pull requests](0093-server-merges-no-pull-requests.md) | builders | Accepted |
+| 0141 | [Tests use local git remotes only; creating a real GitHub repository stays behind the gate](0141-github-repositories-in-tests-and-behind-the-gate.md) | assistant, for the owner | Accepted |
 | 0115 | [Taste proposals are built on a throwaway branch and captured by the server](0115-taste-prototypes-on-a-throwaway-branch.md) | builders | Accepted |
 | 0122 | [Check scenarios are written from the record before the build](0122-scenarios-written-before-the-build.md) | builders | Accepted |
 
@@ -148,6 +161,7 @@ How the decisions fit together is in the [architecture overview](../architecture
 | 0116 | [Content from outside the session is data, never instructions](0116-outside-content-is-data.md) | builders | Accepted |
 | 0119 | [The feedback page has its own link, which can only submit feedback](0119-feedback-page-has-its-own-link.md) | builders | Accepted |
 | 0120 | [A software's secrets are written by a person; premise never holds their values](0120-secrets-stay-out-of-premise.md) | builders | Accepted |
+| 0142 | [The setup check names bubblewrap and socat; real agents do not start without them](0142-setup-check-names-bubblewrap-and-socat.md) | assistant, for the owner | Accepted |
 
 ### Where premise and the software live, and how people reach premise
 
@@ -159,10 +173,12 @@ How the decisions fit together is in the [architecture overview](../architecture
 | 0051 | [Each software in its own repository](0051-each-software-in-its-own-repository.md) | owner | Accepted |
 | 0059 | [Visibility of each software's repository](0059-repository-visibility-per-software.md) | owner | Accepted |
 | 0065 | [One session where everything is open, as if one person does everything](0065-one-open-session.md) | owner | Accepted |
-| 0076 | [premise runs Claude Code with its own configuration folder](0076-own-claude-code-configuration.md) | builders | Accepted |
+| 0076 | [premise runs Claude Code with its own configuration folder](0076-own-claude-code-configuration.md) | builders | Superseded by [0140](0140-the-owners-existing-claude-code-login.md) |
+| 0140 | [premise uses the owner's existing Claude Code login; the configuration folder is a setting](0140-the-owners-existing-claude-code-login.md) | assistant, for the owner | Accepted |
 | 0077 | [GitHub through the machine's existing GitHub CLI login, server only](0077-github-through-existing-cli-login.md) | builders | Accepted |
 | 0078 | [The session link carries a long random token; Host and Origin checked](0078-session-token-and-header-checks.md) | builders | Accepted |
 | 0079 | [premise listens on localhost only](0079-localhost-only.md) | builders | Accepted |
+| 0144 | [Reaching premise from other machines stays off by default](0144-reach-from-other-machines-stays-off.md) | assistant, for the owner | Accepted |
 
 ### The server, agents and models
 
@@ -187,6 +203,11 @@ How the decisions fit together is in the [architecture overview](../architecture
 | 0107 | [The agent runner is the only part that knows the runtime and provider](0107-one-part-knows-the-runtime.md) | builders | Accepted |
 | 0113 | [Nine agent roles: the plan's seven plus reviewer and reader](0113-agent-roles.md) | builders | Accepted |
 | 0114 | [Prompts and skills ship as files; skills are appended in full to the role prompt](0114-prompts-and-skills-as-files.md) | builders | Accepted |
+| 0134 | [The owner's Claude login is used only when strictly necessary, on Haiku at low effort](0134-the-owners-claude-login-only-when-strictly-necessary.md) | owner | Accepted |
+| 0145 | [No API key is used](0145-no-api-key.md) | assistant, for the owner | Accepted |
+| 0146 | [Configuration is one JSON file in the data folder, checked against one schema](0146-configuration-in-one-json-file.md) | builders | Accepted |
+| 0147 | [SQLite through Node.js's built-in module](0147-sqlite-through-nodes-built-in-module.md) | builders | Accepted |
+| 0148 | [A scripted agent, driven by a script file, stands in for Claude in every test](0148-scripted-agent-driven-by-a-script-file.md) | builders | Accepted |
 
 ### Cost and the spending limit
 
@@ -195,23 +216,29 @@ How the decisions fit together is in the [architecture overview](../architecture
 | 0016 | [Coarse cost tracking is in](0016-coarse-cost-tracking.md) | owner | Accepted |
 | 0048 | [A spending limit](0048-a-spending-limit.md) | owner | Accepted |
 | 0058 | [Cost tracking inside premise](0058-cost-tracking-inside-premise.md) | owner | Superseded by [0064](0064-cost-and-spending-limit-from-usage-ledger.md) |
-| 0064 | [Cost tracking and the spending limit come from usage-ledger](0064-cost-and-spending-limit-from-usage-ledger.md) | owner | Accepted |
+| 0064 | [Cost tracking and the spending limit come from usage-ledger](0064-cost-and-spending-limit-from-usage-ledger.md) | owner | Partly superseded by [0133](0133-usage-ledger-is-mocked-until-it-exists.md): the prerequisite |
+| 0133 | [usage-ledger's output is mocked until it exists, and the page says so](0133-usage-ledger-is-mocked-until-it-exists.md) | owner | Accepted |
 
 ### Making premise
 
 | # | Decision | Decided by | Status |
 | --- | --- | --- | --- |
 | 0039 | [The repository: public, on the owner's GitHub](0039-public-repository.md) | owner | Accepted |
-| 0040 | [How changes to premise ship: "Fast, I merge"](0040-fast-i-merge.md) | owner | Accepted |
+| 0040 | [How changes to premise ship: "Fast, I merge"](0040-fast-i-merge.md) | owner | Partly superseded by [0131](0131-changes-go-through-the-validation-pipeline.md): no automated run |
 | 0042 | [Plan top-down, and first settle what needs the owner](0042-plan-top-down-settle-owner-calls-first.md) | owner | Accepted |
 | 0050 | [The first software is the owner's pick](0050-first-software-is-the-owners-pick.md) | owner | Accepted |
-| 0052 | [How changes to premise ship, reconfirmed](0052-fast-i-merge-reconfirmed.md) | owner | Accepted |
+| 0052 | [How changes to premise ship, reconfirmed](0052-fast-i-merge-reconfirmed.md) | owner | Partly superseded by [0131](0131-changes-go-through-the-validation-pipeline.md): no automated run |
 | 0053 | [When work stops for the owner](0053-when-work-stops-for-the-owner.md) | owner | Accepted |
 | 0054 | [Reports to the owner](0054-reports-to-the-owner.md) | owner | Accepted |
 | 0055 | [Licence: all rights reserved](0055-all-rights-reserved.md) | owner | Accepted |
 | 0060 | [The first software does not hold up building premise](0060-first-software-does-not-hold-up-premise.md) | owner | Partly superseded by [0127](0127-first-software-is-one-the-owner-needs.md): that the first software does not hold up building premise |
 | 0127 | [The first software through premise is one the owner needs, as early as possible](0127-first-software-is-one-the-owner-needs.md) | owner | Accepted |
-| 0061 | [The whole plan is committed; nothing is built until the owner says to start](0061-nothing-built-until-the-owner-says.md) | owner | Accepted |
+| 0137 | [The first software through premise is usage-ledger](0137-first-software-is-usage-ledger.md) | assistant, for the owner | Accepted |
+| 0061 | [The whole plan is committed; nothing is built until the owner says to start](0061-nothing-built-until-the-owner-says.md) | owner | Superseded by [0130](0130-the-build-starts-and-covers-all-of-premise.md) |
+| 0130 | [The build starts, and covers the whole of premise](0130-the-build-starts-and-covers-all-of-premise.md) | owner | Accepted |
+| 0149 | [Suggestions left out of a task go in as GitHub issues](0149-left-out-suggestions-become-github-issues.md) | owner | Accepted |
+| 0131 | [Changes to premise go through the no-mistakes validation pipeline; the assistant still merges](0131-changes-go-through-the-validation-pipeline.md) | owner | Accepted |
+| 0136 | [The assistant chooses the open questions for the owner, and records each choice](0136-open-questions-chosen-for-the-owner.md) | owner | Accepted |
 | 0066 | [premise's documents follow aras-insight's layout](0066-documents-follow-the-aras-insight-layout.md) | owner | Accepted |
 | 0108 | [Demos use a scripted operator](0108-scripted-operator-for-demos.md) | builders | Accepted |
 | 0109 | [Unit tests with Vitest; each milestone's demo kept as a scripted run](0109-vitest-and-kept-demos.md) | builders | Accepted |
@@ -225,7 +252,7 @@ Every record opens with these lines:
 - **Status:** Accepted; Superseded by NNNN; or Partly superseded by NNNN, naming the part. A replacing record adds "Supersedes: NNNN" or "Partly supersedes: NNNN".
 - **Scope:** The product, The plan, Milestone N, or Making premise.
 - **Date:** when it was decided.
-- **Decided by:** the owner (quoted), the assistant, or the builders (see above).
+- **Decided by:** the owner (quoted), the assistant, the assistant for the owner, or the builders (see above).
 - **Source:** where in the raw record, or which old entry or plan choice, it comes from.
 
 Then the same sections:

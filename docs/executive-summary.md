@@ -1,6 +1,6 @@
 # Executive summary
 
-> **Status: specification stage.** Nothing is built. Building starts only when the owner says so ([0061](decisions/0061-nothing-built-until-the-owner-says.md)).
+> **Status: being built.** The owner said to build the whole of premise ([0130](decisions/0130-the-build-starts-and-covers-all-of-premise.md)). The foundation comes first: the package, configuration, storage, the work queue, a scripted agent standing in for Claude, a mock of usage-ledger marked as mocked, and the setup check ([roadmap](product/roadmap.md)).
 
 ## The problem
 
@@ -46,7 +46,7 @@ premise is one product that takes software from an idea to running software, and
 
 ## What comes later
 
-The owner's first software goes through premise as early as possible, before the later milestones are built ([0127](decisions/0127-first-software-is-one-the-owner-needs.md)). In order ([roadmap](product/roadmap.md)): cost and the spending limit, once usage-ledger is usable; every role in one session; intake, automatic and held; other people setting premise up; existing software; kept live for real users, and several softwares at once.
+The owner's first software goes through premise as early as possible, before the later milestones are built ([0127](decisions/0127-first-software-is-one-the-owner-needs.md)); chosen for the owner: usage-ledger ([0137](decisions/0137-first-software-is-usage-ledger.md)). In order ([roadmap](product/roadmap.md)): cost and the spending limit, from usage-ledger, mocked until it exists ([0133](decisions/0133-usage-ledger-is-mocked-until-it-exists.md)); every role in one session; intake, automatic and held; other people setting premise up; existing software; kept live for real users, and several softwares at once.
 
 ## Main risks, and what meets them
 

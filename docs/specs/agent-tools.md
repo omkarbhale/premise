@@ -1,6 +1,6 @@
 # Agent tools specification
 
-Status: specification. Nothing is built until the owner says to start ([0061](../decisions/0061-nothing-built-until-the-owner-says.md)). Related: [agent runner](agent-runner.md), [record keeper](record-keeper.md), [gate](gate.md), [line engine](line-engine.md), [prompts](../prompts/README.md), [skills](../skills/README.md).
+Status: specification, being built ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Related: [agent runner](agent-runner.md), [record keeper](record-keeper.md), [gate](gate.md), [line engine](line-engine.md), [prompts](../prompts/README.md), [skills](../skills/README.md).
 
 ## 1. Purpose
 

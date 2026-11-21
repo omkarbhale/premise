@@ -1,6 +1,6 @@
 # Architecture overview
 
-- **Status: specification. Nothing is built until the owner says to start** ([0061](../decisions/0061-nothing-built-until-the-owner-says.md)).
+- **Status: being built,** starting with the foundation ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)).
 - Carved on 2026-11-21 from the plan for premise (old `docs/plan.md`), which was written the same day from [VISION.md](../../VISION.md) and the decisions.
 - The plan was a working record ([0025](../decisions/0025-two-kinds-of-record.md)): detailed for building, not kept current afterwards. These documents carry it. When a choice here changes, the change is a new [decision record](../decisions/README.md) that supersedes the one it replaces.
 
@@ -30,10 +30,10 @@ Settled before the plan:
 - Lists over long paragraphs ([0029](../decisions/0029-lists-over-long-paragraphs.md)).
 - Nobody has to use another tool alongside premise; premise may be built on other tools underneath ([0063](../decisions/0063-premise-may-depend-on-other-tools.md)).
 - Claude through the owner's subscription first; other providers later ([0046](../decisions/0046-claude-through-the-owners-subscription.md)).
-- Cost tracking and the spending limit come from usage-ledger; premise builds none of its own ([0064](../decisions/0064-cost-and-spending-limit-from-usage-ledger.md)).
+- Cost tracking and the spending limit come from usage-ledger; premise builds none of its own ([0064](../decisions/0064-cost-and-spending-limit-from-usage-ledger.md)). Until usage-ledger exists its output is mocked, and the page says so ([0133](../decisions/0133-usage-ledger-is-mocked-until-it-exists.md)).
 - The floor: losing data, security holes, spending money, acting publicly in someone's name, false reports ([0056](../decisions/0056-what-is-on-the-floor.md)).
-- While premise is being built: work stops for the owner only on destructive, security-sensitive, public-facing or money-spending actions ([0053](../decisions/0053-when-work-stops-for-the-owner.md)); one short report per finished milestone ([0054](../decisions/0054-reports-to-the-owner.md)); changes ship as pull requests the assistant merges ([0052](../decisions/0052-fast-i-merge-reconfirmed.md)).
-- Nothing is built until the owner says to start ([0061](../decisions/0061-nothing-built-until-the-owner-says.md)).
+- While premise is being built: work stops for the owner only on destructive, security-sensitive, public-facing or money-spending actions ([0053](../decisions/0053-when-work-stops-for-the-owner.md)); one short report per finished milestone ([0054](../decisions/0054-reports-to-the-owner.md)); changes go through the no-mistakes validation pipeline to pull requests the assistant merges ([0131](../decisions/0131-changes-go-through-the-validation-pipeline.md)); tests never use the owner's Claude login ([0134](../decisions/0134-the-owners-claude-login-only-when-strictly-necessary.md)).
+- The owner said to build the whole of premise ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)).
 
 ## The parts
 

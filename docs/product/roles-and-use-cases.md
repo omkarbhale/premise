@@ -47,7 +47,7 @@ Sources: [VISION.md](../../VISION.md#who-it-is-for), the [decision records](../d
 
 ### The owner of premise
 
-- The person premise is being made for. Picks the first software when they want, one they need, which goes through premise as early as possible ([0050](../decisions/0050-first-software-is-the-owners-pick.md), [0127](../decisions/0127-first-software-is-one-the-owner-needs.md)); says when building starts ([0061](../decisions/0061-nothing-built-until-the-owner-says.md)).
+- The person premise is being made for. Picks the first software when they want, one they need, which goes through premise as early as possible ([0050](../decisions/0050-first-software-is-the-owners-pick.md), [0127](../decisions/0127-first-software-is-one-the-owner-needs.md)); said to build the whole of premise ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)), and asked the assistant to choose the open questions ([0136](../decisions/0136-open-questions-chosen-for-the-owner.md)).
 - While premise is built, work stops for the owner only on destructive, security-sensitive, public-facing or money-spending actions ([0053](../decisions/0053-when-work-stops-for-the-owner.md)), with one short report per finished milestone ([0054](../decisions/0054-reports-to-the-owner.md)).
 - While premise runs on the owner's machine, the owner is also the operator of the softwares premise builds there, and the only person whose subscription premise uses ([0103](../decisions/0103-subscription-only-for-the-owner.md)).
 

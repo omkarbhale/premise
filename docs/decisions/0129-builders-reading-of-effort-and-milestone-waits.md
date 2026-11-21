@@ -1,6 +1,6 @@
 # 0129. The builders' reading of effort per software and milestone waits
 
-- Status: Accepted, as the builders' reading; open to the owner's correction
+- Status: Accepted, as the builders' reading; partly superseded by [0138](0138-priority-is-a-field-from-milestone-1.md): priority is a field from milestone 1, not milestone 7
 - Scope: The plan
 - Date: 2026-11-21
 - Decided by: The builders. The owner did not make these choices. They read what the owner asked for in [0128](0128-effort-per-software-and-milestone-waits.md); the owner's words are in that record and nothing here is the owner's.
@@ -43,6 +43,8 @@ Where each is built, also a builders' choice:
 
 - Carried in the [work queue](../specs/work-queue.md), the [line engine](../specs/line-engine.md), [models and cost](../architecture/models-and-cost.md) and the [roadmap](../product/roadmap.md).
 - If the owner corrects a point, a new record supersedes this one.
+
+- **Partly superseded by** [0138](0138-priority-is-a-field-from-milestone-1.md): priority is a field on each software from milestone 1.
 
 ## Related
 

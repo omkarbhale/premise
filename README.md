@@ -8,7 +8,45 @@ One product that takes software from an idea to running software, and keeps taki
 
 The full statement is in [VISION.md](VISION.md).
 
-> **Status: specification stage.** Nothing is built yet. This repository holds the vision, the records of the conversation that shaped premise (2026-11-20) and the exchange of 2026-11-21 that doubled back on the planning, every decision since with who made it, the architecture, a specification per module, and the prompts and skills its agents will run on. Building starts only when the owner says so ([0061](docs/decisions/0061-nothing-built-until-the-owner-says.md)). The owner's read of the vision (now draft 4) is still open.
+> **Status: being built.** The owner said to build the whole of premise ([0130](docs/decisions/0130-the-build-starts-and-covers-all-of-premise.md)). The foundation is in: configuration, storage, the work queue, a scripted agent that stands in for Claude, a mock of usage-ledger marked as mocked on the page, the setup check and a first page. Starting a software from an idea comes in the next builds ([roadmap](docs/product/roadmap.md)). Questions that were open with the owner were chosen for the owner and can be corrected ([open questions](docs/open-questions.md)).
+
+## Quick start
+
+You need [Node.js](https://nodejs.org) 22.13 or later and git.
+
+```sh
+git clone https://github.com/omkarbhale/premise.git
+cd premise
+npm install
+npm run build
+npm start
+```
+
+`npm start` prints a link such as `http://localhost:4610/#token=…`. Open it in your browser. The link holds a private token; restarting premise gives a new one.
+
+- **Nothing calls an AI by default.** Agents are scripted stand-ins until you choose otherwise, so you can try everything without using a Claude login.
+- **Usage figures are mocked** until usage-ledger exists, and the page labels them "Mocked".
+- **Check your machine** with `npm run doctor`: it lists what premise needs, what is missing, and how to get it.
+- **Change settings** (how many agents run at once, the model and effort for each type of task, and more) in `config.json` in the data folder (`~/.premise` by default), or with environment variables. Every setting: [configuration reference](docs/reference/configuration.md).
+- Start on another port with `npm start -- --port 4700`, or use another data folder with `npm start -- --data <folder>`.
+
+For working on premise: `npm run dev` (rebuilds the server on change), `npm test`, `npm run lint`, `npm run typecheck`. Every change goes through the no-mistakes validation pipeline ([0131](docs/decisions/0131-changes-go-through-the-validation-pipeline.md)); CI runs the same checks.
+
+## The code
+
+One TypeScript package ([0075](docs/decisions/0075-one-package.md)):
+
+| Folder | What it is | Specification |
+| --- | --- | --- |
+| `src/config/` | The settings: one list with defaults and checks, loaded from `config.json` and `PREMISE_*` variables | [configuration reference](docs/reference/configuration.md) |
+| `src/storage/` | The SQLite database in the data folder, with numbered migrations | [storage](docs/specs/storage.md) |
+| `src/queue/` | The work queue: jobs that survive a restart, the parallel limit, priority, the same-failure rule, the usage-limit pause | [work queue](docs/specs/work-queue.md) |
+| `src/agents/` | The agent runner's interface, and the scripted agent used by every test | [agent runner](docs/specs/agent-runner.md) |
+| `src/usage-ledger/` | usage-ledger's interface, and its mock | [models and cost](docs/architecture/models-and-cost.md) |
+| `src/doctor/` | The setup check | [page server](docs/specs/page-server.md#51-prerequisites) |
+| `src/server/` | The page server: health, the session token, Host and Origin checks, the API | [page server](docs/specs/page-server.md) |
+| `web/` | The page (React, built with Vite) | [page](docs/specs/page.md) |
+| `test/` | Vitest tests; none calls an LLM or the network | |
 
 ## The problem
 
@@ -60,7 +98,7 @@ Simplified view; see the [architecture overview](docs/architecture/overview.md) 
 | Category | Examples |
 | --- | --- |
 | In the product | The whole line; every role a software needs; taste claims; the lasting record and traces; honest reports; intake, automatic and held; existing software; cost per piece of work; what the software's users read; several softwares at once; other people setting premise up; any kind of software |
-| First milestone | Proof of unattended LLM work on the owner's subscription; then the thinnest line, end to end, for a small command-line utility and a small web app |
+| First milestone | Proof of unattended LLM work on the owner's subscription; then the thinnest line, end to end, for a small command-line utility and a small web app; then usage-ledger, the owner's first software ([0137](docs/decisions/0137-first-software-is-usage-ledger.md)) |
 | Not the product's job | Acting in the real world (opening accounts, paying, signing); selling or supporting the software; finding out on its own whether real people want the software |
 
 Details: [scope](docs/product/scope.md); order: [roadmap](docs/product/roadmap.md).
@@ -71,7 +109,8 @@ Details: [scope](docs/product/scope.md); order: [roadmap](docs/product/roadmap.m
 - [VISION.md](VISION.md): what premise is, who it is for, its principles, the line, the record, and what is not yet worked out. Stays at the root ([0111](docs/decisions/0111-vision-stays-at-the-root.md)).
 - [Executive summary](docs/executive-summary.md): premise in two pages.
 - [Glossary](docs/glossary.md): the words the documents use.
-- [Open questions](docs/open-questions.md): what is still open, and with whom.
+- [Open questions](docs/open-questions.md): what is still open, and the questions the assistant chose for the owner.
+- [Configuration reference](docs/reference/configuration.md): every setting, its default and its meaning.
 
 **Product**
 - [Scope](docs/product/scope.md): what is in, what is not the product's job, what is not yet worked out.
@@ -103,6 +142,7 @@ Details: [scope](docs/product/scope.md); order: [roadmap](docs/product/roadmap.m
 - [docs/record/conversation-2026-11-20.md](docs/record/conversation-2026-11-20.md): the whole conversation in order, both sides.
 - [docs/record/conversation-2026-11-21.md](docs/record/conversation-2026-11-21.md): the exchange of 2026-11-21 in which the owner doubled back on the planning.
 - [docs/record/shaping-notes-2026-11-20.md](docs/record/shaping-notes-2026-11-20.md): the assistant's running notes during the conversation.
+- [docs/record/instruction-2026-11-21-build-starts.md](docs/record/instruction-2026-11-21-build-starts.md): the owner's instruction that started the build.
 - [docs/record/subscription-sandbox-test-2026-11-21.md](docs/record/subscription-sandbox-test-2026-11-21.md): the first test of the plan, unattended Claude Code on the owner's subscription inside Claude Code's sandbox.
 - [docs/record/scope-page-draft-0.1.html](docs/record/scope-page-draft-0.1.html): a review page drafted mid-conversation and later dropped in favour of the vision statement.
 - [docs/prior-art/report.md](docs/prior-art/report.md): the prior-art research report.

@@ -1,23 +1,25 @@
 # Roadmap
 
-The milestones in order, carved from section 8 of the plan, and the build order agreed with the owner. No dates are given. **Nothing starts until the owner says to start** ([0061](../decisions/0061-nothing-built-until-the-owner-says.md)).
+The milestones in order, carved from section 8 of the plan, and the build order agreed with the owner. No dates are given. **The build has started and covers every milestone below, in this order** ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md), which supersedes [0061](../decisions/0061-nothing-built-until-the-owner-says.md)).
 
 The vision states the vision only, with no now-or-later split ([0035](../decisions/0035-the-vision-states-the-vision-only.md)). The order is kept here.
 
 ## Build order agreed with the owner
 
-- Nothing is built until the owner says to start ([0061](../decisions/0061-nothing-built-until-the-owner-says.md)).
+- The owner said to build the whole of premise ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). It is built as a series of tasks; the first is the foundation: the package, configuration, storage, the work queue, the agent runner's seam with a scripted agent, usage-ledger's seam with a mock, and the setup check.
 - First proof: the thinnest line, end to end, for any small software ([0034](../decisions/0034-first-proof-new-software.md), [0049](../decisions/0049-any-kind-of-software.md)). Its first step proves that premise can drive LLM work unattended through the owner's subscription; if that cannot be proven, work stops for the owner there.
-- The first software is the owner's pick, made when the owner wants ([0050](../decisions/0050-first-software-is-the-owners-pick.md)). It is one the owner actually needs, and it goes through premise as early as possible, before the later milestones are built; milestone 1 does not wait for the pick, and the two sample softwares stay as extra proof ([0127](../decisions/0127-first-software-is-one-the-owner-needs.md), which adjusts [0060](../decisions/0060-first-software-does-not-hold-up-premise.md) and [0110](../decisions/0110-two-sample-softwares.md)).
-- Per software, the owner can set how much effort it gets and milestones to wait after ([0128](../decisions/0128-effort-per-software-and-milestone-waits.md)). The builders' placement, open to the owner's correction ([0129](../decisions/0129-builders-reading-of-effort-and-milestone-waits.md)): waits in milestone 1; effort by share with cost in milestone 2; effort by priority with several softwares in milestone 7.
-- Cost tracking and the spending limit come when usage-ledger is usable ([0064](../decisions/0064-cost-and-spending-limit-from-usage-ledger.md)).
+- The first software is the owner's pick, made when the owner wants ([0050](../decisions/0050-first-software-is-the-owners-pick.md)). It is one the owner actually needs, and it goes through premise as early as possible, before the later milestones are built; milestone 1 does not wait for the pick, and the two sample softwares stay as extra proof ([0127](../decisions/0127-first-software-is-one-the-owner-needs.md), which adjusts [0060](../decisions/0060-first-software-does-not-hold-up-premise.md) and [0110](../decisions/0110-two-sample-softwares.md)). Chosen for the owner: usage-ledger, run with real agents when the owner allows it ([0137](../decisions/0137-first-software-is-usage-ledger.md)).
+- Per software, the owner can set how much effort it gets and milestones to wait after ([0128](../decisions/0128-effort-per-software-and-milestone-waits.md)). Where each is built, open to the owner's correction: waits in milestone 1, and a priority field on each software from milestone 1 that orders the work queue ([0129](../decisions/0129-builders-reading-of-effort-and-milestone-waits.md), [0138](../decisions/0138-priority-is-a-field-from-milestone-1.md)); effort by share with cost in milestone 2.
+- Cost tracking and the spending limit come from usage-ledger ([0064](../decisions/0064-cost-and-spending-limit-from-usage-ledger.md)); until it exists premise uses a mock of its output, marked as mocked on the page ([0133](../decisions/0133-usage-ledger-is-mocked-until-it-exists.md)).
+- Tests, demos and continuous integration use the scripted agent, never the owner's Claude login; the login is used only when strictly necessary, on Haiku at low effort ([0134](../decisions/0134-the-owners-claude-login-only-when-strictly-necessary.md)).
+- Sensible things are configurable ([0132](../decisions/0132-sensible-things-are-configurable.md)), and premise is usable by someone who has not read the user guide ([0135](../decisions/0135-the-experience-works-without-the-guide.md)).
 - Existing software after the line works ([0034](../decisions/0034-first-proof-new-software.md)).
 - Other people setting premise up comes sooner than the other later items ([0033](../decisions/0033-answers-to-the-ten-assumptions.md), item 7; [0043](../decisions/0043-runs-on-the-owners-machine-first.md)).
 - Later: keeping software live for real users; several softwares at once; model providers other than Claude ([0046](../decisions/0046-claude-through-the-owners-subscription.md)). Finding out whether real people want the software is out of the vision, with an active version at most a later idea ([0036](../decisions/0036-finding-out-if-people-want-it-is-out.md)).
 
 ```mermaid
 flowchart LR
-    M1[M1 The thinnest line<br/>step 1: unattended LLM work] --> M2[M2 Cost and spending limit<br/>needs usage-ledger usable]
+    M1[M1 The thinnest line<br/>step 1: unattended LLM work] --> M2[M2 Cost and spending limit<br/>usage-ledger mocked until it exists]
     M1 --> M3[M3 Every role,<br/>in one session]
     M2 --> M4[M4 Intake,<br/>automatic and held]
     M3 --> M4
@@ -26,12 +28,12 @@ flowchart LR
     M6 --> M7[M7 Kept live, and<br/>several softwares at once]
 ```
 
-If usage-ledger is not usable when milestone 1 ends, milestone 3 goes first and milestone 2 starts when it is.
+Milestone 2 no longer waits for usage-ledger: it is built against the mock ([0133](../decisions/0133-usage-ledger-is-mocked-until-it-exists.md)).
 
 ## For every milestone
 
-- Nothing starts until the owner says to start ([0061](../decisions/0061-nothing-built-until-the-owner-says.md)); this still holds.
-- Changes to premise ship as pull requests the assistant merges ([0052](../decisions/0052-fast-i-merge-reconfirmed.md)). Work stops for the owner only on destructive, security-sensitive, public-facing or money-spending actions ([0053](../decisions/0053-when-work-stops-for-the-owner.md)).
+- Every milestone is built without a new start from the owner ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)).
+- Changes to premise go through the no-mistakes validation pipeline to a pull request the assistant merges ([0131](../decisions/0131-changes-go-through-the-validation-pipeline.md), [0052](../decisions/0052-fast-i-merge-reconfirmed.md)). Work stops for the owner only on destructive, security-sensitive, public-facing or money-spending actions ([0053](../decisions/0053-when-work-stops-for-the-owner.md)).
 - "Shown running" means a recorded run with its evidence kept: transcripts, the record files, commits with their traces, the check's verdicts, screenshots or command output.
 - "Reported" means one short report to the owner when the milestone finishes ([0054](../decisions/0054-reports-to-the-owner.md)): what was built; how it was shown running, with the evidence; what failed and what could not be checked; the builders' choices made or changed (decision records); from milestone 2 on, the cost. Anything that needs the owner is sent at once.
 - [0108](../decisions/0108-scripted-operator-for-demos.md) (P42): demos use a scripted operator: answers written down before the run and fed in by a test script.
@@ -54,7 +56,7 @@ Thinnest means: one software at a time; only the operator; no taste claims; inta
   4. Two sessions run at once, as a builder and a checker, and neither can read the other's files.
   5. Each session's id is recorded against the task it did, so usage can be attributed later.
   6. The subscription's usage limit is handled: rate-limit events pause the work, and it resumes after the reset. If the limit cannot be reached safely, the pause is shown with a simulated event.
-  7. The server, not an agent, creates a private repository on the owner's GitHub and pushes to it.
+  7. The server, not an agent, creates a private repository on the owner's GitHub and pushes to it. Tests prove it on a local remote; the GitHub step runs only on the owner's word ([0141](../decisions/0141-github-repositories-in-tests-and-behind-the-gate.md)).
   8. The use stays within [0103](../decisions/0103-subscription-only-for-the-owner.md) (P37): Anthropic's own Claude Code, the owner's login, the owner's machine, the owner's own use. Settled by the owner's ruling, [0124](../decisions/0124-unattended-claude-code-on-the-subscription-is-allowed.md).
 - **If point 1, 2, 7 or 8 cannot be proven, work stops for the owner there.** The report says what failed and what the options are, for example an API key, which spends money. Nothing else in milestone 1 starts.
 - Points 3 and 4 held with Claude Code's sandbox, so the container fallback of [0087](../decisions/0087-agents-run-confined.md) is not needed on the owner's machine ([0125](../decisions/0125-the-claude-code-sandbox-is-the-confinement.md)). If bubblewrap or socat is missing, agents do not run, because running them unconfined is security-sensitive.
@@ -82,7 +84,7 @@ Thinnest means: one software at a time; only the operator; no taste claims; inta
 
 ## Milestone 2: cost and the spending limit, through usage-ledger
 
-- **Prerequisite: usage-ledger is usable.** Building it is its own project, not premise work ([0064](../decisions/0064-cost-and-spending-limit-from-usage-ledger.md)). If it is not usable when milestone 1 ends, milestone 3 goes first and this one starts when it is.
+- **usage-ledger is mocked until it exists** ([0133](../decisions/0133-usage-ledger-is-mocked-until-it-exists.md)). Building it is its own project ([0064](../decisions/0064-cost-and-spending-limit-from-usage-ledger.md)); it is also the first software chosen to go through premise ([0137](../decisions/0137-first-software-is-usage-ledger.md)). Every figure from the mock is marked as mocked on the page.
 - Built: premise's part of [models and cost](../architecture/models-and-cost.md#cost-and-the-spending-limit-0016-0048-0064): session-to-task records in usage-ledger's format; usage per software, stage, change and record item in reports; per-software budgets set in usage-ledger; pausing a software's queue and telling the operator when its budget is overrun; a software's effort as a share of weekly usage, read from usage-ledger and Claude Code's own stream ([0129](../decisions/0129-builders-reading-of-effort-and-milestone-waits.md)).
 - Shown running: milestone 1's demos run again, with usage per stage and per item in their reports; a deliberately small budget overrun that pauses the software and tells the operator.
 - Reported: as for every milestone, plus what milestone 1's demos cost.
@@ -117,7 +119,7 @@ Sooner than the other later items ([0033](../decisions/0033-answers-to-the-ten-a
   - premise hosted in a container on a host its operator chooses;
   - accounts, decided at this milestone ([0045](../decisions/0045-a-link-per-person-no-accounts.md)).
 - Being reached from other machines is security-sensitive ([0053](../decisions/0053-when-work-stops-for-the-owner.md), [0065](../decisions/0065-one-open-session.md)). This milestone prepares it and does not decide it: every step that exposes premise beyond one machine waits for the person running it; for the owner's own setup, the owner.
-- Shown running: a clean machine (a fresh virtual machine) set up from the instructions alone, then milestone 1's demos run on it. Using an API key for this spends money, so it waits for the owner.
+- Shown running: a clean machine (a fresh virtual machine) set up from the instructions alone, then milestone 1's demos run on it. No API key is used: the demos run with the scripted agent ([0145](../decisions/0145-no-api-key.md)).
 - Reported: as for every milestone, plus every point where setup needed a person.
 
 ## Milestone 6: existing software
@@ -128,7 +130,7 @@ Sooner than the other later items ([0033](../decisions/0033-answers-to-the-ten-a
 
 ## Milestone 7: kept live, and several softwares at once
 
-- Built: running software for its real users on hosts the operator approves; keeping it up; incidents back as intake; several softwares at once, sharing the work queue fairly, with a report per software and one summary; priority between softwares orders the work queue ([0129](../decisions/0129-builders-reading-of-effort-and-milestone-waits.md)).
+- Built: running software for its real users on hosts the operator approves; keeping it up; incidents back as intake; several softwares at once, sharing the work queue fairly, with a report per software and one summary; priority between softwares already orders the work queue from milestone 1 ([0138](../decisions/0138-priority-is-a-field-from-milestone-1.md)).
 - Every first deployment to a public host is public-facing and may spend money, so it is asked ([0100](../decisions/0100-floor-actions.md)).
 - Shown running: two softwares live on approved hosts, one taking an incident back through the line.
 - Reported: as for every milestone.
@@ -137,6 +139,6 @@ Sooner than the other later items ([0033](../decisions/0033-answers-to-the-ten-a
 
 - **Not the product's job** ([VISION.md](../../VISION.md#what-the-product-does-not-do)): acting in the real world (opening accounts, paying, signing; premise names the person and exactly what is needed); selling or supporting the software; finding out on its own whether real people want the software ([0033](../decisions/0033-answers-to-the-ten-assumptions.md), [0036](../decisions/0036-finding-out-if-people-want-it-is-out.md)).
 - **Model providers other than Claude:** later ([0046](../decisions/0046-claude-through-the-owners-subscription.md)); the agent runner is the one part that changes ([0107](../decisions/0107-one-part-knows-the-runtime.md)).
-- **Being reached from other machines:** a later, security-sensitive decision for the owner ([0065](../decisions/0065-one-open-session.md), [0079](../decisions/0079-localhost-only.md)).
+- **Being reached from other machines:** off by default, and a security-sensitive decision for the owner when the owner asks for it ([0144](../decisions/0144-reach-from-other-machines-stays-off.md), [0079](../decisions/0079-localhost-only.md)).
 - **Email or chat notices:** rejected for now ([0099](../decisions/0099-notices-in-the-session.md)).
 - What is still open is in [open questions](../open-questions.md).

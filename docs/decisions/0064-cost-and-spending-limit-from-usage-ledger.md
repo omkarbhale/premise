@@ -1,6 +1,6 @@
 # 0064. Cost tracking and the spending limit come from usage-ledger
 
-- Status: Accepted
+- Status: Partly superseded by [0133](0133-usage-ledger-is-mocked-until-it-exists.md): usage-ledger being usable as milestone 2's prerequisite; its output is mocked until it exists
 - Supersedes: [0058](0058-cost-tracking-inside-premise.md)
 - Scope: The plan
 - Date: 2026-11-21
@@ -30,6 +30,8 @@
 
 - **Changes** [0058](0058-cost-tracking-inside-premise.md). The owner's first suggestion ([0048](0048-a-spending-limit.md)) stands.
 - **In the plan:** usage-ledger being usable is a prerequisite of premise's cost and spending-limit milestone (milestone 2); building usage-ledger is not premise work ([models and cost](../architecture/models-and-cost.md), [roadmap](../product/roadmap.md)).
+
+- **Partly superseded by** [0133](0133-usage-ledger-is-mocked-until-it-exists.md): premise mocks usage-ledger's output until it exists, so milestone 2 does not wait for it.
 
 ## Related
 

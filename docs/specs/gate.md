@@ -1,6 +1,6 @@
 # Gate specification
 
-Status: specification. Nothing is built until the owner says to start ([0061](../decisions/0061-nothing-built-until-the-owner-says.md)). Related: [the floor and the gate](../architecture/the-floor-and-the-gate.md), [agent tools](agent-tools.md), [page](page.md), [runner](runner.md), [fixed wording](../prompts/fixed-wording.md).
+Status: specification, being built ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Related: [the floor and the gate](../architecture/the-floor-and-the-gate.md), [agent tools](agent-tools.md), [page](page.md), [runner](runner.md), [fixed wording](../prompts/fixed-wording.md).
 
 ## 1. Purpose
 

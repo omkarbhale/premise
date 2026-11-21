@@ -1,6 +1,6 @@
 # Record keeper specification
 
-Status: specification. Nothing is built until the owner says to start ([0061](../decisions/0061-nothing-built-until-the-owner-says.md)). Related: [the record](../architecture/the-record.md), [agent tools](agent-tools.md), [line engine](line-engine.md), [runner](runner.md), [storage](storage.md).
+Status: specification, being built ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Related: [the record](../architecture/the-record.md), [agent tools](agent-tools.md), [line engine](line-engine.md), [runner](runner.md), [storage](storage.md).
 
 ## 1. Purpose
 

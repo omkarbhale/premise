@@ -1,6 +1,6 @@
 # Storage specification
 
-Status: specification. Nothing is built until the owner says to start ([0061](../decisions/0061-nothing-built-until-the-owner-says.md)). Related: [record keeper](record-keeper.md), [work queue](work-queue.md), [agent runner](agent-runner.md), [the record](../architecture/the-record.md), [architecture overview](../architecture/overview.md).
+Status: specification, being built ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Related: [record keeper](record-keeper.md), [work queue](work-queue.md), [agent runner](agent-runner.md), [the record](../architecture/the-record.md), [architecture overview](../architecture/overview.md).
 
 ## 1. Purpose
 
@@ -9,7 +9,7 @@ Storage says where everything premise keeps lives, and defines every table of pr
 premise keeps things in three places:
 
 - **premise's database:** one SQLite file holding premise's own state ([0072](../decisions/0072-sqlite-state.md)).
-- **premise's data folder:** a folder in the user's home directory (configurable) holding the database, working copies, transcripts, job logs, check scenarios and evidence, premise's own Claude Code configuration folder ([0076](../decisions/0076-own-claude-code-configuration.md)), and each software's secrets ([0120](../decisions/0120-secrets-stay-out-of-premise.md)).
+- **premise's data folder:** a folder in the user's home directory (configurable) holding the database, working copies, transcripts, job logs, check scenarios and evidence, a Claude Code configuration folder if the settings name one there ([0140](../decisions/0140-the-owners-existing-claude-code-login.md)), and each software's secrets ([0120](../decisions/0120-secrets-stay-out-of-premise.md)).
 - **each software's repository on GitHub:** the code, and the lasting record in its `premise/` folder ([0080](../decisions/0080-record-in-the-softwares-repository.md)).
 
 ## 2. Responsibilities and non-responsibilities
@@ -46,7 +46,8 @@ Storage is a module inside the one server process ([0067](../decisions/0067-one-
 | Path in the data folder | Holds | Who reads it |
 |---|---|---|
 | `premise.db` | The database (4.2) | The server only |
-| `claude-config/` | premise's own Claude Code configuration folder, logged in once by the owner ([0076](../decisions/0076-own-claude-code-configuration.md)) | Claude Code, started by the agent runner |
+| `config.json` | premise's settings ([0146](../decisions/0146-configuration-in-one-json-file.md), [configuration reference](../reference/configuration.md)) | The server at start |
+| `claude-config/` | Only if the settings point `agents.claude_config_folder` here; by default premise uses the owner's existing Claude Code login ([0140](../decisions/0140-the-owners-existing-claude-code-login.md)) | Claude Code, started by the agent runner |
 | `work/<software>/<job>/` | One working copy per agent session ([0086](../decisions/0086-working-copy-and-branch-per-change.md)) | The one agent confined to it |
 | `transcripts/<software>/<session>.jsonl` | Each agent session's streamed events | The server; people through the page |
 | `logs/<software>/` | Job logs, and the running software's logs ([runner](runner.md)) | The server |
@@ -64,7 +65,7 @@ All tables live in `premise.db`. Times are UTC. "Software" is a row in `software
 
 | Table | One row per | Main columns |
 |---|---|---|
-| `softwares` | Software premise looks after | id, name, repository, size class ([0117](../decisions/0117-size-classes-set-stage-budgets.md)), current stage, state (active, paused-budget, paused-usage, ended), created |
+| `softwares` | Software premise looks after | id, name, repository, size class ([0117](../decisions/0117-size-classes-set-stage-budgets.md)), current stage, state (active, paused-budget, paused-usage, waiting-milestone, ended), priority (1 most important to 5, [0138](../decisions/0138-priority-is-a-field-from-milestone-1.md)), milestone waits on or off, created |
 | `page_tokens` | Session link issued | token hash, created, revoked |
 | `feedback_links` | Software with a feedback page | software, token hash, created, revoked ([0119](../decisions/0119-feedback-page-has-its-own-link.md)) |
 | `stage_runs` | Stage entered for a software | software, stage, entered, exited, exit reason, budget (turns, minutes), used |
@@ -101,7 +102,7 @@ Every job, ask, gate request and verdict also writes an `events` row, so that a 
 - **Transactions.** Every change that must survive a crash commits in one transaction: a job's status change with its event, an ask with the job it holds, a gate request with its approval. The work queue resumes from these rows after a restart.
 - **Working records are kept, not maintained** ([0025](../decisions/0025-two-kinds-of-record.md)). Transcripts, plans, job logs and evidence are written once and never edited.
 - **Deleting is losing data.** No module deletes a working record on its own. A person deletes them from the page, one at a time, and the deletion is an event. Working copies of finished jobs are the one exception: they are copies of what is on GitHub or on a branch premise keeps, and the work queue removes them when their job ends, unless the branch holds unmerged work.
-- **Schema changes.** Each premise version carries numbered migrations. The database is copied to `premise.db.bak-<version>` before a migration runs (the same rule premise applies to the softwares it builds, [0092](../decisions/0092-security-defaults.md)).
+- **Schema changes.** Each premise version carries numbered migrations. Tables arrive with the module that owns them ([0147](../decisions/0147-sqlite-through-nodes-built-in-module.md)); the database is opened with Node.js's built-in SQLite module. The database is copied to `premise.db.bak-<version>` before a migration runs (the same rule premise applies to the softwares it builds, [0092](../decisions/0092-security-defaults.md)).
 
 ## 6. Configuration
 
