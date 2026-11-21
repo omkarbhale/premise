@@ -2,7 +2,6 @@ import { useEffect, useId, useRef, useState } from "react";
 import { ApiError, type AskView, NotCurrentLink } from "../api";
 import { useSession } from "../context";
 import { useLoad } from "../hooks";
-import { stageName } from "../../../src/shared/stages";
 import { when } from "../words";
 import { AskCard } from "./AskCard";
 import { Problem } from "./Badges";
@@ -79,7 +78,7 @@ export function Conversation({ softwareId, asks }: { softwareId: string; asks: A
           </label>
           <p id={hintId} className="muted small">
             {draft
-              ? `While the ${stageName(draft.stage ?? "")} list is open, what you write is added to it as a correction.`
+              ? "While the list above is open, what you write is added to it as a correction."
               : "What you write is taken as new work (intake) for this software."}{" "}
             Enter sends; Shift+Enter makes a new line.
           </p>

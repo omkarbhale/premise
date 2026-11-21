@@ -834,3 +834,52 @@ pre.output {
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+/* Phases (the line, grouped) */
+.phases {
+  list-style: none;
+  padding: 0;
+  margin: 0.75rem 0;
+  display: grid;
+  gap: 0.75rem;
+}
+.phase {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  padding: 0.6rem 0.8rem;
+}
+.phase-current {
+  border-color: var(--accent);
+}
+.phase-ahead {
+  opacity: 0.85;
+}
+.phase > details > summary {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  cursor: pointer;
+}
+.phase-number {
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  border: 1px solid var(--border);
+}
+.phase-done .phase-number {
+  background: var(--ok);
+  color: var(--card);
+  border-color: var(--ok);
+}
+.phase-current .phase-number {
+  background: var(--accent);
+  color: var(--accent-text);
+  border-color: var(--accent);
+}
+.where-now {
+  margin: 0.5rem 0;
+}

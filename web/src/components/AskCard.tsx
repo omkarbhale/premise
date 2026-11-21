@@ -8,7 +8,7 @@ import {
   NotCurrentLink,
 } from "../api";
 import { useSession } from "../context";
-import { stageName } from "../../../src/shared/stages";
+import { whereNow } from "../../../src/shared/stages";
 import { ASK_KIND_LABEL, TERMS, markLabel, plural } from "../words";
 import { Problem, Term } from "./Badges";
 
@@ -56,7 +56,7 @@ export function AskCard({ ask, showSoftware = false }: { ask: AskView; showSoftw
         </span>
         <span className="chip">{ASK_KIND_LABEL[ask.kind]}</span>
         {showSoftware && <span className="chip chip-software">{ask.softwareName}</span>}
-        {ask.stage && <span className="muted small">at {stageName(ask.stage)}</span>}
+        {ask.stage && <span className="muted small">{whereNow(ask.stage)}</span>}
       </header>
       <h3 id={titleId}>{ask.title}</h3>
       {open ? (

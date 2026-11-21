@@ -1,16 +1,22 @@
 import { useState } from "react";
 import { ApiError, NotCurrentLink, type SoftwareDetail } from "../api";
 import { useSession } from "../context";
-import { SIZE_CLASSES, type SizeClass, type StageId } from "../../../src/shared/stages";
+import {
+  PHASES,
+  SIZE_CLASSES,
+  whereNow,
+  type SizeClass,
+  type StageId,
+} from "../../../src/shared/stages";
 import { Problem } from "./Badges";
 
 const SIZE_PLAIN: Record<SizeClass, string> = {
-  small: "Small: a few screens or commands; short stages.",
-  medium: "Medium: several parts; longer stages.",
-  large: "Large: many parts; the longest stages.",
+  small: "Small: a few screens or commands; short steps.",
+  medium: "Medium: several parts; longer steps.",
+  large: "Large: many parts; the longest steps.",
 };
 
-/** The eleven stages, where the software is, and the controls that move it. */
+/** The three phases with their steps, where the software is, and the controls that move it. */
 export function Line({ software }: { software: SoftwareDetail }) {
   const { api, notCurrent, refresh } = useSession();
   const [confirming, setConfirming] = useState<StageId | null>(null);
@@ -35,62 +41,108 @@ export function Line({ software }: { software: SoftwareDetail }) {
   return (
     <div className="line-view">
       <p className="muted">
-        Every software goes through the same eleven stages. A stage ends when what it needs from you
-        is answered; you can send the software back to any stage it has reached.
+        Every software goes through three phases. Open a phase to see its steps. A step that is not
+        needed for this software is simply passed over. You can send the software back to any step
+        it has reached.
       </p>
-      <ol className="stages">
-        {software.stages.map((stage, i) => (
-          <li key={stage.id} className={`stage stage-${stage.position}`}>
-            <span className="stage-number" aria-hidden="true">
-              {stage.position === "done" ? "✓" : i + 1}
-            </span>
-            <div className="stage-body">
-              <strong>{stage.name}</strong>
-              <span className="sr-only">
-                {stage.position === "done"
-                  ? " (done)"
-                  : stage.position === "current"
-                    ? " (here now)"
-                    : " (not reached yet)"}
-              </span>
-              {stage.position === "current" && <span className="chip chip-here">Here now</span>}
-              <p className="muted small">{stage.plain}</p>
-              {stage.position === "current" && <p className="small">{software.status}</p>}
-            </div>
-            {stage.position !== "ahead" &&
-              (confirming === stage.id ? (
-                <div className="confirm" role="group" aria-label={`Send back to ${stage.name}?`}>
-                  <span className="small">
-                    Send back to {stage.name}? Open questions are withdrawn and the stages after it
-                    are done again.
+      <p className="where-now">
+        <strong>{whereNow(software.stage)}</strong>
+      </p>
+      <ol className="phases">
+        {PHASES.map((phase, n) => {
+          const steps = software.stages.filter((st) =>
+            (phase.stages as readonly string[]).includes(st.id),
+          );
+          const state = steps.some((st) => st.position === "current")
+            ? "current"
+            : steps.every((st) => st.position === "done")
+              ? "done"
+              : steps.every((st) => st.position === "ahead")
+                ? "ahead"
+                : "current";
+          return (
+            <li key={phase.id} className={`phase phase-${state}`}>
+              <details open={state === "current"}>
+                <summary>
+                  <span className="phase-number" aria-hidden="true">
+                    {state === "done" ? "✓" : n + 1}
                   </span>
-                  <button
-                    type="button"
-                    className="danger"
-                    disabled={busy}
-                    onClick={() => void act(() => api.sendBack(software.id, stage.id))}
-                  >
-                    Send back
-                  </button>
-                  <button type="button" onClick={() => setConfirming(null)}>
-                    Cancel
-                  </button>
-                </div>
-              ) : (
-                <button type="button" className="quiet" onClick={() => setConfirming(stage.id)}>
-                  {stage.position === "current" ? "Start this stage again" : "Send back here"}
-                </button>
-              ))}
-          </li>
-        ))}
+                  <strong>{phase.name}</strong>
+                  <span className="chip">
+                    {state === "done" ? "Done" : state === "current" ? "Here now" : "Comes later"}
+                  </span>
+                </summary>
+                <p className="muted small">{phase.plain}</p>
+                <ol className="stages">
+                  {steps.map((stage) => (
+                    <li key={stage.id} className={`stage stage-${stage.position}`}>
+                      <span className="stage-number" aria-hidden="true">
+                        {stage.position === "done" ? "✓" : stage.position === "current" ? "●" : "○"}
+                      </span>
+                      <div className="stage-body">
+                        <strong>{stage.name}</strong>
+                        <span className="sr-only">
+                          {stage.position === "done"
+                            ? " (passed)"
+                            : stage.position === "current"
+                              ? " (here now)"
+                              : " (comes later)"}
+                        </span>
+                        {stage.position === "current" && (
+                          <span className="chip chip-here">Here now</span>
+                        )}
+                        <p className="muted small">{stage.plain}</p>
+                        {stage.position === "current" && <p className="small">{software.status}</p>}
+                      </div>
+                      {stage.position !== "ahead" &&
+                        (confirming === stage.id ? (
+                          <div
+                            className="confirm"
+                            role="group"
+                            aria-label={`Send back to ${stage.name}?`}
+                          >
+                            <span className="small">
+                              Send back to {stage.name}? Open questions are withdrawn and the steps
+                              after it are done again.
+                            </span>
+                            <button
+                              type="button"
+                              className="danger"
+                              disabled={busy}
+                              onClick={() => void act(() => api.sendBack(software.id, stage.id))}
+                            >
+                              Send back
+                            </button>
+                            <button type="button" onClick={() => setConfirming(null)}>
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            className="quiet"
+                            onClick={() => setConfirming(stage.id)}
+                          >
+                            {stage.position === "current"
+                              ? "Start this step again"
+                              : "Send back here"}
+                          </button>
+                        ))}
+                    </li>
+                  ))}
+                </ol>
+              </details>
+            </li>
+          );
+        })}
       </ol>
       {problem && <Problem>{problem}</Problem>}
 
       <section className="card">
         <h2>Size</h2>
         <p className="muted small">
-          The size sets how much effort each stage may take. premise proposes one at Why; change it
-          whenever you like.
+          The size sets how much effort each step may take. premise proposes one at the start;
+          change it whenever you like.
         </p>
         <fieldset className="sizes">
           <legend className="sr-only">Size</legend>

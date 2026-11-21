@@ -25,21 +25,17 @@ export function Welcome({
         <h2>What happens next</h2>
         <ol className="steps">
           <li>
-            premise drafts <strong>why</strong> it is worth building and <strong>who</strong> it is
-            for, as short lists. You strike what is wrong and edit what is half right.
-          </li>
-          <li>It looks at whether something already does this, and asks what you want to do.</li>
-          <li>
-            It drafts <strong>what</strong> it must do, then <strong>says back</strong> everything
-            it understood and assumed. You strike anything wrong.
+            <strong>Understand.</strong> premise works out what you want: why, for whom, what
+            already exists, and what it must do. It lists what it understood and assumed; you strike
+            anything wrong.
           </li>
           <li>
-            It plans the work, asks before creating anything outside this machine, then builds and
-            checks it without you.
+            <strong>Build.</strong> Agents write the software and a separate agent checks it, with
+            no need for you to watch. premise asks before creating anything outside this machine.
           </li>
           <li>
-            It starts the software and writes a <strong>report</strong>: what was done, what failed,
-            what is needed.
+            <strong>Running.</strong> The software starts on this machine with a report of what was
+            done, what failed and what is needed. What you say next becomes new work.
           </li>
         </ol>
         <p>

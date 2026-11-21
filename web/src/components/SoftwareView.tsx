@@ -2,7 +2,7 @@ import { useRef } from "react";
 import type { AskView } from "../api";
 import { useSession } from "../context";
 import { useLoad } from "../hooks";
-import { stageName, stageNumber } from "../../../src/shared/stages";
+import { stageName, whereNow } from "../../../src/shared/stages";
 import { percent } from "../words";
 import { MockedBadge, Problem, StandInBadge } from "./Badges";
 import { Conversation } from "./Conversation";
@@ -54,10 +54,8 @@ export function SoftwareView({
       <header className="software-head">
         <h1>{s.name}</h1>
         <p className="where">
-          <strong>
-            Stage {stageNumber(s.stage)} of 11: {stageName(s.stage)}
-          </strong>{" "}
-          <span className="muted">{s.stages.find((x) => x.position === "current")?.plain}</span>
+          <strong>{whereNow(s.stage)}</strong>{" "}
+          <span className="muted small">(step: {stageName(s.stage)})</span>
         </p>
         <p className={`status status-${open > 0 ? "needs-you" : s.state}`} role="status">
           {s.status}

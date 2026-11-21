@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ApiError, type JobView, NotCurrentLink } from "../api";
 import { useSession } from "../context";
 import { useLoad } from "../hooks";
-import { stageName } from "../../../src/shared/stages";
+import { whereNow } from "../../../src/shared/stages";
 import { JOB_LABEL, plural, when } from "../words";
 import { Problem } from "./Badges";
 
@@ -80,7 +80,7 @@ export function Activity() {
                 <li key={job.id} className={`job job-${job.status}`}>
                   <div>
                     <strong>{JOB_LABEL[job.kind] ?? job.kind}</strong> for {job.softwareName}
-                    {job.stage && <span className="muted"> at {stageName(job.stage)}</span>}
+                    {job.stage && <span className="muted"> ({whereNow(job.stage)})</span>}
                     <span className="chip">{job.status}</span>
                     {job.line && <div className="muted small">{job.line}</div>}
                     {job.waitingOn && <div className="small">Waiting on: {job.waitingOn}</div>}

@@ -1,4 +1,4 @@
-import { STAGES } from "../../../src/shared/stages";
+import { PHASES, STAGES } from "../../../src/shared/stages";
 import { TERMS } from "../words";
 
 /** Everything a newcomer might wonder about, on one short page. */
@@ -24,14 +24,27 @@ export function Help() {
         </ul>
       </section>
       <section className="card">
-        <h2>The eleven stages (the line)</h2>
+        <h2>The three phases</h2>
         <ol>
-          {STAGES.map((s) => (
-            <li key={s.id}>
-              <strong>{s.name}:</strong> {s.plain}
+          {PHASES.map((p) => (
+            <li key={p.id}>
+              <strong>{p.name}:</strong> {p.plain}
+              <details className="term">
+                <summary>Steps in {p.name}</summary>
+                <ul>
+                  {STAGES.filter((s) => (p.stages as readonly string[]).includes(s.id)).map((s) => (
+                    <li key={s.id}>
+                      <strong>{s.name}:</strong> {s.plain}
+                    </li>
+                  ))}
+                </ul>
+              </details>
             </li>
           ))}
         </ol>
+        <p className="muted small">
+          Some software does not need every step; premise passes over the ones it does not need.
+        </p>
       </section>
       <section className="card">
         <h2>Words you will see</h2>
