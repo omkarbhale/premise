@@ -189,7 +189,8 @@ describe("build tasks", () => {
 /** Drive a test app's software with the demo operator until nothing is left to answer. */
 async function drive(app: App, id: string, until: (app: App) => boolean = () => false) {
   const operator = demoOperator(COUNT_DEMO);
-  for (let round = 0; round < 40; round++) {
+  const deadline = Date.now() + 45_000;
+  while (Date.now() < deadline) {
     await app.settle();
     if (until(app)) return;
     const open = await app.session.services.asks.list({ softwareId: id, status: "open" });

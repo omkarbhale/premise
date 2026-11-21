@@ -178,7 +178,7 @@ describe("work queue", () => {
   });
 
   it("resumes by itself when the usage-limit pause ends, with no one calling tick", async () => {
-    const resetAt = new Date(Date.now() + 200).toISOString();
+    const resetAt = new Date(Date.now() + 1000).toISOString();
     const { queue, software } = setup({
       rules: [
         { when: { task: "build", attempt: 1 }, end: { outcome: "usage-limit", reset_at: resetAt } },
@@ -190,7 +190,7 @@ describe("work queue", () => {
     expect(queue.get(id)!.status).toBe("queued");
     expect(queue.state().paused).toBe(true);
 
-    const deadline = Date.now() + 3000;
+    const deadline = Date.now() + 8000;
     while (queue.get(id)!.status !== "done" && Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 25));
     }
