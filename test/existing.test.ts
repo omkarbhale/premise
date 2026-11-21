@@ -376,6 +376,44 @@ describe("taking on existing software, in a thin form", () => {
     expect((await openAsks(second, id)).some((a) => a.stage === "exists")).toBe(true);
   });
 
+  it("takes nothing in, and sends nothing back, while the copy is not ready or has failed", async () => {
+    const folder = commandLineProject(join(tempFolder(), "wordcount"));
+    const app = await testApp({}, { script: script(recoverCommandLine) });
+    const copying = (await bringIn(app, { source: folder })).body.id as string;
+    await app.session.line.idle();
+    app.db
+      .prepare("UPDATE existing_softwares SET status = 'copying' WHERE software_id = ?")
+      .run(copying);
+    const empty = join(tempFolder(), "empty");
+    mkdirSync(empty);
+    git(empty, ["init", "--quiet"]);
+    const failed = (await bringIn(app, { source: empty })).body.id as string;
+    await app.settle();
+    expect((await detail(app, failed)).existing?.status).toBe("copy-failed");
+
+    for (const [id, said] of [
+      [copying, /still copying/],
+      [failed, /Bring in software you already have/],
+    ] as const) {
+      const before = (await app.call("GET", `/api/softwares/${id}/intake`)).body as {
+        items: unknown[];
+      };
+      const sent = await app.call("POST", `/api/softwares/${id}/chat`, { text: "It crashes" });
+      expect(sent.status).toBe(200);
+      expect(JSON.stringify(sent.body)).toMatch(said);
+      const reported = await app.call("POST", `/api/softwares/${id}/intake`, { text: "A wish" });
+      expect(reported.status).toBe(422);
+      expect(reported.body.error).toMatch(said);
+      const back = await app.call("POST", `/api/softwares/${id}/send-back`, { stage: "why" });
+      expect(back.status).toBe(422);
+      expect(back.body.error).toMatch(said);
+      const after = (await app.call("GET", `/api/softwares/${id}/intake`)).body as {
+        items: unknown[];
+      };
+      expect(after.items).toHaveLength(before.items.length);
+    }
+  });
+
   it("copies again after premise restarts in the middle of copying", async () => {
     const folder = commandLineProject(join(tempFolder(), "wordcount"));
     const first = await testApp({}, { script: script(recoverCommandLine) });

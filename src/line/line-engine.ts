@@ -80,6 +80,7 @@ import {
 import {
   type ExistingSoftware,
   addExisting,
+  copyNotReady,
   getExisting,
   listExisting,
   setExisting,
@@ -760,7 +761,7 @@ export class LineEngine implements IntakeLine {
       });
       this.premiseSays(
         created.id,
-        `Copying ${source.given} into premise's own folder. Your ${source.kind === "folder" ? "folder" : "repository"} is only read; premise works on its own copy and changes nothing there.`,
+        `Copying ${source.given} into premise's own folder. Your ${source.kind === "folder" ? "folder" : "repository"} is only read; premise works on its own copy and changes nothing there. Chat opens once the copy is ready.`,
       );
       return created;
     });
@@ -1270,6 +1271,8 @@ export class LineEngine implements IntakeLine {
         `"${String(stage)}" is not a stage. The stages are: ${STAGES.map((s) => s.name).join(", ")}.`,
       );
     }
+    const notReady = copyNotReady(this.takenOn(id));
+    if (notReady) throw new ServiceError("INVALID", notReady);
     const target = this.sendBackTarget(id, stage);
     if (!target) {
       throw new ServiceError(
@@ -3301,6 +3304,14 @@ export class LineEngine implements IntakeLine {
         "INVALID",
         `That message is ${text.length} characters; keep it under ${MAX_CHAT}, or send it in parts.`,
       );
+    }
+    const notReady = copyNotReady(this.takenOn(softwareId));
+    if (notReady) {
+      return transaction(this.db, () => {
+        const said = addChatMessage(this.db, { softwareId, author: "person", text });
+        const reply = this.premiseSays(softwareId, `Nothing was taken in: ${notReady}`);
+        return { said, reply };
+      });
     }
     const result = transaction(this.db, () => {
       const draft = this.openDraft(softwareId, software.currentStage);

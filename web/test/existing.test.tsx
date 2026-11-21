@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { SoftwareView } from "../src/components/SoftwareView";
 import { cleanup, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -6,7 +7,7 @@ import { ApiError, type ExistingView } from "../src/api";
 import { AskCard } from "../src/components/AskCard";
 import { BringInForm } from "../src/components/BringInForm";
 import { ExistingPanel } from "../src/components/ExistingPanel";
-import { ask, fakeApi, inSession } from "./fixtures";
+import { ask, fakeApi, inSession, software } from "./fixtures";
 
 afterEach(cleanup);
 
@@ -80,6 +81,35 @@ describe("bringing in software you already have", () => {
     expect(screen.getByText("The repository has no commits yet.")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Offer it again" })).toBeNull();
   });
+
+  it.each(["copying", "copy-failed"] as const)(
+    "does not offer Send back or the report box while %s",
+    async (status) => {
+      const api = fakeApi({
+        intake: vi.fn(() =>
+          Promise.resolve({
+            softwareId: "s1",
+            items: [],
+            held: 0,
+            readingWhen: { heldCount: 5, days: 7 },
+            reading: false,
+            readings: [],
+            counts: {},
+          }),
+        ),
+        software: vi.fn(() =>
+          Promise.resolve(software({ existing: existing({ status, couldNotCheck: [] }) })),
+        ),
+      });
+      inSession(<SoftwareView softwareId="s1" tab="line" onTab={() => {}} asks={[]} />, api);
+      await screen.findByRole("tab", { name: /Line/ });
+      expect(screen.queryByRole("button", { name: /Send back here|Start this step again/ })).toBeNull();
+      cleanup();
+      inSession(<SoftwareView softwareId="s1" tab="intake" onTab={() => {}} asks={[]} />, api);
+      expect(await screen.findByText(/nothing to report/)).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Report" })).toBeNull();
+    },
+  );
 
   it("pages a long recovered list, grouped by file, answered once", async () => {
     const user = userEvent.setup();

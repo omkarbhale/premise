@@ -41,6 +41,7 @@ export function SoftwareView({
   if (software.state === "loading") return <p className="muted">Loading…</p>;
   if (software.state === "error") return <Problem>{software.message}</Problem>;
   const s = software.data;
+  const copyNotReady = s.existing?.status === "copying" || s.existing?.status === "copy-failed";
   const open = asks.filter((a) => a.status === "open" && a.softwareId === s.id).length;
 
   function onTabKey(event: React.KeyboardEvent, index: number) {
@@ -104,7 +105,7 @@ export function SoftwareView({
         {tab === "line" && <Line software={s} />}
         {tab === "record" && <RecordView softwareId={s.id} />}
         {tab === "report" && <ReportView softwareId={s.id} />}
-        {tab === "intake" && <IntakeView softwareId={s.id} />}
+        {tab === "intake" && <IntakeView softwareId={s.id} copyNotReady={copyNotReady} />}
       </div>
     </div>
   );

@@ -164,3 +164,14 @@ export function setExisting(db: Database, softwareId: string, change: ExistingCh
     });
   }
 }
+
+/** Plain words for why nothing can be said or sent back yet, when the copy is not ready. */
+export function copyNotReady(existing: ExistingSoftware | undefined): string | undefined {
+  if (existing?.status === "copying") {
+    return "premise is still copying this software into its own folder. Try again once the copy is ready.";
+  }
+  if (existing?.status === "copy-failed") {
+    return 'premise could not copy this software, so nothing was taken on. Use "Bring in software you already have" to bring it in again.';
+  }
+  return undefined;
+}
