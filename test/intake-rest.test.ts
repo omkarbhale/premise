@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { ScriptRule } from "../src/agents/scripted-agent.js";
 import { FixtureIssueSource } from "../src/intake/issues.js";
 import { readShortList } from "../src/intake/triage.js";
@@ -500,6 +500,45 @@ describe("readings that lead somewhere", () => {
     expect(second.status).toBeGreaterThanOrEqual(400);
     await app.settle();
     expect((await openAsks(app, id)).filter((a) => a.stage === "why")).toHaveLength(1);
+  });
+});
+
+describe("going back to Why when Why does not start", () => {
+  it("says so in the conversation, clears the mark and lets the operator try again", async () => {
+    const app = await testApp(
+      { PREMISE_INTAKE__READING_HELD_COUNT: "2" },
+      {
+        script: script(
+          triager(() => routed("opinion", "held")),
+          reader((held) => ({
+            recurring: [{ line: "It is not useful", items: refs(held, () => true) }],
+            purpose: "People may not need it.",
+            back_to_why: "yes",
+            not_wanted: refs(held, () => true),
+          })),
+        ),
+      },
+    );
+    const id = await runningSoftware(app);
+    await say(app, id, "Not useful to me");
+    await say(app, id, "Not useful to anyone I know");
+    const reading = (await intake(app, id)).readings[0]!;
+    const spy = vi
+      .spyOn(app.session.line, "backToWhy")
+      .mockRejectedValueOnce(new Error("the line is busy"));
+    const first = await app.call("POST", `/api/readings/${reading.id}/back-to-why`);
+    expect(first.status, JSON.stringify(first.body)).toBe(200);
+    await app.settle();
+    expect((await chat(app, id)).some((t) => t.includes("did not start (the line is busy)"))).toBe(
+      true,
+    );
+    expect((await intake(app, id)).readings[0]!.sentBack).toBe(false);
+    spy.mockRestore();
+    const retry = await app.call("POST", `/api/readings/${reading.id}/back-to-why`);
+    expect(retry.status, JSON.stringify(retry.body)).toBe(200);
+    await app.settle();
+    expect((await openAsks(app, id)).filter((a) => a.stage === "why")).toHaveLength(1);
+    expect((await intake(app, id)).readings[0]!.sentBack).toBe(true);
   });
 });
 

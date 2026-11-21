@@ -1147,7 +1147,7 @@ export class Intake implements IntakeHooks {
           addChatMessage(this.db, {
             softwareId,
             author: "premise",
-            text: `Going back to Why did not start (${err instanceof Error ? err.message : String(err)}). Nothing changed; you can try again from the Intake tab.`,
+            text: `Going back to Why did not start (${err instanceof Error ? err.message : String(err)}). The Why conversation did not begin; you can try again from the Intake tab.`,
           });
         }),
     );
