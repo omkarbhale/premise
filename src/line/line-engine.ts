@@ -176,7 +176,7 @@ import {
   scopeTiers,
   scopeWords,
 } from "./scope.js";
-import { nativeDependencyProblems, planProblems, waitAfterFirst } from "./plan-checks.js";
+import { dependencyProblems, planProblems, waitAfterFirst } from "./plan-checks.js";
 import { StandInWholeCheck, type WholeCheck } from "./whole-check.js";
 import {
   type SizedBy,
@@ -321,11 +321,6 @@ interface LineState extends ItemNotes {
   repositoryName?: string;
   /** When premise asks about a change before building it, chosen for this software (0274). */
   changeQuestions?: ChangeQuestions;
-  /**
-   * The person chose against premise's recommendation and gave no reason on the card: their next
-   * chat message is taken as it (decision 0300).
-   */
-  overrule?: { recommended: string; chosen: string; stage: string };
 }
 
 interface StoredPlan {
@@ -3890,7 +3885,7 @@ export class LineEngine implements IntakeLine {
       out.push(item);
     }
     // A choice the person made against premise's recommendation comes first, so it can be struck
-    // (decision 0300): their why when they gave it, or that they have not said why yet.
+    // (decision 0300): their why when they gave it, or that none was given.
     const first: DraftItem[] = [];
     for (const y of record.filter((i) => i.kind === "Y" && OVERRULE_LINE.test(i.text))) {
       first.push({
@@ -3899,17 +3894,6 @@ export class LineEngine implements IntakeLine {
         text: y.text,
         from: OPERATOR,
         refs: [y.id],
-      });
-    }
-    const pending = this.state(id).overrule;
-    const outcome = record.filter((i) => i.kind === "E" && /^Outcome:/.test(i.text)).at(-1);
-    if (pending && outcome) {
-      first.push({
-        key: `overrule-${outcome.id}`,
-        kind: "E",
-        text: `You chose "${pending.chosen}", not premise's recommendation "${pending.recommended}", and have not said why yet: say it in the chat`,
-        from: OPERATOR,
-        refs: [outcome.id],
       });
     }
     const firstRefs = new Set(first.flatMap((f) => f.refs ?? []));
@@ -4187,19 +4171,10 @@ export class LineEngine implements IntakeLine {
         const alternative =
           typeof ask.extra.meta?.alternative === "string" ? ask.extra.meta.alternative : "";
         // A choice against premise's recommendation keeps the person's why (decision 0300): from
-        // the card's reason box, from their own words when they wrote an answer, or else from their
-        // next chat message.
+        // the card's reason box; with the box empty it is kept as "no reason given".
         const recommended = ask.extra.bestAttempt;
         const overruled = isOverrule(recommended, text);
-        const ownWords = !(ask.extra.choices ?? []).some(
-          (c) => c.toLowerCase() === text.toLowerCase(),
-        );
-        const why =
-          answer.kind === "text" && answer.reason?.trim()
-            ? answer.reason.trim()
-            : ownWords && text.split(/\s+/).length >= 4
-              ? text
-              : "";
+        const why = answer.kind === "text" ? (answer.reason?.trim() ?? "") : "";
         this.land(
           id,
           [
@@ -4213,18 +4188,9 @@ export class LineEngine implements IntakeLine {
           ],
           "The operator decided what to do about what already exists.",
         );
-        const kept = overruled && why ? this.keepOverrule(id, recommended!, text, why) : null;
+        const kept = overruled ? this.keepOverrule(id, recommended!, text, why) : null;
         return () => {
           if (kept) this.overruleNoted(id, kept);
-          if (overruled && !why) {
-            this.setState(id, {
-              overrule: { recommended: recommended!, chosen: text, stage: "exists" },
-            });
-            this.premiseSays(
-              id,
-              `You chose "${text}", not premise's recommendation "${recommended}". In one line, why? Write it in the chat: premise keeps it in the record as your reason, puts it first when it says back what it understood, and learns from it.`,
-            );
-          }
           const item = this.active(id);
           if (notBuild && item.parentId !== null) {
             this.premiseSays(
@@ -4457,12 +4423,12 @@ export class LineEngine implements IntakeLine {
     const [item] = this.land(
       softwareId,
       [{ op: "add", kind: "Y", text: overruleLine(recommended, chosen, why), from: OPERATOR }],
-      "The operator chose against premise's recommendation and said why.",
+      "The operator chose against premise's recommendation.",
     );
     return { recommended, chosen, why, item: item ?? null };
   }
 
-  /** An overrule is recorded once its why is known: for the report and for learning (0300). */
+  /** An overrule is noted for the report and for learning (0300). */
   private overruleNoted(
     softwareId: string,
     kept: { recommended: string; chosen: string; why: string; item: string | null },
@@ -4476,7 +4442,7 @@ export class LineEngine implements IntakeLine {
     });
     return this.premiseSays(
       softwareId,
-      `Kept as your reason${kept.item ? ` (${kept.item})` : ""}: ${kept.why} It comes first when premise says back what it understood, so you can still strike it.`,
+      `${kept.why ? `Kept as your reason${kept.item ? ` (${kept.item})` : ""}: ${kept.why}` : `Kept as an overrule with no reason given${kept.item ? ` (${kept.item})` : ""}.`} It comes first when premise says back what it understood, so you can still strike it.`,
     );
   }
 
@@ -4794,7 +4760,6 @@ export class LineEngine implements IntakeLine {
     const id = software.id;
     const plan = this.readPlan(id) ?? { decisions: [], milestones: [], tasks: [] };
     const corrected = applyAnswers(items, answer.kind === "items" ? answer.items : []);
-    const conditionAnswers = this.conditionEffects(id, plan, ask, answer);
     if (corrected.keep.length === 0) {
       throw new ServiceError(
         "INVALID",
@@ -4838,6 +4803,7 @@ export class LineEngine implements IntakeLine {
       "The operator confirmed the plan's milestones.",
     );
     const milestoneIds = assigned.slice(decisions.length).filter((x): x is string => Boolean(x));
+    const conditionAnswers = this.conditionEffects(id, plan, ask, answer);
     return () => {
       this.setState(id, { proposed: undefined });
       for (const line of conditionAnswers) this.premiseSays(id, line);
@@ -4912,16 +4878,18 @@ export class LineEngine implements IntakeLine {
     }
     if (checkFirst.length > 0 && plan.tasks.length > 0) {
       const [first, ...rest] = plan.tasks;
+      const already = first!.check ?? "";
       const before = checkFirst
         .map(
           (c) =>
             `First check whether ${c.replace(/[.\s]+$/, "")}, before building on it, and say what you found in task_finish; if it does not hold, say so plainly and build what you can.`,
         )
+        .filter((line) => !already.includes(line))
         .join(" ");
       this.writePlan(softwareId, {
         ...plan,
         tasks: [
-          { ...first!, check: `${before}${first!.check ? ` ${first!.check}` : ""}` },
+          before ? { ...first!, check: `${before}${already ? ` ${already}` : ""}` } : first!,
           ...rest,
         ],
       });
@@ -5292,25 +5260,6 @@ export class LineEngine implements IntakeLine {
         return { said, reply };
       });
     }
-    const pending = this.state(softwareId).overrule;
-    if (pending) {
-      // The person chose against premise's recommendation without saying why on the card: this
-      // message is the why (decision 0300).
-      const kept = this.keepOverrule(softwareId, pending.recommended, pending.chosen, text);
-      const result = transaction(this.db, () => {
-        this.setState(softwareId, { overrule: undefined });
-        const said = addChatMessage(this.db, {
-          softwareId,
-          author: "person",
-          text,
-          routedTo: kept.item ? `record:${kept.item}` : null,
-        });
-        const reply = this.overruleNoted(softwareId, kept);
-        return { said, reply };
-      });
-      this.queue.tick();
-      return result;
-    }
     const result = transaction(this.db, () => {
       const draft = this.openDraft(softwareId, software.currentStage);
       if (draft) {
@@ -5524,7 +5473,7 @@ export class LineEngine implements IntakeLine {
       );
       if (wrongMusts.length)
         return toolFail("MALFORMED", "A decision's condition names the wrong items.", wrongMusts);
-      const native = nativeDependencyProblems(ds, this.config.line.native_dependencies);
+      const native = dependencyProblems(ds);
       if (native.length)
         return toolFail("MALFORMED", "A decision needs to say how it installs.", native);
       if (milestones.length === 0) {

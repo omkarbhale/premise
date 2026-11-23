@@ -553,7 +553,8 @@ function QuestionAnswer({ ask, busy, onSend }: AnswerProps) {
         <>
           <label htmlFor={reasonId} className="small">
             If you choose something other than premise's recommendation, say why in one line.
-            premise keeps it in the record; if you leave this empty, it asks in the chat.
+            premise keeps it in the record; if you leave this empty, it keeps your choice as an
+            overrule with no reason given.
           </label>
           <input
             id={reasonId}

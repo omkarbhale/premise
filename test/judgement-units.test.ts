@@ -10,13 +10,14 @@ import {
   outcomeFromWords,
   overruleLine,
 } from "../src/line/exists-outcomes.js";
-import { nativeDependencyProblems } from "../src/line/plan-checks.js";
+import { readDraftItems } from "../src/line/draft-items.js";
+import { dependencyProblems } from "../src/line/plan-checks.js";
 import { isHedged, keepsHedge, unsureSentences } from "../src/shared/hedges.js";
 import { tempFolder } from "./helpers.js";
 
 /**
  * The small parts behind the judgement fixes from the first real runs (decision 0300): the choices
- * at What exists, overrules, hedges, native dependencies, checking a program agents need, and
+ * at What exists, overrules, hedges, dependencies that need a compiler, checking a program agents need, and
  * reading a page in parts.
  */
 
@@ -83,6 +84,12 @@ describe("the choices at What exists say what they mean", () => {
     expect(answerOutcome("something of my own")).toBe("own");
   });
 
+  it("keeps an overrule with no reason as 'no reason given'", () => {
+    expect(overruleLine("Do not build: use x", "Build it", "  ")).toBe(
+      'Overruled: no reason given. premise recommended "Do not build: use x"; the operator chose "Build it".',
+    );
+  });
+
   it("keeps an overrule as a record line without the marks' parentheses", () => {
     const line = overruleLine(
       "Do not build: use ccusage",
@@ -110,26 +117,44 @@ describe("hedges", () => {
   });
 });
 
-describe("native dependencies", () => {
-  const natives = ["better-sqlite3", "sqlite3", "bcrypt"];
-  it("asks how a native package installs without a compiler", () => {
-    const problems = nativeDependencyProblems(
+describe("dependencies that need a compiler", () => {
+  const dep = (over: object) => ({ name: "better-sqlite3", needsCompiler: true, ...over });
+  it("refuses one needing a compiler unless it says how it installs or names a built-in", () => {
+    const problems = dependencyProblems([
+      { dependencies: [dep({})] },
+      { dependencies: [dep({ installs: "prebuilt binaries for this platform" })] },
+      { dependencies: [dep({ builtinAlternative: "node:sqlite" })] },
+      { dependencies: [dep({ name: "left-pad", needsCompiler: false })] },
+      {},
+    ]);
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toMatch(/^Decision 1 adds better-sqlite3/);
+    expect(problems[0]).toContain("node:sqlite");
+  });
+
+  it("reads the dependencies a drafted decision lists, and never scans its words", () => {
+    const [item] = readDraftItems(
       [
         {
-          text: "Store usage in SQLite through better-sqlite3. Reason: fast. Rejected: JSON files.",
+          kind: "D",
+          text: "Store usage in SQLite through better-sqlite3. Reason: fast. Rejected: JSON.",
+          dependencies: [
+            { name: "better-sqlite3", needs_compiler: "true", installs: "prebuilt binaries" },
+            { installs: "no name" },
+          ],
         },
-        { text: "Use better-sqlite3 with its prebuilt binaries for this platform." },
-        {
-          text: "Use node:sqlite. Reason: built in. Rejected: better-sqlite3, it needs a compiler.",
-        },
-        { text: "Hash with a native addon for speed." },
       ],
-      natives,
+      { defaultKind: "D", allowed: ["D"] },
     );
-    expect(problems).toHaveLength(2);
-    expect(problems[0]).toMatch(/^Decision 1 uses better-sqlite3/);
-    expect(problems[0]).toContain("node:sqlite");
-    expect(problems[1]).toMatch(/^Decision 4 uses a native module/);
+    expect(item!.dependencies).toEqual([
+      { name: "better-sqlite3", needsCompiler: true, installs: "prebuilt binaries" },
+    ]);
+    expect(dependencyProblems([item!])).toEqual([]);
+    const [bare] = readDraftItems(
+      [{ kind: "D", text: "Use better-sqlite3. Reason: x. Rejected: y." }],
+      { defaultKind: "D", allowed: ["D"] },
+    );
+    expect(dependencyProblems([bare!])).toEqual([]);
   });
 });
 
@@ -183,6 +208,27 @@ describe("reading a page in parts", () => {
     expect(privateAddress("10.2.3.4")).toBe(true);
     expect(privateAddress("::1")).toBe(true);
     expect(privateAddress("::ffff:192.168.0.1")).toBe(true);
+    // WHATWG URL writes mapped, compatible and NAT64 forms in hex; all reach the IPv4 inside.
+    for (const hex of [
+      "::ffff:7f00:1",
+      "::ffff:a9fe:a9fe",
+      "::7f00:1",
+      "64:ff9b::a00:1",
+      "fe80::1",
+    ]) {
+      expect(privateAddress(hex), hex).toBe(true);
+    }
+    for (const host of [
+      "[::ffff:7f00:1]",
+      "[::ffff:a9fe:a9fe]",
+      "[::7f00:1]",
+      "[::ffff:127.0.0.1]",
+    ]) {
+      expect(new URL(`http://${host}/`).hostname.length).toBeGreaterThan(0);
+      expect(PageReader.refusal(`http://${host}/`), host).toMatch(/only public pages/);
+    }
+    expect(privateAddress("::ffff:cb00:7107")).toBe(false);
+    expect(privateAddress("2606:4700::1111")).toBe(false);
     expect(privateAddress("203.0.113.7")).toBe(false);
     expect(PageReader.refusal("http://localhost:4610/api")).toMatch(/only public pages/);
     expect(PageReader.refusal("file:///etc/passwd")).toMatch(/only http and https/);
@@ -213,6 +259,28 @@ describe("reading a page in parts", () => {
       state: "failed",
       problem: expect.stringMatching(/only public pages/),
     });
+  });
+
+  it("connects to the address it checked, on every hop", async () => {
+    const connected: string[] = [];
+    let n = 0;
+    const reader = new PageReader({
+      partChars: 1000,
+      resolve: async (host) => [host === "example.org" ? "203.0.113.7" : "198.51.100.9"],
+      fetch: async (url, address) => {
+        connected.push(`${new URL(url).hostname}@${address}`);
+        return n++ === 0
+          ? {
+              status: 302,
+              contentType: "text/html",
+              location: "https://other.example.net/x",
+              body: "",
+            }
+          : { status: 200, contentType: "text/plain", body: "ok" };
+      },
+    });
+    await reader.load("https://example.org/");
+    expect(connected).toEqual(["example.org@203.0.113.7", "other.example.net@198.51.100.9"]);
   });
 
   it("turns a long page into plain text and hands it out in parts", async () => {

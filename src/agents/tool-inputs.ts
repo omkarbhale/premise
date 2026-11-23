@@ -60,6 +60,24 @@ const draftItem = (kinds: string) =>
           who: text(
             'For a D item with a condition a person must meet: the role who can meet it, such as "operator".',
           ),
+          dependencies: list(
+            object(
+              {
+                name: text("The package's name.", { example: "better-sqlite3" }),
+                installs: text(
+                  "How it installs without a compiler, such as prebuilt binaries for this platform.",
+                ),
+                needs_compiler: yesNo(
+                  "Whether installing it needs a compiler or a system library.",
+                ),
+                builtin_alternative: text(
+                  "A built-in that does the job instead, such as node:sqlite.",
+                ),
+              },
+              ["name", "needs_compiler"],
+            ),
+            "For a D item: each dependency the decision adds. premise refuses one that needs a compiler unless it says how it installs without one or names a built-in alternative.",
+          ),
           wait: yesNo("For an M item: whether the work waits for the operator after it."),
           suggestion: yesNo("Whether premise offers it as its own idea."),
           quote: text(

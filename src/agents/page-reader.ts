@@ -1,4 +1,6 @@
 import { lookup } from "node:dns/promises";
+import { request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
 import { isIP } from "node:net";
 
 /**
@@ -20,7 +22,12 @@ export interface FetchedPage {
   location?: string;
   body: string;
 }
-export type PageFetcher = (url: string, signal: AbortSignal) => Promise<FetchedPage>;
+/** Fetches a page, connecting only to `address`: the one premise checked is the one it reaches. */
+export type PageFetcher = (
+  url: string,
+  address: string,
+  signal: AbortSignal,
+) => Promise<FetchedPage>;
 /** Resolves a host name to its addresses; a seam so tests never touch the network. */
 export type HostResolver = (host: string) => Promise<string[]>;
 
@@ -32,6 +39,28 @@ export type PageState =
 const MAX_BYTES = 3_000_000;
 const MAX_REDIRECTS = 5;
 const KEEP = 30;
+
+/** An IPv6 literal as its 16 bytes; null when it is not one. */
+function ipv6Bytes(address: string): number[] | null {
+  let a = address;
+  const zone = a.indexOf("%");
+  if (zone >= 0) a = a.slice(0, zone);
+  const dotted = /(\d+\.\d+\.\d+\.\d+)$/.exec(a);
+  if (dotted) {
+    if (isIP(dotted[1]!) !== 4) return null;
+    const [w, x, y, z] = dotted[1]!.split(".").map(Number) as [number, number, number, number];
+    a = `${a.slice(0, dotted.index)}${((w << 8) | x).toString(16)}:${((y << 8) | z).toString(16)}`;
+  }
+  const halves = a.split("::");
+  if (halves.length > 2) return null;
+  const head = halves[0] ? halves[0].split(":") : [];
+  const tail = halves.length === 2 && halves[1] ? halves[1].split(":") : [];
+  const missing = 8 - head.length - tail.length;
+  if (halves.length === 2 ? missing < 1 : missing !== 0) return null;
+  const groups = [...head, ...Array<string>(halves.length === 2 ? missing : 0).fill("0"), ...tail];
+  if (groups.length !== 8 || groups.some((g) => !/^[0-9a-f]{1,4}$/.test(g))) return null;
+  return groups.flatMap((g) => [Number.parseInt(g, 16) >> 8, Number.parseInt(g, 16) & 255]);
+}
 
 /** Whether an address is this machine, a private network or otherwise not public. */
 export function privateAddress(address: string): boolean {
@@ -50,10 +79,27 @@ export function privateAddress(address: string): boolean {
     );
   }
   if (isIP(a) === 6) {
-    if (a === "::" || a === "::1") return true;
-    const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(a);
-    if (mapped) return privateAddress(mapped[1]!);
-    return /^(fc|fd|fe8|fe9|fea|feb|ff)/.test(a);
+    const b = ipv6Bytes(a);
+    if (!b) return true;
+    const zeros = (n: number) => b.slice(0, n).every((v) => v === 0);
+    const embedded = () => privateAddress(b.slice(12).join("."));
+    if (zeros(10) && b[10] === 255 && b[11] === 255) return embedded();
+    if (zeros(12))
+      return (
+        b.slice(12).every((v) => v === 0) ||
+        (b[15] === 1 && b.slice(12, 15).every((v) => v === 0)) ||
+        embedded()
+      );
+    if (
+      b[0] === 0 &&
+      b[1] === 0x64 &&
+      b[2] === 0xff &&
+      b[3] === 0x9b &&
+      b.slice(4, 12).every((v) => v === 0)
+    ) {
+      return embedded();
+    }
+    return (b[0]! & 0xfe) === 0xfc || (b[0] === 0xfe && (b[1]! & 0xc0) === 0x80) || b[0] === 0xff;
   }
   return false;
 }
@@ -88,38 +134,51 @@ export function pageText(body: string, contentType: string): string {
     .trim();
 }
 
-async function realFetch(url: string, signal: AbortSignal): Promise<FetchedPage> {
-  const res = await fetch(url, {
-    signal,
-    redirect: "manual",
-    headers: { "user-agent": "premise page reader", accept: "text/html, text/plain, */*" },
-  });
-  const location = res.headers.get("location") ?? undefined;
-  let body = "";
-  if (res.status < 300 || res.status >= 400) {
-    const reader = res.body?.getReader();
-    const decoder = new TextDecoder();
-    let size = 0;
-    if (reader) {
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        size += value.byteLength;
-        body += decoder.decode(value, { stream: true });
-        if (size > MAX_BYTES) {
-          await reader.cancel();
-          break;
+function realFetch(url: string, address: string, signal: AbortSignal): Promise<FetchedPage> {
+  const target = new URL(url);
+  const request = target.protocol === "https:" ? httpsRequest : httpRequest;
+  const family = isIP(address.replace(/^\[|\]$/g, "")) === 6 ? 6 : 4;
+  return new Promise<FetchedPage>((resolve, reject) => {
+    const req = request(
+      target,
+      {
+        signal,
+        headers: { "user-agent": "premise page reader", accept: "text/html, text/plain, */*" },
+        lookup: (_host, options, done) => {
+          const ip = address.replace(/^\[|\]$/g, "");
+          if ((options as { all?: boolean }).all) {
+            (done as unknown as (e: null, a: { address: string; family: number }[]) => void)(null, [
+              { address: ip, family },
+            ]);
+          } else done(null, ip, family);
+        },
+      },
+      (res) => {
+        const status = res.statusCode ?? 0;
+        const location = res.headers.location;
+        const contentType = String(res.headers["content-type"] ?? "");
+        const done = (body: string) =>
+          resolve({ status, contentType, ...(location && { location }), body });
+        if (status >= 300 && status < 400) {
+          res.resume();
+          done("");
+          return;
         }
-      }
-      body += decoder.decode();
-    }
-  }
-  return {
-    status: res.status,
-    contentType: res.headers.get("content-type") ?? "",
-    ...(location && { location }),
-    body,
-  };
+        const decoder = new TextDecoder();
+        let body = "";
+        let size = 0;
+        res.on("data", (chunk: Buffer) => {
+          size += chunk.byteLength;
+          body += decoder.decode(chunk, { stream: true });
+          if (size > MAX_BYTES) res.destroy();
+        });
+        res.on("close", () => done(body + decoder.decode()));
+        res.on("error", () => done(body));
+      },
+    );
+    req.on("error", reject);
+    req.end();
+  });
 }
 
 async function realResolve(host: string): Promise<string[]> {
@@ -206,14 +265,15 @@ export class PageReader {
       const refused = PageReader.refusal(url);
       if (refused) throw new Error(refused);
       const host = new URL(url).hostname;
-      const addresses = isIP(host.replace(/^\[|\]$/g, "")) ? [host] : await resolve(host);
+      const bare = host.replace(/^\[|\]$/g, "");
+      const addresses = isIP(bare) ? [bare] : await resolve(host);
       if (addresses.length === 0 || addresses.some(privateAddress)) {
         throw new Error(
           "premise reads only public pages, never this machine or a private network.",
         );
       }
       const signal = AbortSignal.timeout(this.options.timeoutMs ?? 20_000);
-      const page = await fetcher(url, signal);
+      const page = await fetcher(url, addresses[0]!, signal);
       if (page.status >= 300 && page.status < 400 && page.location) {
         url = new URL(page.location, url).toString();
         continue;

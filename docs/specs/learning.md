@@ -18,7 +18,7 @@ A correction is something a person does that says premise got something wrong:
 - sending work back to an earlier stage;
 - undoing a split;
 - a bug coming in against something premise's check said worked (a checker miss, from the [measures](measures.md));
-- choosing against premise's recommendation at What exists, once the person's one line of why is known (an overrule, read like a rejected draft, with that why as what they said) ([0300](../decisions/0300-judgement-fixes-from-the-first-real-runs.md));
+- choosing against premise's recommendation at What exists, (an overrule, read like a rejected draft, with the one line of why they gave as what they said, if any) ([0300](../decisions/0300-judgement-fixes-from-the-first-real-runs.md));
 
 premise notices each one from what it already records, within a second or so. Nothing else is needed from the person.
 

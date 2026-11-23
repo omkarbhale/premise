@@ -600,28 +600,6 @@ export const SETTINGS: readonly Setting[] = [
     record: "0273",
   },
   {
-    key: "line.native_dependencies",
-    default: [
-      "better-sqlite3",
-      "sqlite3",
-      "bcrypt",
-      "argon2",
-      "sharp",
-      "canvas",
-      "node-gyp",
-      "node-sass",
-      "re2",
-      "psycopg2",
-      "mysqlclient",
-      "lxml",
-      "pycairo",
-    ],
-    check: summarised(textList, "a list of package names"),
-    meaning:
-      "Packages that build native code when installed. A plan decision naming one must say how it installs without a compiler (for example prebuilt binaries), or the planner picks a built-in instead: in the first real runs such a build failed in every sandbox.",
-    record: "0300",
-  },
-  {
     key: "line.estimate_minutes_per_session",
     default: 3,
     check: summarised(wholeNumber(1, 120), "1 to 120"),
@@ -1061,7 +1039,6 @@ export interface PremiseConfig {
     wait_after_asked: boolean;
     change_questions: "every-change" | "when-it-matters" | "never" | null;
     change_max_tasks: number;
-    native_dependencies: string[];
     estimate_minutes_per_session: number;
     estimate_items_per_build: number;
     budgets: Record<BudgetGroup, Record<"small" | "medium" | "large", StageBudget>>;

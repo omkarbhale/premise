@@ -174,24 +174,22 @@ describe("What exists: plain choices, and an overrule keeps its why", () => {
     expect(sayBack.items.filter((i) => i.refs?.includes(overrule.id))).toHaveLength(1);
   });
 
-  it("asks for the why in the chat when the box was left empty, and takes the next message as it", async () => {
+  it("records an overrule with no reason given when the box is empty, and a later chat message is ordinary chat", async () => {
     const app = await testApp({ PREMISE_LINE__REMOTE: "none" }, { script: rules(somethingExists) });
     const id = await start(app);
     const exists = await toExists(app, id);
     await answer(app, exists, { kind: "text", text: "Build it on top of ccusage" });
-    const said = (await chat(app, id)).join("\n");
-    expect(said).toContain(
-      'You chose "Build it on top of ccusage", not premise\'s recommendation "Do not build: use ccusage". In one line, why?',
-    );
-    // Not an overrule of its own kind: the same outcome as recommended never asks.
-    const res = await app.call("POST", `/api/softwares/${id}/chat`, {
-      text: "ccusage has the numbers, but not the weekly share I need",
-    });
-    expect(res.status, JSON.stringify(res.body)).toBeLessThan(300);
-    await app.settle();
     const why = await record(app, id, "why.md");
-    expect(why.some((i) => i.text.startsWith("Overruled: ccusage has the numbers"))).toBe(true);
-    // The next message after that is not taken as a reason again.
+    const overrule = why.find((i) => i.text.startsWith("Overruled:"))!;
+    expect(overrule.text).toBe(
+      'Overruled: no reason given. premise recommended "Do not build: use ccusage"; the operator chose "Build it on top of ccusage".',
+    );
+    const said = (await chat(app, id)).join("\n");
+    expect(said).not.toContain("In one line, why?");
+    const event = app.db
+      .prepare("SELECT detail FROM events WHERE module = 'line' AND kind = 'overruled'")
+      .get() as { detail: string };
+    expect(JSON.parse(event.detail)).toMatchObject({ why: "", item: overrule.id });
     await app.call("POST", `/api/softwares/${id}/chat`, { text: "Also, make it dark." });
     await app.settle();
     expect(
@@ -382,6 +380,36 @@ describe("a must that works only under a condition is shown before building", ()
       .prepare("SELECT kind FROM events WHERE module = 'line' AND kind = 'condition-unmet'")
       .get();
     expect(event).toBeTruthy();
+  });
+
+  it("changes nothing when the milestones answer is refused", async () => {
+    const app = await testApp({ PREMISE_LINE__REMOTE: "none" }, { script: rules(conditional) });
+    const id = await start(app);
+    const milestones = await toMilestones(app, id);
+    const planFile = join(app.folder, "plans", id, "plan.json");
+    const before = readFileSync(planFile, "utf8");
+    const res = await answer(app, milestones, {
+      kind: "items",
+      items: milestones.items.map((i) =>
+        i.condition
+          ? { key: i.key, decision: "strike", reason: "no" }
+          : { key: i.key, decision: "strike" },
+      ),
+    });
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(readFileSync(planFile, "utf8")).toBe(before);
+    expect((await record(app, id, "what.md")).some((i) => i.status === "struck")).toBe(false);
+    const check = milestones.items.find((i) => i.condition)!;
+    const retry = await answer(app, milestones, {
+      kind: "items",
+      items: milestones.items.map((i) =>
+        i.key === check.key ? { key: i.key, decision: "check" } : { key: i.key, decision: "keep" },
+      ),
+    });
+    expect(retry.status, JSON.stringify(retry.body)).toBe(200);
+    const plan = JSON.parse(readFileSync(planFile, "utf8")) as { tasks: { check?: string }[] };
+    const first = plan.tasks[0]!.check!;
+    expect(first.match(/First check whether/g)).toHaveLength(1);
   });
 
   it("strikes the must when the person strikes the condition", async () => {
@@ -632,7 +660,7 @@ describe("the plan's costly choices", () => {
     expect(said).toContain("The reviewer looked at 2 costly choices and agreed with all of them.");
   });
 
-  it("refuses a decision on a native package that does not say how it installs without a compiler", async () => {
+  it("refuses a dependency that needs a compiler and does not say how it installs without a compiler", async () => {
     const seen: ToolEnvelope[] = [];
     const native = planWith((call) => {
       seen.push(
@@ -642,7 +670,8 @@ describe("the plan's costly choices", () => {
             {
               kind: "D",
               foundation: true,
-              text: "It stores usage in SQLite through better-sqlite3. Reason: fast. Rejected: plain JSON files.",
+              text: "It stores usage in SQLite. Reason: fast. Rejected: plain JSON files.",
+              dependencies: [{ name: "better-sqlite3", needs_compiler: true }],
             },
           ],
           milestones: [{ text: "m" }],
@@ -655,7 +684,9 @@ describe("the plan's costly choices", () => {
     const id = await start(app);
     await toMilestones(app, id);
     expect(seen[0]).toMatchObject({ ok: false, error: { code: "MALFORMED" } });
-    expect(seen[0]!.diagnostics[0]).toMatch(/uses better-sqlite3, which builds native code/);
+    expect(seen[0]!.diagnostics[0]).toMatch(
+      /adds better-sqlite3, which needs a compiler or a system library/,
+    );
     expect(seen[0]!.diagnostics[0]).toContain("node:sqlite");
   });
 });

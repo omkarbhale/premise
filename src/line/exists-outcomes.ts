@@ -136,7 +136,7 @@ export function isOverrule(recommended: string | undefined, answer: string): boo
 
 /** The record line that keeps an overrule and its why, as a Why item from the person. */
 export function overruleLine(recommended: string, chosen: string, why: string): string {
-  return `Overruled: ${cut(why, 300)}. premise recommended "${cut(recommended, 80)}"; the operator chose "${cut(chosen, 120)}".`;
+  return `Overruled: ${why.trim() ? cut(why, 300) : "no reason given"}. premise recommended "${cut(recommended, 80)}"; the operator chose "${cut(chosen, 120)}".`;
 }
 
 /** Whether a record line is an overrule kept by {@link overruleLine}. */

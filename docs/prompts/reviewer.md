@@ -90,7 +90,7 @@ Working copy (existing software only): {{working_copy}}
 Do this:
 1. Check the decision against the record: does it serve the Why, the users and the must items? Does it fit how the software must run (run.md, if one exists)?
 2. Check it against the security defaults: does it make any of them hard to keep?
-3. Check the rejected alternative: was a clearly better common option missed? Use what the look at what exists found; do not research further. A dependency that builds native code (it needs a compiler to install) is a cost in premise's sandboxes, which have none: object unless the decision says how it installs without one, or a built-in would do.
+3. Check the rejected alternative: was a clearly better common option missed? Use what the look at what exists found; do not research further. A dependency that builds native code (it needs a compiler to install) is a cost in premise's sandboxes, which have none: object unless the decision's "dependencies" say how it installs without one, or name a built-in that would do.
 4. Ask: if this is wrong, what does it cost later? A choice that is cheap to change needs little; one that every later task builds on needs a clear reason.
 5. Agree, or object with your reasons in a few items. Do not propose a different decision as if it were made; the planner decides.
 6. Submit with review_submit and end with task_finish.

@@ -15,6 +15,14 @@ import { SIZE_CLASSES, type SizeClass } from "../shared/stages.js";
  * a draft is accepted leniently: a leading ID or prefix and trailing marks are read, not required.
  */
 
+/** A dependency a decision adds, and whether it needs a compiler or a system library to install. */
+export interface DraftDependency {
+  name: string;
+  installs?: string;
+  needsCompiler: boolean;
+  builtinAlternative?: string;
+}
+
 /** One drafted item, with what the record needs beyond its words. */
 export interface DraftItem {
   key: string;
@@ -51,6 +59,8 @@ export interface DraftItem {
   must?: string[];
   /** For a D item with a condition a person must meet: the role who can meet it. */
   who?: string;
+  /** For a D item: each dependency it adds (decision 0300). */
+  dependencies?: DraftDependency[];
 }
 
 /** The words a decision's condition is kept under in the record, for the checker to judge it. */
@@ -194,6 +204,24 @@ export function readDraftItems(
             .filter((m) => /^W-\d+$/.test(m))
         : [];
     const who = condition ? str(value.who) : undefined;
+    const dependencies: DraftDependency[] =
+      kind === "D" && Array.isArray(value.dependencies)
+        ? value.dependencies.flatMap((entry): DraftDependency[] => {
+            const v = (entry && typeof entry === "object" ? entry : {}) as Record<string, unknown>;
+            const name = str(v.name);
+            if (!name) return [];
+            const installs = str(v.installs);
+            const alternative = str(v.builtin_alternative);
+            return [
+              {
+                name: oneLine(name).slice(0, 100),
+                needsCompiler: v.needs_compiler === true || v.needs_compiler === "true",
+                ...(installs && { installs: oneLine(installs).slice(0, 300) }),
+                ...(alternative && { builtinAlternative: oneLine(alternative).slice(0, 100) }),
+              },
+            ];
+          })
+        : [];
     items.push({
       key: `k${i + 1}`,
       text,
@@ -213,6 +241,7 @@ export function readDraftItems(
       ...(condition && { condition: oneLine(condition).slice(0, 300) }),
       ...(must.length > 0 && { must }),
       ...(who && { who: who.slice(0, 60) }),
+      ...(dependencies.length > 0 && { dependencies }),
     });
   });
   if (problems.length) throw new DraftError(problems);

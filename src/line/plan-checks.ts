@@ -1,3 +1,4 @@
+import type { DraftDependency } from "./draft-items.js";
 import type { ScopeChoice } from "./scope.js";
 
 /**
@@ -87,34 +88,22 @@ export function waitAfterFirst(
     .every((t) => !t.items.some((id) => asked.has(id)));
 }
 
-/** Words that say how a native package installs without a compiler. */
-const INSTALLS_WITHOUT_COMPILER =
-  /\b(prebuilt|pre-built|without a compiler|no compiler|binary wheels?|wheels? for|ships? (a |its )?binar|--ignore-scripts|precompiled|pre-compiled)\b/i;
-
 /**
- * A plan decision that names a package which builds native code must say how it installs without a
- * compiler, or the planner picks a built-in (decision 0300). Returns one problem per decision.
+ * A plan decision that adds a dependency needing a compiler or a system library must say how it
+ * installs without one, or name a built-in alternative (decision 0300). Returns one problem per
+ * such dependency.
  */
-export function nativeDependencyProblems(
-  decisions: readonly { text: string }[],
-  natives: readonly string[],
+export function dependencyProblems(
+  decisions: readonly { dependencies?: readonly DraftDependency[] }[],
 ): string[] {
   const problems: string[] = [];
   decisions.forEach((d, n) => {
-    // What a decision rejects is not used, so only the words before "Rejected:" count.
-    const chosen = d.text.split(/\brejected\s*:/i)[0] ?? d.text;
-    const named = natives.find((pkg) =>
-      new RegExp(
-        `(^|[^a-z0-9-])${pkg.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^a-z0-9-]|$)`,
-        "i",
-      ).test(chosen),
-    );
-    const native =
-      named ?? (/\bnative (module|addon|extension)\b/i.test(chosen) ? "a native module" : null);
-    if (!native || INSTALLS_WITHOUT_COMPILER.test(d.text)) return;
-    problems.push(
-      `Decision ${n + 1} uses ${native}, which builds native code when it is installed; in the first real runs such a build failed in every sandbox, which has no compiler. Say in the decision how it installs without a compiler (for example "prebuilt binaries for this platform", or "npm ci --ignore-scripts with the shipped binary"), or choose something built in, such as node:sqlite.`,
-    );
+    for (const dep of d.dependencies ?? []) {
+      if (!dep.needsCompiler || dep.installs || dep.builtinAlternative) continue;
+      problems.push(
+        `Decision ${n + 1} adds ${dep.name}, which needs a compiler or a system library to install; in the first real runs such a build failed in every sandbox, which has no compiler. Say in "installs" how it installs without a compiler (for example "prebuilt binaries for this platform", or "npm ci --ignore-scripts with the shipped binary"), or name a built-in alternative in "builtin_alternative", such as node:sqlite.`,
+      );
+    }
   });
   return problems;
 }
