@@ -332,6 +332,28 @@ describe("Ctrl+C", () => {
     expect(exits).toEqual([0]);
   });
 
+  it("`premise stop` while already stopping changes nothing and says how to stop now", async () => {
+    const fake = fakeTarget([aJob(1), aJob(2)]);
+    const said: string[] = [];
+    const exits: number[] = [];
+    const controller = new StopController(fake.target, {
+      print: (l) => said.push(l),
+      exit: (c) => exits.push(c),
+      softwareName: () => "x",
+    });
+    controller.requestClean();
+    await new Promise((r) => setTimeout(r, 5));
+    controller.requestClean();
+    controller.requestClean();
+    await new Promise((r) => setTimeout(r, 5));
+    expect(controller.phase).toBe("stopping");
+    expect(fake.log).toEqual(["stopping"]);
+    expect(exits).toEqual([]);
+    expect(said.join("\n")).toContain(
+      "premise is already stopping: waiting for 2 sessions to finish. To stop now, run premise stop --now",
+    );
+  });
+
   it("a termination request stops now", async () => {
     const fake = fakeTarget([aJob(1)]);
     const exits: number[] = [];

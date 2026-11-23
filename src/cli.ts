@@ -133,6 +133,7 @@ async function main(argv: string[]): Promise<number> {
       // Ctrl+C once: pause, let running work finish, stop. Twice: stop now. A termination request
       // or the terminal closing stops now, which is always safe.
       process.on("SIGINT", () => controller.interrupt());
+      if (process.platform !== "win32") process.on("SIGUSR2", () => controller.requestClean());
       process.on("SIGTERM", () => controller.terminate());
       process.on("SIGHUP", () => controller.terminate());
       return -1;

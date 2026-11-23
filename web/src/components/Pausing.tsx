@@ -190,7 +190,8 @@ export function PauseBanner({ pause }: { pause: PauseView }) {
             disabled={busy}
             onClick={() => void run(() => api.pauseEverything("stop-now"))}
           >
-            Stop what is still running now
+            Stop it now: the {plural(finishing.length, "running session")}{" "}
+            {finishing.length === 1 ? "is" : "are"} cut off and their work is redone later
           </button>
         )}
       </div>

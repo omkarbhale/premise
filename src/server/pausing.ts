@@ -52,7 +52,7 @@ export class Pausing implements PauseService {
     }
     const start =
       status.cause === "setting"
-        ? "premise started paused, because the queue.start_paused setting is on. Nothing runs until you press Resume."
+        ? "premise started paused. Nothing runs until you press Resume."
         : "Everything is paused. Nothing new starts in any software.";
     if (running > 0) {
       return `${start} ${finishing}; it is safe to close premise once they end. Questions can still be answered.`;

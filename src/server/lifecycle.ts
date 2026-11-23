@@ -106,7 +106,10 @@ export async function requestStop(options: {
     return { outcome: "not-running" };
   }
   try {
-    process.kill(found.pid, options.now ? "SIGTERM" : "SIGINT");
+    process.kill(
+      found.pid,
+      options.now ? "SIGTERM" : process.platform === "win32" ? "SIGINT" : "SIGUSR2",
+    );
   } catch {
     options.print(
       `premise (process ${found.pid}) could not be asked to stop. Press Ctrl+C in the terminal where it runs instead.`,
@@ -119,7 +122,7 @@ export async function requestStop(options: {
     );
   } else {
     options.print(
-      "Asked premise to stop. It starts nothing new and ends once the running work finishes; its own terminal says what it is waiting for. To stop at once instead, run: premise stop --now",
+      "Asked premise to stop. It starts nothing new and ends once the running work finishes; its own terminal says what it is waiting for. Asking again changes nothing. To stop at once instead, run: premise stop --now",
     );
   }
   if (options.wait === false) return { outcome: "stopped", pid: found.pid };
@@ -218,6 +221,20 @@ export class StopController {
   interrupt(): void {
     if (this.state === "running") void this.clean();
     else void this.now();
+  }
+
+  /**
+   * `premise stop` without --now: a clean stop that never escalates. Asked while already stopping,
+   * it changes nothing and says what is awaited and how to stop now.
+   */
+  requestClean(): void {
+    if (this.state === "running") void this.clean();
+    else if (this.state === "stopping") {
+      const jobs = this.target.stillRunning();
+      this.options.print(
+        `\npremise is already stopping: waiting for ${jobs.length} ${jobs.length === 1 ? "session" : "sessions"} to finish. To stop now, run premise stop --now`,
+      );
+    }
   }
 
   /** A request to end (the system, or the terminal closing): stop now; it is safe. */

@@ -104,9 +104,20 @@ describe("the paused banner", () => {
     expect(screen.getByText(/Writing the first screen/)).toBeTruthy();
     expect(screen.getByText("Not safe to close yet:")).toBeTruthy();
     expect(screen.getByText(/Notes\) stops when premise stops/)).toBeTruthy();
-    await user.click(screen.getByRole("button", { name: "Stop what is still running now" }));
+    expect(screen.getByRole("button", { name: "Resume" })).toBeTruthy();
+    await user.click(
+      screen.getByRole("button", {
+        name: "Stop it now: the 1 running session is cut off and their work is redone later",
+      }),
+    );
     expect(api.pauseEverything).toHaveBeenCalledWith("stop-now");
     expect(screen.getByRole("button", { name: "Resume" })).toBeTruthy();
+  });
+
+  it("offers only Resume once everything is paused with nothing running", () => {
+    inSession(<PauseBanner pause={pauseView({ paused: true, cause: "person" })} />);
+    expect(screen.getByRole("button", { name: "Resume" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Stop it now/ })).toBeNull();
   });
 
   it("says it is safe to close when nothing is running, and shows nothing when running", () => {
