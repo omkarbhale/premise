@@ -1235,7 +1235,7 @@ export class BuildCheckRun implements LaterStages {
       ? (job.payload.context as { items: string[] }).items
       : this.checkedItems(id, state);
     const verdicts = this.verdictsOf(job.id);
-    if (verdicts.size === 0 && !askedAgain(job)) {
+    if (items.length > 0 && verdicts.size === 0 && !askedAgain(job)) {
       // No verdict at all: the checker is asked once more, with the exact shape (decision 0275).
       check.job = this.deps.queue.enqueue(againJob(job, "verdict_submit"));
       check.status = "checking";

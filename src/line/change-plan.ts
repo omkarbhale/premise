@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { RecordItem } from "../record/format.js";
 import type { DraftItem } from "./draft-items.js";
@@ -127,6 +127,11 @@ export function readChangePlan(
   } catch {
     return null;
   }
+}
+
+export function removeChangePlan(dataFolder: string, softwareId: string, itemId: number): void {
+  for (const ext of ["json", "md"])
+    rmSync(join(folder(dataFolder, softwareId), `${itemId}.${ext}`), { force: true });
 }
 
 export function writeChangePlan(

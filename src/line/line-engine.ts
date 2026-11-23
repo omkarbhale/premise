@@ -141,6 +141,7 @@ import {
   readChangePlan,
   readChangeSubmission,
   reasonsToAsk,
+  removeChangePlan,
   writeChangePlan,
 } from "./change-plan.js";
 import { RecordWriter, droppedLine } from "./record-writer.js";
@@ -2804,7 +2805,18 @@ export class LineEngine implements IntakeLine {
       this.setState(software.id, { boost: undefined });
       if (stage === "say-back" && why !== "items struck")
         this.setState(software.id, { sayBackRounds: 0 });
-      if (stage === "plan") this.setState(software.id, { review: { round: 0, objections: [] } });
+      if (stage === "plan") {
+        this.setState(software.id, { review: { round: 0, objections: [] } });
+        const change = this.changeOf(item);
+        if (change) {
+          removeChangePlan(this.config.data.folder, software.id, item.id);
+          const notes = this.changeNotes(change);
+          this.setChangeNotes(change, {
+            landedFor: (notes.landedFor ?? []).filter((x) => x !== item.id),
+            decided: undefined,
+          });
+        }
+      }
       this.openRun(software, stage, why);
       if (this.isRecovery(item)) {
         // Taking on an existing software (decision 0189).
@@ -4375,7 +4387,11 @@ export class LineEngine implements IntakeLine {
     const kept = (plan?.decisions ?? []).flatMap((d, i) => {
       const entry = corrected.keep.find((k) => k.item.key === `d${i + 1}`);
       if (!entry) return [];
-      return [entry.edited ? { ...d, text: entry.text, reason: "" } : d];
+      if (!entry.edited) return [d];
+      const shown = this.decisionLine(d);
+      const suffix = shown.slice(d.text.length);
+      const words = entry.text.endsWith(suffix) ? entry.text.slice(0, -suffix.length) : entry.text;
+      return [{ ...d, text: words.trim() || d.text }];
     });
     this.landChangeDecisions(id, change, piece, plan, kept);
     const dropped = (plan?.decisions.length ?? 0) - kept.length;
