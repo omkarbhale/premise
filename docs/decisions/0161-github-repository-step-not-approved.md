@@ -1,6 +1,6 @@
 # 0161. Creating a GitHub repository is an interface with a step that is not approved yet
 
-- Status: Accepted
+- Status: Superseded by [0260](0260-the-real-github-step-is-built-and-each-use-is-asked.md): the real step is built, and each use is asked through the gate
 - Scope: Making premise
 - Date: 2026-11-22
 - Decided by: The builders, following [0141](0141-github-repositories-in-tests-and-behind-the-gate.md) and the build instruction that tests never touch GitHub.

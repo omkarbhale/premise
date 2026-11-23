@@ -17,10 +17,12 @@ import {
   type PerformResult,
   isFloorKind,
 } from "../gate/gate.js";
+import { GitHubCli, type GitHubLogin } from "../git/github.js";
 import {
   GitHubRepositoryHost,
   LocalRepositoryHost,
   RepositoryHostError,
+  validRepositoryName,
 } from "../git/repository-host.js";
 import type { Job, JobKind, WorkQueue } from "../queue/work-queue.js";
 import { applyOperations, type Operation } from "../record/change.js";
@@ -219,6 +221,8 @@ export const EXISTING_OUTCOMES = [
 ] as const;
 const MILESTONE_CHOICES = ["Go on", "Go back to Why"] as const;
 const PROBLEM_CHOICES = ["Try again", "Try again with twice the budget"] as const;
+const TRY_AGAIN = "Try again";
+const KEEP_HERE = "Keep it on this machine";
 
 /** What an ask is for, kept in its meta. */
 type AskPurpose =
@@ -232,6 +236,7 @@ type AskPurpose =
   | "milestone-reached"
   | "start-command"
   | "taste-proposal"
+  | "repository-retry"
   | "agent";
 
 /** The line's notes on one work item, kept with the item. */
@@ -274,6 +279,8 @@ interface LineState extends ItemNotes {
   answers?: string[];
   /** What the operator chose at the scope check (decision 0191); none when it was not needed. */
   scope?: ScopeChoice;
+  /** The name of the GitHub repository premise asked to create (decision 0260). */
+  repositoryName?: string;
 }
 
 interface StoredPlan {
@@ -304,6 +311,13 @@ export interface LineEngineOptions {
   wholeCheck?: WholeCheck;
   /** False while no agent can start; status lines then say why work waits. */
   agentsReady?: () => boolean;
+  /**
+   * True when the agents are real (not scripted, not a scripted demo). Only then does premise act
+   * outside this machine: create a GitHub repository, or push to a repository elsewhere (0260).
+   */
+  realAgents?: () => boolean;
+  /** The GitHub CLI the server uses; from the github settings when not given. */
+  github?: GitHubCli;
   /** Writes the report at each milestone's end and when a software is not built. */
   reporter?: {
     write(
@@ -326,8 +340,10 @@ export class LineEngine implements IntakeLine {
     this.writer = new RecordWriter(options.keeper);
     this.wholeCheck = options.wholeCheck ?? new StandInWholeCheck();
     options.gate.onDecided((request) => this.gateDecided(request));
-    options.gate.registerPerformer("create-repository", (request) =>
-      this.createRemoteRepository(request),
+    options.gate.registerPerformer(
+      "create-repository",
+      (request) => this.createRemoteRepository(request),
+      { onCutOff: (request) => this.repositoryCutOff(request) },
     );
     options.gate.registerPerformer("add-record", (request) => this.addRecordToRepository(request));
   }
@@ -1296,12 +1312,13 @@ export class LineEngine implements IntakeLine {
       card: {
         title: "Add premise's record to your repository?",
         standingLabel: "adding and updating premise's record in your repository",
-        reality: {
-          real: true,
-          text: local
+        reality: this.recordReality(
+          existing,
+          local
             ? `Even when the agents are scripted, approving writes a branch named ${branch} with a ${folder}/ folder to your repository on this machine. Nothing leaves this machine.`
-            : `Even when the agents are scripted, approving pushes a branch named ${branch} with a ${folder}/ folder to your repository at ${existing.source}, with your own git login.`,
-        },
+            : `Even when the agents are scripted, approving pushes a branch named ${branch} with a ${folder}/ folder to your repository at ${existing.source}, on this machine, with your own git login.`,
+          `Approving pushes a branch named ${branch} with a ${folder}/ folder to your repository at ${existing.source}, with your own git login. Your other branches there are left alone; nothing is ever forced.`,
+        ),
         whyNow:
           "You have gone through what premise recovered, so the record is ready to keep with the code.",
       },
@@ -1335,26 +1352,65 @@ export class LineEngine implements IntakeLine {
       card: {
         title: "Update premise's branch in your repository?",
         standingLabel: "updating premise's branch in your repository",
-        reality: {
-          real: true,
-          text: local
+        reality: this.recordReality(
+          existing,
+          local
             ? `Even when the agents are scripted, approving adds commits to the branch ${branch} in your repository on this machine. Nothing leaves this machine.`
-            : `Even when the agents are scripted, approving pushes commits to the branch ${branch} at ${existing.source}, with your own git login.`,
-        },
+            : `Even when the agents are scripted, approving pushes commits to the branch ${branch} at ${existing.source}, on this machine, with your own git login.`,
+          `Approving pushes commits to the branch ${branch} in your repository at ${existing.source}, with your own git login. Nothing is ever forced.`,
+        ),
         whyNow:
           "A change premise made reached running, so the branch in your repository is behind.",
       },
     });
   }
 
+  /** Whether premise acts outside this machine: only with real agents (decision 0260). */
+  private get realAgents(): boolean {
+    return this.options.realAgents?.() ?? this.config.agents.mode === "claude";
+  }
+
+  /**
+   * What approving a write to a brought-in repository really does. On this machine it is real in
+   * every mode; elsewhere it is real only with real agents, and a demo pushes nothing (0260).
+   */
+  private recordReality(
+    existing: ExistingSoftware,
+    here: string,
+    elsewhere: string,
+  ): { real: boolean; text: string } {
+    if (!isElsewhere(existing)) return { real: true, text: here };
+    if (this.realAgents) return { real: true, text: elsewhere };
+    return {
+      real: false,
+      text: `Nothing is pushed to ${existing.source} whichever you choose: premise is running with scripted agents (a demo), and a demo does nothing outside this machine. Your answer is recorded, and the record stays in premise's own copy.`,
+    };
+  }
+
   /** The gate approved: push premise's record branch to the operator's repository. */
   private async addRecordToRepository(
-    request: Pick<GateRequest, "softwareId">,
-  ): Promise<{ ok: boolean; outcome: string }> {
+    request: Pick<GateRequest, "softwareId"> & Partial<Pick<GateRequest, "card">>,
+  ): Promise<PerformResult> {
     const software = getSoftware(this.db, request.softwareId);
     const existing = this.takenOn(request.softwareId);
     if (!software || !existing)
       return { ok: false, outcome: "The software is not in premise any more." };
+    if (isElsewhere(existing) && (!this.realAgents || request.card?.reality.real === false)) {
+      const why = this.realAgents
+        ? "you were asked while premise ran with scripted agents, when approving was to push nothing. Ask again to push it now"
+        : "premise is running with scripted agents (a demo), and a demo does nothing outside this machine";
+      if (existing.recordStatus !== "added") {
+        setExisting(this.db, software.id, {
+          recordStatus: "failed",
+          recordNote: `Nothing was pushed: ${why}.`,
+        });
+      }
+      return {
+        ok: false,
+        unavailable: true,
+        outcome: `Nothing was pushed to ${existing.source}: ${why}. The record stays in premise's own copy, and nothing is lost.`,
+      };
+    }
     const branch = this.config.existing.record_branch;
     try {
       await pushRecordBranch(this.options.keeper.repositoryPath(software.id), branch, {
@@ -3367,6 +3423,32 @@ export class LineEngine implements IntakeLine {
           }
         };
       }
+      case "repository-retry": {
+        const text = (answer.kind === "text" ? answer.text : "").trim();
+        if (text.toLowerCase() === KEEP_HERE.toLowerCase()) {
+          return () =>
+            this.premiseSays(
+              id,
+              `${software.name} stays on this machine; nothing was created on GitHub. Everything else goes on.`,
+            );
+        }
+        const use = /^use the name\s+(.+)$/i.exec(text);
+        const name =
+          text.toLowerCase() === TRY_AGAIN.toLowerCase()
+            ? (this.state(id).repositoryName ?? repositoryName(software.name))
+            : validRepositoryName(use ? use[1]! : text);
+        if (!name) {
+          throw new ServiceError(
+            "INVALID",
+            `GitHub does not take "${text.slice(0, 60)}" as a repository name: use letters, digits, "-", "_" or ".", with no spaces. Write another name, or pick one of the choices. Nothing was changed.`,
+          );
+        }
+        return () =>
+          this.repositoryStep(software, {
+            name,
+            whyNow: `You asked for the repository to be made as ${name}.`,
+          });
+      }
       case "start-command": {
         const said = answerWords(ask, answer);
         return () => {
@@ -3690,30 +3772,93 @@ export class LineEngine implements IntakeLine {
 
   // ---- The repository outside this machine, through the gate ------------------------------------
 
-  private repositoryStep(software: Software): void {
+  private cli: GitHubCli | null = null;
+
+  /** The GitHub CLI the server runs, logged in as the operator (decision 0077). */
+  private get github(): GitHubCli {
+    this.cli ??=
+      this.options.github ??
+      new GitHubCli({
+        command: this.config.github.command,
+        timeoutMs: this.config.github.timeout_minutes * 60_000,
+      });
+    return this.cli;
+  }
+
+  /** Run once the answer that asked for it is committed, kept track of for tests and shutdown. */
+  private afterAnswer(work: () => Promise<void>): void {
+    this.afterCommit.push(() => {
+      const done = new Promise<void>((resolve) => setImmediate(resolve))
+        .then(work)
+        .finally(() => this.deferred.delete(done));
+      this.deferred.add(done);
+    });
+  }
+
+  /**
+   * The software's repository besides this machine, at the end of Plan. On GitHub it is a floor
+   * action: the gate asks first, once per software (decision 0260). `chosen` is a name the operator
+   * picked after the first one was taken or did not work.
+   */
+  private repositoryStep(software: Software, chosen?: { name: string; whyNow: string }): void {
     const remote = this.config.line.remote;
-    const name = repositoryName(software.name);
     if (remote === "none") return;
     if (remote === "local") {
-      this.afterCommit.push(() => {
-        const copy = new Promise<void>((resolve) => setImmediate(resolve))
-          .then(async () => {
-            if (!getSoftware(this.db, software.id)) return;
-            const result = await this.createRemoteRepository({ softwareId: software.id });
-            this.premiseSays(software.id, result.outcome);
-          })
-          .finally(() => this.deferred.delete(copy));
-        this.deferred.add(copy);
+      this.afterAnswer(async () => {
+        if (!getSoftware(this.db, software.id)) return;
+        const result = await this.createRemoteRepository({ softwareId: software.id });
+        this.premiseSays(software.id, result.outcome);
       });
       return;
     }
+    const name = chosen?.name ?? repositoryName(software.name);
+    this.setState(software.id, { repositoryName: name });
+    if (!this.realAgents) {
+      this.askToCreateRepository(software, name, null, chosen?.whyNow);
+      return;
+    }
+    // The card says whether GitHub can be reached, which takes a moment to find out.
+    this.afterAnswer(async () => {
+      const login = await this.github.login();
+      const current = getSoftware(this.db, software.id);
+      if (!current) return;
+      this.askToCreateRepository(current, name, login, chosen?.whyNow);
+      this.queue.tick();
+    });
+  }
+
+  private askToCreateRepository(
+    software: Software,
+    name: string,
+    login: GitHubLogin | null,
+    whyNow?: string,
+  ): void {
     const visibility = this.config.runner.default_visibility;
     const kind: FloorKind = visibility === "public" ? "make-public" : "publish";
+    const where = login?.ready ? `${login.login}/${name}` : name;
+    const seen =
+      visibility === "public"
+        ? "Everyone can see a public repository."
+        : "Only you, and people you invite, can see it.";
+    const reality = !login
+      ? {
+          real: false,
+          text: `Nothing is created on GitHub whichever you choose: premise is running with scripted agents (a demo), and a demo does nothing outside this machine. Your answer is recorded, and ${software.name} stays on this machine.`,
+        }
+      : login.ready
+        ? {
+            real: true,
+            text: `Approving creates the ${visibility} repository ${where} on your GitHub account, with the GitHub CLI you are logged in with, and pushes ${software.name}'s code and record to it. After that, premise pushes again each time a change lands. ${seen} Nothing is ever forced, and nothing already on your account is touched.`,
+          }
+        : {
+            real: true,
+            text: `Approving creates the ${visibility} repository ${name} on your GitHub account, but premise cannot reach GitHub right now. ${login.problem} ${login.fix} Then approve. If you approve before that, nothing is created and premise asks you what to do.`,
+          };
     this.options.gate.request({
       softwareId: software.id,
       kind,
       act: "create-repository",
-      action: `Create a ${visibility} repository named ${name} on your GitHub account, and push ${software.name}'s code and record to it.`,
+      action: `Create a ${visibility} repository named ${name} on your GitHub account${login?.ready ? ` (${where})` : ""}, and push ${software.name}'s code and record to it.`,
       why: "So the software and its record are kept off this machine too. Until then they live only in premise's data folder.",
       requestedBy: "line engine",
       perform: "create-repository",
@@ -3722,52 +3867,184 @@ export class LineEngine implements IntakeLine {
       card: {
         title: `Create ${visibility === "public" ? "a public" : "a private"} repository on GitHub for ${software.name}?`,
         standingLabel: `creating ${visibility} repositories on GitHub`,
-        reality: {
-          real: false,
-          text: `Nothing is created on GitHub whichever you choose: premise cannot create GitHub repositories yet, because the owner has not yet allowed that step. Your answer is recorded, and ${software.name} stays on this machine.`,
-        },
+        reality,
         whyNow:
+          whyNow ??
           "The plan is settled, so the software has code worth keeping somewhere besides this machine.",
       },
     });
   }
 
   private async createRemoteRepository(
-    request: Pick<GateRequest, "softwareId">,
+    request: Pick<GateRequest, "softwareId"> & Partial<Pick<GateRequest, "card">>,
   ): Promise<PerformResult> {
     const software = getSoftware(this.db, request.softwareId);
     if (!software) return { ok: false, outcome: "The software is not in premise any more." };
-    const name = repositoryName(software.name);
-    const host =
-      this.config.line.remote === "local"
-        ? new LocalRepositoryHost(this.options.keeper.git, join(this.config.data.folder, "remotes"))
-        : new GitHubRepositoryHost();
+    const keeper = this.options.keeper;
+    const repo = keeper.repositoryPath(software.id);
+    if (this.config.line.remote === "local") {
+      const host = new LocalRepositoryHost(keeper.git, join(this.config.data.folder, "remotes"));
+      try {
+        const created = await host.createRepository({
+          softwareId: software.id,
+          name: repositoryName(software.name),
+          visibility: this.config.runner.default_visibility,
+        });
+        keeper.setRemote(software.id, created.url);
+        const failures = keeper.pushChecked(repo, "origin", this.config.record.default_branch);
+        if (failures.length > 0) {
+          return {
+            ok: false,
+            outcome: `The copy was made, but nothing was pushed: ${failures.length} commit(s) failed the trace check.`,
+          };
+        }
+        return { ok: true, outcome: `${software.name} now has a second copy: ${created.url}.` };
+      } catch (error) {
+        return { ok: false, outcome: `The copy could not be made: ${(error as Error).message}` };
+      }
+    }
+
+    const name = this.state(software.id).repositoryName ?? repositoryName(software.name);
+    if (!this.realAgents || request.card?.reality.real === false) {
+      const why = this.realAgents
+        ? "you were asked while premise ran with scripted agents, when approving was to create nothing. Ask again to create it now"
+        : "premise is running with scripted agents (a demo), and a demo does nothing outside this machine";
+      return {
+        ok: false,
+        unavailable: true,
+        outcome: `Nothing was created on GitHub: ${why}. ${software.name} stays on this machine, and nothing is lost.`,
+      };
+    }
+    const existingRemote = keeper.git.remoteUrl(repo, "origin");
+    if (existingRemote !== undefined) {
+      return {
+        ok: false,
+        outcome: `${software.name} already has a copy besides this machine, at ${existingRemote}, so premise created nothing more.`,
+      };
+    }
+    const visibility = this.config.runner.default_visibility;
+    let created;
     try {
-      const created = await host.createRepository({
+      created = await new GitHubRepositoryHost(this.github).createRepository({
         softwareId: software.id,
         name,
-        visibility: this.config.runner.default_visibility,
+        visibility,
+        description: `${software.name}, made with premise.`,
       });
-      this.options.keeper.setRemote(software.id, created.url);
-      const repo = this.options.keeper.repositoryPath(software.id);
-      const failures = this.options.keeper.pushChecked(
-        repo,
-        "origin",
-        this.config.record.default_branch,
-      );
-      if (failures.length > 0) {
+    } catch (error) {
+      if (!(error instanceof RepositoryHostError)) throw error;
+      if (error.code === "NAME_TAKEN") {
+        const suggestion = error.taken?.suggestion ?? null;
+        this.offerRepositoryRetry(software, {
+          title: `${name} is taken on your GitHub account: use another name?`,
+          problem: `${error.taken?.fullName ?? name} already exists on your GitHub account. premise does not use it, change it or delete it.`,
+          choices: [...(suggestion ? [`Use the name ${suggestion}`] : []), KEEP_HERE],
+        });
         return {
           ok: false,
-          outcome: `The copy was made, but nothing was pushed: ${failures.length} commit(s) failed the trace check.`,
+          outcome: `${error.message} premise created nothing and changed nothing there. Under Waiting on you, pick another name${suggestion ? ` (premise suggests ${suggestion})` : ""}, or keep ${software.name} on this machine.`,
         };
       }
-      return { ok: true, outcome: `${software.name} now has a second copy: ${created.url}.` };
-    } catch (error) {
-      if (error instanceof RepositoryHostError) {
-        return { ok: false, outcome: error.message, unavailable: error.code === "NOT_AVAILABLE" };
-      }
-      return { ok: false, outcome: `The copy could not be made: ${(error as Error).message}` };
+      this.offerRepositoryRetry(software, {
+        title: `${software.name} was not copied to GitHub: try again?`,
+        problem:
+          error.code === "NOT_READY"
+            ? `Nothing was created: ${error.message}`
+            : `Nothing was created on GitHub: ${error.message}.`,
+        choices: [TRY_AGAIN, KEEP_HERE],
+      });
+      return {
+        ok: false,
+        outcome:
+          error.code === "NOT_READY"
+            ? `Nothing was created: ${error.message} Then pick "Try again" under Waiting on you.`
+            : `Nothing was created on GitHub: ${error.message}. Under Waiting on you, try again or keep ${software.name} on this machine.`,
+      };
     }
+
+    const link = created.link ?? created.url;
+    keeper.setRemote(software.id, created.url);
+    if (/^https:\/\/github\.com\//i.test(created.url)) {
+      // premise's git ignores the machine's own git settings, so pushes to GitHub use the GitHub
+      // CLI's login explicitly, for GitHub addresses only.
+      const key = "credential.https://github.com.helper";
+      keeper.git.run(repo, ["config", "--local", "--replace-all", key, ""]);
+      keeper.git.run(repo, [
+        "config",
+        "--local",
+        "--add",
+        key,
+        `!${this.config.github.command} auth git-credential`,
+      ]);
+    }
+    const branch = this.config.record.default_branch;
+    const commits = keeper.git.log(repo, ["HEAD"]).reverse();
+    const failures = keeper.checkCommits(repo, commits);
+    const made = `Created the ${visibility} repository ${link} on your GitHub account`;
+    if (failures.length > 0) {
+      return {
+        ok: false,
+        outcome: `${made}, but nothing was pushed: ${failures.length} commit(s) failed the trace check. premise tries again after the next change lands.`,
+      };
+    }
+    if (commits.length > 0) {
+      try {
+        await keeper.git.pushAsync(
+          repo,
+          "origin",
+          branch,
+          this.config.github.timeout_minutes * 60_000,
+        );
+      } catch (error) {
+        return {
+          ok: false,
+          outcome: `${made}, but the push was refused: ${(error as Error).message}. Nothing was forced, and nothing on GitHub was overwritten. premise pushes again after the next change lands; if the repository on GitHub has commits of its own (for example a README added there), remove them there first.`,
+        };
+      }
+    }
+    return {
+      ok: true,
+      outcome: `${made} and pushed ${software.name}'s code and record to it. premise pushes again each time a change lands.`,
+    };
+  }
+
+  /** Ask the operator what to do after creating the GitHub repository did not work. */
+  private offerRepositoryRetry(
+    software: Software,
+    ask: { title: string; problem: string; choices: string[] },
+  ): void {
+    transaction(this.db, () => {
+      for (const open of listAsks(this.db, { softwareId: software.id, status: "open" })) {
+        if (open.extra.meta?.purpose === "repository-retry") {
+          closeAsk(this.db, open.id, "withdrawn", null, "A newer question replaced it.");
+        }
+      }
+      createAsk(this.db, {
+        softwareId: software.id,
+        role: OPERATOR,
+        kind: "question",
+        stage: software.currentStage,
+        title: ask.title,
+        instruction: `${ask.problem} Pick one, or write the name you want the repository to have. premise then asks you before creating it, unless you approved creating repositories on GitHub for ${software.name} from now on.`,
+        extra: { choices: ask.choices, meta: { purpose: "repository-retry" } },
+      });
+    });
+  }
+
+  /** At start-up: premise stopped between approving the GitHub repository and finishing it. */
+  private repositoryCutOff(request: GateRequest): void {
+    const software = getSoftware(this.db, request.softwareId);
+    if (!software) return;
+    const name = this.state(software.id).repositoryName ?? repositoryName(software.name);
+    this.premiseSays(
+      software.id,
+      `premise stopped after you approved creating the repository ${name} on GitHub, before it finished, so it may be partly done. premise does not try again by itself; under Waiting on you, say what to do.`,
+    );
+    this.offerRepositoryRetry(software, {
+      title: `Copying ${software.name} to GitHub was cut off: try again?`,
+      problem: `Look on your GitHub account for a repository named ${name}. If it is not there, try again. If it is, premise will not use it: write another name, or keep ${software.name} on this machine.`,
+      choices: [TRY_AGAIN, KEEP_HERE],
+    });
   }
 
   /** The gate decided, or finished carrying out, a request: say so in the session. */
@@ -3797,13 +4074,17 @@ export class LineEngine implements IntakeLine {
       case "unavailable":
         this.premiseSays(
           software.id,
-          `Approved, but this step is not available yet: ${request.outcome ?? "premise cannot carry it out itself yet, so nothing was done."}`,
+          request.perform === "create-repository" || request.perform === "add-record"
+            ? `Approved, but nothing was done: ${request.outcome ?? "premise could not carry it out."}`
+            : `Approved, but this step is not available yet: ${request.outcome ?? "premise cannot carry it out itself yet, so nothing was done."}`,
         );
         break;
       case "failed":
         this.premiseSays(
           software.id,
-          `Approved, but it failed: ${request.outcome ?? "the action did not work."} Nothing more is tried without asking you again.`,
+          request.perform === "create-repository"
+            ? `Approved, but it did not all work: ${request.outcome ?? "the action did not work."}`
+            : `Approved, but it failed: ${request.outcome ?? "the action did not work."} Nothing more is tried without asking you again.`,
         );
         break;
       default:
@@ -4596,4 +4877,10 @@ function workState(item: WorkItem, current: boolean): WorkItemView["state"] {
   if (item.state === "ahead") return "ahead";
   if (item.state === "waiting") return "waiting-on-parts";
   return current ? "working" : "working";
+}
+
+/** A brought-in software whose repository is somewhere else than this machine (a network address). */
+export function isElsewhere(existing: Pick<ExistingSoftware, "sourceKind" | "source">): boolean {
+  if (existing.sourceKind === "folder") return false;
+  return !/^(file:\/\/|\/|~|\.{1,2}\/)/.test(existing.source.trim());
 }

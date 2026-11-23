@@ -5,6 +5,7 @@ import type { LaterStages } from "../line/later-stages.js";
 import type { AgentToolServer } from "../agents/tool-server.js";
 import type { PremiseConfig } from "../config/settings.js";
 import { Gate } from "../gate/gate.js";
+import type { GitHubCli } from "../git/github.js";
 import { Intake } from "../intake/intake.js";
 import { FixtureIssueSource, GhCliIssueSource, type IssueSource } from "../intake/issues.js";
 import { Briefs } from "../line/briefs.js";
@@ -89,6 +90,10 @@ export function createSession(options: {
   later?: LaterStages;
   /** Where GitHub issues are read from; the local fixture when agents are scripted. */
   issues?: IssueSource;
+  /** Whether premise may act outside this machine; real agents only, when not given (0260). */
+  realAgents?: () => boolean;
+  /** The GitHub CLI the server runs (tests give one with a fake on its PATH). */
+  github?: GitHubCli;
 }): Session {
   const { db, config, ledger, runner, tools } = options;
   let line: LineEngine | null = null;
@@ -120,7 +125,9 @@ export function createSession(options: {
   const briefs = new Briefs(options.docs ?? docsFolder());
   const issues =
     options.issues ??
-    (config.agents.mode === "scripted" ? new FixtureIssueSource() : new GhCliIssueSource());
+    (config.agents.mode === "scripted"
+      ? new FixtureIssueSource()
+      : new GhCliIssueSource(config.github.command));
   intake = new Intake({ db, config, queue, keeper: record, briefs, gate, issues });
   const taker = intake;
   const runs = new Runner({
@@ -191,6 +198,9 @@ export function createSession(options: {
     intake: taker,
     taste,
     agentsReady: () => agents.ready(),
+    realAgents:
+      options.realAgents ?? (() => config.agents.mode === "claude" && !agents.scriptedDemo()),
+    ...(options.github && { github: options.github }),
     reporter,
   });
   const engine = line;

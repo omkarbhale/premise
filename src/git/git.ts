@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { devNull } from "node:os";
 import { existsSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
@@ -84,7 +84,7 @@ export class Git {
   }
 
   /** Run git in a folder and return what it printed. */
-  run(cwd: string, args: string[]): string {
+  run(cwd: string, args: string[], timeoutMs?: number): string {
     try {
       return execFileSync(
         "git",
@@ -95,10 +95,23 @@ export class Git {
           encoding: "utf8",
           stdio: ["ignore", "pipe", "pipe"],
           maxBuffer: 64 * 1024 * 1024,
+          ...(timeoutMs ? { timeout: timeoutMs } : {}),
         },
       );
     } catch (error) {
-      const failure = error as { stderr?: string; stdout?: string; message: string };
+      const failure = error as {
+        stderr?: string;
+        stdout?: string;
+        message: string;
+        killed?: boolean;
+        code?: string;
+      };
+      if (timeoutMs && (failure.killed || failure.code === "ETIMEDOUT")) {
+        throw new GitError(
+          "GIT_FAILED",
+          `git ${args[0] ?? ""} took longer than ${Math.max(1, Math.round(timeoutMs / 60_000))} minute(s) and was stopped`,
+        );
+      }
       const said = (failure.stderr || failure.stdout || failure.message).toString().trim();
       throw new GitError("GIT_FAILED", `git ${args[0] ?? ""} failed: ${said}`);
     }
@@ -212,25 +225,32 @@ export class Git {
   }
 
   /** Make sure the remote's latest is known locally. Returns false when the remote has no such branch. */
-  fetch(cwd: string, remote: string, branch: string): boolean {
-    const out = this.run(cwd, ["ls-remote", "--heads", remote, `refs/heads/${branch}`]).trim();
+  fetch(cwd: string, remote: string, branch: string, timeoutMs?: number): boolean {
+    const out = this.run(
+      cwd,
+      ["ls-remote", "--heads", remote, `refs/heads/${branch}`],
+      timeoutMs,
+    ).trim();
     if (out.length === 0) return false;
-    this.run(cwd, [
-      "fetch",
-      "--quiet",
-      remote,
-      `+refs/heads/${branch}:refs/remotes/${remote}/${branch}`,
-    ]);
+    this.run(
+      cwd,
+      ["fetch", "--quiet", remote, `+refs/heads/${branch}:refs/remotes/${remote}/${branch}`],
+      timeoutMs,
+    );
     return true;
   }
 
   /** Push a branch. Never forced: a remote that has moved on refuses, and premise says so. */
-  push(cwd: string, remote: string, branch: string): void {
+  push(cwd: string, remote: string, branch: string, timeoutMs?: number): void {
     if (branch.startsWith("+") || remote.startsWith("-") || branch.startsWith("-")) {
       throw new GitError("NOT_ALLOWED", "premise never forces a push.");
     }
     try {
-      this.run(cwd, ["push", "--quiet", remote, `refs/heads/${branch}:refs/heads/${branch}`]);
+      this.run(
+        cwd,
+        ["push", "--quiet", remote, `refs/heads/${branch}:refs/heads/${branch}`],
+        timeoutMs,
+      );
     } catch (error) {
       throw new GitError(
         "PUSH_REFUSED",
@@ -239,9 +259,41 @@ export class Git {
     }
   }
 
+  /**
+   * Push a branch without holding up the server while it goes over the network, within a time
+   * limit. Never forced: a remote that has something premise does not refuses, and premise says so.
+   */
+  pushAsync(cwd: string, remote: string, branch: string, timeoutMs: number): Promise<void> {
+    if (branch.startsWith("+") || remote.startsWith("-") || branch.startsWith("-")) {
+      return Promise.reject(new GitError("NOT_ALLOWED", "premise never forces a push."));
+    }
+    return new Promise((resolve, reject) => {
+      execFile(
+        "git",
+        [
+          "-c",
+          "core.hooksPath=" + devNull,
+          "push",
+          "--quiet",
+          remote,
+          `refs/heads/${branch}:refs/heads/${branch}`,
+        ],
+        { cwd, env: this.environment(), encoding: "utf8", timeout: timeoutMs },
+        (error, stdout, stderr) => {
+          if (!error) return resolve();
+          const killed = (error as { killed?: boolean }).killed === true;
+          const said = killed
+            ? `it took longer than ${Math.round(timeoutMs / 60_000)} minute(s) and was stopped`
+            : (stderr || stdout || error.message).toString().trim().split("\n").slice(-3).join(" ");
+          reject(new GitError("PUSH_REFUSED", said));
+        },
+      );
+    });
+  }
+
   /** The commits on HEAD that a remote branch lacks, oldest first; all of them when it has no such branch. */
-  commitsToPush(cwd: string, remote: string, branch: string): CommitInfo[] {
-    const known = this.fetch(cwd, remote, branch);
+  commitsToPush(cwd: string, remote: string, branch: string, timeoutMs?: number): CommitInfo[] {
+    const known = this.fetch(cwd, remote, branch, timeoutMs);
     return this.log(cwd, known ? [`${remote}/${branch}..HEAD`] : ["HEAD"]).reverse();
   }
 

@@ -26,8 +26,8 @@ Then pick one:
 
 | I want to… | Run | What happens |
 | --- | --- | --- |
-| **Use my Claude Code login** (real agents) | `npm start` | Agents are Claude Code sessions on your login; no API key. On Linux and WSL2 they also need bubblewrap and socat (`sudo apt install bubblewrap socat`); `npm run doctor` says what is missing. |
-| **Look around without AI** | `npm run demo` | Scripted agents follow a script and call no AI; the software built is a placeholder. The page labels them. If you bring in software of your own, writing premise's record to your repository is still real, and its approval card says so. |
+| **Use my Claude Code login** (real agents) | `npm start` | Agents are Claude Code sessions on your login; no API key. On Linux and WSL2 they also need bubblewrap and socat (`sudo apt install bubblewrap socat`); `npm run doctor` says what is missing. At the end of Plan premise asks before creating each new software's private repository on your GitHub account and pushing to it; for that it uses the [GitHub CLI](https://cli.github.com), logged in with `gh auth login`. Without it the software stays on this machine. |
+| **Look around without AI** | `npm run demo` | Scripted agents follow a script and call no AI; the software built is a placeholder. The page labels them. Nothing is created on GitHub or pushed anywhere else. If you bring in software of your own from a folder on this machine, writing premise's record to your repository is still real, and its approval card says so. |
 
 Either prints a link such as `http://localhost:4610/#token=…`. Open it, describe a software in a sentence or two, and the page says what happens next. The link holds a private token; restarting gives a new one, and `npm run new-link` prints a new one any time (older links stop working). If real agents cannot start, premise still starts, says on the page what is missing, and offers "look around with scripted agents".
 
@@ -56,7 +56,7 @@ One TypeScript package ([0075](docs/decisions/0075-one-package.md)):
 | `src/usage-ledger/` | usage-ledger's interface (the contract it has to meet), and its mock | [usage-ledger contract](docs/specs/usage-ledger.md) |
 | `src/usage/` | Usage per software, step, change and item beside premise's own counts; budgets; pausing a software that overruns | [usage and budgets](docs/specs/usage.md) |
 | `src/record/` | The record keeper: the record's format, proposed changes, trace trailers, the reading API; `premise record check <folder>` | [record keeper](docs/specs/record-keeper.md) |
-| `src/git/` | The one small module for git, and the repository host seam | [record keeper](docs/specs/record-keeper.md#54a-repositories) |
+| `src/git/` | The one small module for git, the GitHub CLI wrapper, and the repository hosts (GitHub, or a local bare repository) | [record keeper](docs/specs/record-keeper.md#54a-repositories) |
 | `src/runner/` | The runner: starts a built software from a clean copy by its `run.md`, confined, on a local port; restarts it a few times when it crashes; shows the link or the command and the latest output | [runner](docs/specs/runner.md) |
 | `src/reporter/` | The reporter: gathers recorded facts and builds the report (short by default, more on request), release-note drafts and milestone reports | [reporter](docs/specs/reporter.md) |
 | `src/doctor/` | The setup check | [page server](docs/specs/page-server.md#51-prerequisites) |

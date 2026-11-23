@@ -266,14 +266,14 @@ export class RecordKeeper {
    * Check every commit that would be pushed, and push only when all pass (spec 5.4).
    * Returns the commits that failed, with the reason; an empty list means the push was made.
    */
-  pushChecked(repo: string, remote: string, branch: string): TrailerFailure[] {
-    const commits = this.git.commitsToPush(repo, remote, branch);
+  pushChecked(repo: string, remote: string, branch: string, timeoutMs?: number): TrailerFailure[] {
+    const commits = this.git.commitsToPush(repo, remote, branch, timeoutMs);
     const failures = checkTrailers(this.git, repo, commits, {
       trailer: this.trailer,
       folder: this.folder,
     });
     if (failures.length > 0) return failures;
-    if (commits.length > 0) this.git.push(repo, remote, branch);
+    if (commits.length > 0) this.git.push(repo, remote, branch, timeoutMs);
     return [];
   }
 

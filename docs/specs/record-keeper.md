@@ -103,7 +103,7 @@ The record is Markdown, one item per list line, each with a stable ID ([0082](..
 
 - A software's repository is created on this machine with no commits; its first commit is its first accepted change ([0159](../decisions/0159-how-the-record-keeper-is-built.md)).
 - Jobs work in clones on their own branches and are merged with a merge commit carrying their trailers. All git work is in one small module (`src/git/`); it never forces a push.
-- A remote is added and pushed to after the trailer check. Creating a remote on GitHub is an interface whose GitHub step is not built yet ([0161](../decisions/0161-github-repository-step-not-approved.md)); tests use a local bare repository.
+- A remote is added and pushed to after the trailer check. Creating a remote is an interface (`RepositoryHost`) with two hosts: GitHub, through the GitHub CLI login and only after the gate's approval, never adopting a repository whose name is already used ([0260](../decisions/0260-the-real-github-step-is-built-and-each-use-is-asked.md)); and a local bare repository, which the tests use. Tests of the GitHub host run against a fake GitHub CLI.
 - `premise record check <folder>` checks a record folder on disk and says what is wrong and where.
 
 ### 5.5 Existing software
