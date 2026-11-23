@@ -194,3 +194,53 @@ export function setAskItems(db: Database, id: number, items: AskItem[]): void {
     });
   }
 }
+
+/**
+ * Where an answer went (decision 0310): given to a job that will read it, held for a job still
+ * working, or taken in as intake because no job will read it. `to` says it in plain words.
+ */
+export interface AnswerFate {
+  state: "given" | "held" | "intake";
+  to: string;
+  /** The job that gets it, or holds it until it ends. */
+  job?: number;
+  /** The intake item it became, such as "I-4". */
+  intake?: string;
+  at: string;
+}
+
+/** Merge into an ask's meta, whatever its status; records "ask-changed" so the page refreshes. */
+export function setAskMeta(db: Database, id: number, patch: Record<string, unknown>): void {
+  const ask = getAsk(db, id);
+  if (!ask) return;
+  const extra: AskExtra = { ...ask.extra, meta: { ...ask.extra.meta, ...patch } };
+  db.prepare("UPDATE asks SET extra = ? WHERE id = ?").run(JSON.stringify(extra), id);
+  recordEvent(db, {
+    softwareId: ask.softwareId,
+    module: "asks",
+    kind: "ask-changed",
+    reference: String(id),
+  });
+}
+
+/** Where an answer went, as set by setAnswerFate; undefined before it was answered. */
+export function answerFate(ask: Ask): AnswerFate | undefined {
+  const fate = ask.extra.meta?.fate as AnswerFate | undefined;
+  return fate && typeof fate === "object" && typeof fate.to === "string" ? fate : undefined;
+}
+
+export function setAnswerFate(db: Database, id: number, fate: Omit<AnswerFate, "at">): void {
+  setAskMeta(db, id, { fate: { ...fate, at: now() } satisfies AnswerFate });
+}
+
+/**
+ * An open ask whose job ended and that nothing waits on any more (decision 0310): it stays open,
+ * no longer holds anything up, and says plainly where an answer now goes.
+ */
+export function reframeAsk(db: Database, id: number, instruction: string): void {
+  db.prepare("UPDATE asks SET instruction = ?, blocking = 0 WHERE id = ? AND status = 'open'").run(
+    instruction,
+    id,
+  );
+  setAskMeta(db, id, { reframed: true });
+}

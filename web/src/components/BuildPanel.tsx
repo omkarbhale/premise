@@ -19,6 +19,8 @@ const CHECK_STATUS: Record<CheckView["status"], string> = {
   "not-passed": "Not passed: back to the builder with what was wrong",
   stopped: "Stopped: premise asks you what to do",
   "did-not-finish": "The check did not finish",
+  "waiting-for-tool":
+    "Could not use it: a program the agents need is missing. Not counted as a failed round; it runs again once you answer",
 };
 
 const VERDICT: Record<VerdictValue, string> = {

@@ -188,6 +188,7 @@ Builders' reading, open to the owner's correction ([0129](../decisions/0129-buil
 ### 5.9 Chat
 
 - An answer given on an ask's card is an answer.
+- An answer to an agent's question goes where a job will read it, and premise says where in one line: a task waiting on it starts again with it; an answer given while a builder still works is held, and the task is built again with it once that attempt ends; an early stage that stopped to wait on it runs its job again with it; a check waiting on a missing program runs again. When no job will read it (the job ended, or a checker still works), it is taken in as an intake item for the software: "The checker had already finished, so your answer is taken in as I-4." premise never says the agent gets an answer unless a job really will. A question still open when its job ends, and that nothing waits on, stays open without holding anything up and says plainly where an answer now goes. The answered card says what happens with the answer and when ([0310](../decisions/0310-answers-are-never-lost-and-the-work-is-visible.md)).
 - While a stage draft is open, chat goes to the drafter as corrections to it. The drafter can mark a message as not about the draft, and it becomes intake.
 - Otherwise every chat message becomes an intake item, and premise says so in one line ("Taken as I-14") ([0118](../decisions/0118-how-chat-messages-are-routed.md), [intake](intake.md)).
 
@@ -225,7 +226,7 @@ Stage budgets, in agent turns and minutes per stage, by size class ([0117](../de
 |---|---|---|
 | `line.say_back_max_items` | 10 | Most items in a say-back |
 | `line.why_items` | 3–7 | Items in the Why draft |
-| `line.check_rounds_before_stop` | 3 | Rounds an item may fail before work on it stops |
+| `line.check_rounds_before_stop` | 3 | Rounds an item may fail before work on it stops; a round the checker could not run for a reason outside the software, while a missing program is asked for, does not count ([0310](../decisions/0310-answers-are-never-lost-and-the-work-is-visible.md)) |
 | `line.splitting` | true | Whether the sizer may split a piece into parts |
 | `line.split_max_parts` | 5 | Most parts one piece may be split into |
 | `softwares.default_effort` | medium | Effort a new software gets: low, medium or high (5.2b) |

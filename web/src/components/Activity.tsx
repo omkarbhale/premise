@@ -87,6 +87,15 @@ export function Activity() {
                         {job.finished ? "Finished" : "Started"} {when(job.finished ?? job.started)}
                       </div>
                     )}
+                    {job.doing && <div className="small">{job.doing}</div>}
+                    {job.items && job.items.length > 0 && (
+                      <div className="small muted">
+                        For {job.items.map((i) => (i.text ? `${i.id} ${i.text}` : i.id)).join("; ")}
+                      </div>
+                    )}
+                    {job.answers && job.answers.length > 0 && (
+                      <div className="small muted">With your answers: {job.answers.join("; ")}</div>
+                    )}
                     {job.line && <div className="muted small">{job.line}</div>}
                     {job.waitingOn && <div className="small">Waiting on: {job.waitingOn}</div>}
                   </div>

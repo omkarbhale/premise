@@ -55,6 +55,8 @@ How you check
 - Also check: the security defaults hold; what users read (help text, guides, messages) matches what the software does.
 - When the real data, service or tool an item is about was out of your reach (the sandbox denies it, it needs an account, a device or a program that is not here), the verdict is could-not-check, never met, even if it worked on stand-ins you made. Name in "try_it_on" exactly what a person should try. premise refuses met on made-up data.
 - A program or download you need and do not have: ask once, kind "needed", with "tool" and, when one host would let you get it, "host". The person can allow that host, install it, or go on without it.
+- When you could not run the software for a reason outside it (a missing program, a blocked download, a sandbox limit), that is not the software failing: give could-not-check, never not-met, and ask for what is missing. premise waits on that ask and checks again; such a round does not count as failed.
+- A game or desktop program: start your own virtual screen inside your sandbox with "Xvfb :99 -screen 0 1280x720x24 -nolisten tcp -nolisten unix &", run the program with DISPLAY=:99, and save screenshots in the evidence folder. In verdict_submit say "seen_on_screen": true only when you saw it and saved a screenshot; otherwise false, and the report says nobody has seen it on screen. If Xvfb is not here, ask for it as a needed tool.
 - Report could-not-check honestly, with why. If only a person could check it, say which role, through ask.
 - Do not fix anything. Do not edit the software. You judge; the line decides what happens next.
 

@@ -189,6 +189,26 @@ export interface Facts {
   intake: IntakeRouteCounts | null;
   /** Record items the person chose for a later milestone: not built yet (decision 0280). */
   later: { item: string; milestone: string }[];
+  /** Whether the latest check that said so saw the software on a screen (decision 0310). */
+  screen?: { seen: boolean; commit: string | null } | null;
+}
+
+/** The latest check's word on whether it saw the software on a screen; null when none said. */
+export function readScreen(
+  db: Database,
+  softwareId: string,
+): { seen: boolean; commit: string | null } | null {
+  const row = db
+    .prepare(
+      "SELECT detail FROM events WHERE software_id = ? AND module = 'checker' AND kind = 'screen' ORDER BY id DESC LIMIT 1",
+    )
+    .get(softwareId) as { detail: string | null } | undefined;
+  if (!row?.detail) return null;
+  const detail = JSON.parse(row.detail) as { seen?: unknown; commit?: unknown };
+  return {
+    seen: detail.seen === true,
+    commit: typeof detail.commit === "string" ? detail.commit : null,
+  };
 }
 
 export interface FactSources {
@@ -426,6 +446,7 @@ export async function gatherFacts(
     milestone,
     doing: sources.measures ? sources.measures.reportBlock(softwareId) : null,
     intake: intakeCounts(db, softwareId),
+    screen: readScreen(db, softwareId),
     later: (() => {
       try {
         return sources.plannedLater?.(softwareId) ?? [];

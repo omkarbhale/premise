@@ -13,6 +13,7 @@ import { Line } from "./Line";
 import { RecordView } from "./RecordView";
 import { ReportView } from "./ReportView";
 import { SoftwareActions } from "./SoftwareActions";
+import { WorkingOn } from "./WorkingOn";
 
 export type SoftwareTab = "conversation" | "line" | "record" | "report" | "intake" | "learned";
 
@@ -112,6 +113,7 @@ export function SoftwareView({
           </span>
         </div>
         <SoftwareActions software={s} />
+        {s.working && <WorkingOn working={s.working} />}
         <details className="idea">
           <summary>What you asked for</summary>
           <p>{s.idea}</p>

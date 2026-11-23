@@ -230,6 +230,7 @@ class ClaudeSession implements AgentSession {
             ],
             claudeConfigFolder: config.agents.claude_config_folder,
             extraDeniedPaths: config.agents.confinement.extra_denied_paths,
+            virtualDisplay: config.agents.confinement.virtual_display,
           }),
           null,
           2,

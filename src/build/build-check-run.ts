@@ -31,7 +31,14 @@ import type {
   CheckView,
   VerdictValue,
 } from "../shared/api-types.js";
-import { type Ask, createAsk, listAsks } from "../storage/asks.js";
+import {
+  type Ask,
+  answerFate,
+  createAsk,
+  listAsks,
+  setAnswerFate,
+  setAskMeta,
+} from "../storage/asks.js";
 import { addChatMessage } from "../storage/chat.js";
 import { type Database, now, recordEvent } from "../storage/database.js";
 import { RecordWriter, droppedLine } from "../line/record-writer.js";
@@ -1087,6 +1094,7 @@ export class BuildCheckRun implements LaterStages {
       task.status = "waiting";
       task.ask = asked.id;
       task.note = `Waiting for your answer: ${asked.title}`;
+      setAskMeta(this.db, asked.id, { waitedOn: `task ${task.number}` });
       this.say(
         id,
         `Task ${task.number} waits for your answer under Waiting on you; the other tasks go on.`,
@@ -1125,8 +1133,39 @@ export class BuildCheckRun implements LaterStages {
           : `It stopped: ${job.result ?? "no reason was given"}`;
       this.say(id, `Task ${task.number} stopped. ${task.note}`);
     }
+    if (!asked) this.takeHeldAnswers(job, task);
     this.save(id, state);
     return this.progress(id, state);
+  }
+
+  /**
+   * Answers given while the task's builder was still working (decision 0310): a session cannot
+   * read an answer mid-way, so the task is built again with them, or they go with its next try. A
+   * task that stopped keeps nothing: the line engine takes such an answer in as intake.
+   */
+  private takeHeldAnswers(job: Job, task: TaskState): void {
+    const held = listAsks(this.db, { softwareId: job.softwareId, status: "answered" }).filter(
+      (a) => {
+        const fate = answerFate(a);
+        return fate?.state === "held" && fate.job === job.id;
+      },
+    );
+    if (held.length === 0 || (task.status !== "built" && task.status !== "pending")) return;
+    const titles = held.map((a) => `"${a.title}"`).join(" and ");
+    if (task.status === "built") {
+      task.status = "pending";
+      task.note = `Built again with your answer to ${titles}.`;
+      this.say(
+        job.softwareId,
+        `Task ${task.number}'s builder finished before it could read your answer to ${titles}, so the task is built again with it next.`,
+      );
+    }
+    for (const ask of held) {
+      setAnswerFate(this.db, ask.id, {
+        state: "given",
+        to: `task ${task.number} (${task.title}), built again with your answer`,
+      });
+    }
   }
 
   /** premise's own look at what a build job left: a commit, traced, pushed into the repository. */
@@ -1332,6 +1371,22 @@ export class BuildCheckRun implements LaterStages {
         `The check found that ${broken.length === 1 ? "something the plan assumed without checking does not hold" : `${broken.length} things the plan assumed without checking do not hold`}: ${broken.map(([item, v]) => `${item}: ${v.evidence}`).join("; ")}. That is not the builder's to fix, so it does not hold up landing; it is in the report. If it matters, say in chat what to do instead, or send the software back to Plan.`,
       );
     }
+    // A check that could not run the software for a reason outside it (a program the agents lack)
+    // is not a failed round: the line waits on the ask for that program instead (decision 0310).
+    const tool = this.openToolAsk(id);
+    const unchecked = [...verdicts.entries()].some(
+      ([item, v]) => v.verdict === "could-not-check" && this.isMust(id, item),
+    );
+    if (tool && (failing.length > 0 || blocking.length > 0 || unchecked)) {
+      check.status = "waiting-for-tool";
+      setAskMeta(this.db, tool.ask.id, { waitedOn: "the check" });
+      this.save(id, state);
+      this.say(
+        id,
+        `The check of commit ${short(check.commit)} could not use ${this.name(id)} as a person would: the agents need ${tool.name}, and it is not here (${tally}). That is not a fault in ${this.name(id)}, so this round does not count toward the stop after ${this.config.line.check_rounds_before_stop} failed rounds. The check runs again once you answer "${tool.ask.title}" under Waiting on you.`,
+      );
+      return { kind: "wait" };
+    }
     if (failing.length === 0 && blocking.length === 0) {
       return this.noFailureFound(job, state, check, verdicts, tally);
     }
@@ -1365,11 +1420,11 @@ export class BuildCheckRun implements LaterStages {
       return { kind: "wait" };
     }
     check.status = "not-passed";
-    this.fixRound(
-      state,
-      evidence,
-      failing.map(([item]) => item),
-    );
+    // The fix round names the items that were not met, never an earlier task's (decision 0310).
+    const notMet = failing.length
+      ? failing.map(([item]) => item)
+      : [...verdicts.entries()].filter(([, v]) => v.verdict === "not-met").map(([item]) => item);
+    this.fixRound(state, evidence, notMet);
     this.save(id, state);
     this.say(
       id,
@@ -1466,19 +1521,57 @@ export class BuildCheckRun implements LaterStages {
     return row?.runtime === "scripted";
   }
 
-  private fixRound(state: BuildState, evidence: string, items: string[]): void {
+  /**
+   * A fix round: one task made from the checker's evidence. It names the items that were not met,
+   * in its title, its items and so its trace line (decision 0310); never the first task's items.
+   * With none (only a finding failed) it names none, and the builder names what its commit serves.
+   */
+  private fixRound(state: BuildState, evidence: string, items: string[], title?: string): void {
     state.round += 1;
     state.leftStopped = false;
-    const served = items.length ? items : [...new Set(state.tasks.flatMap((t) => t.items))];
+    const served = [...new Set(items)];
     state.tasks = [
       this.task(
         1,
-        "Fix what the check found",
+        title ??
+          (served.length
+            ? `Fix what the check found: ${served.join(", ")} not met`
+            : "Fix what the check found"),
         served,
         "Every item named in the evidence is met when the software is used as a user would.",
         { evidence },
       ),
     ];
+  }
+
+  /** The open ask for a program the agents lack, if any (decision 0300). */
+  private openToolAsk(softwareId: string): { ask: Ask; name: string } | null {
+    for (const ask of listAsks(this.db, { softwareId, status: "open" })) {
+      const tool = ask.extra.meta?.tool as { name?: unknown } | undefined;
+      if (ask.kind === "needed" && typeof tool?.name === "string") return { ask, name: tool.name };
+    }
+    return null;
+  }
+
+  /** A program the check waited on was answered: the same commit is checked again (0310). */
+  private toolAnsweredForCheck(id: string, state: BuildState, ask: Ask): LaterOutcome | null {
+    if (ask.extra.meta?.tool === undefined) return null;
+    const check = state.checks.at(-1);
+    if (!check || check.status !== "waiting-for-tool") return null;
+    const other = this.openToolAsk(id);
+    if (other) {
+      setAnswerFate(this.db, ask.id, {
+        state: "given",
+        to: `the check of commit ${short(check.commit)}, which runs again once "${other.ask.title}" is answered too`,
+      });
+      return { kind: "wait" };
+    }
+    setAnswerFate(this.db, ask.id, {
+      state: "given",
+      to: `the check of commit ${short(check.commit)}, which runs again now`,
+    });
+    this.startCheck(id, state);
+    return { kind: "wait" };
   }
 
   private runEnded(job: Job, state: BuildState): LaterOutcome {
@@ -1560,7 +1653,12 @@ export class BuildCheckRun implements LaterStages {
 
   /** Back to Build on the landed code, with this evidence. */
   private sendBackToBuild(id: string, state: BuildState, evidence: string): void {
-    this.fixRound(state, evidence, []);
+    this.fixRound(
+      state,
+      evidence,
+      state.tasks.flatMap((t) => t.items),
+      "Make it start from a clean copy",
+    );
     state.startFailure = null;
     state.head = null;
     state.base = this.repositoryHead(id);
@@ -1593,19 +1691,46 @@ export class BuildCheckRun implements LaterStages {
       const task = state.tasks.find(
         (t) => t.ask === ask.id || (t.job !== null && t.job === ask.extra.meta?.job),
       );
-      if (!task) return null;
+      if (!task) return this.toolAnsweredForCheck(id, state, ask);
+      const words = `${ask.title} → ${text || answerWords(ask, answer, "builder")}`;
+      const where = `task ${task.number} (${task.title})`;
       if (task.status !== "waiting") {
-        // Answered while the builder still works: the answer reaches its next attempt, if any.
-        task.answers.push(`${ask.title} → ${text || answerWords(ask, answer, "builder")}`);
+        const job = task.job === null ? undefined : this.deps.queue.get(task.job);
+        const working =
+          task.status === "building" &&
+          job !== undefined &&
+          ["queued", "running", "waiting", "paused"].includes(job.status);
+        if (!working && task.status !== "pending") return null; // nothing will read it: intake
+        // Answered while the builder still works: a session cannot read it mid-way, so it is held
+        // and the task is built again with it once this attempt ends (decision 0310).
+        task.answers.push(words);
         this.save(id, state);
+        setAnswerFate(
+          this.db,
+          ask.id,
+          working && job.status !== "queued"
+            ? {
+                state: "held",
+                job: job.id,
+                to: `${where}: its builder is still working and cannot read it now, so the task is built again with your answer once this attempt ends`,
+              }
+            : { state: "given", to: `${where}, which starts with your answer` },
+        );
         return null;
       }
-      task.answers.push(`${ask.title} → ${text || answerWords(ask, answer, "builder")}`);
+      task.answers.push(words);
       task.ask = null;
-      if ((task.claims ?? []).length === 0) {
+      const held = (task.claims ?? []).length > 0;
+      if (!held) {
         task.status = "pending";
         task.note = null;
       }
+      setAnswerFate(this.db, ask.id, {
+        state: "given",
+        to: held
+          ? `${where}, which starts with your answer once the proposal it also waits on is answered`
+          : `${where}, which starts again now with your answer`,
+      });
       this.save(id, state);
       return this.progress(id, state);
     }
@@ -1641,7 +1766,11 @@ export class BuildCheckRun implements LaterStages {
           return { kind: "next" };
         }
         state.failures = {};
-        this.fixRound(state, this.lastEvidence(state) || "The operator asked for more rounds.", []);
+        this.fixRound(
+          state,
+          this.lastEvidence(state) || "The operator asked for more rounds.",
+          this.lastNotMet(state),
+        );
         this.save(id, state);
         return { kind: "back-to-build", evidence: "more rounds were given" };
       case "build-check-problem":
@@ -1649,7 +1778,12 @@ export class BuildCheckRun implements LaterStages {
           this.startCheck(id, state);
           return { kind: "wait" };
         }
-        this.fixRound(state, "The operator asked for the change to be built again.", []);
+        this.fixRound(
+          state,
+          "The operator asked for the change to be built again.",
+          state.tasks.flatMap((t) => t.items),
+          "Build it again",
+        );
         this.save(id, state);
         return { kind: "back-to-build", evidence: "the operator asked to build again" };
       case "build-nothing-verified": {
@@ -1719,13 +1853,23 @@ export class BuildCheckRun implements LaterStages {
         this.fixRound(
           state,
           "The checked change could not be merged; build it again on the current code.",
-          [],
+          state.tasks.flatMap((t) => t.items),
+          "Build it again on the current code",
         );
         state.head = null;
         state.base = this.repositoryHead(id);
         this.save(id, state);
         return { kind: "back-to-build", evidence: "the change could not land" };
     }
+  }
+
+  /** The items the last check found not met: what a fix round given by the person names. */
+  private lastNotMet(state: BuildState): string[] {
+    const last = [...state.checks].reverse().find((c) => c.job !== null);
+    if (!last?.job) return [];
+    return [...this.verdictsOf(last.job).entries()]
+      .filter(([, v]) => v.verdict === "not-met")
+      .map(([item]) => item);
   }
 
   private lastEvidence(state: BuildState): string {
@@ -2012,6 +2156,16 @@ export class BuildCheckRun implements LaterStages {
         kind: "finding",
         reference: String(job.id),
         detail: { text: text.trim(), blocking, commit: job.payload.commit ?? null },
+      });
+    }
+    if (typeof args.seen_on_screen === "boolean") {
+      // Whether anybody saw it on a screen; the report says so when nobody did (decision 0310).
+      recordEvent(this.db, {
+        softwareId: job.softwareId,
+        module: "checker",
+        kind: "screen",
+        reference: String(job.id),
+        detail: { seen: args.seen_on_screen, commit: job.payload.commit ?? null },
       });
     }
     if (typeof args.run_notes === "string" && args.run_notes.trim()) {

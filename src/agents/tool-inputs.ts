@@ -368,6 +368,9 @@ export const TOOL_INPUTS: Record<string, ObjectShape> = {
         "What else the check found.",
       ),
       run_notes: text("Notes on running it, for the next check."),
+      seen_on_screen: yesNo(
+        "For a game or desktop program: whether you saw it on a screen (your own virtual screen counts) and saved a screenshot. false when you could not.",
+      ),
     },
     ["verdicts"],
   ),

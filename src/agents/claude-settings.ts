@@ -54,6 +54,25 @@ export const CREDENTIAL_PATHS = [
 ];
 
 /**
+ * Sockets on this machine a session with a virtual screen must still never reach (decision 0310):
+ * allowing local sockets lets it start a screen of its own, which lives on an abstract socket
+ * inside its own network namespace; these are the machine's, reachable through the file system.
+ */
+export const HOST_SOCKET_PATHS = [
+  "/tmp/.X11-unix",
+  "/mnt/wslg",
+  "/run/user",
+  "/run/dbus",
+  "/var/run/dbus",
+  "/run/docker.sock",
+  "/var/run/docker.sock",
+  "/run/containerd",
+  "/run/podman",
+  "/run/snapd.socket",
+  "/run/systemd",
+];
+
+/**
  * A host name that never resolves, used when a session may reach no host at all: an empty list
  * is not what the sandbox test proved, a list with one unreachable host is.
  */
@@ -70,6 +89,13 @@ export interface ConfinementInput {
   /** The Claude Code configuration folder in use, when it is not the default under home. */
   claudeConfigFolder: string | null;
   extraDeniedPaths: string[];
+  /** agents.confinement.virtual_display: a session whose access allows it may start a screen. */
+  virtualDisplay?: boolean;
+}
+
+/** Whether this session may start a virtual screen of its own (decision 0310). */
+export function mayUseDisplay(input: Pick<ConfinementInput, "access" | "virtualDisplay">): boolean {
+  return input.access.display === true && input.virtualDisplay === true;
 }
 
 /** Every folder or file the session may not touch: a list of absolute paths. */
@@ -104,6 +130,7 @@ export function deniedPaths(input: ConfinementInput): string[] {
   for (const path of CREDENTIAL_PATHS) add(join(input.home, path));
   if (input.claudeConfigFolder) add(input.claudeConfigFolder);
   for (const path of input.extraDeniedPaths) add(path);
+  if (mayUseDisplay(input)) for (const path of HOST_SOCKET_PATHS) add(path);
   return [...denied].sort();
 }
 
@@ -119,7 +146,7 @@ export interface ClaudeSettings {
     allowUnsandboxedCommands: false;
     autoAllowBashIfSandboxed: boolean;
     filesystem: { denyRead: string[] };
-    network: { allowedDomains: string[] };
+    network: { allowedDomains: string[]; allowAllUnixSockets?: true };
   };
   permissions: { allow: string[]; deny: string[] };
 }
@@ -153,7 +180,11 @@ export function sessionSettings(input: ConfinementInput): ClaudeSettings {
       allowUnsandboxedCommands: false,
       autoAllowBashIfSandboxed: access.shell,
       filesystem: { denyRead: denied },
-      network: { allowedDomains: domains.length > 0 ? domains : [NO_NETWORK_PLACEHOLDER] },
+      network: {
+        allowedDomains: domains.length > 0 ? domains : [NO_NETWORK_PLACEHOLDER],
+        // The sandbox blocks making local sockets; a virtual screen needs them (decision 0310).
+        ...(mayUseDisplay(input) && { allowAllUnixSockets: true as const }),
+      },
     },
     permissions: { allow, deny },
   };
