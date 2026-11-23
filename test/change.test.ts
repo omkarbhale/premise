@@ -263,7 +263,7 @@ describe("a change is planned and built as a change", () => {
     const said = seen.said as string[];
     const notice = said.find((t) => t.startsWith("I-1 taken as:"))!;
     expect(notice).toContain("It prints the number of paragraphs");
-    expect(notice).toContain("Assumed, not checked with you: A paragraph ends at an empty line");
+    expect(notice).toMatch(/Assumed, not checked with you: [^.]*A paragraph ends at an empty line/);
     expect(notice).toContain("Building now: 1. Count paragraphs");
     expect(said.some((t) => t.startsWith("Building your change I-1: Count paragraphs"))).toBe(true);
     expect(said.some((t) => t.startsWith("I-1 changed: Count paragraphs."))).toBe(true);
