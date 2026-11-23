@@ -47,6 +47,7 @@
 
 ## Consequences
 
+- The quote rule of point 7 is checked on the drafts of the Why, Who and What stages. The plan stage's decisions and milestones, the say-back, the What-exists items and `record_propose` operations do not check it yet and show no quote: a known limit, tracked in issue #195.
 - Builders' decisions reach the record with the code they belong to.
 - Each plan decision is in the record once.
 - Records written before this change still check every file they remembered; they are retried the same way.
