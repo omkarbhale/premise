@@ -243,7 +243,7 @@ export function toAskItem(item: DraftItem): AskItem {
     text: displayText(item),
     mark,
     ...(mark === "from-role" && { from: item.from }),
-    ...(mark === "from-role" && item.quote && { detail: `Your words: "${item.quote}"` }),
+    ...(mark === "from-role" && item.quote && { quote: item.quote }),
     ...(item.wait !== undefined && { wait: item.wait }),
     ...(item.refs && { refs: item.refs }),
     ...(item.follows && { follows: { label: item.follows, text: "" } }),
@@ -331,10 +331,17 @@ function squash(text: string): string {
   return text.replace(/\s+/g, " ").trim().toLowerCase();
 }
 
+/** Words of at least three, or the whole of a source shorter than that, found word for word. */
+function quoteHolds(quote: string, source: string): boolean {
+  if (!source.includes(quote)) return false;
+  return quote.split(" ").length >= 3 || source === quote;
+}
+
 /**
  * Provenance (decision 0276): "from: operator" only for words the operator said, shown by a quote.
  * A drafted item that claims to be the operator's keeps that mark only when it carries a `quote`
- * that appears word for word in one of the sources (what the operator wrote, said or answered).
+ * of at least three words (or a whole source shorter than that) that appears word for word in one of
+ * the sources (what the operator wrote, said or answered).
  * Otherwise it becomes "assumed", so the operator sees it as premise's assumption and can strike it.
  * Returns the items and how many were marked down.
  */
@@ -348,7 +355,7 @@ export function checkOperatorQuotes<T extends Pick<DraftItem, "from" | "quote">>
   const checked = items.map((item) => {
     if (item.from !== operatorRole) return item;
     const quote = item.quote ? squash(item.quote) : "";
-    if (quote && said.some((source) => source.includes(quote))) return item;
+    if (quote && said.some((source) => quoteHolds(quote, source))) return item;
     downgraded++;
     const { quote: _dropped, ...rest } = item;
     return { ...rest, from: "assumed" } as T;

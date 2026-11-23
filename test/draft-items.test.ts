@@ -50,12 +50,26 @@ describe("provenance: from operator only with a quote the operator said", () => 
     expect(downgraded).toBe(2);
   });
 
-  it("shows the quote behind the item's details", () => {
+  it("needs a quote of three words, or the whole of a source shorter than that", () => {
+    const { items, downgraded } = checkOperatorQuotes(
+      [
+        { text: "A list.", from: "operator", quote: "list" },
+        { text: "A reading list.", from: "operator", quote: "reading list" },
+        { text: "Greeting.", from: "operator", quote: "Welcome back" },
+        { text: "Hi.", from: "operator", quote: "Welcome" },
+      ],
+      [...sources, "Welcome back"],
+    );
+    expect(items.map((i) => i.from)).toEqual(["assumed", "assumed", "operator", "assumed"]);
+    expect(downgraded).toBe(3);
+  });
+
+  it("shows the quote under the item", () => {
     const [item] = readDraftItems(
       [{ text: "Keep a list.", from: "operator", quote: "I keep my reading list" }],
       { defaultKind: "W", allowed: ["W"] },
     );
-    expect(toAskItem(item!).detail).toContain("I keep my reading list");
+    expect(toAskItem(item!).quote).toContain("I keep my reading list");
   });
 });
 

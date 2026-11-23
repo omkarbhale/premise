@@ -679,7 +679,7 @@ describe("chat and stage problems", () => {
     const id = await start(app);
     const why = await lineAsk(app, id);
     expect(why.items.map((i) => i.mark)).toEqual(["from-role", "assumed", "assumed"]);
-    expect(why.items[0]!.detail).toContain("I keep my reading list");
+    expect(why.items[0]!.quote).toBe("I keep my reading list");
     const reply = app.runner.calls.find((c) => c.tool === "draft_submit")!.result;
     expect(JSON.stringify(reply)).toContain("quote");
     expect(id).toBeTruthy();

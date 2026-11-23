@@ -18,6 +18,27 @@ afterEach(() => {
   window.location.hash = "";
 });
 
+describe("an item that rests on the person's words", () => {
+  it("shows what they said under the item", () => {
+    inSession(
+      <AskCard
+        ask={ask({
+          items: [
+            {
+              key: "k1",
+              text: "Keep a reading list.",
+              mark: "from-role",
+              from: "operator",
+              quote: "I keep my reading list",
+            },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("you said: “I keep my reading list”")).toBeTruthy();
+  });
+});
+
 describe("answering", () => {
   const exists = () =>
     ask({

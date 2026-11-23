@@ -4537,7 +4537,7 @@ export class LineEngine implements IntakeLine {
       status: "shown",
       note: `The operator strikes, keeps or edits each item.${
         downgraded
-          ? ` ${downgraded} item${downgraded === 1 ? "" : "s"} marked from: operator had no quote that appears word for word in what the operator said, answered or edited, so ${downgraded === 1 ? "it was" : "they were"} marked assumed. To mark an item from the operator, give "quote": their exact words, copied from their description, a chat message, an answer or an edited item.`
+          ? ` ${downgraded} item${downgraded === 1 ? "" : "s"} marked from: operator had no quote of at least three words (or a whole source shorter than that) that appears word for word in what the operator said, answered or edited, so ${downgraded === 1 ? "it was" : "they were"} marked assumed. To mark an item from the operator, give "quote": their exact words, copied from their description, a chat message, an answer or an edited item.`
           : ""
       }`,
     });
