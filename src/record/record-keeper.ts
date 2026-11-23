@@ -251,6 +251,50 @@ export class RecordKeeper {
     return sha;
   }
 
+  /**
+   * Before a branch built on an older version lands (decision 0313): when code other than the
+   * record changed on the default branch since the branch started (another piece of work landed),
+   * the default branch is merged into the branch, without touching any working folder, so it can
+   * be checked again as it will land. "current": nothing but the record changed, so it lands as it
+   * is. "conflicts": both changed the same lines, in these files; nothing was changed.
+   */
+  bringMainInto(
+    softwareId: string,
+    branch: string,
+  ): { current: true } | { commit: string; changed: string[] } | { conflicts: string[] } {
+    const repo = this.createRepository(softwareId);
+    const main = this.git.headCommit(repo);
+    const head = this.git.resolve(repo, branch);
+    if (!main || !head || this.git.isAncestor(repo, main, head)) return { current: true };
+    const base = this.git.mergeBase(repo, main, head);
+    const record = new Set(RECORD_FILES.map((spec) => `${this.folder}/${spec.file}`));
+    const changed = base
+      ? this.git.changedFiles(repo, base, main).filter((f) => !record.has(f))
+      : ["everything"];
+    if (changed.length === 0) return { current: true };
+    const merged = this.git.mergeTree(repo, head, main);
+    if ("conflicts" in merged) return merged;
+    const ids = new Set<string>();
+    for (const commit of this.git.log(repo, [head, "--not", main])) {
+      const trailer = readTrailer(commit.message, this.trailer);
+      if ("ids" in trailer) trailer.ids.forEach((id) => ids.add(id));
+    }
+    const commit = this.git.commitTree(repo, merged.tree, [head, main], {
+      subject: `Bring ${this.git.currentBranch(repo)} into ${branch}`,
+      body: "Work landed while this branch was built; it is checked again before it lands.",
+      ...(ids.size > 0 && { trailers: [[this.trailer, [...ids].join(", ")]] }),
+    });
+    this.git.moveBranch(repo, branch, commit, head);
+    recordEvent(this.db, {
+      softwareId,
+      module: "record-keeper",
+      kind: "main-brought-in",
+      reference: commit,
+      detail: { branch, main, changed: changed.slice(0, 20) },
+    });
+    return { commit, changed };
+  }
+
   private fastForwardEmpty(repo: string, branch: string): string {
     this.git.run(repo, ["merge", "--quiet", "--ff-only", branch]);
     return this.git.headCommit(repo)!;

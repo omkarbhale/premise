@@ -1,4 +1,4 @@
-import { execFile, execFileSync } from "node:child_process";
+import { execFile, execFileSync, spawnSync } from "node:child_process";
 import { devNull } from "node:os";
 import { existsSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
@@ -222,6 +222,77 @@ export class Git {
       throw error;
     }
     return this.headCommit(cwd)!;
+  }
+
+  /** Whether `ancestor` is `commit` or one of its ancestors. */
+  isAncestor(cwd: string, ancestor: string, commit: string): boolean {
+    return this.tryRun(cwd, ["merge-base", "--is-ancestor", ancestor, commit]) !== undefined;
+  }
+
+  /** The newest commit both have, or undefined when they share none. */
+  mergeBase(cwd: string, a: string, b: string): string | undefined {
+    return this.tryRun(cwd, ["merge-base", a, b])?.trim() || undefined;
+  }
+
+  /** The files that differ between two commits. */
+  changedFiles(cwd: string, from: string, to: string): string[] {
+    return this.run(cwd, ["diff", "--name-only", from, to])
+      .split("\n")
+      .filter((f) => f.length > 0);
+  }
+
+  /**
+   * Merge two commits without touching any working folder: the merged tree, or the files both
+   * changed in ways that conflict. Nothing is written but git objects.
+   */
+  mergeTree(cwd: string, ours: string, theirs: string): { tree: string } | { conflicts: string[] } {
+    const result = spawnSync(
+      "git",
+      [
+        "-c",
+        "core.hooksPath=" + devNull,
+        "merge-tree",
+        "--write-tree",
+        "--name-only",
+        "--no-messages",
+        ours,
+        theirs,
+      ],
+      { cwd, env: this.environment(), encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
+    );
+    const lines = (result.stdout ?? "").split("\n").filter((l) => l.length > 0);
+    if (result.status === 0 && lines[0]) return { tree: lines[0] };
+    if (result.status === 1 && lines.length > 0) return { conflicts: lines.slice(1) };
+    throw new GitError(
+      "GIT_FAILED",
+      `git merge-tree failed: ${(result.stderr || result.stdout || "no output").toString().trim()}`,
+    );
+  }
+
+  /** Make a commit from a tree and its parents, without touching any working folder. */
+  commitTree(
+    cwd: string,
+    tree: string,
+    parents: readonly string[],
+    options: CommitOptions,
+  ): string {
+    return this.run(cwd, [
+      "commit-tree",
+      tree,
+      ...parents.flatMap((p) => ["-p", p]),
+      "-m",
+      buildCommitMessage(options),
+    ]).trim();
+  }
+
+  /** Move a branch from the commit it is on now to a new one; refused when it moved meanwhile. */
+  moveBranch(cwd: string, branch: string, to: string, from: string): void {
+    this.run(cwd, ["update-ref", `refs/heads/${branch}`, to, from]);
+  }
+
+  /** The commit a branch or other name points at. */
+  resolve(cwd: string, name: string): string | undefined {
+    return this.tryRun(cwd, ["rev-parse", "--verify", "--quiet", `${name}^{commit}`])?.trim();
   }
 
   /** Make sure the remote's latest is known locally. Returns false when the remote has no such branch. */

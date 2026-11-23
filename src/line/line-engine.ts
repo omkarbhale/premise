@@ -50,6 +50,7 @@ import type {
   AskItem,
   AskView,
   ChangeView,
+  PieceInFlightView,
   ChatMessage,
   ExistingView,
   MilestoneView,
@@ -190,6 +191,8 @@ import {
   scopeWords,
 } from "./scope.js";
 import { dependencyProblems, planProblems, waitAfterFirst } from "./plan-checks.js";
+import { type Footprint, type InFlight, decideFlight } from "./parallel.js";
+import { type Lane, currentLane, inLane, outsideLanes } from "../shared/lane-context.js";
 import { StandInWholeCheck, type WholeCheck } from "./whole-check.js";
 import {
   type SizedBy,
@@ -304,7 +307,39 @@ interface ItemNotes {
   recovery?: Recovery;
   /** For an intake item's work: what its change is and how the person was told (0273, 0274). */
   change?: ChangeNotes;
+  /** In flight beside the piece in front, on its own branch (decision 0313). */
+  flight?: Flight;
+  /** For a part the sizer split off: the parts of the software it said the part touches. */
+  splitTouches?: string[];
+  /** For a split piece: its parts were built in flight and each landed on its own (0313). */
+  partsLanded?: boolean;
 }
+
+/**
+ * A piece of work that reached Build and goes on beside the piece in front (decision 0313):
+ * building now, waiting for other work it overlaps, or finished (kept for the page).
+ */
+interface Flight {
+  state: "waiting" | "building" | "landed" | "stopped";
+  /** When it left the front; pieces that left earlier are decided first. */
+  since: string;
+  touches: string[];
+  foundation: boolean;
+  /** Why it builds now or waits, in plain words, as the page shows it. */
+  reason: string;
+  /** The pieces it waits for. */
+  waitsFor?: number[];
+}
+
+/** The line's notes that belong to the software, not to one piece in flight. */
+const SOFTWARE_WIDE = [
+  "changeQuestions",
+  "scope",
+  "repositoryName",
+  "proposed",
+  "answers",
+  "piecesInFlight",
+] as const;
 
 /** Fixes the whole-piece check may ask for before premise goes on and reports it. */
 const WHOLE_CHECK_ROUNDS = 3;
@@ -334,6 +369,8 @@ interface LineState extends ItemNotes {
   repositoryName?: string;
   /** When premise asks about a change before building it, chosen for this software (0274). */
   changeQuestions?: ChangeQuestions;
+  /** How many pieces of this software may be built at once, chosen for it (decision 0313). */
+  piecesInFlight?: number;
 }
 
 interface StoredPlan {
@@ -427,18 +464,43 @@ export class LineEngine implements IntakeLine {
     return software;
   }
 
-  /** The line's notes on a software, kept on its root work item. */
+  /**
+   * The line's notes on a software, kept on its root work item. Inside a piece's lane (decision
+   * 0313), the notes of that piece's own run (its stage run, milestone, budget boost) are kept on
+   * the piece; what belongs to the whole software stays on the root.
+   */
   private state(id: string): LineState {
-    return itemState<LineState>(this.db, rootItem(this.db, id).id);
+    const root = itemState<LineState>(this.db, rootItem(this.db, id).id);
+    const lane = currentLane(id);
+    if (!lane) return root;
+    const own = itemState<LineState>(this.db, lane.item) as Record<string, unknown>;
+    for (const key of SOFTWARE_WIDE) delete own[key];
+    const wide: Record<string, unknown> = {};
+    for (const key of SOFTWARE_WIDE) if (root[key] !== undefined) wide[key] = root[key];
+    return { ...own, ...wide } as LineState;
   }
 
   private setState(id: string, change: Partial<LineState>): LineState {
-    const next = { ...this.state(id), ...change };
-    for (const key of Object.keys(next) as (keyof LineState)[]) {
-      if (next[key] === undefined) delete next[key];
+    const lane = currentLane(id);
+    const write = (itemId: number, update: Record<string, unknown>) => {
+      const next: Record<string, unknown> = { ...itemState(this.db, itemId), ...update };
+      for (const key of Object.keys(next)) if (next[key] === undefined) delete next[key];
+      setItemState(this.db, itemId, next);
+    };
+    const rootId = rootItem(this.db, id).id;
+    if (!lane) {
+      write(rootId, change);
+      return this.state(id);
     }
-    setItemState(this.db, rootItem(this.db, id).id, next);
-    return next;
+    const wide: Record<string, unknown> = {};
+    const own: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(change)) {
+      if ((SOFTWARE_WIDE as readonly string[]).includes(key)) wide[key] = value;
+      else own[key] = value;
+    }
+    if (Object.keys(wide).length) write(rootId, wide);
+    if (Object.keys(own).length) write(lane.item, own);
+    return this.state(id);
   }
 
   private sizeOf(software: Software): SizeClass {
@@ -934,7 +996,9 @@ export class LineEngine implements IntakeLine {
   /** On to the next stage of the piece after `from`, or the piece is finished. */
   private advance(id: string, from: StageId, why: string): void {
     const item = this.active(id);
-    const next = this.state(id).returnTo === "say-back" ? "say-back" : nextStage(item, from);
+    let next = this.state(id).returnTo === "say-back" ? "say-back" : nextStage(item, from);
+    // A part built in flight lands on its own before it is done (decision 0313).
+    if (!next && from === "check" && currentLane(id) && !item.stages.includes("run")) next = "run";
     if (next === "say-back") this.setState(id, { returnTo: undefined });
     if (next) this.enterStage(getSoftware(this.db, id)!, next, why);
     else this.finishItem(id, item, "done");
@@ -953,6 +1017,14 @@ export class LineEngine implements IntakeLine {
   private statusLine(software: Software, openAsks: number, jobs: Job[]): string {
     const item = this.active(software.id);
     const said = this.lifecycleLine(software, openAsks, jobs, item);
+    const flying = software.state === "active" ? this.flightWords(software.id) : "";
+    if (flying) {
+      // Pieces built alongside the front (decision 0313): say what each is doing.
+      const idle =
+        (item.parentId === null && software.currentStage === "intake") || item.state === "waiting";
+      if (idle && openAsks === 0) return `In flight: ${flying}.`;
+      return `${said} In flight: ${flying}.`;
+    }
     if (item.parentId === null || software.state !== "active") return said;
     const parts = childItems(this.db, item.parentId);
     const where =
@@ -1085,6 +1157,12 @@ export class LineEngine implements IntakeLine {
       budget: budget ? { ...budget, usedMinutes: Math.round(used * 10) / 10 } : null,
       work: this.workViews(id),
       wholeCheckStandIn: this.wholeCheck.standIn,
+      inFlight: this.flightViews(id),
+      piecesInFlight: {
+        value: this.piecesInFlightOf(id),
+        chosen: state.piecesInFlight !== undefined,
+        default: this.config.line.pieces_in_flight,
+      },
       build: this.options.later.view?.(id) ?? null,
       ...(this.existingView(id) && { existing: this.existingView(id)! }),
       claims: this.claimViews(id),
@@ -1331,6 +1409,13 @@ export class LineEngine implements IntakeLine {
         sized: item.sized,
         minutesBeforeBuild: minutesBeforeBuild(item),
         canChange: !["done", "withdrawn", "dropped"].includes(item.state),
+        ...(this.flightOf(item) && {
+          flight: {
+            state: this.flightOf(item)!.state === "building" ? "building" : "waiting",
+            reason: this.flightOf(item)!.reason,
+            touches: this.flightOf(item)!.touches,
+          },
+        }),
         canUndoSplit: splitLive && !this.partsStartedBuilding(item),
       };
     });
@@ -2108,6 +2193,13 @@ export class LineEngine implements IntakeLine {
     }
     transaction(this.db, () => {
       this.clearWork(id, `Withdrawn: sent back to ${stageName(stage)}.`);
+      const grounded = this.groundFlights(id, target.id);
+      if (grounded.length > 0) {
+        this.premiseSays(
+          id,
+          `The work being built alongside (${grounded.join(", ")}) is stopped; it starts again after, from the new version.`,
+        );
+      }
       if (software.state !== "active") this.setLifecycle(id, "active", "sent back");
       this.setState(id, { returnTo: undefined, boost: undefined, review: undefined });
       const dropped = this.withdrawParts(target);
@@ -2128,7 +2220,19 @@ export class LineEngine implements IntakeLine {
    */
   private sendBackTarget(id: string, stage: StageId): WorkItem | undefined {
     const order = (s: string) => STAGE_IDS.indexOf(s as StageId);
-    for (const item of ancestry(this.db, this.active(id))) {
+    const front = this.active(id);
+    const idle =
+      (front.parentId === null && front.currentStage === "intake") || front.state === "waiting";
+    if (idle) {
+      // The front only waits: the piece meant is the latest one in flight that reached the stage.
+      const flown = this.flights(id)
+        .reverse()
+        .find(
+          ({ item }) => item.stages.includes(stage) && order(stage) <= order(item.currentStage),
+        );
+      if (flown) return flown.item;
+    }
+    for (const item of ancestry(this.db, front)) {
       if (!item.stages.includes(stage)) continue;
       const notes = this.notes(item);
       const reached =
@@ -2260,6 +2364,12 @@ export class LineEngine implements IntakeLine {
       throw new ServiceError(
         "INVALID",
         "That piece of work is finished, so its steps cannot change. Send the software back to change it.",
+      );
+    }
+    if (this.flightOf(item)) {
+      throw new ServiceError(
+        "INVALID",
+        "That piece of work is being built alongside other work, so its steps cannot change now. Change them once it has landed, or send the software back.",
       );
     }
     const unknown = wanted.filter((s) => !isStageId(s));
@@ -2488,7 +2598,8 @@ export class LineEngine implements IntakeLine {
       );
     const run = Number(row.lastInsertRowid);
     setWorkItem(this.db, item.id, { currentStage: stage });
-    setSoftwareStage(this.db, software.id, stage, why);
+    // The software's row shows the piece in front; a piece in flight keeps its stage on itself.
+    if (!currentLane(software.id)) setSoftwareStage(this.db, software.id, stage, why);
     this.setState(software.id, { run, ...(budget ? {} : { boost: undefined }) });
     if (stage === "build") this.markBuildStarted(item);
     this.options.intake.workItemMoved(getWorkItem(this.db, item.id)!, stage);
@@ -2677,6 +2788,8 @@ export class LineEngine implements IntakeLine {
         reason: [proposal.stagesReason, ...proposal.notes].join(" "),
       },
       split: { decision: split ? "split" : "whole", by, reason: proposal.splitReason },
+      // What it touches decides whether it may be built beside other work (decision 0313).
+      touches: { parts: proposal.touches ?? [], foundation: proposal.foundation === true, by },
     };
     setWorkItem(this.db, item.id, {
       sizeClass: proposal.size,
@@ -2709,7 +2822,11 @@ export class LineEngine implements IntakeLine {
     const recovering = this.isRecovery(fresh);
     const parts = this.makeParts(
       fresh,
-      proposal.split.map((p) => ({ title: p.title, words: p.words })),
+      proposal.split.map((p) => ({
+        title: p.title,
+        words: p.words,
+        ...(p.touches && { touches: p.touches }),
+      })),
       recovering ? "recover" : "split",
     );
     this.setNotes(
@@ -2723,7 +2840,7 @@ export class LineEngine implements IntakeLine {
       softwareId,
       recovering
         ? `Its record is recovered in ${parts.length} parts, because ${lowerFirst(proposal.splitReason)} ${parts.map((p, i) => `${i + 1}. ${p.title}`).join("; ")}. A drafter reads each part in turn; then everything recovered is said back to you in one list.`
-        : `Split into ${parts.length} separate parts, because ${lowerFirst(proposal.splitReason)} ${parts.map((p, i) => `${i + 1}. ${p.title}`).join("; ")}. Each part goes through the steps it needs, one after another; then the whole is checked, run and reported. You can undo the split on the Line tab until a part is built.`,
+        : `Split into ${parts.length} separate parts, because ${lowerFirst(proposal.splitReason)} ${parts.map((p, i) => `${i + 1}. ${p.title}`).join("; ")}. ${this.piecesInFlightOf(softwareId) > 1 ? "Each part goes through the steps it needs; from Build on, parts that change different parts of the software are built at the same time, and each lands once checked" : "Each part goes through the steps it needs, one after another"}; then the whole is checked, run and reported. You can undo the split on the Line tab until a part is built.`,
     );
     this.beginItem(softwareId, parts[0]!, "split");
   }
@@ -2731,13 +2848,13 @@ export class LineEngine implements IntakeLine {
   /** Make a piece's parts, in order. Each is sized when the line comes to it. */
   private makeParts(
     parent: WorkItem,
-    parts: { title: string; words: string; ref?: string }[],
+    parts: { title: string; words: string; ref?: string; touches?: string[] }[],
     origin: WorkItemOrigin,
   ): WorkItem[] {
     const before = childItems(this.db, parent.id).length;
     return parts.map((part, i) => {
       const kind = origin === "plan" ? "milestone" : "module";
-      return createWorkItem(this.db, {
+      const made = createWorkItem(this.db, {
         softwareId: parent.softwareId,
         parentId: parent.id,
         kind,
@@ -2750,11 +2867,17 @@ export class LineEngine implements IntakeLine {
         stages: defaultStages({ kind, origin, parentId: parent.id }),
         state: "ahead",
       });
+      if (part.touches?.length) this.setNotes(made, { splitTouches: part.touches });
+      return made;
     });
   }
 
   /** A piece is finished: the next part after it begins, or the piece above it goes on. */
   private finishItem(softwareId: string, item: WorkItem, state: "done" | "dropped"): void {
+    if (currentLane(softwareId) && this.flightOf(item)) {
+      this.endFlight(softwareId, item, state);
+      return;
+    }
     if (item.parentId === null) {
       // The software itself: its line ends at Intake.
       this.enterStage(getSoftware(this.db, softwareId)!, "intake", "line finished");
@@ -2799,9 +2922,449 @@ export class LineEngine implements IntakeLine {
       this.beginItem(softwareId, next, `${this.label(item)} finished`);
       return;
     }
+    if (childItems(this.db, parent.id).some((c) => this.flightOf(c))) {
+      // Its other parts are still in flight: the whole goes on when the last one lands (0313).
+      this.frontWaitsForParts(softwareId, parent);
+      return;
+    }
     this.setActive(softwareId, parent);
     if (this.notes(parent).children === "split") this.startWholeCheck(softwareId, parent);
     else this.resumeParent(softwareId, parent);
+  }
+
+  // ---- Pieces in flight (decision 0313) ---------------------------------------------------------
+
+  /** How many pieces of this software may be built at the same time. */
+  private piecesInFlightOf(softwareId: string): number {
+    return this.state(softwareId).piecesInFlight ?? this.config.line.pieces_in_flight;
+  }
+
+  /** The operator chose how many pieces of a software may be built at once; null: the default. */
+  async setPiecesInFlight(id: string, value: unknown): Promise<void> {
+    const software = this.require(id);
+    if (value !== null && !(Number.isInteger(value) && Number(value) >= 1 && Number(value) <= 10)) {
+      throw new ServiceError(
+        "INVALID",
+        "Choose how many pieces may be built at once: a whole number from 1 to 10, or the default.",
+      );
+    }
+    outsideLanes(() =>
+      transaction(this.db, () => {
+        this.setState(id, { piecesInFlight: value === null ? undefined : Number(value) });
+        const n = this.piecesInFlightOf(id);
+        this.premiseSays(
+          id,
+          n === 1
+            ? `${software.name} now builds one piece of work at a time. Pieces already being built finish first.`
+            : `${software.name} may now build up to ${n} pieces of work at the same time, when they change different parts.`,
+        );
+        this.wakeFlights(id);
+      }),
+    );
+    this.queue.tick();
+  }
+
+  /** The piece's flight, while it is in flight: building, or waiting for other work. */
+  private flightOf(item: WorkItem): Flight | undefined {
+    if (["done", "withdrawn", "dropped"].includes(item.state)) return undefined;
+    const flight = this.notes(item).flight;
+    return flight && (flight.state === "building" || flight.state === "waiting")
+      ? flight
+      : undefined;
+  }
+
+  /** The pieces of a software in flight, in the order they left the front. */
+  private flights(softwareId: string): { item: WorkItem; flight: Flight }[] {
+    return listWorkItems(this.db, softwareId)
+      .flatMap((item) => {
+        const flight = this.flightOf(item);
+        return flight ? [{ item, flight }] : [];
+      })
+      .sort((a, b) => a.flight.since.localeCompare(b.flight.since) || a.item.id - b.item.id);
+  }
+
+  private laneOfItem(value: unknown): Lane | null {
+    const id = Number(value);
+    if (!Number.isInteger(id)) return null;
+    const item = getWorkItem(this.db, id);
+    return item && this.flightOf(item) ? { softwareId: item.softwareId, item: item.id } : null;
+  }
+
+  private laneOfJob(job: Job): Lane | null {
+    return this.laneOfItem(job.payload.item);
+  }
+
+  /** The lane of an ask: the piece in flight it was asked for, or the job waiting on it. */
+  private laneOfAsk(ask: Ask): Lane | null {
+    const meta = ask.extra.meta ?? {};
+    if (meta.lane !== undefined) return this.laneOfItem(meta.lane);
+    const jobId = ask.waitingJob ?? meta.job;
+    const job = typeof jobId === "number" ? this.queue.get(jobId) : undefined;
+    return job ? this.laneOfJob(job) : null;
+  }
+
+  /** Run `work` in the lane of the piece a job serves; in front when it serves none in flight. */
+  inJobLane<T>(jobId: number, work: () => T): T {
+    const job = this.queue.get(jobId);
+    return inLane(job ? this.laneOfJob(job) : null, work);
+  }
+
+  /** The piece as the person knows it: "I-2 (the shield fix)", or "the part "Sound"". */
+  private pieceName(item: WorkItem): string {
+    if (item.kind === "intake") {
+      // The first words of its title are enough to tell it apart.
+      let title = this.changeTitle(item).replace(/[.\s]+$/, "");
+      if (title.length > 50) title = `${title.slice(0, 50).replace(/\s+\S*$/, "")}...`;
+      return title ? `${item.ref ?? "a change"} (${lowerFirst(title)})` : (item.ref ?? "a change");
+    }
+    return this.label(item);
+  }
+
+  /** Whether this kind of piece may be built beside other work. */
+  private mayFly(item: WorkItem): boolean {
+    if (item.parentId === null) return false;
+    // A change of what the software is for flies too, but goes alone (its footprint says so).
+    if (item.kind === "intake") return true;
+    if (item.kind !== "module") return false;
+    if (item.origin === "split") return true;
+    // A fix the whole check asked for, once the parts landed on their own, lands on its own too.
+    if (item.origin === "fix") {
+      return this.notes(getWorkItem(this.db, item.parentId)!).partsLanded === true;
+    }
+    return false;
+  }
+
+  /**
+   * What a piece says it touches. The sizer names folders, files and modules; when it named any,
+   * the record items the change serves are added. When it named none, premise does not know, and
+   * the piece goes one after another.
+   */
+  private footprint(item: WorkItem): Footprint {
+    const notes = this.notes(item);
+    const said = item.sizing?.touches?.parts.length
+      ? item.sizing.touches.parts
+      : (notes.splitTouches ?? []);
+    const change = this.changeOf(item);
+    const plan = change ? this.changePlanOf(item.softwareId, item) : null;
+    const records = this.recordLines(item.softwareId);
+    const items =
+      said.length === 0
+        ? []
+        : [
+            ...(change ? this.triageTouches(change) : []),
+            ...(plan?.tasks ?? []).flatMap((t) => t.items),
+          ];
+    const foundation =
+      item.sizing?.touches?.foundation === true ||
+      item.origin === "purpose" ||
+      (plan?.decisions ?? []).some(
+        (d) =>
+          d.foundation === true ||
+          (d.replaces !== undefined &&
+            records.find((r) => r.id === d.replaces)?.marks.foundation === true),
+      );
+    return {
+      item: item.id,
+      label: this.pieceName(item),
+      touches: [...new Set([...said, ...items])],
+      foundation,
+    };
+  }
+
+  /** Close the current stage run of the piece in front, or of the lane the code runs in. */
+  private closeRun(softwareId: string, why: string): void {
+    const run = this.state(softwareId).run;
+    if (!run) return;
+    const closed = this.db
+      .prepare("UPDATE stage_runs SET exited = ?, exit_reason = ? WHERE id = ? AND exited IS NULL")
+      .run(now(), why, run);
+    if (Number(closed.changes) > 0) {
+      recordEvent(this.db, {
+        softwareId,
+        module: "line",
+        kind: "stage-left",
+        reference: String(run),
+        detail: { why },
+      });
+    }
+  }
+
+  /**
+   * A piece reached Build. When this software may build more than one piece at once, the piece
+   * leaves the front and goes on in its own lane, now or once the work it overlaps has landed, and
+   * the front moves on to the next piece (decision 0313). False: it is built in front, as before.
+   */
+  private sendIntoFlight(software: Software, item: WorkItem, why: string): boolean {
+    if (currentLane(software.id) || !this.mayFly(item)) return false;
+    // One at a time builds in front, as before; pieces still in flight from before finish first.
+    if (this.piecesInFlightOf(software.id) <= 1 && this.flights(software.id).length === 0) {
+      return false;
+    }
+    const print = this.footprint(item);
+    this.closeRun(software.id, "it is built in flight");
+    this.setNotes(item, {
+      flight: {
+        state: "waiting",
+        since: now(),
+        touches: print.touches,
+        foundation: print.foundation,
+        reason: "",
+      },
+    });
+    this.decideFlight(software.id, getWorkItem(this.db, item.id)!, why);
+    this.frontMovesOn(software.id, item);
+    return true;
+  }
+
+  /**
+   * Decide whether a piece in flight builds now or waits, record the decision with its reason, and
+   * start its Build when it goes. It is weighed against the pieces building and the ones that left
+   * the front before it, so waiting pieces keep their turn. True when it started building.
+   */
+  private decideFlight(softwareId: string, item: WorkItem, why: string): boolean {
+    const flight = this.notes(item).flight!;
+    const before = this.flights(softwareId).filter(
+      (f) =>
+        f.item.id !== item.id &&
+        (f.flight.state === "building" ||
+          f.flight.since < flight.since ||
+          (f.flight.since === flight.since && f.item.id < item.id)),
+    );
+    const others: InFlight[] = before.map((f) => ({
+      item: f.item.id,
+      label: this.pieceName(f.item),
+      touches: f.flight.touches,
+      foundation: f.flight.foundation,
+      building: f.flight.state === "building",
+    }));
+    const decision = decideFlight(
+      {
+        item: item.id,
+        label: this.pieceName(item),
+        touches: flight.touches,
+        foundation: flight.foundation,
+      },
+      others,
+      this.piecesInFlightOf(softwareId),
+    );
+    if (!decision.go) {
+      this.setNotes(item, {
+        flight: {
+          ...flight,
+          state: "waiting",
+          reason: decision.reason,
+          waitsFor: decision.waitsFor,
+        },
+      });
+      if (flight.reason !== decision.reason) {
+        recordEvent(this.db, {
+          softwareId,
+          module: "line",
+          kind: "piece-waits",
+          reference: String(item.id),
+          detail: { reason: decision.reason, waitsFor: decision.waitsFor, touches: flight.touches },
+        });
+        this.premiseSays(
+          softwareId,
+          `${capital(this.pieceName(item))} is ready to build. ${decision.reason}`,
+        );
+      }
+      return false;
+    }
+    this.setNotes(item, {
+      flight: { ...flight, state: "building", reason: decision.reason, waitsFor: undefined },
+    });
+    recordEvent(this.db, {
+      softwareId,
+      module: "line",
+      kind: "piece-in-flight",
+      reference: String(item.id),
+      detail: {
+        reason: decision.reason,
+        touches: flight.touches,
+        alongside: others.filter((o) => o.building).map((o) => o.item),
+      },
+    });
+    if (others.length > 0) {
+      this.premiseSays(softwareId, `${capital(this.pieceName(item))}: ${decision.reason}`);
+    }
+    inLane({ softwareId, item: item.id }, () => {
+      const software = getSoftware(this.db, softwareId)!;
+      this.enterLater(software, "build", this.milestoneOf(softwareId), why);
+    });
+    return true;
+  }
+
+  /** Pieces waiting in flight are weighed again, in turn: some may build now. */
+  private wakeFlights(softwareId: string): void {
+    for (const { item } of this.flights(softwareId)) {
+      const fresh = getWorkItem(this.db, item.id)!;
+      if (this.flightOf(fresh)?.state !== "waiting") continue;
+      this.decideFlight(softwareId, fresh, "the work it waited for landed");
+    }
+  }
+
+  /** A piece left the front for its own lane: the front goes on with the next piece. */
+  private frontMovesOn(softwareId: string, item: WorkItem): void {
+    const parent = getWorkItem(this.db, item.parentId!)!;
+    if (item.kind === "intake") {
+      const queued = this.nextIntakeWork(softwareId);
+      if (queued) {
+        this.beginItem(softwareId, queued, `${item.ref ?? "a change"} is built in flight`);
+        return;
+      }
+      // Nothing else waits: the front rests at Intake while the piece is built.
+      this.setActive(softwareId, parent);
+      this.openRun(
+        getSoftware(this.db, softwareId)!,
+        "intake",
+        `${item.ref ?? "a change"} in flight`,
+      );
+      this.setState(softwareId, { milestone: undefined });
+      return;
+    }
+    const next = childItems(this.db, parent.id).find(
+      (c) => c.state === "ahead" && c.kind !== "intake",
+    );
+    if (next) {
+      this.beginItem(softwareId, next, `${this.label(item)} is built in flight`);
+      return;
+    }
+    this.frontWaitsForParts(softwareId, parent);
+  }
+
+  /**
+   * Every part of a piece has left the front: the piece waits until the last one lands, or goes on
+   * at once when they all landed already.
+   */
+  private frontWaitsForParts(softwareId: string, parent: WorkItem): void {
+    if (!childItems(this.db, parent.id).some((c) => this.flightOf(c))) {
+      this.setActive(softwareId, parent);
+      if (this.notes(parent).children === "split") this.startWholeCheck(softwareId, parent);
+      else this.resumeParent(softwareId, parent);
+      return;
+    }
+    const root = rootItem(this.db, softwareId);
+    this.setState(softwareId, { item: parent.id === root.id ? undefined : parent.id });
+    setSoftwareStage(this.db, softwareId, "build", "its parts are built in flight");
+  }
+
+  /** A piece in flight finished (its report written, or, for a part, landed): the next ones go. */
+  private endFlight(softwareId: string, item: WorkItem, state: "done" | "dropped"): void {
+    const flight = this.notes(item).flight!;
+    this.closeRun(softwareId, state === "done" ? "landed" : "dropped");
+    setWorkItem(this.db, item.id, { state, finished: now() });
+    this.setNotes(item, { flight: { ...flight, state: "landed", waitsFor: undefined } });
+    recordEvent(this.db, {
+      softwareId,
+      module: "line",
+      kind: state === "done" ? "work-item-done" : "work-item-dropped",
+      reference: String(item.id),
+    });
+    this.options.intake.workItemMoved(getWorkItem(this.db, item.id)!, state);
+    if (item.kind === "intake") {
+      const notes = this.changeNotes(item);
+      const open = notes.ask === undefined ? undefined : getAsk(this.db, notes.ask);
+      const offered = notes.suggestions.some((x) => !x.added);
+      if (open?.status === "open" && open.extra.meta?.purpose === "change-notice" && !offered) {
+        closeAsk(this.db, open.id, "withdrawn", null, `${item.ref ?? "The change"} is done.`);
+      }
+    } else {
+      this.setNotes(getWorkItem(this.db, item.parentId!)!, { partsLanded: true });
+    }
+    outsideLanes(() => this.afterFlight(softwareId, item));
+  }
+
+  /** After a piece in flight finished: waiting pieces go, and the front goes on if it waited. */
+  private afterFlight(softwareId: string, item: WorkItem): void {
+    this.wakeFlights(softwareId);
+    const root = rootItem(this.db, softwareId);
+    const front = this.active(softwareId);
+    if (item.kind === "intake") {
+      const resting = front.id === root.id && root.currentStage === "intake";
+      const queued = resting ? this.nextIntakeWork(softwareId) : undefined;
+      if (queued) this.beginItem(softwareId, queued, `${item.ref ?? "a change"} landed`);
+      else if (resting && this.flights(softwareId).length === 0) {
+        this.premiseSays(
+          softwareId,
+          "Back at Intake: nothing else is waiting. Say in chat, or report on the Intake tab, what to change next.",
+        );
+      }
+      return;
+    }
+    const parent = getWorkItem(this.db, item.parentId!)!;
+    if (front.id !== parent.id) return;
+    const busy = childItems(this.db, parent.id).some(
+      (c) => (c.state === "ahead" && c.kind !== "intake") || this.flightOf(c),
+    );
+    if (busy) return;
+    this.setActive(softwareId, parent);
+    if (this.notes(parent).children === "split") this.startWholeCheck(softwareId, parent);
+    else this.resumeParent(softwareId, parent);
+  }
+
+  /**
+   * A send-back stops every piece in flight. Each goes back to wait its turn, and starts again
+   * from the new version; parts below the piece sent back are withdrawn with it. Returns their names.
+   */
+  private groundFlights(softwareId: string, sentBack?: number): string[] {
+    const names: string[] = [];
+    for (const { item, flight } of this.flights(softwareId)) {
+      inLane({ softwareId, item: item.id }, () => this.closeRun(softwareId, "sent back"));
+      this.setNotes(item, { flight: { ...flight, state: "stopped", waitsFor: undefined } });
+      setWorkItem(this.db, item.id, { state: "ahead" });
+      this.options.later.forgetPiece?.(softwareId, item.id);
+      recordEvent(this.db, {
+        softwareId,
+        module: "line",
+        kind: "piece-stopped",
+        reference: String(item.id),
+        detail: { why: "sent back" },
+      });
+      if (item.id !== sentBack) names.push(this.pieceName(item));
+    }
+    return names;
+  }
+
+  /** The pieces in flight, for the page: what each touches, and why any waits. */
+  private flightViews(softwareId: string): PieceInFlightView[] {
+    return this.flights(softwareId).map(({ item, flight }) => {
+      const stage = isStageId(item.currentStage) ? item.currentStage : null;
+      const waitsFor = (flight.waitsFor ?? [])
+        .map((id) => getWorkItem(this.db, id))
+        .filter((w): w is WorkItem => Boolean(w))
+        .map((w) => this.pieceName(w));
+      return {
+        itemId: item.id,
+        name: capital(this.pieceName(item)),
+        state: flight.state === "building" ? "building" : "waiting",
+        stage: flight.state === "building" ? stage : null,
+        touches: flight.touches,
+        foundation: flight.foundation,
+        reason: flight.reason,
+        waitsFor,
+        since: flight.since,
+      };
+    });
+  }
+
+  /** The pieces in flight in a few words, for the status line. */
+  private flightWords(softwareId: string): string {
+    return this.flights(softwareId)
+      .map(({ item, flight }) => {
+        const doing =
+          flight.state === "waiting"
+            ? "waits for other work"
+            : item.currentStage === "check"
+              ? "being checked"
+              : item.currentStage === "run"
+                ? "landing"
+                : item.currentStage === "report"
+                  ? "being reported"
+                  : "being built";
+        return `${this.pieceName(item)} ${doing}`;
+      })
+      .join("; ");
   }
 
   /** Every part of a split piece is done: check the whole (a hand-off to the Check stage). */
@@ -2990,6 +3553,7 @@ export class LineEngine implements IntakeLine {
       if (stage === "build" && why !== "check not passed" && this.holdForChange(software, item)) {
         return;
       }
+      if (stage === "build" && this.sendIntoFlight(software, item, why)) return;
       this.enterLater(software, stage as LaterStageId, this.milestoneOf(software.id), why);
       return;
     }
@@ -3097,6 +3661,11 @@ export class LineEngine implements IntakeLine {
     this.setState(software.id, { milestone: milestone?.id ?? null });
     const run = this.state(software.id).run!;
     const change = milestone ? null : this.changeWork(software.id);
+    const piece = this.active(software.id);
+    const flying = Boolean(currentLane(software.id));
+    // A part built in flight only lands; a piece whose parts each landed only starts (0313).
+    const landOnly = flying && stage === "run" && !piece.stages.includes("run");
+    const startOnly = !flying && stage === "run" && this.notes(piece).partsLanded === true;
     const jobs = this.options.later.jobs({
       softwareId: software.id,
       stage,
@@ -3104,6 +3673,8 @@ export class LineEngine implements IntakeLine {
       run,
       why,
       ...(change && { change }),
+      ...(landOnly && { landOnly }),
+      ...(startOnly && { startOnly }),
     });
     for (const job of jobs ?? []) {
       this.queue.enqueue({
@@ -3122,21 +3693,29 @@ export class LineEngine implements IntakeLine {
         ? ` your change ${change.ref}: ${change.tasks.map((t) => t.title.replace(/[.\s]+$/, "")).join("; ")}`
         : "";
     const later = this.options.later.standIn ? " (stand-in: nothing is really done yet)" : "";
+    const who = flying && !change ? `${capital(this.pieceName(piece))}: ` : "";
     switch (stage) {
       case "build":
         this.premiseSays(
           software.id,
-          `Building${about}${later}. Nobody needs to watch; the page updates as it goes.`,
+          `${who}Building${about}${later}. Nobody needs to watch; the page updates as it goes.`,
         );
         break;
       case "check":
         this.premiseSays(
           software.id,
-          `Checking the build against what you asked for, in a separate session${later}.`,
+          `${flying ? `${capital(this.pieceName(piece))}: c` : "C"}hecking the build against what you asked for, in a separate session${later}.`,
         );
         break;
       case "run":
-        this.premiseSays(software.id, `Starting it on this machine${later}.`);
+        this.premiseSays(
+          software.id,
+          landOnly
+            ? `${who}Landing it: merging it into the software${later}.`
+            : startOnly
+              ? `Starting it on this machine; each of its parts has landed already${later}.`
+              : `${flying ? `${capital(this.pieceName(piece))}: s` : "S"}tarting it on this machine${later}.`,
+        );
         break;
       case "report":
         this.writeReport(software, milestone);
@@ -3417,6 +3996,11 @@ export class LineEngine implements IntakeLine {
     // Triage and readings are intake's jobs (src/intake).
     if (job.kind === "triage" || job.kind === "reading") return;
     if (!FINISHED.has(job.status) || this.isHandled(job.id)) return;
+    // A job of a piece in flight moves that piece on, in its own lane (decision 0313).
+    inLane(this.laneOfJob(job), () => this.jobEnded(job));
+  }
+
+  private jobEnded(job: Job): void {
     if (!this.isCurrent(job)) {
       transaction(this.db, () => {
         this.markHandled(job.id);
@@ -3498,6 +4082,17 @@ export class LineEngine implements IntakeLine {
       if (open) return;
     }
     this.applyLater(software, stage, outcome);
+  }
+
+  /**
+   * The later stage the work is at: the piece in flight's own, inside its lane (decision 0313),
+   * else the software's. Null before Build or at Intake.
+   */
+  private laterStageNow(id: string): LaterStageId | null {
+    const stage = currentLane(id)
+      ? this.active(id).currentStage
+      : getSoftware(this.db, id)?.currentStage;
+    return stage && (LATER as readonly string[]).includes(stage) ? (stage as LaterStageId) : null;
   }
 
   /** Move the line on as a later stage says. */
@@ -3969,6 +4564,12 @@ export class LineEngine implements IntakeLine {
   }
 
   async answer(id: number, answer: AskAnswer): Promise<AskView> {
+    const found = getAsk(this.db, id);
+    // An answer to a piece in flight moves that piece on, in its own lane (decision 0313).
+    return inLane(found ? this.laneOfAsk(found) : null, () => this.answerAsk(id, answer));
+  }
+
+  private async answerAsk(id: number, answer: AskAnswer): Promise<AskView> {
     const ask = getAsk(this.db, id);
     if (!ask) {
       throw new ServiceError(
@@ -4406,9 +5007,8 @@ export class LineEngine implements IntakeLine {
           );
           const later = this.options.later.answered?.(ask, answer) ?? null;
           const current = getSoftware(this.db, id)!;
-          if (later && (LATER as readonly string[]).includes(current.currentStage)) {
-            this.applyLater(current, current.currentStage as LaterStageId, later);
-          }
+          const stage = this.laterStageNow(id);
+          if (later && stage) this.applyLater(current, stage, later);
         };
       }
       case "condition": {
@@ -4465,9 +5065,8 @@ export class LineEngine implements IntakeLine {
           if (purpose === "agent" || later === null) this.placeAnswer(software, ask, said);
           if (later) {
             const current = getSoftware(this.db, id)!;
-            if ((LATER as readonly string[]).includes(current.currentStage)) {
-              this.applyLater(current, current.currentStage as LaterStageId, later);
-            }
+            const stage = this.laterStageNow(id);
+            if (stage) this.applyLater(current, stage, later);
           }
         };
       }
@@ -6360,7 +6959,7 @@ export class LineEngine implements IntakeLine {
 
   /** The server's part of Run. */
   runServerJob(job: Job): Promise<AgentOutcome> {
-    return this.options.later.runServerJob(job);
+    return inLane(this.laneOfJob(job), () => this.options.later.runServerJob(job));
   }
 
   // ---- Record and report ----------------------------------------------------------------------

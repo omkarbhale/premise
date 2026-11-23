@@ -1,3 +1,4 @@
+import { outsideLanes } from "../shared/lane-context.js";
 import type { AgentOutcome, AgentRunner, AgentSession } from "../agents/agent-runner.js";
 import { AGENT_TASK_KINDS, type AgentTaskKind, type PremiseConfig } from "../config/settings.js";
 import { type Database, now, recordEvent, transaction } from "../storage/database.js";
@@ -465,7 +466,15 @@ export class WorkQueue {
     return stopped;
   }
 
+  /**
+   * Start a job outside any piece's lane (decision 0313): a job is started by whatever ticked the
+   * queue, and must not take that caller's lane with it into its session's callbacks.
+   */
   private startJob(job: Job): void {
+    outsideLanes(() => this.startJobNow(job));
+  }
+
+  private startJobNow(job: Job): void {
     const attempt = job.attempts + 1;
     this.db
       .prepare("UPDATE jobs SET status = 'running', attempts = ?, started = ? WHERE id = ?")
@@ -956,6 +965,7 @@ export class WorkQueue {
 
   private notify(id: number): void {
     const job = this.get(id);
-    if (job) this.options.onChange?.(job);
+    // Whoever is told decides which piece's lane the change belongs to (decision 0313).
+    if (job) outsideLanes(() => this.options.onChange?.(job));
   }
 }

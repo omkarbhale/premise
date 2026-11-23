@@ -64,9 +64,17 @@ export function WorkItems({
             style={{ marginInlineStart: `${item.depth * 1.2}rem` }}
           >
             <div className="work-head">
-              <strong>{item.title}</strong> <span className="chip">{STATE_WORDS[item.state]}</span>
+              <strong>{item.title}</strong>{" "}
+              <span className="chip">
+                {item.flight
+                  ? item.flight.state === "building"
+                    ? "Being built alongside"
+                    : "Waiting to be built"
+                  : STATE_WORDS[item.state]}
+              </span>
               {item.current && <span className="chip chip-here">Here now</span>}
             </div>
+            {item.flight && <p className="small">{item.flight.reason}</p>}
             {item.depth > 0 &&
               item.kind !== "milestone" &&
               item.words &&

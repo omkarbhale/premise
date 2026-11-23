@@ -70,6 +70,8 @@ export interface SoftwareService {
   setEffort(id: string, effort: SoftwareEffort): Promise<void>;
   /** When premise asks about this software's changes before building them (decision 0274). */
   setChangeQuestions(id: string, value: string): Promise<void>;
+  /** How many pieces of this software may be built at once; null for the default (0313). */
+  setPiecesInFlight(id: string, value: number | null): Promise<void>;
   /** Stop, or not, after one of the software's milestones until the operator says go on. */
   setMilestoneWait(id: string, milestoneId: string, wait: boolean): Promise<void>;
   /** Withdraw a standing approval for a kind of floor action. */

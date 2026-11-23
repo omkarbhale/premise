@@ -642,6 +642,26 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
       },
     );
 
+    api.post<{ Params: { id: string }; Body: { value: number | null } }>(
+      "/api/softwares/:id/pieces-in-flight",
+      {
+        schema: {
+          params: idParam,
+          body: {
+            type: "object",
+            properties: {
+              value: { type: ["integer", "null"], minimum: 1, maximum: 10 },
+            },
+            required: ["value"],
+          },
+        },
+      },
+      async (request) => {
+        await services.softwares.setPiecesInFlight(request.params.id, request.body.value);
+        return services.softwares.get(request.params.id);
+      },
+    );
+
     api.post<{ Params: { id: string; milestone: string }; Body: { wait: boolean } }>(
       "/api/softwares/:id/milestones/:milestone/wait",
       {

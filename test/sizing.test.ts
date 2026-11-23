@@ -139,7 +139,8 @@ describe("sizing a piece of work", () => {
     const fix = items.find((i) => i.title === "Fix the title")!;
     expect(fix).toMatchObject({ state: "done", stages: ["build", "check"] });
     expect(fix.minutesBeforeBuild).not.toBeNull();
-    expect(jobsFor(app, fix.id)).toEqual(["size", "build", "check"]);
+    // Built beside the next part, it lands on its own once checked (decision 0313).
+    expect(jobsFor(app, fix.id)).toEqual(["size", "build", "check", "run"]);
 
     // The wish: What, then a say-back that premise added, then Build and Check.
     const exportPart = items.find((i) => i.title === "Export")!;

@@ -117,6 +117,8 @@ export interface WorkItemView {
   state: "sizing" | "working" | "waiting-on-parts" | "ahead" | "done" | "dropped" | "withdrawn";
   /** The piece being worked on now. */
   current: boolean;
+  /** Set while it is built beside the piece in front, or waits to be (decision 0313). */
+  flight?: { state: "building" | "waiting"; reason: string; touches: string[] };
   stage: StageId | null;
   sizeClass: SizeClass;
   /** The stages it goes through, in order. */
@@ -283,6 +285,10 @@ export interface SoftwareDetail extends SoftwareSummary {
   work: WorkItemView[];
   /** True while the check of a split piece as a whole is a stand-in that checks nothing. */
   wholeCheckStandIn: boolean;
+  /** Pieces of work built beside the one in front, or waiting to be (decision 0313). */
+  inFlight: PieceInFlightView[];
+  /** How many pieces of this software may be built at once; chosen for it, or the default. */
+  piecesInFlight: { value: number; chosen: boolean; default: number };
   /** What is being built and checked, and what landed; null before Build. */
   build: BuildView | null;
   /** For software premise took on from an existing repository (decision 0189). */
@@ -329,6 +335,28 @@ export interface AnswerFateView {
 export interface WorkingView {
   jobs: WorkingJobView[];
   answers: AnswerFateView[];
+}
+
+/**
+ * A piece of work built on its own branch beside the piece in front, or waiting to be (decision
+ * 0313): what it touches, and in plain words why it builds now or waits.
+ */
+export interface PieceInFlightView {
+  itemId: number;
+  /** "I-2 (the shield fix)", or "The part "Sound"". */
+  name: string;
+  state: "building" | "waiting";
+  /** Where it is while building: Build, Check, Run (landing) or Report. */
+  stage: StageId | null;
+  /** The parts of the software it touches, as the sizer named them; empty when not known. */
+  touches: string[];
+  /** It changes a foundation decision, so it goes alone. */
+  foundation: boolean;
+  /** Why it builds now or waits ("Waits for I-1 (the shield fix): both change combat."). */
+  reason: string;
+  /** The pieces it waits for, by name. */
+  waitsFor: string[];
+  since: string;
 }
 
 /**

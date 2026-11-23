@@ -89,6 +89,7 @@ Every ask shows its kind and is written in its role's terms ([0009](../decisions
 
 ### 5.4 Taste
 
+- Pieces of work built at the same time ([0313](../decisions/0313-several-pieces-of-one-software-at-once.md)): a card "Built at the same time" on the Line tab lists each piece in flight, where it is (being built, checked, landing, reported, or waiting), what it touches ("not known" when the sizer did not say), and for a waiting piece why, in one line ("Waits for I-1 (the shield breaks): both change src/combat/."). The list of pieces marks them "Being built alongside" or "Waiting to be built" with the same reason, and the software's status line says what is in flight. A card "Work built at the same time" chooses how many of the software's pieces may be built at once: the default, one at a time, or up to 2 to 5.
 - Any area can be claimed under a role, in its own words ([0022](../decisions/0022-people-can-put-in-their-taste.md)), on the Line tab under "Parts you want to see first"; with no role given, it is the operator's. Claimed areas are listed with their role and where each stands (a proposal comes before it is built, being prepared, waiting for an answer, decided); a claim can be released ([0196](../decisions/0196-roles-and-taste-in-one-session.md)). "Claim an area" links to that form from the Conversation tab and from any listed item that mentions claiming an area.
 
 ## 6. Configuration

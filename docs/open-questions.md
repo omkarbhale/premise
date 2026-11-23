@@ -53,6 +53,8 @@ The owner asked the assistant to choose an answer to every question that was ope
 | The other Premise project, and the name | The name stays premise | [0143](decisions/0143-the-name-stays-premise.md) |
 | How the owner pauses premise, closes it and comes back | "Pause everything" and "Resume" in the top bar (let running work finish by default, or stop it now); a pause survives a restart; Ctrl+C once stops cleanly after the running work and says what it waits for, twice stops now; `premise stop` does the same from another terminal; one line says what the start picked up | [0290](decisions/0290-pausing-and-resuming-the-whole-of-premise.md) |
 | Whether the link stays the same across restarts | No by default, for safety; `server.keep_link` keeps it, with the risk stated in the setting | [0290](decisions/0290-pausing-and-resuming-the-whole-of-premise.md) |
+| How many pieces of one software are built at once, and when one starts beside another | Up to two by default (a setting, and a choice per software; one restores one after another); a piece leaves the front only at Build, so questions stay one piece at a time | [0313](decisions/0313-several-pieces-of-one-software-at-once.md) |
+| What happens when two pieces built at once changed the same lines | The second goes back to its builder once with the files; if it still conflicts, the person chooses another round or building it again on the new version | [0313](decisions/0313-several-pieces-of-one-software-at-once.md) |
 | Being reached from other machines | Stays off by default; no setting opens it | [0144](decisions/0144-reach-from-other-machines-stays-off.md) |
 | Using an API key | No API key is used | [0145](decisions/0145-no-api-key.md) |
 

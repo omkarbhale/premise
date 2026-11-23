@@ -92,6 +92,7 @@ export interface Api {
   setPriority(id: string, priority: number): Promise<SoftwareDetail>;
   setEffort(id: string, effort: SoftwareEffort): Promise<SoftwareDetail>;
   setChangeQuestions(id: string, value: SoftwareDetail["changeQuestions"]): Promise<SoftwareDetail>;
+  setPiecesInFlight(id: string, value: number | null): Promise<SoftwareDetail>;
   pause(id: string): Promise<SoftwareDetail>;
   resume(id: string): Promise<SoftwareDetail>;
   archive(id: string): Promise<SoftwareDetail>;
@@ -217,6 +218,7 @@ export function createApi(token: string): Api {
     setEffort: (id, effort) => post(`/api/softwares/${enc(id)}/effort`, { effort }),
     setChangeQuestions: (id, value) =>
       post(`/api/softwares/${enc(id)}/change-questions`, { value }),
+    setPiecesInFlight: (id, value) => post(`/api/softwares/${enc(id)}/pieces-in-flight`, { value }),
     pause: (id) => post(`/api/softwares/${enc(id)}/pause`),
     resume: (id) => post(`/api/softwares/${enc(id)}/resume`),
     archive: (id) => post(`/api/softwares/${enc(id)}/archive`),
