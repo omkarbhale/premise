@@ -2,7 +2,7 @@ import type { EnqueueInput, Job } from "../queue/work-queue.js";
 
 /**
  * Asking an agent once more when its session ended without the structured answer its job needs
- * (decision 0275). In the owner's first real run the triager sent a list as text, was refused four
+ * (decision 0277). In the owner's first real run the triager sent a list as text, was refused four
  * times, and stopped; premise then routed the item by its default, "Not triaged". Now a job that
  * ends done without its answer is queued once more, with the exact shape the answer must have
  * spelled out; only when that one also ends without an answer does premise fall back, and says so.

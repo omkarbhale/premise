@@ -70,7 +70,7 @@ Intake goes in normally; only what needs holding is held ([0062](../decisions/00
 | Held | Only the items that need holding (5.4) | Kept for a reading |
 | Merged or closed | Duplicates, and noise | Duplicates join their item; noise is closed with its reason. Both are counted in reports |
 
-A triager that ends without a usable answer is asked once more, with the exact shape of the answer; only then does the item go in normally by premise's default, and the item and the Intake tab say plainly it was not triaged ([0275](../decisions/0275-an-agent-without-its-answer-is-asked-once-more.md)).
+A triager that ends without a usable answer is asked once more, with the exact shape of the answer; only then does the item go in normally by premise's default, and the item and the Intake tab say plainly it was not triaged ([0277](../decisions/0277-an-agent-without-its-answer-is-asked-once-more.md)).
 
 A question asking for more detail ("more on W-7") is always in normally: the triager answers it from the record and the evidence, and nothing is built or asked ([0185](../decisions/0185-how-intake-in-a-thin-form-is-built.md)).
 

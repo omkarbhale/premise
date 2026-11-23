@@ -152,7 +152,7 @@ describe("agent tools over MCP", () => {
   });
 });
 
-describe("lists and objects sent as text (decision 0275)", () => {
+describe("lists and objects sent as text (decision 0277)", () => {
   const schema = {
     inputSchema: {
       type: "object",

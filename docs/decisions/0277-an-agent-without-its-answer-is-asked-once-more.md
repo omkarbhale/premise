@@ -1,4 +1,4 @@
-# 0275. An agent that ends without its structured answer is asked once more, and lists sent as text are read
+# 0277. An agent that ends without its structured answer is asked once more, and lists sent as text are read
 
 - Status: Accepted; point 4 chosen for the owner, open to the owner's correction
 - Scope: The product

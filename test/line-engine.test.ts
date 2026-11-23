@@ -555,7 +555,7 @@ describe("the gate on the line", () => {
     const id = await start(app);
     await keepAll(app, await lineAsk(app, id));
     await keepAll(app, await lineAsk(app, id));
-    // The researcher finished without a draft, so it was asked once more (decision 0275) and made
+    // The researcher finished without a draft, so it was asked once more (decision 0277) and made
     // its two requests again. Nothing was asked of the person for any of them: premise cannot do
     // either, so they are recorded as unavailable and said in chat.
     expect((await open(app, id)).filter((a) => a.kind === "approval")).toEqual([]);
@@ -712,7 +712,7 @@ describe("chat and stage problems", () => {
     };
     const app = await testApp({}, { script });
     const id = await start(app);
-    // Asked once more with the exact shape (decision 0275), then the operator decides.
+    // Asked once more with the exact shape (decision 0277), then the operator decides.
     expect(
       app.runner.calls.filter((c) => c.tool === "draft_submit").map((c) => c.result.error?.code),
     ).toEqual(["MALFORMED", "MALFORMED", "MALFORMED", "MALFORMED"]);

@@ -2598,7 +2598,7 @@ export class LineEngine implements IntakeLine {
       return;
     }
     if (job.status === "done" && !askedAgain(job)) {
-      // Asked once more with the exact shape before the safe default (decision 0275).
+      // Asked once more with the exact shape before the safe default (decision 0277).
       this.queue.enqueue(againJob(job, "sizing_submit"));
       return;
     }
@@ -3476,7 +3476,7 @@ export class LineEngine implements IntakeLine {
 
   /**
    * A job that ended done without its answer is queued once more, with the exact shape spelled out
-   * (decision 0275). False when this was already the second asking.
+   * (decision 0277). False when this was already the second asking.
    */
   private askAgain(software: Software, job: Job, shape: keyof typeof ANSWER_SHAPES): boolean {
     if (askedAgain(job)) return false;

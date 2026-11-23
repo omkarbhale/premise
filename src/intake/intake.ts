@@ -415,7 +415,7 @@ export class Intake implements IntakeHooks {
     if (!item || (item.status !== "taken" && item.status !== "triaging")) return;
     if (item.triageJob !== job.id) return;
     if (job.status === "done" && !askedAgain(job)) {
-      // Finished without a usable answer: asked once more, with the exact shape (decision 0275).
+      // Finished without a usable answer: asked once more, with the exact shape (decision 0277).
       const again = this.options.queue.enqueue(againJob(job, "triage_submit"));
       setIntakeItem(this.db, item.id, { triageJob: again });
       this.options.queue.tick();
