@@ -246,7 +246,12 @@ export function createSession(options: {
   const portfolio = new Portfolio({ db, queue, stopRunning: (id) => runs.stop(id) });
   const softwareList = async (options: { archived?: boolean } = {}) =>
     portfolio.decorate(await engine.softwareList(), options);
-  const activity = new QueueActivity(db, queue, () => config.queue.max_agent_sessions);
+  const activity = new QueueActivity(
+    db,
+    queue,
+    () => config.queue.max_agent_sessions,
+    (softwareId, item) => engine.itemText(softwareId, item),
+  );
   const pausing = new Pausing({
     db,
     queue,

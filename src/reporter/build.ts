@@ -181,6 +181,13 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
           evidence: `run ${latest.id}, ${at}`,
         });
         runningBlock = { how: "Start it on your computer.", where: latest.command ?? "" };
+        if (!facts.screen?.seen) {
+          // A game or desktop program nobody saw on a screen is said plainly (decision 0310).
+          running.push({
+            text: "Nobody has seen it on screen: the check could not show it on a screen here, so how it looks and plays is unchecked. Start it yourself and look.",
+            evidence: facts.screen ? `the checker said it could not` : "no check said it saw it",
+          });
+        }
         break;
       case "failed":
         running.push({

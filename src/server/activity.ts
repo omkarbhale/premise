@@ -1,5 +1,7 @@
 import type { Job, WorkQueue } from "../queue/work-queue.js";
 import type { ActivityView, JobView } from "../shared/api-types.js";
+import { type ItemText, jobAnswers, jobDoing, jobItems } from "../line/working-on.js";
+import { listAsks } from "../storage/asks.js";
 import type { Database } from "../storage/database.js";
 import { type ActivityService, ServiceError } from "./services.js";
 
@@ -11,6 +13,8 @@ export class QueueActivity implements ActivityService {
     private readonly db: Database,
     private readonly queue: WorkQueue,
     private readonly maxAgentSessions: () => number,
+    /** Record item words, so each job says what it serves (decision 0310). */
+    private readonly itemText: ItemText = () => undefined,
   ) {}
 
   private names(): Map<string, string> {
@@ -46,6 +50,9 @@ export class QueueActivity implements ActivityService {
       stage: job.stage,
       status: job.status,
       line: finished ? job.result : (this.lastProgress(job.id) ?? job.note),
+      doing: jobDoing(job),
+      items: jobItems(job, this.itemText),
+      answers: jobAnswers(job, listAsks(this.db, { softwareId: job.softwareId })),
       waitingOn: job.waitingOn,
       attempts: job.attempts,
       started: job.started,

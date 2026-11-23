@@ -293,6 +293,42 @@ export interface SoftwareDetail extends SoftwareSummary {
   change?: ChangeView;
   /** When premise asks about a change before building it, for this software (decision 0274). */
   changeQuestions: "every-change" | "when-it-matters" | "never";
+  /** What is being worked on now, and where the person's recent answers went (decision 0310). */
+  working?: WorkingView;
+}
+
+/** One job working for a software, in plain words (decision 0310). */
+export interface WorkingJobView {
+  jobId: number;
+  kind: string;
+  status: "queued" | "running" | "waiting" | "paused";
+  /** What it is doing, such as "Fixing what the check found: shields are missing". */
+  doing: string;
+  /** The record items it serves, with their words (empty words when not in the record). */
+  items: { id: string; text: string }[];
+  /** The person's answers it carries in its brief, or that were given to it. */
+  answers: string[];
+}
+
+/** Where one of the person's answers went (decision 0310). */
+export interface AnswerFateView {
+  askId: number;
+  title: string;
+  /** The answer, in one line. */
+  answer: string;
+  answered: string;
+  /** given: a job reads it; held: a job still working gets it when it ends; intake: new work. */
+  state: "given" | "held" | "intake";
+  /** Where it went, in plain words. */
+  to: string;
+  /** The intake item it became, such as "I-4". */
+  intake?: string;
+}
+
+/** What is being worked on for a software, and where the person's recent answers went. */
+export interface WorkingView {
+  jobs: WorkingJobView[];
+  answers: AnswerFateView[];
 }
 
 /**
@@ -364,7 +400,9 @@ export interface CheckView {
     | "not-verified"
     | "not-passed"
     | "stopped"
-    | "did-not-finish";
+    | "did-not-finish"
+    /** It could not use the software for a reason outside it; not a failed round (0310). */
+    | "waiting-for-tool";
   /** Judged by a scripted agent, which cannot judge software. */
   scripted?: boolean;
   verdicts: { item: string; text: string; verdict: VerdictValue; evidence: string }[];
@@ -543,6 +581,8 @@ export interface AskView {
   struckBefore?: { text: string; reason: string }[];
   status: "open" | "answered" | "withdrawn";
   answerSummary?: string;
+  /** Once answered: where the answer went and when it is acted on, in plain words (0310). */
+  fate?: string;
   asked: string;
   answered?: string;
 }
@@ -728,6 +768,12 @@ export interface JobView {
   status: string;
   /** The latest progress line, or the result once finished. */
   line: string | null;
+  /** What it is doing, in plain words (decision 0310). */
+  doing?: string;
+  /** The record items it serves, with their words. */
+  items?: { id: string; text: string }[];
+  /** The person's answers it carries. */
+  answers?: string[];
   waitingOn: string | null;
   attempts: number;
   started: string | null;

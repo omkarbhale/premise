@@ -153,7 +153,9 @@ export function sessionSettings(input: ConfinementInput): ClaudeSettings {
       allowUnsandboxedCommands: false,
       autoAllowBashIfSandboxed: access.shell,
       filesystem: { denyRead: denied },
-      network: { allowedDomains: domains.length > 0 ? domains : [NO_NETWORK_PLACEHOLDER] },
+      network: {
+        allowedDomains: domains.length > 0 ? domains : [NO_NETWORK_PLACEHOLDER],
+      },
     },
     permissions: { allow, deny },
   };

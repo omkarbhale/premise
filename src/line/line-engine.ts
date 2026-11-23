@@ -59,6 +59,7 @@ import type {
   SoftwareSummary,
   StageView,
   WorkItemView,
+  WorkingView,
 } from "../shared/api-types.js";
 import {
   EFFORT_WORDS,
@@ -72,7 +73,19 @@ import {
   stageName,
   stageNumber,
 } from "../shared/stages.js";
-import { type Ask, closeAsk, createAsk, getAsk, listAsks, setAskItems } from "../storage/asks.js";
+import { workingView } from "./working-on.js";
+import {
+  type Ask,
+  answerFate,
+  closeAsk,
+  createAsk,
+  getAsk,
+  listAsks,
+  reframeAsk,
+  setAnswerFate,
+  setAskItems,
+  setAskMeta,
+} from "../storage/asks.js";
 import { addChatMessage, listChatMessages } from "../storage/chat.js";
 import { type Database, now, recordEvent, transaction } from "../storage/database.js";
 import {
@@ -1077,7 +1090,19 @@ export class LineEngine implements IntakeLine {
       claims: this.claimViews(id),
       ...(this.changeView(software) && { change: this.changeView(software)! }),
       changeQuestions: this.changeQuestionsOf(software),
+      working: this.workingOn(id),
     };
+  }
+
+  /** What is being worked on for a software, and where recent answers went (decision 0310). */
+  workingOn(softwareId: string): WorkingView {
+    const lines = new Map(this.recordLines(softwareId).map((l) => [l.id, l.text]));
+    return workingView(this.db, this.queue.list(), softwareId, (_, item) => lines.get(item));
+  }
+
+  /** Record item words, for the Activity page. */
+  itemText(softwareId: string, item: string): string | undefined {
+    return this.recordLines(softwareId).find((l) => l.id === item)?.text;
   }
 
   /** The change being worked on, for the page's card (decision 0274). */
@@ -3393,11 +3418,22 @@ export class LineEngine implements IntakeLine {
     if (job.kind === "triage" || job.kind === "reading") return;
     if (!FINISHED.has(job.status) || this.isHandled(job.id)) return;
     if (!this.isCurrent(job)) {
-      this.markHandled(job.id);
+      transaction(this.db, () => {
+        this.markHandled(job.id);
+        this.settleAsksOfJob(job);
+      });
       return;
     }
     transaction(this.db, () => {
       this.markHandled(job.id);
+      this.handleEnded(job);
+      this.settleAsksOfJob(job);
+    });
+    this.queue.tick();
+  }
+
+  private handleEnded(job: Job): void {
+    {
       this.addUsedMinutes(job);
       const software = getSoftware(this.db, job.softwareId)!;
       if (job.kind === "size") {
@@ -3428,8 +3464,7 @@ export class LineEngine implements IntakeLine {
         return;
       }
       this.earlyJobDone(software, job);
-    });
-    this.queue.tick();
+    }
   }
 
   private addUsedMinutes(job: Job): void {
@@ -3492,7 +3527,12 @@ export class LineEngine implements IntakeLine {
       this.takeInChangeWhat(software, change);
       return;
     }
-    if (this.openAskOfJob(job.id)) return;
+    const waitsOn = this.openAskOfJob(job.id);
+    if (waitsOn) {
+      // The stage waits on the person's answer; the job runs again with it (decision 0310).
+      setAskMeta(this.db, waitsOn.id, { waitedOn: "the line" });
+      return;
+    }
     // Finished without submitting a draft: asked once more with the exact shape, then the operator.
     if (this.askAgain(software, job, "draft_submit")) return;
     this.stageProblem(software, job, "finished without a draft, even when asked a second time");
@@ -3850,6 +3890,7 @@ export class LineEngine implements IntakeLine {
       ...(ask.status === "open" && ask.kind === "draft" && ask.stage ? this.struckBefore(ask) : {}),
       status: ask.status,
       ...(ask.answerSummary !== null && { answerSummary: ask.answerSummary }),
+      ...(ask.status === "answered" && this.fateWords(ask)),
       asked: ask.asked,
       ...(ask.answered !== null && { answered: ask.answered }),
     };
@@ -3991,6 +4032,7 @@ export class LineEngine implements IntakeLine {
       return this.askView(getAsk(this.db, id)!, this.softwareNames());
     }
 
+    const saidBefore = this.lastChatId();
     // Record changes first: if the record refuses them, the ask stays open and nothing moved.
     const effects =
       this.options.intake.answered(ask, answer) ?? this.recordEffects(software, ask, answer);
@@ -4012,8 +4054,31 @@ export class LineEngine implements IntakeLine {
     const committed = this.afterCommit;
     this.afterCommit = [];
     for (const work of committed) work();
+    this.keepWhatHappens(id, ask.softwareId, saidBefore);
     this.queue.tick();
     return this.askView(getAsk(this.db, id)!, this.softwareNames());
+  }
+
+  private lastChatId(): number {
+    const row = this.db.prepare("SELECT MAX(id) AS id FROM chat_messages").get() as {
+      id: number | null;
+    };
+    return row.id ?? 0;
+  }
+
+  /**
+   * What premise said right after an answer is what happens with it (decision 0310): kept on the
+   * answered card, so the page says plainly what will happen with that answer and when.
+   */
+  private keepWhatHappens(askId: number, softwareId: string, after: number): void {
+    const said = (
+      this.db
+        .prepare(
+          "SELECT text FROM chat_messages WHERE software_id = ? AND author = 'premise' AND id > ? ORDER BY id LIMIT 2",
+        )
+        .all(softwareId, after) as { text: string }[]
+    ).map((r) => r.text);
+    if (said.length) setAskMeta(this.db, askId, { happens: said.join(" ") });
   }
 
   private land(
@@ -4386,19 +4451,18 @@ export class LineEngine implements IntakeLine {
               id,
               `Answer to "${ask.title}" (asked while recovering the record): ${said}`,
             );
+            setAnswerFate(this.db, ask.id, {
+              state: "intake",
+              to: `I-${taken.number}, new work for ${software.name}`,
+              intake: `I-${taken.number}`,
+            });
             this.premiseSays(id, taken.reply, `intake:I-${taken.number}`);
           };
         }
         return () => {
           this.toolAnswered(software, ask, answer);
           const later = this.options.later.answered?.(ask, answer) ?? null;
-          if (purpose === "agent" || later === null) {
-            const answers = [...(this.state(id).answers ?? []), `${ask.title} → ${said}`].slice(
-              -10,
-            );
-            this.setState(id, { answers });
-            this.premiseSays(id, "Noted. The agent's next step gets your answer.");
-          }
+          if (purpose === "agent" || later === null) this.placeAnswer(software, ask, said);
           if (later) {
             const current = getSoftware(this.db, id)!;
             if ((LATER as readonly string[]).includes(current.currentStage)) {
@@ -4407,6 +4471,156 @@ export class LineEngine implements IntakeLine {
           }
         };
       }
+    }
+  }
+
+  /** What happens with an answer, for its card: where it went, else what premise said then. */
+  private fateWords(ask: Ask): { fate?: string } {
+    const fate = answerFate(ask);
+    if (fate) {
+      return {
+        fate:
+          fate.state === "intake"
+            ? `Taken in as ${fate.intake ?? "an intake item"}: an agent reads it against the record and decides where it goes. Follow it on the Intake tab.`
+            : fate.state === "held"
+              ? `Held for ${fate.to}.`
+              : `It goes to ${fate.to}.`,
+      };
+    }
+    return typeof ask.extra.meta?.happens === "string" ? { fate: ask.extra.meta.happens } : {};
+  }
+
+  /**
+   * Where an answer to an agent's question goes (decision 0310), said truthfully in one line. A
+   * later stage may already have placed it (a task built again with it, a check run again). An
+   * early stage that waits on it runs its job again with the answer in the brief. Otherwise no job
+   * will read it, so it is taken in as intake for the software, triaged and routed like any item:
+   * never "the agent's next step gets it" unless a job really will.
+   */
+  private placeAnswer(software: Software, ask: Ask, said: string): void {
+    const id = software.id;
+    const placed = answerFate(getAsk(this.db, ask.id)!);
+    if (placed) {
+      this.premiseSays(id, `Your answer goes to ${placed.to}.`);
+      return;
+    }
+    const jobId = typeof ask.extra.meta?.job === "number" ? ask.extra.meta.job : null;
+    const job = jobId === null ? undefined : this.queue.get(jobId);
+    const who = job ? jobWords(job) : roleWords(ask.role);
+    const rerun =
+      job && FINISHED.has(job.status) ? this.rerunWithAnswer(software, job, ask, said) : null;
+    if (rerun !== null) {
+      setAnswerFate(this.db, ask.id, {
+        state: "given",
+        job: rerun,
+        to: `the ${who}, which starts again now with your answer`,
+      });
+      this.premiseSays(id, `The ${who} starts again now with your answer.`);
+      return;
+    }
+    if (ask.kind === "needed") {
+      // Something only a person can do, or a program: what they did applies from the next session.
+      setAnswerFate(this.db, ask.id, {
+        state: "given",
+        to: `the agents' next sessions for ${software.name}`,
+      });
+      if (ask.extra.meta?.tool === undefined) {
+        this.premiseSays(
+          id,
+          `Noted. It applies from the agents' next sessions for ${software.name}.`,
+        );
+      }
+      return;
+    }
+    const why = !job
+      ? "No agent is waiting on this answer"
+      : !FINISHED.has(job.status)
+        ? `The ${who} is still working and cannot read an answer mid-way, and no later step of it will`
+        : `The ${who} had already finished`;
+    this.answerToIntake(software, ask, said, why);
+  }
+
+  /** No job will read an answer: it is taken in as intake, so it becomes work (decision 0310). */
+  private answerToIntake(software: Software, ask: Ask, said: string, why: string): void {
+    const taken = this.options.intake.takeIn(
+      software.id,
+      `Answer to the question "${ask.title}": ${said}`,
+    );
+    setAnswerFate(this.db, ask.id, {
+      state: "intake",
+      to: `I-${taken.number}, new work for ${software.name}`,
+      intake: `I-${taken.number}`,
+    });
+    this.premiseSays(
+      software.id,
+      `${why}, so your answer is taken in as I-${taken.number}. An agent reads it against the record next and decides where it goes; you can follow it on the Intake tab.`,
+      `intake:I-${taken.number}`,
+    );
+  }
+
+  /**
+   * An early stage that stopped to wait on this answer (its job ended with the question open, and
+   * nothing else of the stage is under way) runs the job again, the answer in its brief.
+   */
+  private rerunWithAnswer(software: Software, job: Job, ask: Ask, said: string): number | null {
+    if (ask.extra.meta?.waitedOn !== "the line") return null;
+    if (!(EARLY as readonly string[]).includes(job.stage ?? "")) return null;
+    if (software.currentStage !== job.stage || !this.isCurrent(job)) return null;
+    const busy = this.queue
+      .list()
+      .some((j) => j.softwareId === software.id && !FINISHED.has(j.status));
+    const waiting = listAsks(this.db, { softwareId: software.id, status: "open" }).some(
+      (a) => a.stage === job.stage,
+    );
+    if (busy || waiting) return null;
+    const brief = typeof job.payload.brief === "string" ? job.payload.brief : "";
+    return this.queue.enqueue({
+      softwareId: job.softwareId,
+      kind: job.kind,
+      ...(job.stage !== null && { stage: job.stage }),
+      items: job.items,
+      payload: {
+        ...job.payload,
+        brief: `${brief}\n\nYou asked "${ask.title}" and the ${roleWords(ask.role)} answered: ${said}\nCarry on from there.`,
+      },
+    });
+  }
+
+  /**
+   * A job ended (decision 0310). An answer held for it that nothing took on is taken in as intake.
+   * A question of its own still open that nothing waits on any more stays open, holds nothing up,
+   * and says plainly where an answer now goes: no orphan asks.
+   */
+  private settleAsksOfJob(job: Job): void {
+    const software = getSoftware(this.db, job.softwareId);
+    if (!software) return;
+    for (const ask of listAsks(this.db, { softwareId: job.softwareId })) {
+      if (ask.extra.meta?.job !== job.id) continue;
+      if (ask.status === "answered") {
+        const fate = answerFate(ask);
+        if (fate?.state === "held" && fate.job === job.id) {
+          const said = ask.answer ? answerWords(ask, ask.answer) : "";
+          this.answerToIntake(
+            software,
+            ask,
+            said,
+            `The ${jobWords(job)} ended without reading your answer to "${ask.title}"`,
+          );
+        }
+        continue;
+      }
+      if (ask.status !== "open" || ask.extra.meta?.waitedOn || ask.extra.meta?.reframed) continue;
+      // A question asked while recovering a record already says its answer is taken in as intake.
+      if (ask.extra.meta?.purpose !== "agent" || job.kind === "recover") continue;
+      const who = jobWords(job);
+      const forTool = ask.kind === "needed";
+      reframeAsk(
+        this.db,
+        ask.id,
+        forTool
+          ? `The ${who} asked this and has since finished, so nothing waits on it now. What you choose still applies to the agents' next sessions for ${software.name}.`
+          : `The ${who} asked this and has since finished, so no agent waits on your answer. If you answer, premise takes it in as new work for ${software.name}, like anything you send in the chat; you can also leave it.`,
+      );
     }
   }
 

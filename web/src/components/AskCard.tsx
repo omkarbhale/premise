@@ -141,9 +141,12 @@ export function AskCard({ ask, showSoftware = false }: { ask: AskView; showSoftw
           {problem && <Problem>{problem}</Problem>}
         </>
       ) : (
-        <p className="answered">
-          {ask.status === "answered" ? "Answered" : "Withdrawn"}: {ask.answerSummary}
-        </p>
+        <>
+          <p className="answered">
+            {ask.status === "answered" ? "Answered" : "Withdrawn"}: {ask.answerSummary}
+          </p>
+          {ask.fate && <p className="small answer-fate">What happens with it: {ask.fate}</p>}
+        </>
       )}
     </article>
   );
