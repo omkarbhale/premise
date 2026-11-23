@@ -225,15 +225,18 @@ export class Git {
   }
 
   /** Make sure the remote's latest is known locally. Returns false when the remote has no such branch. */
-  fetch(cwd: string, remote: string, branch: string): boolean {
-    const out = this.run(cwd, ["ls-remote", "--heads", remote, `refs/heads/${branch}`]).trim();
+  fetch(cwd: string, remote: string, branch: string, timeoutMs?: number): boolean {
+    const out = this.run(
+      cwd,
+      ["ls-remote", "--heads", remote, `refs/heads/${branch}`],
+      timeoutMs,
+    ).trim();
     if (out.length === 0) return false;
-    this.run(cwd, [
-      "fetch",
-      "--quiet",
-      remote,
-      `+refs/heads/${branch}:refs/remotes/${remote}/${branch}`,
-    ]);
+    this.run(
+      cwd,
+      ["fetch", "--quiet", remote, `+refs/heads/${branch}:refs/remotes/${remote}/${branch}`],
+      timeoutMs,
+    );
     return true;
   }
 
@@ -289,8 +292,8 @@ export class Git {
   }
 
   /** The commits on HEAD that a remote branch lacks, oldest first; all of them when it has no such branch. */
-  commitsToPush(cwd: string, remote: string, branch: string): CommitInfo[] {
-    const known = this.fetch(cwd, remote, branch);
+  commitsToPush(cwd: string, remote: string, branch: string, timeoutMs?: number): CommitInfo[] {
+    const known = this.fetch(cwd, remote, branch, timeoutMs);
     return this.log(cwd, known ? [`${remote}/${branch}..HEAD`] : ["HEAD"]).reverse();
   }
 

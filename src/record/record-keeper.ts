@@ -267,7 +267,7 @@ export class RecordKeeper {
    * Returns the commits that failed, with the reason; an empty list means the push was made.
    */
   pushChecked(repo: string, remote: string, branch: string, timeoutMs?: number): TrailerFailure[] {
-    const commits = this.git.commitsToPush(repo, remote, branch);
+    const commits = this.git.commitsToPush(repo, remote, branch, timeoutMs);
     const failures = checkTrailers(this.git, repo, commits, {
       trailer: this.trailer,
       folder: this.folder,
