@@ -1424,3 +1424,14 @@ select {
     gap: 0.5rem;
   }
 }
+
+/* What exists: one line per finding, struck one by one. */
+.findings .struck-text {
+  text-decoration: line-through;
+  color: var(--struck);
+}
+.findings input.reason {
+  display: block;
+  margin-top: 0.25rem;
+  width: 100%;
+}

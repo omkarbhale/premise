@@ -92,13 +92,19 @@ export interface NewAsk {
   items?: AskItem[];
   extra?: AskExtra;
   waitingJob?: number | null;
+  /**
+   * Whether the line is actually waiting on the answer. Defaults to true, except for an approval
+   * no job waits on (everything else goes on without it). Only a question something waits on
+   * counts as the person's attention (decision 0270).
+   */
+  blocking?: boolean;
 }
 
 export function createAsk(db: Database, input: NewAsk): Ask {
   const result = db
     .prepare(
-      `INSERT INTO asks (software_id, role, kind, stage, title, instruction, items, extra, waiting_job, asked)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO asks (software_id, role, kind, stage, title, instruction, items, extra, waiting_job, blocking, asked)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       input.softwareId,
@@ -110,6 +116,7 @@ export function createAsk(db: Database, input: NewAsk): Ask {
       JSON.stringify(input.items ?? []),
       JSON.stringify(input.extra ?? {}),
       input.waitingJob ?? null,
+      (input.blocking ?? (input.waitingJob != null || input.kind !== "approval")) ? 1 : 0,
       now(),
     );
   const id = Number(result.lastInsertRowid);

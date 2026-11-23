@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Measures } from "../src/measures/measures.js";
 import type { MeasureFigure, MeasuresView } from "../src/shared/api-types.js";
 import { type Database, openDatabase } from "../src/storage/database.js";
+import { createAsk } from "../src/storage/asks.js";
 import { createSoftware } from "../src/storage/softwares.js";
 import { tempFolder, testApp, testConfig } from "./helpers.js";
 
@@ -54,13 +55,13 @@ function event(
 function ask(
   db: Database,
   software: string,
-  a: { role?: string; asked: number; answered?: number; shown?: number },
+  a: { role?: string; asked: number; answered?: number; shown?: number; blocking?: boolean },
 ): number {
   const id = Number(
     db
       .prepare(
-        `INSERT INTO asks (software_id, role, kind, title, instruction, status, asked, answered)
-         VALUES (?, ?, 'question', 'A question', 'Answer it', ?, ?, ?)`,
+        `INSERT INTO asks (software_id, role, kind, title, instruction, status, asked, answered, blocking)
+         VALUES (?, ?, 'question', 'A question', 'Answer it', ?, ?, ?, ?)`,
       )
       .run(
         software,
@@ -68,6 +69,7 @@ function ask(
         a.answered === undefined ? "open" : "answered",
         at(a.asked),
         a.answered === undefined ? null : at(a.answered),
+        a.blocking === false ? 0 : 1,
       ).lastInsertRowid,
   );
   if (a.shown !== undefined) {
@@ -318,7 +320,7 @@ describe("the measures, from a scripted history", () => {
 
     const measures = await app.call("GET", `/api/softwares/${body.id}/measures`);
     expect(measures.status).toBe(200);
-    expect((measures.body as MeasuresView).figures).toHaveLength(7);
+    expect((measures.body as MeasuresView).figures).toHaveLength(8);
     expect((await app.call("GET", "/api/softwares/nope/measures")).status).toBe(404);
 
     // The report carries the block, real and not mocked.
@@ -338,5 +340,52 @@ describe("the measures, from a scripted history", () => {
     setClock(60);
     expect(figure(measures.view(id), "attention").counts).toContain("under a minute");
     expect(figure(measures.view(id), "attention").events).toBe(1);
+  });
+
+  it("counts attention only for questions the line waited on, and shows the others apart", () => {
+    const { db, measures, software } = setup();
+    const id = software("Reading list", 0);
+    // Both stood open for 10 minutes while the page was in front of someone; nothing waited on
+    // the second, so its time is not attention and it does not dilute the first's.
+    ask(db, id, { asked: 0, answered: 10, blocking: true });
+    ask(db, id, { asked: 0, answered: 10, blocking: false });
+    presence(db, 0, 10);
+    const view = measures.view(id);
+    const attention = figure(view, "attention");
+    expect(attention.value).toBe("10 minutes");
+    expect(attention.events).toBe(1);
+    const other = figure(view, "attention-other");
+    expect(other.value).toBe("10 minutes");
+    expect(other.counts).toContain("nothing waited on");
+    expect(other.counts).toContain("not counted as attention");
+    expect(view.attentionByRole).toEqual([{ name: "operator", minutes: 10, asks: 1 }]);
+  });
+
+  it("marks an approval no job waits on as not blocking, and one a job waits on as blocking", () => {
+    const { db, software } = setup();
+    const id = software("Reading list", 0);
+    const job = Number(
+      db
+        .prepare(
+          "INSERT INTO jobs (software_id, kind, status, created) VALUES (?, 'draft', 'waiting', ?)",
+        )
+        .run(id, at(0)).lastInsertRowid,
+    );
+    const make = (kind: "approval" | "question", waitingJob: number | null) =>
+      createAsk(db, {
+        softwareId: id,
+        role: "operator",
+        kind,
+        title: "T",
+        instruction: "x",
+        waitingJob,
+      });
+    expect(make("approval", null).id).toBeGreaterThan(0);
+    expect(make("approval", job).id).toBeGreaterThan(0);
+    expect(make("question", null).id).toBeGreaterThan(0);
+    const flags = db.prepare("SELECT blocking FROM asks ORDER BY id").all() as {
+      blocking: number;
+    }[];
+    expect(flags.map((f) => f.blocking)).toEqual([0, 1, 1]);
   });
 });

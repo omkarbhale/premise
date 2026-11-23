@@ -43,6 +43,61 @@ describe("reading Claude Code's streamed events", () => {
     ).toEqual([]);
   });
 
+  it("reads the share of each usage window from a rate-limit event, whatever its status", () => {
+    expect(
+      parseStreamLine(
+        line({
+          type: "rate_limit_event",
+          rate_limit_info: {
+            status: "allowed",
+            resetsAt: 1795399200,
+            rateLimitType: "seven_day",
+            unifiedWindows: {
+              seven_day: { utilization: 0.02, resetsAt: 1795399200, status: "allowed" },
+              junk: { utilization: "lots" },
+            },
+          },
+        }),
+      ),
+    ).toEqual([
+      {
+        kind: "window",
+        window: "seven_day",
+        usedFraction: 0.02,
+        resetsAt: new Date(1795399200 * 1000).toISOString(),
+        status: "allowed",
+      },
+    ]);
+  });
+
+  it("reads what a result says the session used, and null where it says nothing", () => {
+    const [event] = parseStreamLine(
+      line({
+        type: "result",
+        subtype: "success",
+        is_error: false,
+        result: "ok",
+        num_turns: 3,
+        total_cost_usd: 0.092,
+        usage: {
+          input_tokens: 6,
+          output_tokens: 821,
+          cache_read_input_tokens: 31097,
+          cache_creation_input_tokens: 8692,
+        },
+      }),
+    );
+    expect(event).toMatchObject({
+      figures: {
+        costUsd: 0.092,
+        inputTokens: 6,
+        outputTokens: 821,
+        cacheReadTokens: 31097,
+        cacheWriteTokens: 8692,
+      },
+    });
+  });
+
   it("counts turns and turns text and tool use into progress lines", () => {
     const events = parseStreamLine(
       line({
@@ -83,7 +138,21 @@ describe("reading Claude Code's streamed events", () => {
         line({ type: "result", subtype: "success", is_error: false, result: "ok", num_turns: 3 }),
       ),
     ).toEqual([
-      { kind: "result", ok: true, subtype: "success", text: "ok", turns: 3, apiErrorStatus: null },
+      {
+        kind: "result",
+        ok: true,
+        subtype: "success",
+        text: "ok",
+        turns: 3,
+        apiErrorStatus: null,
+        figures: {
+          costUsd: null,
+          inputTokens: null,
+          outputTokens: null,
+          cacheReadTokens: null,
+          cacheWriteTokens: null,
+        },
+      },
     ]);
     expect(
       parseStreamLine(

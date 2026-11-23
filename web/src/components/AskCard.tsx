@@ -341,13 +341,32 @@ const ENDS_THE_WORK = /^do not build/i;
 function QuestionAnswer({ ask, busy, onSend }: AnswerProps) {
   const [text, setText] = useState("");
   const [confirming, setConfirming] = useState<string | null>(null);
+  const [struck, setStruck] = useState<Record<string, string>>({});
+  const [reason, setReason] = useState("");
   const inputId = useId();
+  const reasonId = useId();
+  // What exists: findings are one line each and can be struck one by one.
+  const findings = ask.items.some((i) => i.mark === "found");
+  const send = (answer: string) => {
+    const struckList = Object.entries(struck).map(([key, why]) => ({
+      key,
+      ...(why.trim() && { reason: why.trim() }),
+    }));
+    // A reason is only asked for when the choice differs from premise's best guess.
+    const against = !!ask.bestAttempt && answer !== ask.bestAttempt;
+    onSend({
+      kind: "text",
+      text: answer,
+      ...(struckList.length > 0 && { struck: struckList }),
+      ...(against && reason.trim() && { reason: reason.trim() }),
+    });
+  };
   // One click answers; only an answer that ends the work asks once more.
   const choose = (answer: string) => {
     const clean = answer.trim();
     if (!clean) return;
     if (ENDS_THE_WORK.test(clean)) setConfirming(clean);
-    else onSend({ kind: "text", text: clean });
+    else send(clean);
   };
   if (confirming) {
     return (
@@ -357,12 +376,7 @@ function QuestionAnswer({ ask, busy, onSend }: AnswerProps) {
           your mind later by sending it back to any stage.
         </p>
         <div className="actions">
-          <button
-            type="button"
-            className="danger"
-            disabled={busy}
-            onClick={() => onSend({ kind: "text", text: confirming })}
-          >
+          <button type="button" className="danger" disabled={busy} onClick={() => send(confirming)}>
             Yes, do not build it
           </button>
           <button type="button" onClick={() => setConfirming(null)}>
@@ -374,7 +388,7 @@ function QuestionAnswer({ ask, busy, onSend }: AnswerProps) {
   }
   return (
     <>
-      {ask.items.length > 0 && (
+      {ask.items.length > 0 && !findings && (
         <ul className="items plain">
           {ask.items.map((i) => (
             <li key={i.key}>
@@ -382,6 +396,72 @@ function QuestionAnswer({ ask, busy, onSend }: AnswerProps) {
             </li>
           ))}
         </ul>
+      )}
+      {findings && (
+        <>
+          <p className="small muted">
+            Each line is one finding, with where it came from and whether premise read it. Strike
+            any you do not trust; struck findings are left out of the record.
+          </p>
+          <ul className="items findings">
+            {ask.items.map((i) => {
+              const isStruck = i.key in struck;
+              return (
+                <li key={i.key} className={isStruck ? "struck" : undefined}>
+                  <span className={isStruck ? "struck-text" : undefined}>{i.text}</span>{" "}
+                  <span className={`mark mark-${i.mark}`}>{markLabel(i)}</span>
+                  {i.source && <span className="small muted"> · {i.source}</span>}{" "}
+                  <button
+                    type="button"
+                    className="link"
+                    disabled={busy}
+                    aria-pressed={isStruck}
+                    aria-label={`${isStruck ? "Keep" : "Strike"}: ${i.text}`}
+                    onClick={() =>
+                      setStruck((now) => {
+                        const next = { ...now };
+                        if (i.key in next) delete next[i.key];
+                        else next[i.key] = "";
+                        return next;
+                      })
+                    }
+                  >
+                    {isStruck ? "Keep it" : "Strike"}
+                  </button>
+                  {i.detail && (
+                    <details className="small">
+                      <summary>Details</summary>
+                      <p>{i.detail}</p>
+                    </details>
+                  )}
+                  {isStruck && (
+                    <input
+                      type="text"
+                      className="reason"
+                      aria-label={`Why strike: ${i.text}`}
+                      placeholder="Why? (optional)"
+                      value={struck[i.key] ?? ""}
+                      onChange={(e) => setStruck((now) => ({ ...now, [i.key]: e.target.value }))}
+                    />
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
+      {findings && ask.bestAttempt && (
+        <>
+          <label htmlFor={reasonId} className="small">
+            If you choose something other than premise's best guess, say why (optional, one line)
+          </label>
+          <input
+            id={reasonId}
+            type="text"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+          />
+        </>
       )}
       {ask.bestAttempt && (
         <p className="best">

@@ -32,6 +32,12 @@ export interface DraftItem {
   refs?: string[];
   /** The lesson from an earlier correction it follows, by label ("L-3"). */
   follows?: string;
+  /** For a finding of What exists: one short line to show; `text` holds all of it. */
+  short?: string;
+  /** For a finding: where it was found. */
+  source?: string;
+  /** For a finding: whether the page was read, only a summary was, or it was not read. */
+  checked?: "read" | "summary" | "not-read";
 }
 
 export class DraftError extends Error {
@@ -155,11 +161,18 @@ export function readDraftItems(
       : Array.isArray(value.sources)
         ? value.sources.filter((r): r is string => typeof r === "string")
         : undefined;
+    const checked = checkedFrom(value.checked);
+    const source =
+      str(value.source) ?? (typeof value.sources === "string" ? str(value.sources) : undefined);
+    const shortLine = str(value.short);
     items.push({
       key: `k${i + 1}`,
       text,
       kind,
       from,
+      ...(checked && { checked }),
+      ...(source && { source: source.slice(0, 300) }),
+      ...(shortLine && { short: oneLine(shortLine) }),
       ...(suggestion && { suggestion }),
       ...(priority && kind === "W" && { priority }),
       ...(foundation && kind === "D" && { foundation }),
@@ -171,6 +184,46 @@ export function readDraftItems(
   });
   if (problems.length) throw new DraftError(problems);
   return items;
+}
+
+/** What a researcher says about whether it read a source, as one of the three words. */
+function checkedFrom(value: unknown): DraftItem["checked"] | undefined {
+  if (value === true) return "read";
+  if (typeof value !== "string") return undefined;
+  const said = value
+    .trim()
+    .toLowerCase()
+    .replace(/[_\s]+/g, "-");
+  if (said === "read" || said === "checked") return "read";
+  if (said.startsWith("not") || said === "unread" || said === "unchecked") return "not-read";
+  if (said.includes("summar") || said.includes("search-result") || said === "snippet") {
+    return "summary";
+  }
+  return undefined;
+}
+
+const FINDING_LINE = 110;
+
+/** A finding for the page: one short line, its source, and whether it was read; the rest on request. */
+export function toFindingItem(item: DraftItem): AskItem {
+  const full = oneLine(item.text);
+  let line = item.short ?? full;
+  if (line.length > FINDING_LINE) {
+    const cut = line.slice(0, FINDING_LINE - 1);
+    const end = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("; "), cut.lastIndexOf(", "));
+    line = `${(end > 40 ? cut.slice(0, end) : cut.slice(0, cut.lastIndexOf(" ") > 40 ? cut.lastIndexOf(" ") : cut.length)).trimEnd()}…`;
+  }
+  const source = item.source ?? item.refs?.[0];
+  return {
+    key: item.key,
+    text: line,
+    mark: "found",
+    // Not said means not known to have been read: premise never claims a source was read.
+    checked: item.checked ?? "not-read",
+    ...(source && { source }),
+    ...(full !== line && { detail: full }),
+    ...(item.refs && { refs: item.refs }),
+  };
 }
 
 /** How an item shows on its card. */

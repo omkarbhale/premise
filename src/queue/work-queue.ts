@@ -1,6 +1,7 @@
 import type { AgentOutcome, AgentRunner, AgentSession } from "../agents/agent-runner.js";
 import { AGENT_TASK_KINDS, type AgentTaskKind, type PremiseConfig } from "../config/settings.js";
 import { type Database, now, recordEvent, transaction } from "../storage/database.js";
+import { recordSessionFigures } from "../storage/session-figures.js";
 
 /**
  * The work queue (docs/specs/work-queue.md): jobs stored so a restart resumes them, at most
@@ -584,6 +585,7 @@ export class WorkQueue {
           "UPDATE agent_sessions SET ended = ?, end_reason = ? WHERE job_id = ? AND ended IS NULL",
         )
         .run(now(), outcome.kind, id);
+      recordSessionFigures(this.db, id, outcome);
       switch (outcome.kind) {
         case "done":
           this.closeJob(job, "done", outcome.summary);

@@ -9,6 +9,7 @@ import type {
   OverrunView,
   SoftwareUsageView,
   UsageCost,
+  OwnFigures,
   UsageMeasured,
   UsageOverview,
   UsageRowView,
@@ -33,6 +34,7 @@ import type {
   UsageLedger,
 } from "../usage-ledger/usage-ledger.js";
 import { readSessionTasks } from "./session-tasks.js";
+import { type OwnSession, readOwnSessions, readWeeklyWindow } from "../storage/session-figures.js";
 
 /**
  * Cost and the spending limit (decisions 0016, 0048, 0064, 0128, 0133, 0200). premise records which
@@ -70,6 +72,57 @@ interface SpentRecord {
 }
 
 const money = (usd: number): string => `$${usd.toFixed(2)}`;
+
+/** premise's own count over some sessions, with what is missing said plainly. */
+export function ownFiguresOf(sessions: OwnSession[]): OwnFigures {
+  const out: OwnFigures = {
+    counted: 0,
+    missing: 0,
+    missingWhy: null,
+    costUsd: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheTokens: 0,
+    turns: 0,
+    unreported: { cost: 0, tokens: 0, turns: 0 },
+  };
+  let scripted = 0;
+  for (const s of sessions) {
+    const f = s.figures;
+    if (!f) {
+      out.missing += 1;
+      if (s.runtime === "scripted") scripted += 1;
+      continue;
+    }
+    out.counted += 1;
+    if (f.costUsd === null) out.unreported.cost += 1;
+    else out.costUsd += f.costUsd;
+    if (
+      f.inputTokens === null &&
+      f.outputTokens === null &&
+      f.cacheReadTokens === null &&
+      f.cacheWriteTokens === null
+    ) {
+      out.unreported.tokens += 1;
+    } else {
+      out.inputTokens += f.inputTokens ?? 0;
+      out.outputTokens += f.outputTokens ?? 0;
+      out.cacheTokens += (f.cacheReadTokens ?? 0) + (f.cacheWriteTokens ?? 0);
+    }
+    if (f.turns === null) out.unreported.turns += 1;
+    else out.turns += f.turns;
+  }
+  if (out.missing > 0) {
+    out.missingWhy =
+      scripted === out.missing
+        ? "scripted agents report no figures"
+        : scripted > 0
+          ? "scripted agents report no figures, and some sessions ended without a result"
+          : "these sessions ended without a result, so they reported none";
+  }
+  out.costUsd = Math.round(out.costUsd * 1e6) / 1e6;
+  return out;
+}
 /** A budget in plain words. */
 export function budgetWords(budget: Budget | null): string {
   if (!budget) return "No budget: premise does not limit what it spends on this software.";
@@ -253,13 +306,20 @@ export class Usage {
     breakdown: UsageBreakdown,
     sessions: SessionTaskRecord[],
   ): Pick<SoftwareUsageView, "byPhase" | "byStage" | "byChange" | "byItem"> {
+    const owns = readOwnSessions(this.db, software.id);
+    const ownOf = new Map<SessionTaskRecord, OwnSession>();
+    sessions.forEach((s, i) => {
+      const own = owns[i];
+      if (own) ownOf.set(s, own);
+    });
     const measure = (match: (s: SessionTaskRecord) => boolean): UsageMeasured => {
       const some = sessions.filter(match);
+      const figures = ownFiguresOf(some.map((s) => ownOf.get(s) ?? { runtime: "", figures: null }));
       const minutes = some.reduce((n, s) => {
         const end = s.ended ? Date.parse(s.ended) : Date.now();
         return n + Math.max(0, end - Date.parse(s.started)) / 60_000;
       }, 0);
-      return { sessions: some.length, minutes: Math.round(minutes * 10) / 10 };
+      return { sessions: some.length, minutes: Math.round(minutes * 10) / 10, figures };
     };
     const cost = (f: UsageFigures): UsageCost => ({
       mocked: f.mocked,
@@ -434,7 +494,11 @@ export class Usage {
         total: {
           key: "total",
           label: "All of it",
-          measured: { sessions: sessions.length, minutes: Math.round(minutes * 10) / 10 },
+          measured: {
+            sessions: sessions.length,
+            minutes: Math.round(minutes * 10) / 10,
+            figures: ownFiguresOf(readOwnSessions(this.db, softwareId)),
+          },
           cost: {
             mocked: breakdown.mocked,
             inputTokens: breakdown.total.inputTokens,
@@ -454,7 +518,11 @@ export class Usage {
         total: {
           key: "total",
           label: "All of it",
-          measured: { sessions: sessions.length, minutes: 0 },
+          measured: {
+            sessions: sessions.length,
+            minutes: 0,
+            figures: ownFiguresOf(readOwnSessions(this.db, softwareId)),
+          },
           cost: {
             mocked: this.options.ledger.mocked,
             inputTokens: 0,
@@ -476,9 +544,16 @@ export class Usage {
   async overview(): Promise<UsageOverview> {
     const weekly = await this.options.ledger.weeklyUsage();
     const softwares = await Promise.all(listSoftwares(this.db).map((s) => this.view(s.id)));
+    const window = readWeeklyWindow(this.db);
     return {
       mode: this.options.ledger.mode,
       mocked: this.options.ledger.mocked,
+      ownWindow: window && {
+        usedPercent: window.usedPercent,
+        resetsAt: window.resetsAt,
+        readAt: window.readAt,
+        status: window.status,
+      },
       weekly,
       softwares,
     };

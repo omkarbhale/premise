@@ -27,7 +27,7 @@ Not responsible for:
 
 | Operation | Caller | Inputs | Outputs | Errors |
 |---|---|---|---|---|
-| Request | [Agent tools](agent-tools.md) (`gate_request`), server modules (runner, intake, record keeper) | Software, floor kind, exactly what will happen, why, items served, requested by | Request id; `approved` when an approval covers it, else `asked` | `MALFORMED` |
+| Request | [Agent tools](agent-tools.md) (`gate_request`), server modules (runner, intake, record keeper) | Software, floor kind, exactly what will happen, why, items served, requested by | Request id; `approved` when an approval covers it, else `asked`; an agent's request, which premise cannot carry out, is `unavailable` and asks no one | `MALFORMED` |
 | Decide | Page server (a person, in the session) | Request id; approve or refuse; optionally "approve this kind for this software" | Request status; an approval row when a kind was approved | `NOT_APPROVABLE_AS_KIND` (deleting data, spending money) |
 | Withdraw approval | Page server | Approval id | Approval withdrawn | none |
 | Perform | Gate (after approval) | Request | Done, unavailable (not carried out yet, and why) or failed, with the outcome | the action's own error |
@@ -64,6 +64,7 @@ Leaving it to each agent to judge what is risky was rejected ([0100](../decision
 ### 5.3 Approvals
 
 - The session can approve one action, or a named kind of action for one software, such as status comments on its issues. Approvals are recorded and can be withdrawn.
+- premise never asks for an action it cannot perform ([0270](../decisions/0270-premises-own-figures-and-asks-that-cost-attention-honestly.md)). An agent's request names no act premise carries out, so it is recorded as unavailable, said in the session in plain words, and no card is opened; the agent is told, so it can say in its report what needs a person to do by hand. A request for an act premise does carry out is asked as before. A card also records whether a job waits on its answer; one nothing waits on is not counted as the person's attention ([measures](measures.md)).
 - A standing approval covers only its own kind of action: the same floor kind and the same `act`. Approving "adding premise's record to your repository" never covers creating a repository on GitHub, and a server act's approval never covers an agent's request ([0220](../decisions/0220-approvals-and-verdicts-tell-the-truth.md)).
 - Deleting data and spending money are always asked one at a time; they cannot be approved as a kind.
 - An approval never covers every software. Approvals that cover every software were rejected, as was asking for every action ([0101](../decisions/0101-the-gate-asks-in-the-session.md)).

@@ -518,6 +518,23 @@ export const MIGRATIONS: readonly Migration[] = [
       WHERE request_id IS NOT NULL;
     `,
   },
+  {
+    version: 16,
+    name: "premise's own figures: each session's result and the usage window as last read",
+    sql: `
+      ALTER TABLE agent_sessions ADD COLUMN figures TEXT;
+      ALTER TABLE asks ADD COLUMN blocking INTEGER NOT NULL DEFAULT 1;
+      UPDATE asks SET blocking = 0 WHERE kind = 'approval' AND waiting_job IS NULL;
+      CREATE TABLE usage_windows (
+        window TEXT PRIMARY KEY,
+        used_percent REAL NOT NULL,
+        resets_at TEXT,
+        status TEXT,
+        read_at TEXT NOT NULL,
+        job_id INTEGER
+      );
+    `,
+  },
 ];
 
 export const CURRENT_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

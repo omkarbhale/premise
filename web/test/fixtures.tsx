@@ -6,6 +6,7 @@ import type {
   BudgetView,
   Overview,
   SoftwareDetail,
+  OwnFigures,
   SoftwareUsageView,
   UsageOverview,
   UsageRowView,
@@ -141,11 +142,26 @@ export function workItem(change: Partial<WorkItemView> = {}): WorkItemView {
   };
 }
 
+export function ownFigures(change: Partial<OwnFigures> = {}): OwnFigures {
+  return {
+    counted: 3,
+    missing: 0,
+    missingWhy: null,
+    costUsd: 0.5,
+    inputTokens: 1000,
+    outputTokens: 2000,
+    cacheTokens: 3000,
+    turns: 9,
+    unreported: { cost: 0, tokens: 0, turns: 0 },
+    ...change,
+  };
+}
+
 export function usageRow(change: Partial<UsageRowView> = {}): UsageRowView {
   return {
     key: "build",
     label: "Build",
-    measured: { sessions: 3, minutes: 12 },
+    measured: { sessions: 3, minutes: 12, figures: ownFigures() },
     cost: {
       mocked: true,
       inputTokens: 180000,
@@ -180,7 +196,11 @@ export function softwareUsage(change: Partial<SoftwareUsageView> = {}): Software
     byPhase: [usageRow({ key: "build", label: "Build" })],
     byStage: [
       usageRow({ key: "build", label: "Build" }),
-      usageRow({ key: "check", label: "Check", measured: { sessions: 1, minutes: 2 } }),
+      usageRow({
+        key: "check",
+        label: "Check",
+        measured: { sessions: 1, minutes: 2, figures: ownFigures({ counted: 1 }) },
+      }),
     ],
     byChange: [usageRow({ key: "1", label: "Reading list, from the idea" })],
     byItem: [usageRow({ key: "W-1", label: "W-1" })],
@@ -194,6 +214,7 @@ export function usageOverview(change: Partial<UsageOverview> = {}): UsageOvervie
   return {
     mode: "mock-fixed",
     mocked: true,
+    ownWindow: null,
     weekly: {
       mocked: true,
       utilization: 0.42,

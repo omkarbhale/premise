@@ -58,6 +58,28 @@ export function validateAnswer(ask: Ask, answer: AskAnswer): string {
         return invalid("Write an answer, or pick one of the choices.");
       }
       if (answer.text.length > 4000) invalid("Keep the answer under 4000 characters.");
+      if (answer.reason !== undefined) {
+        if (typeof answer.reason !== "string") invalid("A reason must be text.");
+        if (answer.reason.length > 1000) invalid("Keep the reason under 1000 characters.");
+      }
+      if (answer.struck !== undefined) {
+        if (!Array.isArray(answer.struck)) invalid("The struck findings must be a list.");
+        const keys = new Set(ask.items.map((i) => i.key));
+        const seen = new Set<string>();
+        for (const s of answer.struck) {
+          if (!s || typeof s.key !== "string" || !keys.has(s.key)) {
+            invalid("One struck finding is not on this list. Reload the page.");
+          }
+          if (seen.has(s.key)) invalid("One finding was struck twice. Reload the page.");
+          seen.add(s.key);
+          if (s.reason !== undefined && (typeof s.reason !== "string" || s.reason.length > 1000)) {
+            invalid("Keep the reason for striking a finding under 1000 characters.");
+          }
+        }
+        if (answer.struck.length > 0) {
+          return `Answered: ${short(answer.text)} (struck ${answer.struck.length} of ${ask.items.length} findings)`;
+        }
+      }
       return `Answered: ${short(answer.text)}`;
     case "approval":
       if (

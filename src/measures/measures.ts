@@ -30,6 +30,8 @@ interface AskRow {
   asked: string;
   answered: string | null;
   shown: string | null;
+  /** 1 when the line is waiting on the answer, 0 when everything else goes on without it. */
+  blocking: number;
 }
 
 interface Span {
@@ -156,7 +158,7 @@ export class Measures {
   private asks(): AskRow[] {
     return this.db
       .prepare(
-        `SELECT a.id, a.software_id, a.role, a.status, a.asked, a.answered, s.shown
+        `SELECT a.id, a.software_id, a.role, a.status, a.asked, a.answered, a.blocking, s.shown
          FROM asks a LEFT JOIN asks_shown s ON s.ask_id = a.id ORDER BY a.id`,
       )
       .all() as unknown as AskRow[];
@@ -365,8 +367,18 @@ export class Measures {
     const figures: MeasureFigure[] = [];
 
     // Attention.
-    const attention = this.attention(this.asks()).filter((a) => mine(a.ask.software_id));
-    const spent = attention.filter((a) => a.ms > 0);
+    // Only questions the line was waiting on count as a person's attention; the others are shown
+    // apart, and neither set shares its minutes with the other (decision 0270).
+    const everyAsk = this.asks();
+    const blockingAttention = this.attention(everyAsk.filter((a) => a.blocking === 1)).filter((a) =>
+      mine(a.ask.software_id),
+    );
+    const otherAttention = this.attention(everyAsk.filter((a) => a.blocking !== 1)).filter((a) =>
+      mine(a.ask.software_id),
+    );
+    const attention = [...blockingAttention, ...otherAttention];
+    const spent = blockingAttention.filter((a) => a.ms > 0);
+    const otherSpent = otherAttention.filter((a) => a.ms > 0 && a.ask.status !== "withdrawn");
     const totalMs = spent.reduce((n, a) => n + a.ms, 0);
     figures.push({
       key: "attention",
@@ -378,7 +390,20 @@ export class Measures {
         spent.length === 0
           ? "No question has stood open while premise's page was in front of someone yet."
           : `About ${duration(totalMs)} spent on ${plural(spent.length, "question")} while premise's page was open in front of someone.`,
-      how: "Counted from the time each question stood open while the page was in front of someone (the page tells premise every half minute or so while it is visible). A minute with several questions open is shared among them, so nothing is counted twice. Time spent away from the page, or thinking elsewhere, is not counted.",
+      how: "Counted from the time each question stood open while the page was in front of someone (the page tells premise every half minute or so while it is visible), for questions the work was actually waiting on. A minute with several such questions open is shared among them, so nothing is counted twice. Questions nothing waited on are shown apart, below. Time spent away from the page, or thinking elsewhere, is not counted.",
+    });
+    const otherMs = otherSpent.reduce((n, a) => n + a.ms, 0);
+    figures.push({
+      key: "attention-other",
+      label: "Other open questions (nothing waited on them)",
+      value: otherSpent.length === 0 ? "none counted" : duration(otherMs),
+      enough: true,
+      events: otherSpent.length,
+      counts:
+        otherSpent.length === 0
+          ? "No question that nothing waited on stood open while premise's page was in front of someone."
+          : `About ${duration(otherMs)} while ${plural(otherSpent.length, "question")} that nothing waited on stood open and premise's page was in front of someone. This is not counted as attention: the work went on without an answer.`,
+      how: "Questions such as asking before copying the software to GitHub: the work goes on whatever the answer, so the time they stood open is not a person's attention. Shown so it is not hidden.",
     });
     // Questions asked, by the role each was for (milestone 3): every ask, shown or not.
     const asked = this.asks().filter((a) => mine(a.software_id) && a.status !== "withdrawn");

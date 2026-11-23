@@ -116,6 +116,7 @@ import {
   readDraftItems,
   sizeFrom,
   toAskItem,
+  toFindingItem,
 } from "./draft-items.js";
 import type { IntakeHooks, IntakeLine } from "./intake-hooks.js";
 import type { LaterOutcome, LaterStageId, LaterStages, MilestoneRef } from "./later-stages.js";
@@ -149,6 +150,7 @@ import {
   ancestry,
   childItems,
   createWorkItem,
+  activeWorkItem,
   getWorkItem,
   itemState,
   listWorkItems,
@@ -413,10 +415,7 @@ export class LineEngine implements IntakeLine {
 
   /** The work item being worked on now: one of the software's items, or the software itself. */
   private active(softwareId: string): WorkItem {
-    const root = rootItem(this.db, softwareId);
-    const id = itemState<LineState>(this.db, root.id).item;
-    const item = id === undefined ? undefined : getWorkItem(this.db, id);
-    return item && item.softwareId === softwareId ? item : root;
+    return activeWorkItem(this.db, softwareId);
   }
 
   private notes(item: WorkItem): ItemNotes {
@@ -3336,9 +3335,33 @@ export class LineEngine implements IntakeLine {
         const text = answer.kind === "text" ? answer.text.trim() : "";
         const takingOn = this.isRecovery(this.active(id));
         const notBuild = takingOn ? /^stop/i.test(text) : /^do not build/i.test(text);
+        // Findings the person struck are left out of the record; their reasons are kept in the
+        // outcome line, with the reason for choosing against the recommendation (decision 0270).
+        const struckKeys = new Map(
+          (answer.kind === "text" ? (answer.struck ?? []) : []).map((s) => [s.key, s.reason]),
+        );
         const findings = items
+          .filter((item) => !struckKeys.has(item.key))
           .map((item) => addOperation({ item, text: item.text, edited: false })!)
           .filter(Boolean);
+        const clean = (value: string) =>
+          value
+            .replace(/[()\r\n]+/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+        const extras: string[] = [];
+        if (answer.kind === "text" && answer.reason?.trim()) {
+          extras.push(`Reason: ${clean(answer.reason).slice(0, 300)}`);
+        }
+        if (struckKeys.size > 0) {
+          const named = [...struckKeys.entries()].map(([key, reason]) => {
+            const found = items.find((i) => i.key === key);
+            const label = clean(found?.short ?? found?.text ?? key).slice(0, 60);
+            return reason?.trim() ? `${label} - ${clean(reason).slice(0, 120)}` : label;
+          });
+          extras.push(`Struck ${struckKeys.size} of ${items.length} findings: ${named.join("; ")}`);
+        }
+        const extraText = extras.length > 0 ? `. ${extras.join(". ")}` : "";
         const alternative =
           typeof ask.extra.meta?.alternative === "string" ? ask.extra.meta.alternative : "";
         this.land(
@@ -3348,7 +3371,7 @@ export class LineEngine implements IntakeLine {
             {
               op: "add",
               kind: "E",
-              text: `Outcome: ${text.replace(/[()]/g, "")}${notBuild && alternative ? `. Instead: ${alternative.replace(/[()]/g, "")}` : ""}`,
+              text: `Outcome: ${text.replace(/[()]/g, "")}${notBuild && alternative ? `. Instead: ${alternative.replace(/[()]/g, "")}` : ""}${extraText}`,
               from: OPERATOR,
             },
           ],
@@ -4377,7 +4400,7 @@ export class LineEngine implements IntakeLine {
           : notBuild
             ? `${alternative ? `Instead: ${alternative}. ` : ""}Something that already exists does the job, which is the cheapest outcome: nothing to build, check or keep running.${why} Pick "Do not build it" to stop here with a short report, or another choice to build it anyway. What was found is listed below.`
             : `This is what already exists${items.length ? "" : " (nothing was found)"}. premise recommends: ${recommended}.${why} Pick one, or write your own answer.`,
-        items: items.map(toAskItem),
+        items: items.map(toFindingItem),
         extra: {
           bestAttempt: advice,
           choices: takingOn
@@ -4643,7 +4666,7 @@ export class LineEngine implements IntakeLine {
       );
     }
     try {
-      const request = this.options.gate.request({
+      const input = {
         softwareId: job.softwareId,
         kind: args.kind,
         action: String(args.action ?? ""),
@@ -4657,7 +4680,18 @@ export class LineEngine implements IntakeLine {
         jobId: job.id,
         waiting: `the ${binding.role}'s work on ${stageName(job.stage ?? "")}`,
         stage: job.stage,
-      });
+      };
+      // An agent never performs a floor action and premise has no performer for what an agent
+      // asks for, so nobody is asked to approve something that nothing will do (decision 0270).
+      if (!this.options.gate.canPerform(null)) {
+        const request = this.options.gate.recordUnavailable(input);
+        return toolOk({
+          request_id: request.id,
+          status: "unavailable",
+          note: "premise cannot carry out this kind of action itself, so no one was asked and nothing was done. Do not wait. Finish what you can without it and say in task_finish what needs a person to do by hand.",
+        });
+      }
+      const request = this.options.gate.request(input);
       return toolOk({
         request_id: request.id,
         status: request.status === "asked" ? "asked" : "approved",

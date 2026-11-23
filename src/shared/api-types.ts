@@ -159,10 +159,34 @@ export interface UsageCost {
   weeklyShare: number;
 }
 
+/**
+ * premise's own count of what real sessions used, taken from each session's own result: real,
+ * never marked as mocked (decision 0270). A session without figures is counted as missing and
+ * never as zero.
+ */
+export interface OwnFigures {
+  /** Sessions whose own result gave figures. */
+  counted: number;
+  /** Sessions with none: scripted agents, or ones that ended without a result. */
+  missing: number;
+  /** Why they are missing, in words; null when none are. */
+  missingWhy: string | null;
+  /** At list prices, summed over the counted sessions. */
+  costUsd: number;
+  inputTokens: number;
+  outputTokens: number;
+  /** Tokens read from or written to the cache. */
+  cacheTokens: number;
+  turns: number;
+  /** Counted sessions whose result left out each figure; those are not in the sums above. */
+  unreported: { cost: number; tokens: number; turns: number };
+}
+
 /** What premise itself recorded about the same sessions: real, never marked as mocked. */
 export interface UsageMeasured {
   sessions: number;
   minutes: number;
+  figures: OwnFigures;
 }
 
 export interface UsageRowView {
@@ -219,9 +243,21 @@ export interface SoftwareUsageView {
   problem: string | null;
 }
 
+/** The weekly window as the agent runtime's stream last reported it: real, with its age. */
+export interface OwnWindowView {
+  /** From 0 to 100. */
+  usedPercent: number;
+  resetsAt: string | null;
+  /** When premise last read it from a session's stream. */
+  readAt: string;
+  status: string | null;
+}
+
 export interface UsageOverview {
   mode: string;
   mocked: boolean;
+  /** premise's own reading of the weekly window; null before any real session reported one. */
+  ownWindow: OwnWindowView | null;
   weekly: { mocked: boolean; utilization: number; windowStart: string; resetsAt: string };
   softwares: SoftwareUsageView[];
 }
@@ -388,8 +424,17 @@ export interface AskItem {
   text: string;
   /** assumed: premise's guess; from: who said it (a role label); suggestion: premise's idea. */
   /** recovered: read from an existing software's code, unconfirmed until the say-back passes. */
-  mark: "assumed" | "suggestion" | "from-role" | "recovered";
+  mark: "assumed" | "suggestion" | "from-role" | "recovered" | "found";
   from?: string;
+  /**
+   * For a "found" item (a finding of What exists): whether the researcher read the page itself,
+   * only a summary of it, or did not read it. The one line says what it is; `detail` has the rest.
+   */
+  checked?: "read" | "summary" | "not-read";
+  /** For a finding: where it was found, such as a link or a name. */
+  source?: string;
+  /** For a finding: everything the researcher wrote, shown on request. */
+  detail?: string;
   /** For a milestone: whether premise stops after it until the operator says go on. */
   wait?: boolean;
   /** Record items the item stands for (a say-back item), or sources (What exists). */
@@ -457,7 +502,17 @@ export type ItemAnswer =
 
 export type AskAnswer =
   | { kind: "items"; items: ItemAnswer[] }
-  | { kind: "text"; text: string }
+  | {
+      kind: "text";
+      text: string;
+      /**
+       * For What exists: findings the person struck, one by one, each with an optional reason. They
+       * are left out of the record.
+       */
+      struck?: { key: string; reason?: string }[];
+      /** For What exists: why the person chose something other than the recommendation. */
+      reason?: string;
+    }
   | { kind: "approval"; decision: "approve-once" | "approve-kind" | "refuse"; reason?: string }
   | { kind: "needed"; decision: "done" | "cannot"; reason?: string }
   /** For a proposal: keep one of its options (`choice`, an item's key), or say what to change. */
@@ -558,6 +613,8 @@ export interface ReportView {
   scripted?: string;
   cost: {
     mocked: boolean;
+    /** premise's own count from the sessions' results: real, shown before the mocked text. */
+    own?: string;
     text: string;
     /** Per stage and per piece of work: premise's own counts beside usage-ledger's figures. */
     lines?: ReportCostLine[];
@@ -828,6 +885,7 @@ export interface IntakeView {
 
 export type MeasureKey =
   | "attention"
+  | "attention-other"
   | "asks-by-role"
   | "answer-time"
   | "idea-to-running"

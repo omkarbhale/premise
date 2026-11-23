@@ -245,6 +245,18 @@ export function rootItem(db: Database, softwareId: string): WorkItem {
   return row ? fromRow(row) : createWorkItem(db, { softwareId, kind: "software" });
 }
 
+/**
+ * The work item being worked on now: the one the software's root item names as active, else the
+ * root itself. Every agent job carries it, so each session is attributed to the change it served
+ * (decision 0270).
+ */
+export function activeWorkItem(db: Database, softwareId: string): WorkItem {
+  const root = rootItem(db, softwareId);
+  const id = itemState<{ item?: number }>(db, root.id).item;
+  const item = id === undefined ? undefined : getWorkItem(db, id);
+  return item && item.softwareId === softwareId ? item : root;
+}
+
 export function setWorkItem(
   db: Database,
   id: number,
