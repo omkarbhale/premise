@@ -159,10 +159,11 @@ describe("work queue", () => {
     expect(queue.tick()).toHaveLength(2);
     await queue.idle();
 
-    expect(queue.state()).toEqual({
+    expect(queue.state()).toMatchObject({
       paused: true,
       reason: "The subscription's usage limit was reached.",
       resumeAt: resetAt,
+      cause: "usage-limit",
     });
     // Both jobs are back in the queue, to start again after the reset.
     expect(queue.get(build)).toMatchObject({ status: "queued", attempts: 1 });

@@ -15,6 +15,7 @@ import type {
   UsageOverview,
   MeasuresView,
   Overview,
+  PauseView,
   RecordView,
   ReportView,
   RunView,
@@ -104,6 +105,9 @@ export interface Api {
   asks(filter?: { software?: string; status?: "open" | "answered" }): Promise<AskView[]>;
   answer(id: number, answer: AskAnswer): Promise<AskView>;
   activity(): Promise<ActivityView>;
+  /** Pause everything: let what is running finish, or stop it now. */
+  pauseEverything(mode: "finish" | "stop-now"): Promise<PauseView>;
+  resumeEverything(): Promise<PauseView>;
   stopJob(id: number): Promise<ActivityView>;
   settings(): Promise<SettingsView>;
   /** Usage per software, with budgets: figures from usage-ledger (mocked until it exists). */
@@ -232,6 +236,8 @@ export function createApi(token: string): Api {
     },
     answer: (id, answer) => post(`/api/asks/${id}/answer`, { answer }),
     activity: () => get("/api/activity"),
+    pauseEverything: (mode) => post("/api/pause", { mode }),
+    resumeEverything: () => post("/api/resume"),
     stopJob: (id) => post(`/api/jobs/${id}/stop`),
     settings: () => get("/api/settings"),
     usage: () => get("/api/usage"),

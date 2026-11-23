@@ -34,6 +34,7 @@ Not responsible for:
 | Operation | Caller | Inputs | Outputs | Errors |
 |---|---|---|---|---|
 | Start (`premise start`, `npm start`) | A person on the owner's machine | Optional data folder, optional port | The prerequisite check's result; the session's link printed on the terminal | Exits with the list of what is missing |
+| Stop (`premise stop`, `npm run stop`, or Ctrl+C in premise's terminal) | A person on the owner's machine | `--now` for at once; optional data folder | One press or `premise stop` (asking again changes nothing): nothing new starts, premise ends when the running work has, and says what it waits for; a second press or `--now`: stops now. Both are safe ([0290](../decisions/0290-pausing-and-resuming-the-whole-of-premise.md)) | "premise is not running here" when none runs |
 | New link (`premise new-link`, `npm run new-link`) | A person on the owner's machine, while premise runs or not | Optional data folder | A new token and its link printed; every older link revoked at once ([0158](../decisions/0158-the-event-stream-reads-the-events-table.md)) | none |
 
 ### 3.2 The HTTP API
@@ -52,6 +53,8 @@ All routes are on localhost. Every request except the static page itself and the
 | `/api/softwares/:id/chat` | GET, POST | The conversation; a chat message, answered with premise's one-line acknowledgement | Line engine ([0118](../decisions/0118-how-chat-messages-are-routed.md)) |
 | `/api/asks` | GET | Asks, open first; optionally one software's, or only open or answered ones | Line engine, gate |
 | `/api/asks/:id/answer` | POST | Answers an ask: per item kept, struck or edited, a text answer, approve or refuse | Line engine, gate |
+| `/api/pause` | GET, POST | What is paused, what is still finishing and whether it is safe to close; POST `{ mode: "finish" or "stop-now" }` pauses everything ([0290](../decisions/0290-pausing-and-resuming-the-whole-of-premise.md)) | Work queue |
+| `/api/resume` | POST | Starts work again after any pause | Work queue |
 | `/api/activity` | GET | Jobs running, waiting, queued and recently finished, the parallel limit, the pause | Work queue |
 | `/api/settings` | GET | Every setting's value, default and meaning, read only, with where to change it | – |
 | `/api/softwares/:id/send-back` | POST | Sends a software back to a stage | Line engine |

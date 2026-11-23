@@ -255,6 +255,14 @@ export const SETTINGS: readonly Setting[] = [
     record: "0078",
   },
   {
+    key: "server.keep_link",
+    default: false,
+    check: summarised(yesNo, "true or false"),
+    meaning:
+      "false: premise makes a new link each time it starts, and older links stop working. true: premise keeps the same link across restarts, so a bookmark keeps working. The risk: the link is a password to premise on this computer, and keeping it means it is stored in the data folder (readable only by you) and stays valid for ever, so one left in a browser history, a bookmark or a shared screen still works. Turn it on only if you work alone on your own machine. `npm run new-link` replaces it at any time.",
+    record: "0290",
+  },
+  {
     key: "data.keep_finished_working_copies",
     default: false,
     check: summarised(yesNo, "true or false"),
@@ -266,6 +274,22 @@ export const SETTINGS: readonly Setting[] = [
     check: summarised(wholeNumber(1, 16), "1 to 16"),
     meaning: "How many agent sessions run at once.",
     record: "0074",
+  },
+  {
+    key: "queue.start_paused",
+    default: false,
+    check: summarised(yesNo, "true or false"),
+    meaning:
+      "true: premise always starts paused, so nothing runs until you press Resume on the page. Useful when you want to look around, or change settings, before agents start spending your usage. false: premise starts the way you left it (paused if you paused everything before stopping).",
+    record: "0290",
+  },
+  {
+    key: "queue.suspend_gap_seconds",
+    default: 90,
+    check: summarised(wholeNumber(10, 86400), "10 to 86400"),
+    meaning:
+      "If premise finds that the clock jumped forward by more than this many seconds (usually because the computer slept), it checks the agent sessions that were running, and restarts the ones that died.",
+    record: "0290",
   },
   {
     key: "queue.same_failure_limit",
@@ -937,8 +961,10 @@ export interface StageBudget {
 /** The whole configuration, as the rest of premise sees it. */
 export interface PremiseConfig {
   data: { folder: string; keep_finished_working_copies: boolean };
-  server: { host: string; port: number; token_bytes: number };
+  server: { host: string; port: number; token_bytes: number; keep_link: boolean };
   queue: {
+    start_paused: boolean;
+    suspend_gap_seconds: number;
     max_agent_sessions: number;
     same_failure_limit: number;
     usage_pause_fallback_minutes: number;

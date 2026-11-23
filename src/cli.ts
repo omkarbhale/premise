@@ -8,6 +8,7 @@ import { REAL_RUN_EXPECTED, realRun } from "./demo/real-run.js";
 import { configurationReference } from "./config/reference.js";
 import { checkRecordFolder } from "./record/check-folder.js";
 import { formatDoctorReport, runDoctor } from "./doctor/doctor.js";
+import { StopController, requestStop } from "./server/lifecycle.js";
 import { newLink, start } from "./server/start.js";
 import { VERSION } from "./version.js";
 
@@ -21,6 +22,10 @@ Usage:
                                                       placeholder; writing to a repository of
                                                       yours, if you bring one in, is still real
                                                       and asked first).
+  premise stop [--now] [--data <folder>]              Stop a premise running in another terminal: the same
+                                                      as Ctrl+C there. It lets running work finish, then
+                                                      stops. --now stops at once (the cut-off work is
+                                                      redone next time). On Windows it always stops at once.
   premise new-link [--data <folder>]                  Print a new link; older links stop working.
   premise doctor [--data <folder>]                    Check this machine and the settings.
   premise record check <folder>                       Check a software's record folder for mistakes.
@@ -48,6 +53,7 @@ interface Parsed {
   port: string | undefined;
   scripted: boolean;
   confirm: boolean;
+  now: boolean;
   minutes: string | undefined;
 }
 
@@ -61,6 +67,7 @@ function parse(argv: string[]): Parsed {
     port: undefined,
     scripted: false,
     confirm: false,
+    now: false,
     minutes: undefined,
   };
   for (let i = 0; i < argv.length; i++) {
@@ -69,6 +76,7 @@ function parse(argv: string[]): Parsed {
     else if (arg === "--port") parsed.port = argv[++i];
     else if (arg === "--scripted") parsed.scripted = true;
     else if (arg === "--confirm") parsed.confirm = true;
+    else if (arg === "--now") parsed.now = true;
     else if (arg === "--minutes") parsed.minutes = argv[++i];
     else if (arg === "--help" || arg === "-h") parsed.help = true;
     else if (arg === "--version") parsed.command ??= "--version";
@@ -103,13 +111,40 @@ async function main(argv: string[]): Promise<number> {
   switch (args.command) {
     case "start": {
       const running = await start({ dataFolder, env });
-      const stop = () => {
-        console.log("\nStopping premise.");
-        void running.close().then(() => process.exit(0));
-      };
-      process.once("SIGINT", stop);
-      process.once("SIGTERM", stop);
+      const controller = new StopController(
+        {
+          beginStopping: () => running.beginStopping(),
+          stillRunning: () => running.stillRunning(),
+          whenIdle: () => running.whenIdle(),
+          close: () => running.close(),
+          goodbye: () => running.goodbye(),
+          runningSoftwareNames: () => running.runningSoftwareNames(),
+        },
+        {
+          print: (line) => console.log(line),
+          exit: (code) => process.exit(code),
+          softwareName: (id) =>
+            (
+              running.db.prepare("SELECT name FROM softwares WHERE id = ?").get(id) as
+                { name: string } | undefined
+            )?.name ?? "a removed software",
+        },
+      );
+      // Ctrl+C once: pause, let running work finish, stop. Twice: stop now. A termination request
+      // or the terminal closing stops now, which is always safe.
+      process.on("SIGINT", () => controller.interrupt());
+      if (process.platform !== "win32") process.on("SIGUSR2", () => controller.requestClean());
+      process.on("SIGTERM", () => controller.terminate());
+      process.on("SIGHUP", () => controller.terminate());
       return -1;
+    }
+    case "stop": {
+      const result = await requestStop({
+        dataFolder,
+        now: args.now,
+        print: (line) => console.log(line),
+      });
+      return result.outcome === "stopped" || result.outcome === "not-running" ? 0 : 1;
     }
     case "new-link": {
       const link = newLink({ dataFolder, env });

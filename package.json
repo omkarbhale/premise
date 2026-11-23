@@ -28,6 +28,7 @@
     "format": "prettier --write .",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p web/tsconfig.json --noEmit",
     "docs:config": "tsx src/cli.ts config reference > docs/reference/configuration.md",
+    "stop": "node dist/server/cli.js stop",
     "new-link": "node dist/server/cli.js new-link",
     "test:browser": "vitest run test/browser",
     "demo": "node dist/server/cli.js start --scripted",
