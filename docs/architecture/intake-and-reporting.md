@@ -16,7 +16,7 @@ Carved from section 6 of the plan (the floor, from the same section, is in [the 
   - Why: routing by what an item touches needs the record, which an LLM can read; no person is needed for it.
   - Rejected: people sorting intake by hand.
 - Routes ([0062](../decisions/0062-intake-goes-in-normally.md): intake goes in normally; only what needs holding is held):
-  - **In normally, the default:** bugs and wishes that fit the record become changes on the line. A bug on something the record already requires is built, checked and run straight away; a wish that changes what the software must do is confirmed once at What, then planned and built ([0192](../decisions/0192-effort-in-proportion-to-what-was-asked.md)). A say-back only for a change of purpose.
+  - **In normally, the default:** bugs and wishes that fit the record become changes on the line. A bug on something the record already requires is built, checked and run straight away; a wish that changes what the software must do reopens What without a question, then, like other new work, is planned and built as a change that asks at most one question, only when it matters ([0192](../decisions/0192-effort-in-proportion-to-what-was-asked.md), [0274](../decisions/0274-a-change-asks-at-most-one-question.md)). A say-back only for a change of purpose.
   - **Asked at once:** an item that touches purpose, a claimed area, or the floor is asked in the session, under the role whose call it is.
   - **Held:** only the items that need holding ([0095](../decisions/0095-what-is-held.md)).
   - **Merged or closed:** duplicates join their item; noise is closed with its reason. Both are counted in reports.
