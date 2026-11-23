@@ -21,6 +21,7 @@ import { listChatMessages } from "../storage/chat.js";
 import { openDatabase } from "../storage/database.js";
 import { MockUsageLedger } from "../usage-ledger/mock-usage-ledger.js";
 import { DEMOS, type DemoSoftware, type DraftLine } from "./demo-softwares.js";
+import { planChange } from "./stand-in-script.js";
 import {
   type Call,
   commitAll,
@@ -136,6 +137,7 @@ export function demoScript(demo: DemoSoftware): AgentScript {
         },
       }),
       rule("plan", { when: { purpose: "draft" }, behave: plan }),
+      rule("plan", { when: { purpose: "change" }, behave: planChange }),
       rule("review", { behave: review }),
       rule("build", { behave: build }),
       rule("check", { when: { purpose: "scenarios" }, behave: scenarios }),
@@ -247,6 +249,17 @@ export async function runDemo(
      * queue pauses, and the result shows what the operator is told.
      */
     smallBudgetUsd?: number;
+    /**
+     * For tests: more to do once the software is built, before the session closes, such as
+     * sending it a change. `drive` answers asks as the operator until the line rests again.
+     */
+    after?: (context: {
+      session: ReturnType<typeof createSession>;
+      softwareId: string;
+      drive: () => Promise<void>;
+      runner: ScriptedAgentRunner;
+      db: ReturnType<typeof openDatabase>["db"];
+    }) => Promise<void>;
   },
 ): Promise<DemoResult> {
   const demo = DEMOS[which];
@@ -300,41 +313,52 @@ export async function runDemo(
       for (const m of messages.slice(heard)) log(`premise: ${m.text}`);
       heard = messages.length;
     };
-    for (let round = 0; round < 60; round++) {
-      await settle();
-      tell();
-      const open = await session.services.asks.list({ softwareId: id, status: "open" });
-      const detail = await session.services.softwares.get(id);
-      if (open.length === 0) {
-        if (detail.stage === "intake" || detail.state !== "active") break;
-        continue;
-      }
-      for (const ask of open) {
-        const answer = operator(ask);
-        if (answer.kind === "items") {
-          const strike = answer.items.find((i) => i.decision === "strike");
-          if (strike) {
-            const item = ask.items.find((i) => i.key === strike.key)!;
-            struck = { text: item.text, reason: strike.reason ?? "" };
-          }
+    const drive = async () => {
+      for (let round = 0; round < 60; round++) {
+        await settle();
+        tell();
+        const open = await session.services.asks.list({ softwareId: id, status: "open" });
+        const detail = await session.services.softwares.get(id);
+        if (open.length === 0) {
+          if (detail.stage === "intake" || detail.state !== "active") break;
+          continue;
         }
-        const words =
-          answer.kind === "text"
-            ? answer.text
-            : answer.kind === "approval"
-              ? "No"
-              : answer.kind === "scope"
-                ? scopeWords(answer)
-                : answer.items.some((i) => i.decision === "strike")
-                  ? `struck "${struck?.text}": ${struck?.reason}`
-                  : "kept every item";
-        log(`operator, to "${ask.title}": ${words}`);
-        answered.push({ title: ask.title, answer: words });
-        await session.services.asks.answer(ask.id, answer);
+        for (const ask of open) {
+          const answer = operator(ask);
+          if (answer.kind === "items") {
+            const strike = answer.items.find((i) => i.decision === "strike");
+            if (strike) {
+              const item = ask.items.find((i) => i.key === strike.key)!;
+              struck = { text: item.text, reason: strike.reason ?? "" };
+            }
+          }
+          const words =
+            answer.kind === "text"
+              ? answer.text
+              : answer.kind === "approval"
+                ? "No"
+                : answer.kind === "scope"
+                  ? scopeWords(answer)
+                  : answer.items.some((i) => i.decision === "strike")
+                    ? `struck "${struck?.text}": ${struck?.reason}`
+                    : "kept every item";
+          log(`operator, to "${ask.title}": ${words}`);
+          answered.push({ title: ask.title, answer: words });
+          await session.services.asks.answer(ask.id, answer);
+        }
       }
-    }
+    };
+    await drive();
     await settle();
     tell();
+    if (options.after) {
+      await options.after({ session, softwareId: id, drive, runner, db });
+      await settle();
+      // A report is written just after its stage; let it finish before the database closes.
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      await settle();
+      tell();
+    }
     const detail = await session.services.softwares.get(id);
     const stages = (
       db.prepare("SELECT stage FROM stage_runs WHERE software_id = ? ORDER BY id").all(id) as {

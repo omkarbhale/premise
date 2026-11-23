@@ -155,6 +155,7 @@ const TOOLS: ToolDefinition[] = [
         outcome: { type: "string" },
         alternative: { type: "string" },
         reason: { type: "string" },
+        open_choice: { type: "string" },
       },
       ["stage", "items"],
     ),
@@ -389,8 +390,25 @@ const TOOLS: ToolDefinition[] = [
   },
   {
     name: "triage_submit",
-    description: "Submit how one intake item is routed.",
-    inputSchema: anyObject,
+    description:
+      'Submit how one intake item is routed. Lists are JSON lists, not text: "touches" is a list of { "id": "W-3", "reason": "..." }, or an empty list.',
+    inputSchema: obj(
+      {
+        kind: { type: "string" },
+        touches: {
+          type: "array",
+          items: obj({ id: { type: "string" }, reason: { type: "string" } }, ["id", "reason"]),
+        },
+        size: { type: "string", enum: ["small", "medium", "large"] },
+        touches_floor: { type: "string", enum: ["yes", "no"] },
+        changes_what: { type: "string", enum: ["yes", "no"] },
+        route: { type: "string" },
+        reason: { type: "string" },
+        joins: { type: "string" },
+        answer: { type: "string" },
+      },
+      ["kind", "touches", "touches_floor", "route", "reason"],
+    ),
     notBuilt: "intake",
     example: {
       kind: "wish",
@@ -427,7 +445,16 @@ const TOOLS: ToolDefinition[] = [
     name: "reading_submit",
     description:
       'Submit the short list from reading the held intake items: "wanted" and "recurring" (lines, each { "line", "items": ["I-3"] }), "purpose", "back_to_why" (yes or no) and, when yes, "not_wanted" (the item IDs that are the evidence).',
-    inputSchema: anyObject,
+    inputSchema: obj(
+      {
+        wanted: { type: "array", items: anyObject },
+        recurring: { type: "array", items: anyObject },
+        purpose: { type: "string" },
+        back_to_why: { type: "string", enum: ["yes", "no"] },
+        not_wanted: textList,
+      },
+      ["wanted", "recurring", "back_to_why"],
+    ),
     notBuilt: "intake",
     example: {
       wanted: [{ line: "People want to sort the list by author.", items: ["I-1"] }],
@@ -498,6 +525,38 @@ export function toolExample(tool: string, role: AgentRole): Record<string, unkno
   const definition = TOOLS_BY_NAME.get(tool);
   if (!definition) throw new Error(`premise has no tool "${tool}".`);
   return definition.examples?.[role] ?? definition.example;
+}
+
+/**
+ * A list or object an agent sent as JSON text, decoded. Real sessions sometimes send a list
+ * argument as a string holding the list ("[{\"id\": \"W-2\"}]"); in the owner's first real run the
+ * triager did so four times, was refused each time, and finished without an answer. Where a
+ * tool's schema says a field is a list or an object and the agent sent text that parses as one,
+ * premise takes the parsed value. Anything else is left for the module's own checks.
+ */
+export function decodeEncoded(
+  tool: Pick<ToolDefinition, "inputSchema"> | undefined,
+  args: Record<string, unknown>,
+): Record<string, unknown> {
+  const properties = (tool?.inputSchema.properties ?? {}) as Record<string, { type?: string }>;
+  let out: Record<string, unknown> | null = null;
+  for (const [key, value] of Object.entries(args)) {
+    const wanted = properties[key]?.type;
+    if ((wanted !== "array" && wanted !== "object") || typeof value !== "string") continue;
+    const text = value.trim();
+    if (!(wanted === "array" ? text.startsWith("[") : text.startsWith("{"))) continue;
+    try {
+      const parsed: unknown = JSON.parse(text);
+      const fits =
+        wanted === "array"
+          ? Array.isArray(parsed)
+          : parsed !== null && typeof parsed === "object" && !Array.isArray(parsed);
+      if (fits) (out ??= { ...args })[key] = parsed;
+    } catch {
+      // Not JSON: the module's own check says what is wrong.
+    }
+  }
+  return out ?? args;
 }
 
 function hashToken(token: string): string {
@@ -672,8 +731,9 @@ export class AgentToolServer {
   }
 
   /** Check a call, record it, and hand it to whoever owns it. */
-  private call(entry: TokenEntry, tool: string, args: Record<string, unknown>): ToolEnvelope {
+  private call(entry: TokenEntry, tool: string, given: Record<string, unknown>): ToolEnvelope {
     const { binding } = entry;
+    const args = decodeEncoded(TOOLS_BY_NAME.get(tool), given);
     const envelope = this.check(entry, tool) ?? this.perform(binding, tool, args);
     recordEvent(this.options.db, {
       softwareId: binding.softwareId,

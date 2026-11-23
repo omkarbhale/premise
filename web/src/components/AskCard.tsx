@@ -85,7 +85,9 @@ export function AskCard({ ask, showSoftware = false }: { ask: AskView; showSoftw
             For the {ask.role}
           </span>
         )}
-        <span className="chip">{ASK_KIND_LABEL[ask.kind]}</span>
+        <span className="chip">
+          {ask.notice ? "For your information: nothing waits on you" : ASK_KIND_LABEL[ask.kind]}
+        </span>
         {showSoftware && <span className="chip chip-software">{ask.softwareName}</span>}
         {nowStage && (
           <span className="muted small">
@@ -123,6 +125,9 @@ export function AskCard({ ask, showSoftware = false }: { ask: AskView; showSoftw
           {(ask.kind === "draft" || ask.kind === "say-back") && (
             <ItemsAnswer ask={ask} busy={busy} onSend={send} />
           )}
+          {ask.suggestions && ask.suggestions.length > 0 && (
+            <Suggestions ask={ask} busy={busy} setBusy={setBusy} setProblem={setProblem} />
+          )}
           {ask.kind === "question" && <QuestionAnswer ask={ask} busy={busy} onSend={send} />}
           {ask.kind === "approval" && <ApprovalAnswer ask={ask} busy={busy} onSend={send} />}
           {ask.kind === "needed" && <NeededAnswer ask={ask} busy={busy} onSend={send} />}
@@ -136,6 +141,56 @@ export function AskCard({ ask, showSoftware = false }: { ask: AskView; showSoftw
         </p>
       )}
     </article>
+  );
+}
+
+/** premise's own suggestions for a change: none is built unless added, one click each (0274). */
+function Suggestions({
+  ask,
+  busy,
+  setBusy,
+  setProblem,
+}: {
+  ask: AskView;
+  busy: boolean;
+  setBusy: (busy: boolean) => void;
+  setProblem: (problem: string | null) => void;
+}) {
+  const { api, notCurrent, refresh } = useSession();
+  async function add(key: string) {
+    setBusy(true);
+    setProblem(null);
+    try {
+      await api.addSuggestion(ask.id, key);
+      refresh();
+    } catch (error) {
+      if (error instanceof NotCurrentLink) notCurrent();
+      else setProblem((error as ApiError).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <section className="suggestions" aria-label="premise's suggestions">
+      <h4>premise could also add</h4>
+      <p className="muted small">
+        None of these is built unless you add it. Each comes in as a change of its own.
+      </p>
+      <ul>
+        {ask.suggestions!.map((x) => (
+          <li key={x.key}>
+            {x.text}{" "}
+            {x.added ? (
+              <span className="chip">Added as {x.added}</span>
+            ) : (
+              <button type="button" disabled={busy} onClick={() => void add(x.key)}>
+                Add this
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

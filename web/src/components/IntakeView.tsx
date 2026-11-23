@@ -260,7 +260,8 @@ function Item({
         {item.sourceWords}, {when(item.received)}
         {item.kindWords && <>; read as {item.kindWords}</>}
         {item.routedBy === "operator" && "; you decided where it goes"}
-        {item.routedBy === "default" && "; not read by an agent, so it went in normally"}
+        {item.routedBy === "default" &&
+          "; not triaged: the triager gave no usable answer, so premise took it in by its default"}
       </p>
       {item.answer && <p className="intake-answer">{item.answer}</p>}
       {item.senderNote && <p className="muted small">{item.senderNote}</p>}

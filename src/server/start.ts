@@ -237,6 +237,11 @@ export async function start(options: StartOptions): Promise<Running> {
   made.queue = queue;
   gate.recoverInterrupted();
   const recovered = queue.recover();
+  const replanned = line.replanChanges();
+  if (replanned > 0)
+    print(
+      `Planning ${replanned} change(s) again on their own, not with the software's milestones.`,
+    );
   const before = queue.state();
   const state = queue.applyStartPolicy(config.queue.start_paused);
   const copies = line.resumeTakeOns();

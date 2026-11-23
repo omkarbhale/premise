@@ -708,10 +708,14 @@ describe("chat and stage problems", () => {
       ],
     };
     const app = await testApp({}, { script });
-    await start(app);
+    const id = await start(app);
+    // Asked once more with the exact shape (decision 0275), then the operator decides.
     expect(
       app.runner.calls.filter((c) => c.tool === "draft_submit").map((c) => c.result.error?.code),
-    ).toEqual(["MALFORMED", "MALFORMED"]);
+    ).toEqual(["MALFORMED", "MALFORMED", "MALFORMED", "MALFORMED"]);
+    const second = app.runner.requests.filter((r) => r.taskKind === "draft").at(-1)!;
+    expect(second.brief).toMatch(/^Your previous session for this task ended without the answer/);
+    expect((await lineAsk(app, id)).title).toBe("Why did not finish: try again?");
   });
 }, 30_000);
 

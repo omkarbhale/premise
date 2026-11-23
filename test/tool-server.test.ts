@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type ToolBinding, AgentToolServer } from "../src/agents/tool-server.js";
+import { type ToolBinding, AgentToolServer, decodeEncoded } from "../src/agents/tool-server.js";
 import { openDatabase } from "../src/storage/database.js";
 import { tempFolder, testConfig } from "./helpers.js";
 
@@ -149,5 +149,37 @@ describe("agent tools over MCP", () => {
       rpc("notifications/initialized", {}, null),
     ]);
     expect(answer.body).toHaveLength(1);
+  });
+});
+
+describe("lists and objects sent as text (decision 0275)", () => {
+  const schema = {
+    inputSchema: {
+      type: "object",
+      properties: {
+        touches: { type: "array" },
+        run: { type: "object" },
+        reason: { type: "string" },
+      },
+    },
+  };
+
+  it("reads a list or object the schema asks for when it came as JSON text", () => {
+    expect(
+      decodeEncoded(schema, {
+        touches: '[{"id": "W-2", "reason": "why"}]',
+        run: '{"kind": "command"}',
+        reason: "[not a list]",
+      }),
+    ).toEqual({
+      touches: [{ id: "W-2", reason: "why" }],
+      run: { kind: "command" },
+      reason: "[not a list]",
+    });
+  });
+
+  it("leaves text that is not the kind asked for, or not JSON, to the tool's own checks", () => {
+    const args = { touches: "W-2 and W-3", run: "[1]" };
+    expect(decodeEncoded(schema, args)).toBe(args);
   });
 });

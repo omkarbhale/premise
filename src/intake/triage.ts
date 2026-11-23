@@ -103,7 +103,11 @@ export function readTriage(
   const touches: Touch[] = [];
   const given = args.touches ?? [];
   if (!Array.isArray(given)) {
-    problems.push('Give "touches" as a list of {"id": "W-3", "reason": "..."}, or an empty list.');
+    problems.push(
+      typeof given === "string"
+        ? '"touches" came as text. Send it as a JSON list itself, not a text holding a list: "touches": [{"id": "W-3", "reason": "..."}], or [].'
+        : 'Give "touches" as a list of {"id": "W-3", "reason": "..."}, or an empty list.',
+    );
   } else {
     for (const entry of given) {
       const t = (typeof entry === "string" ? { id: entry } : (entry ?? {})) as Record<

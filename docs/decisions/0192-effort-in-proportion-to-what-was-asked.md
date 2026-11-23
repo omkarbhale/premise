@@ -1,6 +1,6 @@
 # 0192. Effort in proportion to what was asked: prompts, plan checks, triage and measures
 
-- Status: Accepted
+- Status: Accepted; point 5 partly superseded by [0274](0274-a-change-asks-at-most-one-question.md) (a change no longer gets a blocking What confirm)
 - Scope: The product
 - Date: 2026-11-21
 - Decided by: The builders. The owner's decision on scope, effort and milestones is [0191](0191-scope-check-effort-and-milestones.md); everything here is the builders' choice, open to the owner's correction.

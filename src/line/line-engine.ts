@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentOutcome } from "../agents/agent-runner.js";
+import { ANSWER_SHAPES, againJob, askedAgain } from "../agents/ask-again.js";
 import type { ToolBinding, ToolEnvelope } from "../agents/tool-server.js";
 import { toolFail, toolOk } from "../agents/tool-server.js";
 import {
@@ -28,6 +29,7 @@ import type { Job, JobKind, WorkQueue } from "../queue/work-queue.js";
 import { applyOperations, type Operation } from "../record/change.js";
 import { type ItemKind, type RecordItem, formatItemLine } from "../record/format.js";
 import { RecordError, type RecordKeeper } from "../record/record-keeper.js";
+import { intakeItemOfWork } from "../intake/items.js";
 import { secretWritten, secretsFile } from "../runner/secrets.js";
 import { type Taste, roleLabel, roleWords } from "../taste/taste.js";
 import {
@@ -41,6 +43,7 @@ import type {
   ClaimView,
   AskAnswer,
   AskView,
+  ChangeView,
   ChatMessage,
   ExistingView,
   MilestoneView,
@@ -121,7 +124,25 @@ import {
   toFindingItem,
 } from "./draft-items.js";
 import type { IntakeHooks, IntakeLine } from "./intake-hooks.js";
-import type { LaterOutcome, LaterStageId, LaterStages, MilestoneRef } from "./later-stages.js";
+import type {
+  ChangeWork,
+  LaterOutcome,
+  LaterStageId,
+  LaterStages,
+  MilestoneRef,
+} from "./later-stages.js";
+import {
+  type ChangeNotes,
+  type ChangePlan,
+  type ChangeQuestions,
+  CHANGE_QUESTION_WORDS,
+  decisionText,
+  isChangeQuestions,
+  readChangePlan,
+  readChangeSubmission,
+  reasonsToAsk,
+  writeChangePlan,
+} from "./change-plan.js";
 import { RecordWriter, droppedLine } from "./record-writer.js";
 import {
   allowedStages,
@@ -241,6 +262,8 @@ type AskPurpose =
   | "start-command"
   | "taste-proposal"
   | "repository-retry"
+  | "change-confirm"
+  | "change-notice"
   | "agent";
 
 /** The line's notes on one work item, kept with the item. */
@@ -257,6 +280,8 @@ interface ItemNotes {
   intakeKind?: string;
   /** For existing software: what the drafter's recovery submitted, used when its job ends. */
   recovery?: Recovery;
+  /** For an intake item's work: what its change is and how the person was told (0273, 0274). */
+  change?: ChangeNotes;
 }
 
 /** Fixes the whole-piece check may ask for before premise goes on and reports it. */
@@ -273,8 +298,8 @@ interface LineState extends ItemNotes {
   /** Budget multiplier the operator gave the current stage run. */
   boost?: number;
   sayBackRounds?: number;
-  /** Foundation review round and the objections left open. */
-  review?: { round: number; objections: string[] };
+  /** Foundation review round, the objections left open, and whether the reviewer answered. */
+  review?: { round: number; objections: string[]; submitted?: boolean };
   /** The milestone being worked on, from Build to Report. */
   milestone?: string | null;
   /** Record changes agents proposed in this round, accepted when the plan is confirmed. */
@@ -285,6 +310,8 @@ interface LineState extends ItemNotes {
   scope?: ScopeChoice;
   /** The name of the GitHub repository premise asked to create (decision 0260). */
   repositoryName?: string;
+  /** When premise asks about a change before building it, chosen for this software (0274). */
+  changeQuestions?: ChangeQuestions;
 }
 
 interface StoredPlan {
@@ -430,6 +457,351 @@ export class LineEngine implements IntakeLine {
     setItemState(this.db, item.id, next);
   }
 
+  // ---- Changes from intake (decisions 0273, 0274) ----------------------------------------------
+
+  /** The change a piece belongs to: the intake item's work it is, or a step of it. */
+  private changeOf(item: WorkItem): WorkItem | null {
+    return ancestry(this.db, item).find((i) => i.kind === "intake") ?? null;
+  }
+
+  private changeNotes(change: WorkItem): ChangeNotes {
+    return this.notes(change).change ?? { items: [], assumed: [], suggestions: [] };
+  }
+
+  private setChangeNotes(change: WorkItem, update: Partial<ChangeNotes>): void {
+    const next: ChangeNotes = { ...this.changeNotes(change), ...update };
+    for (const key of Object.keys(next) as (keyof ChangeNotes)[]) {
+      if (next[key] === undefined) delete next[key];
+    }
+    this.setNotes(change, { change: next });
+  }
+
+  /** The change's words without its reference: "I-1: Sort by author" → "Sort by author". */
+  private changeTitle(change: WorkItem): string {
+    const title = (change.title ?? "").trim();
+    const ref = change.ref ?? "";
+    return (ref && title.startsWith(`${ref}:`) ? title.slice(ref.length + 1) : title).trim();
+  }
+
+  /**
+   * When premise asks about this software's changes before building them: the software's own
+   * choice, else the setting, else its effort (high asks about every change) (decision 0274).
+   */
+  changeQuestionsOf(software: Software): ChangeQuestions {
+    return (
+      this.state(software.id).changeQuestions ??
+      this.config.line.change_questions ??
+      (software.effort === "high" ? "every-change" : "when-it-matters")
+    );
+  }
+
+  async setChangeQuestions(id: string, value: unknown): Promise<void> {
+    const software = this.require(id);
+    if (!isChangeQuestions(value)) {
+      throw new ServiceError(
+        "INVALID",
+        "Choose when premise asks about a change: every-change, when-it-matters or never.",
+      );
+    }
+    transaction(this.db, () => {
+      this.setState(id, { changeQuestions: value });
+      this.premiseSays(
+        id,
+        `From now on, for ${software.name}'s changes: ${CHANGE_QUESTION_WORDS[value].toLowerCase()}. A bug is never asked about.`,
+      );
+    });
+  }
+
+  private changePlanOf(softwareId: string, item: WorkItem): ChangePlan | null {
+    return readChangePlan(this.config.data.folder, softwareId, item.id);
+  }
+
+  /** Record items the intake item's triage found the change touches. */
+  private triageTouches(change: WorkItem): string[] {
+    return intakeItemOfWork(this.db, change.id)?.touches.map((t) => t.id) ?? [];
+  }
+
+  /** What Build and Check need to build only this change (decision 0273). */
+  private changeWork(softwareId: string): ChangeWork | null {
+    const item = this.active(softwareId);
+    const change = this.changeOf(item);
+    if (!change) return null;
+    const notes = this.changeNotes(change);
+    const plan = this.changePlanOf(softwareId, item);
+    const live = new Set(this.recordLines(softwareId).map((i) => i.id));
+    const own = [...notes.items, ...notes.assumed, ...(notes.decisions ?? [])];
+    const tasks = plan?.tasks ?? [];
+    const touched = [
+      ...new Set([...tasks.flatMap((t) => t.items), ...own, ...this.triageTouches(change)]),
+    ].filter((i) => live.has(i));
+    const title = item.id === change.id ? this.changeTitle(change) : (item.title ?? "");
+    return {
+      ref: change.ref ?? "the change",
+      title,
+      tasks:
+        tasks.length > 0
+          ? tasks
+          : [
+              {
+                title: `${change.ref ?? "The change"}: ${title}`,
+                items: touched,
+                ...(item.words && { check: item.words }),
+              },
+            ],
+      touched,
+    };
+  }
+
+  /**
+   * Before a change is built (decision 0274): at most one blocking question, and only when it
+   * matters (it replaces a foundation decision or is otherwise costly to undo, or the person's words
+   * left a real choice open) or the software's setting asks about every change. Otherwise premise
+   * says what it understood and assumed, and builds at once; each line stays strikeable. True when
+   * premise asked and the line waits for the answer.
+   */
+  private holdForChange(software: Software, item: WorkItem): boolean {
+    const change = this.changeOf(item);
+    if (!change) return false;
+    const notes = this.changeNotes(change);
+    const plan = this.changePlanOf(software.id, item);
+    if (notes.decided || change.origin === "bug") {
+      // Asked or told once already (or a bug, never asked): a later step's decisions go in as made.
+      this.landChangeDecisions(software.id, change, item, plan, plan?.decisions ?? []);
+      return false;
+    }
+    const mode = this.changeQuestionsOf(software);
+    const reasons = reasonsToAsk(plan, notes, this.recordLines(software.id));
+    // A change of purpose was said back already: that was its one question.
+    const asks =
+      change.origin !== "purpose" &&
+      (mode === "every-change" || (mode === "when-it-matters" && reasons.length > 0));
+    if (asks) {
+      this.askChange(software, change, item, plan, reasons);
+      return true;
+    }
+    this.tellChange(software, change, item, plan);
+    return false;
+  }
+
+  /** The change's lines a person can strike: what it took from their words, and what it assumed. */
+  private changeLines(softwareId: string, notes: ChangeNotes): DraftItem[] {
+    const lines = this.recordLines(softwareId);
+    return [...notes.items, ...notes.assumed]
+      .map((id) => lines.find((l) => l.id === id))
+      .filter((l): l is RecordItem => Boolean(l))
+      .map((l) => ({
+        key: `r-${l.id}`,
+        text: l.text,
+        kind: l.kind,
+        from: notes.assumed.includes(l.id) ? "assumed" : l.marks.from || OPERATOR,
+        ...(l.kind === "W" && l.marks.priority && { priority: l.marks.priority }),
+        refs: [l.id],
+      }));
+  }
+
+  private decisionLine(d: ChangePlan["decisions"][number]): string {
+    return `${d.text}${d.replaces ? ` (replaces ${d.replaces})` : ""}${d.reason ? `. Why: ${d.reason}` : ""}`;
+  }
+
+  private tasksWords(plan: ChangePlan | null, change: WorkItem): string {
+    return plan?.tasks.length
+      ? plan.tasks.map((t, i) => `${i + 1}. ${t.title.replace(/\.$/, "")}`).join("; ")
+      : `one task: ${this.changeTitle(change)}`;
+  }
+
+  /** The one question about a change, carrying everything together. */
+  private askChange(
+    software: Software,
+    change: WorkItem,
+    item: WorkItem,
+    plan: ChangePlan | null,
+    reasons: string[],
+  ): void {
+    const notes = this.changeNotes(change);
+    const decisions: DraftItem[] = (plan?.decisions ?? []).map((d, i) => ({
+      key: `d${i + 1}`,
+      text: this.decisionLine(d),
+      kind: "D",
+      from: "assumed",
+      ...(d.foundation && { foundation: true }),
+      ...(d.replaces && { refs: [d.replaces] }),
+    }));
+    const items = [...this.changeLines(software.id, notes), ...decisions];
+    const ref = change.ref ?? "this change";
+    const offered = notes.suggestions.filter((x) => !x.added);
+    const ask = createAsk(this.db, {
+      softwareId: software.id,
+      role: OPERATOR,
+      kind: "draft",
+      stage: "build",
+      title: `Your change ${ref}: check this once before it is built`,
+      instruction: [
+        reasons.length
+          ? `premise asks first because ${reasons.map(lowerFirst).join("; ")}.`
+          : "You asked premise to check every change with you before building it.",
+        `Below: what premise took from your words, what it assumed (marked assumed: not checked with you), and the decisions the change makes. It will build ${this.tasksWords(plan, change)}.`,
+        "Strike any line that is wrong and say why, or edit it; what you keep is built. This is the only question about this change.",
+        offered.length
+          ? `premise could also add, but builds none of it unless you add it: ${offered.map((x) => x.text).join("; ")}.`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" "),
+      items: items.map(toAskItem),
+      extra: {
+        meta: {
+          purpose: "change-confirm",
+          items,
+          change: change.id,
+          piece: item.id,
+          ...(offered.length && { suggestions: notes.suggestions }),
+        },
+      },
+    });
+    this.setChangeNotes(change, { ask: ask.id });
+    this.premiseSays(
+      software.id,
+      `Your change ${ref} is ready to build. Before it is, one question: ${reasons[0] ? lowerFirst(reasons[0]) : "you asked to check every change"}. It is under Waiting on you.`,
+    );
+  }
+
+  /** Build at once and say, without waiting, what was understood and assumed (decision 0274). */
+  private tellChange(
+    software: Software,
+    change: WorkItem,
+    item: WorkItem,
+    plan: ChangePlan | null,
+  ): void {
+    const notes = this.changeNotes(change);
+    this.landChangeDecisions(software.id, change, item, plan, plan?.decisions ?? []);
+    const fresh = this.changeNotes(change);
+    const lines = this.changeLines(software.id, fresh);
+    const records = this.recordLines(software.id);
+    const decisions: DraftItem[] = (fresh.decisions ?? [])
+      .map((id) => records.find((r) => r.id === id))
+      .filter((r): r is RecordItem => Boolean(r))
+      .map((r) => ({ key: `r-${r.id}`, text: r.text, kind: "D", from: "assumed", refs: [r.id] }));
+    const items = [...lines, ...decisions];
+    const offered = notes.suggestions.filter((x) => !x.added);
+    const ref = change.ref ?? "this change";
+    const plain = (t: string) => t.replace(/[.\s]+$/, "");
+    const understood = lines.filter((l) => l.from !== "assumed").map((l) => plain(l.text));
+    const assumed = [...lines.filter((l) => l.from === "assumed"), ...decisions].map((l) =>
+      plain(l.text),
+    );
+    let askId: number | undefined;
+    if (items.length > 0 || offered.length > 0) {
+      const ask = createAsk(this.db, {
+        softwareId: software.id,
+        role: OPERATOR,
+        kind: "draft",
+        stage: null,
+        title: `Your change ${ref}: taken as below, building now`,
+        instruction:
+          "Nothing waits on you: premise is building this already. If a line is wrong, strike it and say why; premise takes your correction in as a follow-up change. Lines marked assumed were not checked with you." +
+          (offered.length
+            ? " premise's own suggestions are below; none is built unless you add it."
+            : ""),
+        items: items.map(toAskItem),
+        extra: {
+          meta: {
+            purpose: "change-notice",
+            notice: true,
+            items,
+            change: change.id,
+            ...(offered.length && { suggestions: notes.suggestions }),
+          },
+        },
+      });
+      askId = ask.id;
+    }
+    this.setChangeNotes(change, { decided: "told", ...(askId !== undefined && { ask: askId }) });
+    if (change.origin === "bug") return;
+    this.premiseSays(
+      software.id,
+      [
+        `${ref} taken as: ${understood.length ? understood.join("; ") : this.changeTitle(change)}.`,
+        assumed.length ? `Assumed, not checked with you: ${assumed.join("; ")}.` : "",
+        `Building now: ${this.tasksWords(plan, change)}.`,
+        offered.length
+          ? `premise could also add ${offered.length === 1 ? "one thing" : `${offered.length} things`}; nothing of it is built unless you add it.`
+          : "",
+        items.length ? "Nothing waits on you; strike a line under Your change if it is wrong." : "",
+      ]
+        .filter(Boolean)
+        .join(" "),
+    );
+  }
+
+  /** Put a piece's change decisions into the record, once per piece. */
+  private landChangeDecisions(
+    softwareId: string,
+    change: WorkItem,
+    item: WorkItem,
+    plan: ChangePlan | null,
+    decisions: ChangePlan["decisions"],
+  ): void {
+    const notes = this.changeNotes(change);
+    if (!plan || (notes.landedFor ?? []).includes(item.id)) return;
+    const ref = change.ref ?? "the change";
+    const ops: Operation[] = decisions.map((d) =>
+      d.replaces
+        ? {
+            op: "replace" as const,
+            id: d.replaces,
+            text: decisionText(d, ref),
+            from: "assumed",
+            reason: d.reason || `The change ${ref} needs it.`,
+            ...(d.foundation && { foundation: true }),
+          }
+        : {
+            op: "add" as const,
+            kind: "D" as const,
+            text: decisionText(d, ref),
+            from: "assumed",
+            ...(d.foundation && { foundation: true }),
+          },
+    );
+    const assigned = ops.length
+      ? this.land(softwareId, ops, `The plan for the change ${change.ref ?? ""}.`)
+      : [];
+    this.setChangeNotes(change, {
+      decisions: [...(notes.decisions ?? []), ...assigned.filter((x): x is string => Boolean(x))],
+      landedFor: [...(notes.landedFor ?? []), item.id],
+    });
+  }
+
+  /** The change, for the planner's brief: its words, what it adds or touches, and the plan so far. */
+  private changeText(softwareId: string, change: WorkItem, item: WorkItem): string {
+    const notes = this.changeNotes(change);
+    const lines = this.recordLines(softwareId);
+    const line = (id: string) => lines.find((l) => l.id === id);
+    const own = [...notes.items, ...notes.assumed]
+      .map(line)
+      .filter((l): l is RecordItem => Boolean(l))
+      .map((l) => formatItemLine(l));
+    const touches = (intakeItemOfWork(this.db, change.id)?.touches ?? []).map(
+      (t) => `- ${t.id}: ${t.reason}`,
+    );
+    const plan = this.readPlan(softwareId);
+    return [
+      `${change.ref ?? "An intake item"}, a ${this.notes(change).intakeKind ?? "wish"}: ${this.changeTitle(change)}`,
+      ...(item.id !== change.id
+        ? [`This is one step of it: ${item.title ?? ""}. ${item.words ?? ""}`]
+        : []),
+      `The person's words: ${change.words ?? ""}`,
+      own.length
+        ? `Items it adds or changes in the record:\n${own.join("\n")}`
+        : "It adds no new item to the record.",
+      touches.length ? `Items the triager found it touches:\n${touches.join("\n")}` : "",
+      plan?.tasks.length
+        ? `The software's plan, already built; do not plan it again:\n${plan.tasks.map((t, i) => `${i + 1}. ${t.title}${t.items.length ? ` (serves ${t.items.join(", ")})` : ""}`).join("\n")}`
+        : "",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+  }
+
   /** The record milestone the active piece belongs to, if any. */
   private milestoneOf(softwareId: string): MilestoneRef | null {
     const chain = ancestry(this.db, this.active(softwareId));
@@ -527,7 +899,10 @@ export class LineEngine implements IntakeLine {
   }
 
   private summary(software: Software): SoftwareSummary {
-    const openAsks = listAsks(this.db, { softwareId: software.id, status: "open" }).length;
+    // A change's notice waits on nobody (decision 0274): it is not counted as waiting on you.
+    const openAsks = listAsks(this.db, { softwareId: software.id, status: "open" }).filter(
+      (a) => a.extra.meta?.notice !== true,
+    ).length;
     const jobs = this.queue.list().filter((j) => j.softwareId === software.id);
     return {
       id: software.id,
@@ -604,6 +979,41 @@ export class LineEngine implements IntakeLine {
       build: this.options.later.view?.(id) ?? null,
       ...(this.existingView(id) && { existing: this.existingView(id)! }),
       claims: this.claimViews(id),
+      ...(this.changeView(software) && { change: this.changeView(software)! }),
+      changeQuestions: this.changeQuestionsOf(software),
+    };
+  }
+
+  /** The change being worked on, for the page's card (decision 0274). */
+  private changeView(software: Software): ChangeView | null {
+    const item = this.active(software.id);
+    const change = this.changeOf(item);
+    if (!change || software.currentStage === "intake") return null;
+    const notes = this.changeNotes(change);
+    const lines = this.recordLines(software.id);
+    const text = (id: string) => lines.find((l) => l.id === id)?.text;
+    const own = (ids: string[]) => ids.map(text).filter((t): t is string => Boolean(t));
+    const decisions = own(notes.decisions ?? []);
+    const ask = notes.ask === undefined ? undefined : getAsk(this.db, notes.ask);
+    const stage = software.currentStage;
+    const doing =
+      ask?.status === "open" && ask.extra.meta?.purpose === "change-confirm"
+        ? "Waiting for your one answer before building it."
+        : stage === "sizing"
+          ? "Sizing it: which steps it needs."
+          : `${stageName(stage)}: ${STAGES.find((x) => x.id === stage)?.plain ?? ""}`.replace(
+              /: $/,
+              "",
+            );
+    return {
+      ref: change.ref ?? "",
+      title: this.changeTitle(change),
+      words: change.words ?? "",
+      understood: own(notes.items),
+      assumed: [...own(notes.assumed), ...decisions],
+      doing,
+      askId: ask?.status === "open" ? ask.id : null,
+      suggestions: notes.suggestions,
     };
   }
 
@@ -984,6 +1394,39 @@ export class LineEngine implements IntakeLine {
   }
 
   /** At start: copies premise was cut off in the middle of are made again from the start. */
+  /**
+   * At start-up, after premise is updated (decision 0273): a milestones question that belongs to a
+   * change from intake is withdrawn, and the change is planned again the new way, as a change.
+   * Nothing built is lost: the software's milestones and what landed stay as they are.
+   */
+  replanChanges(): number {
+    let count = 0;
+    for (const ask of listAsks(this.db, { status: "open" })) {
+      if (ask.extra.meta?.purpose !== "milestones") continue;
+      const software = getSoftware(this.db, ask.softwareId);
+      if (!software) continue;
+      const change = this.changeOf(this.active(software.id));
+      if (!change) continue;
+      transaction(this.db, () => {
+        closeAsk(
+          this.db,
+          ask.id,
+          "withdrawn",
+          null,
+          "Withdrawn: a change is planned on its own, not with the software's milestones.",
+        );
+        this.premiseSays(
+          software.id,
+          `premise was updated: your change ${change.ref ?? ""} is now planned on its own, not with the software's milestones, so the milestones question is withdrawn and the change is planned again. Nothing built is lost.`,
+        );
+        this.enterStage(getSoftware(this.db, software.id)!, "plan", "planned again as a change");
+      });
+      count += 1;
+    }
+    if (count > 0) this.queue.tick();
+    return count;
+  }
+
   resumeTakeOns(): number {
     const cut = listExisting(this.db, "copying");
     for (const existing of cut) {
@@ -2071,9 +2514,14 @@ export class LineEngine implements IntakeLine {
       this.applySizing(software.id, item, item.proposal, "sizer");
       return;
     }
+    if (job.status === "done" && !askedAgain(job)) {
+      // Asked once more with the exact shape before the safe default (decision 0275).
+      this.queue.enqueue(againJob(job, "sizing_submit"));
+      return;
+    }
     const why =
       job.status === "done"
-        ? "the sizer finished without giving an answer"
+        ? "the sizer gave no answer, even when asked a second time"
         : `the sizer ${job.status === "stopped" ? "was stopped" : `did not finish (${job.result ?? "no reason was given"})`}`;
     const stages = defaultStages(item);
     this.applySizing(
@@ -2199,6 +2647,13 @@ export class LineEngine implements IntakeLine {
     this.options.intake.workItemMoved(getWorkItem(this.db, item.id)!, state);
     const parent = getWorkItem(this.db, item.parentId)!;
     if (item.kind === "intake") {
+      // Its notice stays open while it builds, and after only while a suggestion is still offered.
+      const notes = this.changeNotes(item);
+      const open = notes.ask === undefined ? undefined : getAsk(this.db, notes.ask);
+      const offered = notes.suggestions.some((x) => !x.added);
+      if (open?.status === "open" && open.extra.meta?.purpose === "change-notice" && !offered) {
+        closeAsk(this.db, open.id, "withdrawn", null, `${item.ref ?? "The change"} is done.`);
+      }
       // Intake work is the software's own, one item after another; then the line rests at Intake.
       const queued = this.nextIntakeWork(softwareId);
       if (queued) {
@@ -2380,11 +2835,30 @@ export class LineEngine implements IntakeLine {
           return;
         }
       }
+      const change = this.changeOf(item);
+      if (stage === "plan" && change) {
+        // A change is planned as a change: never the software's whole plan again (0273).
+        this.queueStageJob(
+          getSoftware(this.db, software.id)!,
+          "plan",
+          "change",
+          { change: this.changeText(software.id, change, item) },
+          { change: change.ref ?? null, items: this.changeWork(software.id)?.touched ?? [] },
+        );
+        this.premiseSays(
+          software.id,
+          `Planning your change ${change.ref ?? ""}: only what it needs. The software's milestones stay as they are and are not built again.`,
+        );
+        return;
+      }
       this.queueStageJob(getSoftware(this.db, software.id)!, stage as EarlyStage, "draft");
       this.premiseSays(software.id, ENTER_WORDS[stage as EarlyStage]);
       return;
     }
     if ((LATER as readonly string[]).includes(stage)) {
+      if (stage === "build" && why !== "check not passed" && this.holdForChange(software, item)) {
+        return;
+      }
       this.enterLater(software, stage as LaterStageId, this.milestoneOf(software.id), why);
       return;
     }
@@ -2483,7 +2957,15 @@ export class LineEngine implements IntakeLine {
     this.openRun(software, stage, why, milestone?.id ?? null);
     this.setState(software.id, { milestone: milestone?.id ?? null });
     const run = this.state(software.id).run!;
-    const jobs = this.options.later.jobs({ softwareId: software.id, stage, milestone, run, why });
+    const change = milestone ? null : this.changeWork(software.id);
+    const jobs = this.options.later.jobs({
+      softwareId: software.id,
+      stage,
+      milestone,
+      run,
+      why,
+      ...(change && { change }),
+    });
     for (const job of jobs ?? []) {
       this.queue.enqueue({
         ...job,
@@ -2495,7 +2977,11 @@ export class LineEngine implements IntakeLine {
         },
       });
     }
-    const about = milestone ? ` ${milestone.id}: ${milestone.text.replace(/[.\s]+$/, "")}` : "";
+    const about = milestone
+      ? ` ${milestone.id}: ${milestone.text.replace(/[.\s]+$/, "")}`
+      : change
+        ? ` your change ${change.ref}: ${change.tasks.map((t) => t.title.replace(/[.\s]+$/, "")).join("; ")}`
+        : "";
     const later = this.options.later.standIn ? " (stand-in: nothing is really done yet)" : "";
     switch (stage) {
       case "build":
@@ -2575,6 +3061,10 @@ export class LineEngine implements IntakeLine {
     if (piece.kind === "intake") {
       // An intake item's change reached running: a short report (decision 0098).
       this.report(software.id, "change-running", piece.ref ?? undefined);
+      // What changed, what was checked for it and again, and what was not (decision 0273).
+      for (const line of this.options.later.reportLines(software.id, null)) {
+        this.premiseSays(software.id, line);
+      }
       this.pushLatest(software.id, piece.ref);
       this.premiseSays(
         software.id,
@@ -2676,11 +3166,13 @@ export class LineEngine implements IntakeLine {
         ? "chat corrections brief"
         : purpose === "review"
           ? "contradiction review brief"
-          : purpose === "revision"
-            ? "foundation revision brief"
-            : purpose === "since"
-              ? "smaller look brief"
-              : STAGE_JOB[stage].brief;
+          : purpose === "change"
+            ? "change plan brief"
+            : purpose === "revision"
+              ? "foundation revision brief"
+              : purpose === "since"
+                ? "smaller look brief"
+                : STAGE_JOB[stage].brief;
     const item = this.active(software.id);
     return this.options.briefs.make(
       name,
@@ -2880,9 +3372,68 @@ export class LineEngine implements IntakeLine {
       this.planJobDone(software, job, purpose);
       return;
     }
+    const change = stage === "what" ? this.changeOf(this.active(software.id)) : null;
+    if (change && this.changeNotes(change).draft) {
+      this.takeInChangeWhat(software, change);
+      return;
+    }
     if (this.openAskOfJob(job.id)) return;
-    // Finished without submitting a draft.
-    this.stageProblem(software, job, "finished without a draft");
+    // Finished without submitting a draft: asked once more with the exact shape, then the operator.
+    if (this.askAgain(software, job, "draft_submit")) return;
+    this.stageProblem(software, job, "finished without a draft, even when asked a second time");
+  }
+
+  /**
+   * A job that ended done without its answer is queued once more, with the exact shape spelled out
+   * (decision 0275). False when this was already the second asking.
+   */
+  private askAgain(software: Software, job: Job, shape: keyof typeof ANSWER_SHAPES): boolean {
+    if (askedAgain(job)) return false;
+    // A job that asked a person, or the gate, is waiting on them, not missing its answer.
+    const waits = listAsks(this.db, { softwareId: software.id, status: "open" }).some(
+      (a) => a.waitingJob === job.id || a.extra.meta?.job === job.id,
+    );
+    if (waits) return false;
+    this.queue.enqueue(againJob(job, shape));
+    this.premiseSays(
+      software.id,
+      `The ${jobWords(job)} finished without its answer; premise asks it once more, saying exactly what the answer must look like.`,
+    );
+    return true;
+  }
+
+  /** The drafter's What for a change goes into the record; suggestions are only offered (0274). */
+  private takeInChangeWhat(software: Software, change: WorkItem): void {
+    const notes = this.changeNotes(change);
+    const draft = notes.draft ?? [];
+    const taken = draft.filter((d) => !d.suggestion && d.kind !== "size");
+    const { ids } = taken.length
+      ? this.landList(
+          software.id,
+          taken,
+          { kind: "items", items: [] },
+          `Taken from the words of ${change.ref ?? "an intake item"}.`,
+        )
+      : { ids: new Map<string, string>() };
+    const items: string[] = [];
+    const assumed: string[] = [];
+    for (const d of taken) {
+      const id = ids.get(d.key);
+      if (!id) continue;
+      (d.from === "assumed" ? assumed : items).push(id);
+    }
+    this.setChangeNotes(change, {
+      draft: undefined,
+      items: [...notes.items, ...items],
+      assumed: [...notes.assumed, ...assumed],
+      suggestions: [
+        ...notes.suggestions,
+        ...draft
+          .filter((d) => d.suggestion)
+          .map((d, i) => ({ key: `s${notes.suggestions.length + i + 1}`, text: d.text })),
+      ],
+    });
+    this.advance(software.id, "what", "what taken in");
   }
 
   /** A stage ended without what it needed: the operator decides how to go on (spec 5.2). */
@@ -2954,19 +3505,40 @@ export class LineEngine implements IntakeLine {
   }
 
   private planJobDone(software: Software, job: Job, purpose: string): void {
-    const plan = this.readPlan(software.id);
-    if (!plan) {
-      this.stageProblem(software, job, "finished without a plan");
+    const piece = this.active(software.id);
+    const change = this.changeOf(piece);
+    const changePlan = change ? this.changePlanOf(software.id, piece) : null;
+    const plan = change ? null : this.readPlan(software.id);
+    if (!plan && !changePlan) {
+      if (purpose !== "review" && this.askAgain(software, job, "plan_submit")) return;
+      this.stageProblem(software, job, "finished without a plan, even when asked a second time");
       return;
     }
     const state = this.state(software.id);
     const review = state.review ?? { round: 0, objections: [] };
-    const foundations = plan.decisions.filter((d) => d.foundation);
-    if (purpose === "draft" && foundations.length > 0 && review.round === 0) {
+    if (purpose === "review" && !review.submitted) {
+      // The reviewer ended without a review: asked once more, then premise goes on unreviewed.
+      if (this.askAgain(software, job, "review_submit")) return;
+      this.premiseSays(
+        software.id,
+        "The reviewer gave no review, even when asked a second time, so the costly choices go on without a second look. Send the software back to Plan to try again.",
+      );
+    }
+    const decisions = change
+      ? changePlan!.decisions.map((d) => ({ text: this.decisionLine(d), foundation: d.foundation }))
+      : plan!.decisions;
+    const foundations = decisions.filter((d) => d.foundation);
+    if (
+      (purpose === "draft" || purpose === "change") &&
+      foundations.length > 0 &&
+      review.round === 0
+    ) {
       this.setState(software.id, { review: { round: 1, objections: [] } });
       this.premiseSays(
         software.id,
-        `The planner made ${plan.decisions.length} technical choices. A second agent is reviewing the ${foundations.length === 1 ? "one" : foundations.length} that would be costly to change later.`,
+        change
+          ? `The plan for your change ${change.ref ?? ""} changes ${foundations.length === 1 ? "a decision" : `${foundations.length} decisions`} that would be costly to undo. A second agent is reviewing ${foundations.length === 1 ? "it" : "them"}.`
+          : `The planner made ${decisions.length} technical choices. A second agent is reviewing the ${foundations.length === 1 ? "one" : foundations.length} that would be costly to change later.`,
       );
       this.queueStageJob(
         software,
@@ -2997,7 +3569,12 @@ export class LineEngine implements IntakeLine {
         `The reviewer's objection stays open: ${review.objections.join(" ")} premise goes on with the planner's choice; send the software back to Plan to look again.`,
       );
     }
-    this.askMilestones(software, plan);
+    if (change) {
+      // No milestones question for a change: it goes on to Build, asked or told once there (0273).
+      this.advance(software.id, "plan", "change planned");
+      return;
+    }
+    this.askMilestones(software, plan!);
   }
 
   private askMilestones(software: Software, plan: StoredPlan): void {
@@ -3056,6 +3633,14 @@ export class LineEngine implements IntakeLine {
           : item,
       ),
       ...(ask.extra.bestAttempt !== undefined && { bestAttempt: ask.extra.bestAttempt }),
+      ...(ask.extra.meta?.notice === true && { notice: true }),
+      ...(Array.isArray(ask.extra.meta?.suggestions) && {
+        suggestions: (ask.extra.meta.suggestions as ChangeNotes["suggestions"]).map((x) => ({
+          key: x.key,
+          text: x.text,
+          ...(x.added && { added: x.added }),
+        })),
+      }),
       ...(ask.extra.choices !== undefined && { choices: ask.extra.choices }),
       ...(ask.extra.approval !== undefined && { approval: ask.extra.approval }),
       ...(ask.extra.meta?.purpose === "taste-proposal" && {
@@ -3255,13 +3840,14 @@ export class LineEngine implements IntakeLine {
     items: readonly DraftItem[],
     answer: AskAnswer,
     reason: string,
-  ): { keptSize?: SizeClass; struckIds: string[] } {
+  ): { keptSize?: SizeClass; struckIds: string[]; ids: Map<string, string> } {
     const answers = new Map((answer.kind === "items" ? answer.items : []).map((a) => [a.key, a]));
     const corrected = applyAnswers(items, answer.kind === "items" ? answer.items : []);
     const kept = new Map(corrected.keep.map((k) => [k.item.key, k]));
     const struck = new Map(corrected.struck.map((k) => [k.item.key, k.reason]));
     let keptSize: SizeClass | undefined;
     const ops: Operation[] = [];
+    const opKeys: string[] = [];
     const struckAt: { index: number; reason: string }[] = [];
     // In the draft's order, so the record's IDs follow the list the person saw.
     for (const item of items) {
@@ -3281,8 +3867,13 @@ export class LineEngine implements IntakeLine {
         struckAt.push({ index: ops.length, reason: struck.get(item.key)! });
       }
       ops.push(op);
+      opKeys.push(item.key);
     }
     const assigned = this.land(softwareId, ops, reason);
+    const ids = new Map<string, string>();
+    opKeys.forEach((key, i) => {
+      if (assigned[i]) ids.set(key, assigned[i]!);
+    });
     const struckIds = struckAt.map((s) => assigned[s.index]).filter((x): x is string => Boolean(x));
     if (struckAt.length > 0) {
       this.land(
@@ -3291,7 +3882,7 @@ export class LineEngine implements IntakeLine {
         "The operator struck these from the draft.",
       );
     }
-    return { ...(keptSize && { keptSize }), struckIds };
+    return { ...(keptSize && { keptSize }), struckIds, ids };
   }
 
   /**
@@ -3429,6 +4020,10 @@ export class LineEngine implements IntakeLine {
         return this.recoveredSayBackEffects(software, ask, answer);
       case "milestones":
         return this.milestoneEffects(software, items, answer);
+      case "change-confirm":
+        return this.changeConfirmEffects(software, ask, items, answer);
+      case "change-notice":
+        return this.changeNoticeEffects(software, ask, items, answer);
       case "stage-problem": {
         const text = answer.kind === "text" ? answer.text : "";
         return () => {
@@ -3726,6 +4321,149 @@ export class LineEngine implements IntakeLine {
       );
       this.enterStage(getSoftware(this.db, id)!, earliest, "items struck");
     };
+  }
+
+  /** Strike the record items behind struck lines; returns what was struck, for the session. */
+  private strikeChangeLines(
+    softwareId: string,
+    items: readonly DraftItem[],
+    answer: AskAnswer,
+    ref: string,
+  ): { text: string; reason: string }[] {
+    const corrected = applyAnswers(items, answer.kind === "items" ? answer.items : []);
+    const ops: Operation[] = [];
+    const struck: { text: string; reason: string }[] = [];
+    for (const { item, reason } of corrected.struck) {
+      if (!item.key.startsWith("r-")) continue;
+      for (const id of item.refs ?? []) ops.push({ op: "strike", id, reason });
+      struck.push({ text: item.text, reason });
+    }
+    for (const entry of corrected.keep) {
+      if (!entry.edited || !entry.item.key.startsWith("r-")) continue;
+      const id = entry.item.refs?.[0];
+      const op = addOperation(entry);
+      if (id && op) {
+        ops.push({
+          op: "replace",
+          id,
+          text: op.text,
+          from: OPERATOR,
+          reason: `The operator corrected it for ${ref}.`,
+          ...(op.priority && { priority: op.priority }),
+        });
+      }
+    }
+    if (ops.length) this.land(softwareId, ops, `The operator corrected the change ${ref}.`);
+    return struck;
+  }
+
+  /** The one question about a change was answered: keep, strike or edit, then build (0274). */
+  private changeConfirmEffects(
+    software: Software,
+    ask: Ask,
+    items: readonly DraftItem[],
+    answer: AskAnswer,
+  ): () => void {
+    const id = software.id;
+    const change = getWorkItem(this.db, Number(ask.extra.meta?.change));
+    const piece = getWorkItem(this.db, Number(ask.extra.meta?.piece)) ?? change;
+    if (!change || !piece) return () => {};
+    const ref = change.ref ?? "the change";
+    this.strikeChangeLines(id, items, answer, ref);
+    const corrected = applyAnswers(items, answer.kind === "items" ? answer.items : []);
+    const plan = this.changePlanOf(id, piece);
+    const kept = (plan?.decisions ?? []).flatMap((d, i) => {
+      const entry = corrected.keep.find((k) => k.item.key === `d${i + 1}`);
+      if (!entry) return [];
+      return [entry.edited ? { ...d, text: entry.text, reason: "" } : d];
+    });
+    this.landChangeDecisions(id, change, piece, plan, kept);
+    const dropped = (plan?.decisions.length ?? 0) - kept.length;
+    return () => {
+      this.setChangeNotes(change, { decided: "asked" });
+      this.premiseSays(
+        id,
+        `Thank you. Building your change ${ref} now${dropped > 0 ? `, without the ${dropped === 1 ? "decision" : "decisions"} you struck: the builder decides ${dropped === 1 ? "that" : "those"} within what you kept` : ""}.`,
+      );
+      const current = this.active(id);
+      if (current.id === piece.id) {
+        this.enterStage(getSoftware(this.db, id)!, "build", "change confirmed");
+      }
+    };
+  }
+
+  /**
+   * A line of a change's notice was struck after premise went on building: the record follows, and
+   * the correction comes in as a follow-up change; learning reads the strike as now (0274).
+   */
+  private changeNoticeEffects(
+    software: Software,
+    ask: Ask,
+    items: readonly DraftItem[],
+    answer: AskAnswer,
+  ): () => void {
+    const id = software.id;
+    const change = getWorkItem(this.db, Number(ask.extra.meta?.change));
+    const ref = change?.ref ?? "the change";
+    const struck = this.strikeChangeLines(id, items, answer, ref);
+    return () => {
+      if (struck.length === 0) {
+        this.premiseSays(id, `Noted: ${ref} stays as premise took it.`);
+        return;
+      }
+      const text = `Correction to ${ref}: ${struck.map((x) => `"${x.text}" is wrong${x.reason && x.reason !== "Struck by the operator." ? `: ${x.reason}` : ""}`).join("; ")}.`;
+      const taken = this.options.intake.takeIn(id, text);
+      this.premiseSays(
+        id,
+        `Struck from the record. ${taken.reply} It follows ${ref} as its own change.`,
+        `intake:I-${taken.number}`,
+      );
+    };
+  }
+
+  /** Add one of premise's suggestions for a change: it comes in as a change of its own (0274). */
+  async addSuggestion(askId: number, key: string): Promise<AskView> {
+    const ask = getAsk(this.db, askId);
+    const list = (ask?.extra.meta?.suggestions ?? []) as ChangeNotes["suggestions"];
+    const suggestion = list.find((x) => x.key === key);
+    if (!ask || !suggestion) {
+      throw new ServiceError(
+        "NOT_FOUND",
+        "That suggestion is not offered any more. Reload the page.",
+      );
+    }
+    if (suggestion.added) {
+      throw new ServiceError(
+        "INVALID",
+        `That suggestion was added already, as ${suggestion.added}.`,
+      );
+    }
+    const change = getWorkItem(this.db, Number(ask.extra.meta?.change));
+    const ref = change?.ref ?? "a change";
+    transaction(this.db, () => {
+      const taken = this.options.intake.takeIn(
+        ask.softwareId,
+        `Add premise's suggestion for ${ref}: ${suggestion.text}`,
+      );
+      const added = `I-${taken.number}`;
+      const next = list.map((x) => (x.key === key ? { ...x, added } : x));
+      this.db
+        .prepare("UPDATE asks SET extra = ? WHERE id = ?")
+        .run(
+          JSON.stringify({ ...ask.extra, meta: { ...ask.extra.meta, suggestions: next } }),
+          ask.id,
+        );
+      if (change) {
+        this.setChangeNotes(change, {
+          suggestions: this.changeNotes(change).suggestions.map((x) =>
+            x.text === suggestion.text ? { ...x, added } : x,
+          ),
+        });
+      }
+      this.premiseSays(ask.softwareId, `Added at your word. ${taken.reply}`, `intake:${added}`);
+    });
+    this.queue.tick();
+    return this.askView(getAsk(this.db, askId)!, this.softwareNames());
   }
 
   private milestoneEffects(
@@ -4325,6 +5063,27 @@ export class LineEngine implements IntakeLine {
       if (replaced && replaced.id !== newAsk.id)
         closeAsk(this.db, replaced.id, "withdrawn", null, "Replaced by a corrected draft.");
     };
+    if (stage === "plan" && this.changeOf(this.active(id))) {
+      const piece = this.active(id);
+      const change = this.changeOf(piece)!;
+      const read = readChangeSubmission(args, {
+        ref: change.ref ?? "the change",
+        record: this.recordLines(id),
+        maxTasks: this.config.line.change_max_tasks,
+      });
+      if ("problems" in read) {
+        return toolFail(
+          "MALFORMED",
+          "The plan for this change needs a correction before premise uses it. Fix these and submit it again.",
+          read.problems,
+        );
+      }
+      writeChangePlan(this.config.data.folder, id, piece.id, read.plan);
+      return toolOk({
+        status: "received",
+        note: "premise keeps the plan for this change beside the software's own plan, which stays as it is. Submitting again replaces it.",
+      });
+    }
     if (stage === "plan") {
       const decisions = readDraftItems(args.items, { defaultKind: "D", allowed: ["D", "M"] });
       const fromItems = decisions.filter((d) => d.kind === "M");
@@ -4519,6 +5278,18 @@ export class LineEngine implements IntakeLine {
     if (problems.length)
       return toolFail("MALFORMED", "Some items would not fit the record.", problems);
     const piece = this.active(id);
+    const changeItem = stage === "what" ? this.changeOf(piece) : null;
+    if (changeItem) {
+      // A change's What is not asked on its own: it goes into the record when the drafter ends,
+      // and the person is told or asked once before building (decision 0274).
+      const open =
+        typeof args.open_choice === "string" ? args.open_choice.trim().slice(0, 400) : "";
+      this.setChangeNotes(changeItem, { draft: items, openChoice: open || undefined });
+      return toolOk({
+        status: "received",
+        note: "premise takes this in when you finish: what came from the person's words and what you assumed go into the record at once; suggestions are only offered. Submitting again replaces it.",
+      });
+    }
     const change = stage === "what" && piece.kind === "intake";
     const ask = createAsk(this.db, {
       softwareId: id,
@@ -4789,7 +5560,7 @@ export class LineEngine implements IntakeLine {
       }
     }
     const review = this.state(job.softwareId).review ?? { round: 1, objections: [] };
-    this.setState(job.softwareId, { review: { ...review, objections } });
+    this.setState(job.softwareId, { review: { ...review, objections, submitted: true } });
     return toolOk({ status: "received", objections: objections.length });
   }
 

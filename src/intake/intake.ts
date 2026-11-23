@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { againJob, askedAgain } from "../agents/ask-again.js";
 import type { ToolBinding, ToolEnvelope } from "../agents/tool-server.js";
 import { toolFail, toolOk } from "../agents/tool-server.js";
 import type { PremiseConfig } from "../config/settings.js";
@@ -413,9 +414,16 @@ export class Intake implements IntakeHooks {
     const item = getIntakeItem(this.db, Number(job.payload.intake));
     if (!item || (item.status !== "taken" && item.status !== "triaging")) return;
     if (item.triageJob !== job.id) return;
+    if (job.status === "done" && !askedAgain(job)) {
+      // Finished without a usable answer: asked once more, with the exact shape (decision 0275).
+      const again = this.options.queue.enqueue(againJob(job, "triage_submit"));
+      setIntakeItem(this.db, item.id, { triageJob: again });
+      this.options.queue.tick();
+      return;
+    }
     const why =
       job.status === "done"
-        ? "the triager finished without an answer"
+        ? "the triager gave no usable answer, even when asked a second time"
         : job.status === "stopped"
           ? "the triager was stopped"
           : `the triager did not finish (${job.result ?? "no reason was given"})`;
@@ -429,7 +437,7 @@ export class Intake implements IntakeHooks {
           touchesFloor: false,
           changesWhat: true,
           route: "in-normally",
-          reason: `Not triaged: ${why}, so it goes in normally, premise's default. The sizer decides what it needs.`,
+          reason: `Not triaged: ${why}. premise took it in by its default, as a change that goes in normally; nobody read it to see whether it is a bug, a question or a duplicate. The sizer decides what it needs. If that is wrong, say so here.`,
           joins: null,
           answer: null,
           notes: [],
