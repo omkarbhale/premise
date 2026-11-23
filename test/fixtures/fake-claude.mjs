@@ -47,7 +47,13 @@ const result = (over) =>
     num_turns: message,
     result: "",
     session_id: sessionId,
-    total_cost_usd: 0,
+    total_cost_usd: 0.25,
+    usage: {
+      input_tokens: 10,
+      output_tokens: 200,
+      cache_read_input_tokens: 3000,
+      cache_creation_input_tokens: 500,
+    },
     permission_denials: [],
     ...over,
   });
@@ -76,7 +82,14 @@ switch (scenario) {
     ]);
     emit({
       type: "rate_limit_event",
-      rate_limit_info: { status: "allowed", resetsAt: 1795399200, rateLimitType: "seven_day" },
+      rate_limit_info: {
+        status: "allowed",
+        resetsAt: 1795399200,
+        rateLimitType: "seven_day",
+        unifiedWindows: {
+          seven_day: { utilization: 0.07, resetsAt: 1795399200, status: "allowed" },
+        },
+      },
       session_id: sessionId,
     });
     emit({

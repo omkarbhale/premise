@@ -373,7 +373,7 @@ describe("claims", () => {
     }
   });
 
-  it("asks the gate's question under the role whose call it is", async () => {
+  it("asks the gate's question under the role whose call it is, and asks no one for what premise cannot do", async () => {
     const t = await testApp(ENV, {
       script: {
         rules: [
@@ -398,8 +398,21 @@ describe("claims", () => {
     try {
       const id = await start(t);
       await t.settle();
+      // The agent's request is something premise cannot carry out: no one is asked.
       const asks = await t.session.services.asks.list({ softwareId: id, status: "open" });
-      const approval = asks.find((a) => a.kind === "approval")!;
+      expect(asks.find((a) => a.kind === "approval")).toBeUndefined();
+      expect(t.session.gate.list(id)[0]).toMatchObject({ status: "unavailable", askId: null });
+      // A request premise can ask about goes to the role whose call it is.
+      t.session.gate.request({
+        softwareId: id,
+        kind: "spend",
+        role: "account holder",
+        action: "Buy the Postbox starter plan for 5 dollars a month.",
+        why: "Sending reminder mail needs a paid plan.",
+        requestedBy: "test",
+      });
+      const after = await t.session.services.asks.list({ softwareId: id, status: "open" });
+      const approval = after.find((a) => a.kind === "approval")!;
       expect(approval.role).toBe("account holder");
       expect(approval.approval?.action).toContain("Postbox starter plan");
     } finally {

@@ -380,6 +380,69 @@ export class Gate {
     return created;
   }
 
+  /** Whether premise has a way to carry out this named act itself. Agents have none. */
+  canPerform(perform: string | null | undefined): boolean {
+    return !!perform && this.performers.has(perform);
+  }
+
+  /**
+   * A request for an action premise cannot carry out. It is recorded and said in the session, but
+   * no question is raised: asking someone to approve what nothing will do costs their attention
+   * for nothing (decision 0270). The request is stored as done and unavailable, so the record,
+   * the events and the work that asked all see it.
+   */
+  recordUnavailable(input: GateRequestInput): GateRequest {
+    const software = getSoftware(this.db, input.softwareId);
+    if (!software) throw new GateError("NOT_FOUND", "That software is not in premise.");
+    if (typeof input.action !== "string" || !input.action.trim()) {
+      throw new GateError("MALFORMED", "Say exactly what will happen (the action).");
+    }
+    if (typeof input.why !== "string" || !input.why.trim()) {
+      throw new GateError("MALFORMED", "Say why it is needed.");
+    }
+    const outcome =
+      "premise cannot carry out this kind of action itself, so it did not ask you to approve it and nothing was done.";
+    const created = transaction(this.db, () => {
+      const row = this.db
+        .prepare(
+          `INSERT INTO gate_requests (software_id, floor_kind, action, why, items, requested_by, job_id,
+             perform, act, card, role_asked, status, unavailable, outcome, created, decided)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'done', 1, ?, ?, ?)`,
+        )
+        .run(
+          input.softwareId,
+          input.kind,
+          input.action.trim(),
+          input.why.trim(),
+          JSON.stringify(input.items ?? []),
+          input.requestedBy,
+          input.jobId ?? null,
+          input.perform ?? null,
+          input.act ?? input.perform ?? null,
+          JSON.stringify(this.cardFor(input)),
+          input.role?.trim() || "operator",
+          outcome,
+          now(),
+          now(),
+        );
+      const id = Number(row.lastInsertRowid);
+      recordEvent(this.db, {
+        softwareId: input.softwareId,
+        module: "gate",
+        kind: "gate-unavailable",
+        reference: String(id),
+        detail: { outcome, asked: false },
+      });
+      addChatMessage(this.db, {
+        softwareId: input.softwareId,
+        author: "premise",
+        text: `${input.requestedBy} wanted to do this: ${input.action.trim()} premise cannot do that itself, so you are not asked to approve it and nothing was done. If you want it done, do it yourself.`,
+      });
+      return id;
+    });
+    return this.get(created)!;
+  }
+
   get(id: number): GateRequest | undefined {
     const row = this.db.prepare("SELECT * FROM gate_requests WHERE id = ?").get(id) as
       RequestRow | undefined;

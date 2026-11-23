@@ -9,12 +9,18 @@ premise's own return, worked out from what it recorded. No agent is asked and no
 | Figure | What it counts | Shown as |
 | --- | --- | --- |
 | Questions asked, by role | Every question premise asked, not counting withdrawn ones, under the role it was for ([0196](../decisions/0196-roles-and-taste-in-one-session.md)) | A count per role, on the page and in every report |
-| People's attention | The time each question stood open while premise's page was in front of someone; a minute with several questions open is shared among them | A total, with the number of questions; by role and by change on the page |
+| People's attention | The time each question stood open while premise's page was in front of someone, for questions the work was actually waiting on ([0270](../decisions/0270-premises-own-figures-and-asks-that-cost-attention-honestly.md)); a minute with several such questions open is shared among them | A total, with the number of questions; by role and by change on the page |
+| Other open questions | The same time, for questions nothing waited on (the work went on whatever the answer, such as the question before copying a software to GitHub). Not attention; shown so it is not hidden, and never sharing minutes with the first | A total, with the number of questions |
 | Time to answer a question | From a question first shown on the page to its answer (from when it was asked, if never shown) | The middle value |
 | From the idea to running | From starting a software in premise (or bringing it in) to the first time premise started a built version | One software: its time. Every software: the middle value |
 | From a problem reported to its fix running | From an intake item arriving to the change it led to running | The middle value |
 | Reported working, came back as a bug | Intake items triaged as bugs touching a record item whose latest check, before the bug, said "met"; out of the record items any check said were met; an item hit by several bugs counts once in the rate, each bug is still listed | "2 of 20 (10%)" |
 | Agent sessions per change | Agent sessions, each counted against the piece of work the software was on when it started | The average, with the total |
+
+### Which questions the line waits on
+
+- Each question records, when it is asked, whether anything waits on its answer. A question or a card a job is waiting on does. An approval no job waits on does not: everything else goes on without it.
+- Only the first kind is counted as a person's attention. The second is shown on its own line, with the time it stood open.
 
 ## 2. "Not enough yet"
 
@@ -45,4 +51,4 @@ premise's own return, worked out from what it recorded. No agent is asked and no
 ## 6. Not built yet
 
 - Attention outside the page (thinking about a question away from it) cannot be seen and is not counted.
-- Cost per change stays with usage-ledger, mocked until it exists ([0133](../decisions/0133-usage-ledger-is-mocked-until-it-exists.md)); figures per week, and next to cost, are [issue 121](https://github.com/omkarbhale/premise/issues/121).
+- Cost per change stays with usage-ledger, mocked until it exists ([0133](../decisions/0133-usage-ledger-is-mocked-until-it-exists.md)); figures per week, and next to cost, are [issue 121](https://github.com/omkarbhale/premise/issues/121). What real sessions reported about themselves (their cost at list prices, tokens and turns, and the weekly window as last read) is premise's own count and is on the Usage view ([usage](usage.md) 5.5), not here.

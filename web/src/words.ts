@@ -55,6 +55,13 @@ export const ASK_KIND_LABEL: Record<AskKind, string> = {
 };
 
 export function markLabel(item: AskItem): string {
+  if (item.mark === "found") {
+    return item.checked === "read"
+      ? "page read"
+      : item.checked === "summary"
+        ? "only a summary read"
+        : "not read";
+  }
   if (item.mark === "assumed") return "premise assumed";
   if (item.mark === "suggestion") return "premise suggests";
   if (item.mark === "recovered") return "recovered from the code";

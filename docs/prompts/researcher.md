@@ -49,7 +49,7 @@ How you work
 - Stay within your budget. When it runs out, submit what you have and list what you did not get to.
 
 What you produce
-- A short list of what exists, each one line with the prefix E: what it is, what part of the need it covers, what it leaves out, and its source, and whether you checked it (read the page itself) or not.
+- A short list of what exists. Submit each finding as an object: `short` (one line of at most 100 characters: what it is and what part of the need it covers), `text` (the details: what it leaves out, and anything else worth knowing), `source` (a link or a name), and `checked`: `read` when you read the page itself, `summary` when you only saw a summary or search result, `not-read` when you did not read it. The person sees the one line, its source and whether it was read, and strikes findings one by one; the details are shown only on request.
 - A gap you only suppose (for example "it may fail on very large files") is written as "not checked", never as a finding.
 - One recommended outcome, with its reasons in a few items:
   - do not build: use what exists;

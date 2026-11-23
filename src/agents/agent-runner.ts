@@ -51,17 +51,49 @@ export interface AgentProgress {
   text: string;
 }
 
-export type AgentOutcome =
+/**
+ * What a real session's own result says it used (decision 0270). Absent for scripted agents and for
+ * a session that ended without a result; premise then says the figure is missing rather than
+ * showing a zero.
+ */
+export interface SessionFigures {
+  turns: number | null;
+  costUsd: number | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  cacheReadTokens: number | null;
+  cacheWriteTokens: number | null;
+}
+
+/** The share of a usage window used, as the runtime's stream last reported it. */
+export interface WindowReading {
+  /** The window's name in the stream, such as "seven_day". */
+  window: string;
+  /** From 0 to 100. */
+  usedPercent: number;
+  resetsAt: string | null;
+  status: string | null;
+}
+
+/** What a session ended with, besides how: premise's own figures from it. */
+export interface OutcomeFigures {
+  figures?: SessionFigures;
+  windows?: WindowReading[];
+}
+
+export type AgentOutcome = OutcomeFigures &
   /** The task finished. */
-  | { kind: "done"; summary: string }
-  /** The task failed; the signature names the failure so repeats can be counted. */
-  | { kind: "failed"; summary: string; failureSignature: string }
-  /** The session hit its turn or time limit, or was stuck. */
-  | { kind: "stuck"; summary: string }
-  /** The subscription's usage limit was reached; all agent work pauses until the reset. */
-  | { kind: "usage-limit"; resetAt: string | null }
-  /** The session was stopped from outside. */
-  | { kind: "stopped" };
+  (
+    | { kind: "done"; summary: string }
+    /** The task failed; the signature names the failure so repeats can be counted. */
+    | { kind: "failed"; summary: string; failureSignature: string }
+    /** The session hit its turn or time limit, or was stuck. */
+    | { kind: "stuck"; summary: string }
+    /** The subscription's usage limit was reached; all agent work pauses until the reset. */
+    | { kind: "usage-limit"; resetAt: string | null }
+    /** The session was stopped from outside. */
+    | { kind: "stopped" }
+  );
 
 export interface AgentSession {
   /**

@@ -20,6 +20,7 @@ Where premise is, in plain words. The owner said to build the whole of premise (
 - **Roles and taste** in the one session ([0196](decisions/0196-roles-and-taste-in-one-session.md)); **the measures** and **learning from corrections** ([0193](decisions/0193-how-the-measures-are-built.md)–[0195](decisions/0195-two-kinds-of-learning.md)).
 - **Several softwares at once,** with priority, pause, resume and archive ([0197](decisions/0197-how-several-softwares-at-once-is-built.md)).
 - **Cost and the spending limit,** on a mock of usage-ledger (see Mocked) ([0200](decisions/0200-how-cost-and-the-spending-limit-are-built.md)).
+- **premise's own count** of what real sessions used (cost at list prices, tokens, turns, and the weekly window as last read), shown before the mocked figures and not marked mocked; every job names the change it served; attention counts only questions the line waited on; the "what exists" findings are one line each and strikable ([0270](decisions/0270-premises-own-figures-and-asks-that-cost-attention-honestly.md)). The figures are tested against a fake agent only; a real session has not yet confirmed their shape on the installed version ([issue 189](https://github.com/omkarbhale/premise/issues/189)).
 
 ## Built, but never exercised with real agents or real GitHub
 

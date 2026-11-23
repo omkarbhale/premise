@@ -4,7 +4,7 @@ Status: specification, built ([0200](../decisions/0200-how-cost-and-the-spending
 
 ## 1. Purpose
 
-premise shows what the work cost, per software, phase, step, change and record item, and lets the operator decide how much each software may use ([0128](../decisions/0128-effort-per-software-and-milestone-waits.md)). The figures come from usage-ledger, mocked until it exists ([0133](../decisions/0133-usage-ledger-is-mocked-until-it-exists.md)); premise counts nothing of that kind itself. Its own measured facts (agent sessions and the time they worked) sit beside them and are never labelled mocked. The code is `src/usage/`.
+premise shows what the work cost, per software, phase, step, change and record item, and lets the operator decide how much each software may use ([0128](../decisions/0128-effort-per-software-and-milestone-waits.md)). The figures come from usage-ledger, mocked until it exists ([0133](../decisions/0133-usage-ledger-is-mocked-until-it-exists.md)); premise counts nothing of that kind itself, except what each real session's own result says it used ([0270](../decisions/0270-premises-own-figures-and-asks-that-cost-attention-honestly.md)). That, and its own measured facts (agent sessions and the time they worked), sit beside the ledger's figures, before them, and are never labelled mocked. The code is `src/usage/`.
 
 ## 2. Responsibilities and non-responsibilities
 
@@ -44,6 +44,14 @@ Errors are in plain words and say what to do (a bad number, nothing to answer, n
 - A session on several record items counts in full for each item (sessions, time), while its dollars are shared among them; the page says so.
 - Every ledger figure carries the Mocked mark wherever it appears: the Usage view, the cost block of every report and the overrun notice. The sessions and time do not.
 - Reports: the Cost section names the total and the budget and, under a fold, the lines per step, change and item; an overrun is the first line under Needed.
+
+### 5.5 premise's own count
+
+- Every agent job names the work item it serves (and its milestone), so a session is attributed to the change it served. The contract's `workItem` is on every Build, Check and Run job as it is on those of the line engine. Only work that belongs to no change (such as reading an intake item) is "not part of a change".
+- Each real session's result carries its turns, tokens (input, output, cache) and cost at list prices. They are kept on the session's own record (`agent_sessions.figures`). A scripted agent, or a session that ended without a result, has none.
+- The Usage view and reports show these as "premise's own count": per software, per phase, per step and per change, before the mocked figures, and not marked mocked. Where sessions have none, the row says "no figures for N sessions" and why (scripted agents report none; or the session ended without a result); a missing figure is never added as zero.
+- The weekly window: each rate-limit event of a real session's stream carries the share of each window used. premise keeps the latest reading of each (`usage_windows`) and shows the weekly one on the Usage view, "as the agents last reported it", with how long ago it was read. Before any real session has reported it, the page says there is no reading. It is premise's own reading and is not marked mocked; the mocked weekly figure is shown apart from it.
+- These are list prices, as the stream reports them, not what a subscription charges.
 
 ### 5.2 Setting a budget
 

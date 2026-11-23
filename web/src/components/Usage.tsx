@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Overview, SoftwareUsageView, UsageRowView } from "../api";
 import { useSession } from "../context";
+import { ageWords, ownFiguresWords } from "../../../src/shared/own-figures";
 import { useLoad } from "../hooks";
 import { TERMS, percent, when } from "../words";
 import { BudgetEditor, OverrunNotice } from "./Budget";
@@ -35,6 +36,22 @@ export function Usage({ overview }: { overview: Overview }) {
         Set how much each software may use in a week, as a share of your weekly usage or as an
         amount. When one uses it up, only its work pauses; you choose what happens next.
       </p>
+      <section className="card" aria-label="The weekly window as the agents last reported it">
+        <h2>This week, as the agents last reported it</h2>
+        {u.ownWindow ? (
+          <p>
+            {Math.round(u.ownWindow.usedPercent)}% of the subscription's weekly usage was used when
+            a real agent session last reported it, {ageWords(u.ownWindow.readAt)}
+            {u.ownWindow.resetsAt ? `; the week resets ${when(u.ownWindow.resetsAt)}` : ""}. This is
+            premise's own reading, not a mock; it is only as fresh as the last real session.
+          </p>
+        ) : (
+          <p className="empty-line">
+            No real agent session has reported this yet, so there is no reading. Scripted agents
+            report none.
+          </p>
+        )}
+      </section>
       <section className="card">
         <h2>This week {weekly.mocked && <MockedBadge />}</h2>
         <div
@@ -75,8 +92,14 @@ function SoftwareUsage({ s }: { s: SoftwareUsageView }) {
       {s.problem && <Problem>{s.problem}</Problem>}
       <p>
         <strong>All of it:</strong> {s.total.measured.sessions} agent session
-        {s.total.measured.sessions === 1 ? "" : "s"}, {minutes(s.total.measured.minutes)} of work;{" "}
-        about {money(s.total.cost.costUsd)} at list prices {s.total.cost.mocked && <MockedBadge />}
+        {s.total.measured.sessions === 1 ? "" : "s"}, {minutes(s.total.measured.minutes)} of work.
+      </p>
+      <p>
+        <strong>premise's own count:</strong> {ownFiguresWords(s.total.measured.figures)}
+      </p>
+      <p>
+        <strong>usage-ledger:</strong> about {money(s.total.cost.costUsd)} at list prices{" "}
+        {s.total.cost.mocked && <MockedBadge />}
       </p>
       <Breakdown title="By phase" rows={s.byPhase} />
       <Breakdown title="By step" rows={s.byStage} />
@@ -107,6 +130,7 @@ function Breakdown({ title, rows, note }: { title: string; rows: UsageRowView[];
               <th scope="col">{title.replace("By ", "").replace(/^./, (c) => c.toUpperCase())}</th>
               <th scope="col">Agent sessions</th>
               <th scope="col">Time worked</th>
+              <th scope="col">premise's own count</th>
               <th scope="col">
                 At list prices {mocked && <span className="muted">(mocked)</span>}
               </th>
@@ -121,6 +145,7 @@ function Breakdown({ title, rows, note }: { title: string; rows: UsageRowView[];
                 <th scope="row">{r.label}</th>
                 <td>{r.measured.sessions}</td>
                 <td>{minutes(r.measured.minutes)}</td>
+                <td>{ownFiguresWords(r.measured.figures)}</td>
                 <td>
                   {money(r.cost.costUsd)} {r.cost.mocked && <MockedBadge />}
                 </td>

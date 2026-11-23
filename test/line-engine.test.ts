@@ -201,6 +201,88 @@ describe("the line engine, Why to Plan", () => {
     expect(texts.some((t) => t.includes("suggestion:"))).toBe(false);
   });
 
+  it("shows each What exists finding as one short line with its source and whether it was read, lets each be struck, and keeps a reason for choosing against the recommendation", async () => {
+    const long =
+      "A hosted reading-list service that covers saving links and tags, and leaves out offline use, exports, and anything you can keep on your own machine; it is free for one user but changes its terms often and has no command-line client at all, so scripts cannot reach it.";
+    const script: AgentScript = {
+      rules: [
+        {
+          when: { task: "research", stage: "exists" },
+          calls: [
+            {
+              tool: "draft_submit",
+              arguments: {
+                stage: "exists",
+                items: [
+                  {
+                    short: "A hosted reading-list service",
+                    text: long,
+                    source: "https://example.test/list",
+                    checked: "read",
+                  },
+                  {
+                    text: "A browser extension that saves pages.",
+                    source: "a search result",
+                    checked: "only a summary",
+                  },
+                  { text: "A note-taking app that might do the same." },
+                ],
+                outcome: "Build on something that exists",
+                reason: "Part of it is covered.",
+              },
+            },
+          ],
+          end: { outcome: "done" },
+        },
+        ...standInScript(0).rules,
+      ],
+    };
+    const app = await testApp({ PREMISE_LINE__REMOTE: "none" }, { script });
+    const id = await start(app);
+    await keepAll(app, await lineAsk(app, id));
+    await keepAll(app, await lineAsk(app, id));
+    const exists = await lineAsk(app, id);
+    expect(exists.stage).toBe("exists");
+    // One short line each; none is marked "assumed"; the source and the reading are separate.
+    expect(exists.items.map((i) => [i.mark, i.checked])).toEqual([
+      ["found", "read"],
+      ["found", "summary"],
+      ["found", "not-read"],
+    ]);
+    expect(exists.items.every((i) => i.text.length <= 110)).toBe(true);
+    expect(exists.items[0]).toMatchObject({
+      text: "A hosted reading-list service",
+      source: "https://example.test/list",
+      detail: long,
+    });
+    expect(exists.items[1]!.detail).toBeUndefined();
+    // An answer must name findings that are on the list.
+    const bad = await app.call("POST", `/api/asks/${exists.id}/answer`, {
+      answer: { kind: "text", text: "Build it", struck: [{ key: "nope" }] },
+    });
+    expect(bad.status).toBe(422);
+    // Strike the second finding with a reason, and choose against the recommendation, saying why.
+    const res = await app.call("POST", `/api/asks/${exists.id}/answer`, {
+      answer: {
+        kind: "text",
+        text: "Build it",
+        struck: [{ key: exists.items[1]!.key, reason: "It is only a rumour" }],
+        reason: "I want my own, kept on my machine",
+      },
+    });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    await app.settle();
+    const items = (await record(app, id, "exists.md")).map((i) => i.text);
+    const findingsLeft = items.filter((t) => !t.startsWith("Outcome:"));
+    expect(findingsLeft.some((t) => t.includes("A browser extension"))).toBe(false);
+    expect(items.some((t) => t.includes("A hosted reading-list service"))).toBe(true);
+    expect(items.some((t) => t.includes("A note-taking app"))).toBe(true);
+    const outcome = items.find((t) => t.startsWith("Outcome:"))!;
+    expect(outcome).toContain("Reason: I want my own, kept on my machine");
+    expect(outcome).toContain("Struck 1 of 3 findings");
+    expect(outcome).toContain("It is only a rumour");
+  });
+
   it("strikes a say-back assumption in the record, redoes its stage, and says back again", async () => {
     const app = await testApp();
     const id = await start(app);
@@ -402,7 +484,7 @@ describe("the gate on the line", () => {
     expect((await app.call("GET", `/api/softwares/${id}`)).body.stage).toBe("intake");
   });
 
-  it("serves an agent's gate_request: asks once, and a kind approval lets the next one through by rule", async () => {
+  it("serves an agent's gate_request without asking: premise cannot carry out what an agent asks for, so it says so and asks no one", async () => {
     const script: AgentScript = {
       rules: [
         {
@@ -434,28 +516,38 @@ describe("the gate on the line", () => {
     const id = await start(app);
     await keepAll(app, await lineAsk(app, id));
     await keepAll(app, await lineAsk(app, id));
-    // The researcher finished without a draft; its two requests wait in the session.
-    const approvals = (await open(app, id)).filter((a) => a.kind === "approval");
-    expect(approvals.map((a) => a.approval!.kindLabel)).toEqual([
-      "posting comments and messages",
-      undefined, // spending money is always asked one at a time
+    // The researcher finished without a draft. Nothing was asked of the person for its two
+    // requests: premise cannot do either, so they are recorded as unavailable and said in chat.
+    expect((await open(app, id)).filter((a) => a.kind === "approval")).toEqual([]);
+    const requests = app.session.gate
+      .list(id)
+      .filter((r) => r.requestedBy.startsWith("researcher"));
+    expect(requests.map((r) => [r.kind, r.status, r.askId])).toEqual([
+      ["post", "unavailable", null],
+      ["spend", "unavailable", null],
     ]);
-    const kindAgain = await app.call("POST", `/api/asks/${approvals[1]!.id}/answer`, {
-      answer: { kind: "approval", decision: "approve-kind" },
+    expect((await chat(app, id)).join("\n")).toMatch(
+      /premise cannot do that itself, so you are not asked/,
+    );
+
+    // A request premise can ask about (here from the server itself) still asks, and a kind
+    // approval then lets the next one of its kind through by rule.
+    const first = app.session.gate.request({
+      softwareId: id,
+      kind: "post",
+      action: "Comment.",
+      why: "x",
+      requestedBy: "test",
     });
-    expect(kindAgain.status).toBe(422);
-    await app.call("POST", `/api/asks/${approvals[0]!.id}/answer`, {
+    expect(first.status).toBe("asked");
+    await app.call("POST", `/api/asks/${first.askId}/answer`, {
       answer: { kind: "approval", decision: "approve-kind" },
-    });
-    await app.call("POST", `/api/asks/${approvals[1]!.id}/answer`, {
-      answer: { kind: "approval", decision: "refuse" },
     });
     await app.settle();
     const detail = await app.call("GET", `/api/softwares/${id}`);
     expect(detail.body.approvals).toMatchObject([
       { kind: "post", label: "posting comments and messages" },
     ]);
-    // A later request of the same kind goes through by rule.
     const later = app.session.gate.request({
       softwareId: id,
       kind: "post",
@@ -465,7 +557,6 @@ describe("the gate on the line", () => {
     });
     expect(later.status).toBe("approved");
     await app.settle();
-    // premise cannot carry out posting itself yet: approved, recorded, and said to be unavailable.
     expect(app.session.gate.get(later.id)!.status).toBe("unavailable");
     // Withdrawn, it asks again.
     await app.call("POST", `/api/approvals/${detail.body.approvals[0].id}/withdraw`);
@@ -478,8 +569,6 @@ describe("the gate on the line", () => {
         requestedBy: "test",
       }).status,
     ).toBe("asked");
-    const spend = app.session.gate.list(id).find((r) => r.kind === "spend")!;
-    expect(spend.status).toBe("refused");
   });
 }, 30_000);
 

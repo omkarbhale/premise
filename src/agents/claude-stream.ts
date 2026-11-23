@@ -13,6 +13,17 @@ export type StreamEvent =
   | { kind: "progress"; text: string }
   /** The subscription's usage limit was reached; work pauses until the reset. */
   | { kind: "usage-limit"; resetAt: string | null; window: string | null }
+  /**
+   * What the stream says of a usage window (the share used and when it resets). Carried by every
+   * rate-limit event, whatever its status; premise shows it as its own count (decision 0270).
+   */
+  | {
+      kind: "window";
+      window: string;
+      usedFraction: number;
+      resetsAt: string | null;
+      status: string | null;
+    }
   /** The usage limit is near. */
   | { kind: "usage-warning"; resetAt: string | null; window: string | null }
   /** A tool use was denied by a permission rule or the sandbox. */
@@ -25,9 +36,20 @@ export type StreamEvent =
       text: string;
       turns: number | null;
       apiErrorStatus: number | null;
+      /** What the session's own result says it used; each part null when the result lacks it. */
+      figures: ResultFigures;
     }
   /** A line that is not JSON: kept in the transcript, otherwise ignored. */
   | { kind: "unreadable"; line: string };
+
+/** The figures a Claude Code result carries, at list prices; null where it does not say. */
+export interface ResultFigures {
+  costUsd: number | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  cacheReadTokens: number | null;
+  cacheWriteTokens: number | null;
+}
 
 type Json = Record<string, unknown>;
 
@@ -44,6 +66,21 @@ function epochToIso(value: unknown): string | null {
   return typeof value === "number" && Number.isFinite(value) && value > 0
     ? new Date(value * 1000).toISOString()
     : null;
+}
+
+function count(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+function resultFigures(event: Json): ResultFigures {
+  const usage = isObject(event.usage) ? event.usage : {};
+  return {
+    costUsd: count(event.total_cost_usd),
+    inputTokens: count(usage.input_tokens),
+    outputTokens: count(usage.output_tokens),
+    cacheReadTokens: count(usage.cache_read_input_tokens),
+    cacheWriteTokens: count(usage.cache_creation_input_tokens),
+  };
 }
 
 function firstLine(text: string, max = 160): string {
@@ -106,9 +143,24 @@ export function parseStreamLine(line: string): StreamEvent[] {
     const status = str(info.status);
     const resetAt = epochToIso(info.resetsAt);
     const window = str(info.rateLimitType);
-    if (status === "rejected") return [{ kind: "usage-limit", resetAt, window }];
-    if (status === "allowed_warning") return [{ kind: "usage-warning", resetAt, window }];
-    return [];
+    const out: StreamEvent[] = [];
+    // The share of each window used, as a fraction from 0 to 1, as the stream gives it.
+    const windows = isObject(info.unifiedWindows) ? info.unifiedWindows : {};
+    for (const [name, value] of Object.entries(windows)) {
+      if (!isObject(value)) continue;
+      const used = value.utilization;
+      if (typeof used !== "number" || !Number.isFinite(used) || used < 0) continue;
+      out.push({
+        kind: "window",
+        window: name,
+        usedFraction: Math.min(1, used),
+        resetsAt: epochToIso(value.resetsAt) ?? resetAt,
+        status: str(value.status) ?? status,
+      });
+    }
+    if (status === "rejected") out.push({ kind: "usage-limit", resetAt, window });
+    if (status === "allowed_warning") out.push({ kind: "usage-warning", resetAt, window });
+    return out;
   }
 
   if (type === "assistant" && isObject(event.message)) {
@@ -143,6 +195,7 @@ export function parseStreamLine(line: string): StreamEvent[] {
         text: str(event.result) ?? "",
         turns: typeof event.num_turns === "number" ? event.num_turns : null,
         apiErrorStatus: typeof event.api_error_status === "number" ? event.api_error_status : null,
+        figures: resultFigures(event),
       },
     ];
   }

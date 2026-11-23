@@ -14,7 +14,7 @@ For every agent session, real or scripted, premise keeps one session record. usa
 |---|---|
 | `sessionId` | The agent runtime's own id for the session; premise's own `local-<n>` until the runtime confirms it. A resumed session keeps its id, so one id can appear on more than one record. |
 | `softwareId` | The software the session worked for. |
-| `workItem` | The piece of work (a change: the software from the idea, a milestone, a part) the software was on; null when the task belonged to none. |
+| `workItem` | The piece of work (a change: the software from the idea, a milestone, a part) the software was on; null when the task belonged to none. premise puts it on every Build, Check and Run job as well as on the line's own ([0270](../decisions/0270-premises-own-figures-and-asks-that-cost-attention-honestly.md)), so only work that serves no change (such as reading an intake item) is null. |
 | `stage` | The line stage the task served, such as `build`; null for tasks on no stage. |
 | `taskKind` | The type of task: draft, research, review, plan, build, check, triage, reading, and so on. |
 | `items` | The record items the task served, such as `W-1`, `M-2`. |

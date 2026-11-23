@@ -1,4 +1,5 @@
 import type { ReportLine, ReportView } from "../shared/api-types.js";
+import { ownFiguresWords } from "../shared/own-figures.js";
 import { stageName } from "../shared/stages.js";
 import { roleWords } from "../shared/roles.js";
 import type { Facts } from "./facts.js";
@@ -258,6 +259,7 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
     const budget = facts.usage.budget;
     cost = {
       mocked: facts.usage.mocked,
+      ...(facts.usage.own && { own: `premise's own count: ${ownFiguresWords(facts.usage.own)}` }),
       text:
         `${facts.usage.sessions} agent sessions, about $${facts.usage.costUsd.toFixed(2)} at list prices, ${Math.round(facts.usage.weeklyShare * 100)}% of a week's usage.` +
         (budget ? ` Budget: ${budget.words}.` : ""),

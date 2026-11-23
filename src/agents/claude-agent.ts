@@ -10,6 +10,8 @@ import type {
   AgentRequest,
   AgentRunner,
   AgentSession,
+  OutcomeFigures,
+  WindowReading,
 } from "./agent-runner.js";
 import {
   claudeArguments,
@@ -99,6 +101,8 @@ class ClaudeSession implements AgentSession {
   private child: ChildProcess | null = null;
   private stopRequested = false;
   private limitHit: AgentOutcome | null = null;
+  /** The latest reading of each usage window the stream reported. */
+  private readonly windows = new Map<string, WindowReading>();
   private killTimer: NodeJS.Timeout | null = null;
   private resolveOutcome!: (outcome: AgentOutcome) => void;
   readonly outcome: Promise<AgentOutcome>;
@@ -238,7 +242,10 @@ class ClaudeSession implements AgentSession {
 
       this.say(resuming ? "Carrying on the earlier session" : `Starting the ${access.role}`);
       const ended = await this.watch(args, copy.path, transcript);
-      const outcome = this.decide(ended);
+      const outcome: AgentOutcome = {
+        ...this.decide(ended),
+        ...this.ownFigures(ended.result),
+      };
       if (access.role === "checker") {
         saveEvidence(dataFolder, request.softwareId, request.jobId, copy.path);
       }
@@ -327,6 +334,14 @@ class ClaudeSession implements AgentSession {
           case "denied":
             this.say(`Not allowed: ${event.message}`);
             break;
+          case "window":
+            this.windows.set(event.window, {
+              window: event.window,
+              usedPercent: Math.round(event.usedFraction * 10_000) / 100,
+              resetsAt: event.resetsAt,
+              status: event.status,
+            });
+            break;
           case "usage-warning":
             this.say("The subscription's usage limit is near.");
             break;
@@ -370,6 +385,16 @@ class ClaudeSession implements AgentSession {
         resolve({ result, code, stderr });
       });
     });
+  }
+
+  /** What the session's own stream and result said it used (decision 0270). */
+  private ownFigures(result: Extract<StreamEvent, { kind: "result" }> | null): OutcomeFigures {
+    const out: OutcomeFigures = {};
+    if (result) {
+      out.figures = { turns: result.turns, ...result.figures };
+    }
+    if (this.windows.size > 0) out.windows = [...this.windows.values()];
+    return out;
   }
 
   private decide(ended: {

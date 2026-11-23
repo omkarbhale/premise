@@ -7,11 +7,13 @@ import { parseRecord } from "../record/parse.js";
 import { readTrailer } from "../record/trace.js";
 import type { Runner } from "../runner/runner.js";
 import { intakeCounts } from "../intake/counts.js";
+import { ownFiguresWords } from "../shared/own-figures.js";
 import type {
   IntakeRouteCounts,
   ReportCostLine,
   ReportLine,
   RunView,
+  OwnFigures,
   UsageRowView,
 } from "../shared/api-types.js";
 import { listAsks } from "../storage/asks.js";
@@ -84,6 +86,8 @@ export interface AskFact {
 
 export interface UsageFact {
   mocked: boolean;
+  /** premise's own count from the sessions' results: real, shown first. */
+  own?: OwnFigures;
   sessions: number;
   costUsd: number;
   weeklyShare: number;
@@ -339,10 +343,11 @@ export async function gatherFacts(
       const line = (group: ReportCostLine["group"], row: UsageRowView): ReportCostLine => ({
         group,
         label: row.label,
-        measured: `${row.measured.sessions} agent session${row.measured.sessions === 1 ? "" : "s"}, ${minutesWords(row.measured.minutes)}`,
+        measured: `${row.measured.sessions} agent session${row.measured.sessions === 1 ? "" : "s"}, ${minutesWords(row.measured.minutes)}; premise's own count: ${ownFiguresWords(row.measured.figures)}`,
         cost: `about $${row.cost.costUsd.toFixed(2)} at list prices`,
         mocked: row.cost.mocked,
       });
+      usage.own = view.total.measured.figures;
       usage.groups = [
         ...view.byStage.map((r) => line("stage", r)),
         ...view.byChange.map((r) => line("change", r)),

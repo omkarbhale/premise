@@ -29,6 +29,7 @@ import { addChatMessage } from "../storage/chat.js";
 import { type Database, now, recordEvent } from "../storage/database.js";
 import { RecordWriter } from "../line/record-writer.js";
 import { answerWords } from "../line/answers.js";
+import { activeWorkItem } from "../line/work-items.js";
 import { type Taste, roleWords } from "../taste/taste.js";
 
 /**
@@ -843,7 +844,13 @@ export class BuildCheckRun implements LaterStages {
   private enqueue(softwareId: string, state: BuildState, input: EnqueueInput): number {
     const id = this.deps.queue.enqueue({
       ...input,
-      payload: { ...input.payload, run: state.run, milestone: state.milestone },
+      payload: {
+        // The work item the job serves, unless the job already names one (decision 0270).
+        item: activeWorkItem(this.db, softwareId).id,
+        ...input.payload,
+        run: state.run,
+        milestone: state.milestone,
+      },
     });
     return id;
   }

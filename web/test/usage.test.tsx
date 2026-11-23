@@ -4,7 +4,16 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { OverrunNotice } from "../src/components/Budget";
 import { Usage } from "../src/components/Usage";
-import { budgetView, fakeApi, inSession, overview, softwareUsage, usageOverview } from "./fixtures";
+import {
+  budgetView,
+  fakeApi,
+  inSession,
+  overview,
+  ownFigures,
+  softwareUsage,
+  usageOverview,
+  usageRow,
+} from "./fixtures";
 
 afterEach(cleanup);
 
@@ -34,15 +43,85 @@ describe("the Usage page", () => {
     inSession(<Usage overview={overview({ softwares: [{ id: "s1" } as never] })} />);
     const all = await screen.findByText(/All of it/);
     expect(all.closest("p")!.textContent).toContain("3 agent sessions");
-    expect(within(all.closest("p")!).getByText("Mocked")).toBeTruthy();
-    // Each row: the dollar figure and the share carry the label; sessions and time do not.
+    expect(
+      within(screen.getByText(/usage-ledger:/).closest("p")!).getByText("Mocked"),
+    ).toBeTruthy();
+    // Each row: premise's own count comes first and is real; the dollar figure and the share carry
+    // the label; sessions and time do not.
     const row = screen.getAllByRole("row", { name: /^Build/ })[0]!;
     const cells = within(row).getAllByRole("cell");
     expect(cells[0]!.textContent).toBe("3");
     expect(within(cells[0]!).queryByText("Mocked")).toBeNull();
     expect(within(cells[1]!).queryByText("Mocked")).toBeNull();
-    expect(within(cells[2]!).getByText("Mocked")).toBeTruthy();
+    expect(cells[2]!.textContent).toContain("$0.50 at list prices");
+    expect(within(cells[2]!).queryByText("Mocked")).toBeNull();
     expect(within(cells[3]!).getByText("Mocked")).toBeTruthy();
+    expect(within(cells[4]!).getByText("Mocked")).toBeTruthy();
+  });
+
+  it("shows premise's own count before the mocked figure, and says where one is missing", async () => {
+    inSession(
+      <Usage overview={overview({ softwares: [{ id: "s1" } as never] })} />,
+      fakeApi({
+        usage: () =>
+          Promise.resolve(
+            usageOverview({
+              softwares: [
+                softwareUsage({
+                  total: usageRow({
+                    key: "total",
+                    measured: {
+                      sessions: 4,
+                      minutes: 9,
+                      figures: ownFigures({
+                        counted: 3,
+                        missing: 1,
+                        missingWhy: "scripted agents report no figures",
+                      }),
+                    },
+                  }),
+                }),
+              ],
+            }),
+          ),
+      }),
+    );
+    const own = await screen.findByText(/premise's own count:/);
+    const mocked = screen.getByText(/usage-ledger:/);
+    expect(own.closest("p")!.textContent).toContain(
+      "no figures for 1 session: scripted agents report no figures",
+    );
+    // The real figure is first in the page, the mocked one after it.
+    expect(own.compareDocumentPosition(mocked) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(own.closest("p")!).queryByText("Mocked")).toBeNull();
+  });
+
+  it("shows the weekly window as the agents last reported it, with its age, apart from the mock", async () => {
+    inSession(
+      <Usage overview={overview({ softwares: [{ id: "s1" } as never] })} />,
+      fakeApi({
+        usage: () =>
+          Promise.resolve(
+            usageOverview({
+              ownWindow: {
+                usedPercent: 2,
+                resetsAt: "2026-11-30T00:00:00Z",
+                readAt: new Date(Date.now() - 30 * 60_000).toISOString(),
+                status: "allowed",
+              },
+            }),
+          ),
+      }),
+    );
+    const card = (await screen.findByText(/as the agents last reported it/)).closest("section")!;
+    expect(card.textContent).toContain("2% of the subscription's weekly usage");
+    expect(card.textContent).toContain("30 minutes ago");
+    expect(within(card).queryByText("Mocked")).toBeNull();
+  });
+
+  it("says no real session has reported the window yet when there is no reading", async () => {
+    inSession(<Usage overview={overview({ softwares: [{ id: "s1" } as never] })} />);
+    expect(await screen.findByText(/No real agent session has reported this yet/)).toBeTruthy();
   });
 
   it("saves a budget as a share of the week's usage, in plain words", async () => {

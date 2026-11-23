@@ -111,7 +111,24 @@ describe("real agent runner, against a fake claude", () => {
   it("starts a session confined, and ends done with the session id from the init event", async () => {
     const { folder, runner } = setup();
     const { outcome, progress, sessionId } = await run(runner);
-    expect(outcome).toEqual({ kind: "done", summary: "Done: wrote add.js and its test." });
+    expect(outcome).toMatchObject({ kind: "done", summary: "Done: wrote add.js and its test." });
+    // What the session's own result and stream said it used, kept as premise's own count.
+    expect(outcome.figures).toEqual({
+      turns: 3,
+      costUsd: 0.25,
+      inputTokens: 10,
+      outputTokens: 200,
+      cacheReadTokens: 3000,
+      cacheWriteTokens: 500,
+    });
+    expect(outcome.windows).toEqual([
+      {
+        window: "seven_day",
+        usedPercent: 7,
+        resetsAt: new Date(1795399200 * 1000).toISOString(),
+        status: "allowed",
+      },
+    ]);
     expect(progress).toEqual([
       "Starting the planner",
       "Looking at the working copy first.",
@@ -144,7 +161,7 @@ describe("real agent runner, against a fake claude", () => {
 
   it("reports a failed session with what went wrong", async () => {
     const { runner } = setup();
-    expect((await run(runner, { brief: "scenario:fail" })).outcome).toEqual({
+    expect((await run(runner, { brief: "scenario:fail" })).outcome).toMatchObject({
       kind: "failed",
       summary: "The tests fail.",
       failureSignature: "claude-error_during_execution",
@@ -197,7 +214,7 @@ describe("real agent runner, against a fake claude", () => {
   it("stops a session at its turn limit, as stuck", async () => {
     const { runner } = setup();
     const { outcome } = await run(runner, { brief: "scenario:turns", maxTurns: 5 });
-    expect(outcome).toEqual({
+    expect(outcome).toMatchObject({
       kind: "stuck",
       summary: "The session reached its turn limit of 5 turns and was stopped.",
     });
@@ -259,7 +276,7 @@ describe("real agent runner, against a fake claude", () => {
       attempt: 2,
       resumeSessionId: first.sessionId,
     });
-    expect(second.outcome).toEqual({ kind: "done", summary: `Resumed ${first.sessionId}.` });
+    expect(second.outcome).toMatchObject({ kind: "done", summary: `Resumed ${first.sessionId}.` });
     expect(second.sessionId).toBe(first.sessionId);
     expect(readFileSync(join(kept, "half-done.txt"), "utf8")).toBe("work in progress");
     const last = calls(folder).at(-1)!;
@@ -295,7 +312,7 @@ describe("real agent runner, against a fake claude", () => {
       brief: "scenario:commit",
       repository,
     });
-    expect(outcome).toEqual({ kind: "done", summary: "Committed add.js." });
+    expect(outcome).toMatchObject({ kind: "done", summary: "Committed add.js." });
     const copy = workingCopyPath(folder, "s1", 9);
     const git = (...args: string[]) => execFileSync("git", args, { cwd: copy }).toString().trim();
     expect(git("branch", "--show-current")).toBe("premise/job-9");

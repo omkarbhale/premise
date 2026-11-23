@@ -105,6 +105,7 @@ export function ReportView({ softwareId }: { softwareId: string }) {
       )}
       <section className="card" aria-label="Cost">
         <h2>Cost {r.cost.mocked && <MockedBadge />}</h2>
+        {r.cost.own && <p>{r.cost.own}</p>}
         <p>
           {r.cost.text}
           {r.cost.mocked && " These figures are made up until usage-ledger exists."}
