@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import type { ToolBinding, ToolEnvelope } from "../agents/tool-server.js";
-import { toolFail, toolOk } from "../agents/tool-server.js";
+import { refusedAnswer, refusedAnswerWords, toolFail, toolOk } from "../agents/tool-server.js";
 import type { PremiseConfig } from "../config/settings.js";
 import type { Gate, GateRequest } from "../gate/gate.js";
 import type { Briefs } from "../line/briefs.js";
@@ -67,6 +67,9 @@ import { type TriageResult, readShortList, readTriage } from "./triage.js";
  * held for a reading, or is merged or closed, each visible and undoable. A question is answered
  * from the record, not built. Its sender sees where it stands, in plain words.
  */
+
+/** How the reason of an item that went in by premise's default, untriaged, begins. */
+const NOT_TRIAGED = "Not triaged:";
 
 const FINISHED = new Set(["done", "stuck", "failed", "stopped"]);
 const OPERATOR = "operator";
@@ -230,6 +233,76 @@ export class Intake implements IntakeHooks {
       lead = next;
     }
     return lead;
+  }
+
+  // ---- Items that went in untriaged ------------------------------------------------------------
+
+  /**
+   * Items that went in by premise's default because their triage gave no answer it could use
+   * (decision 0285). Those whose work is still waiting its turn can be triaged again; those whose
+   * work started stay as they are.
+   */
+  private untriaged(softwareId: string): { again: IntakeItem[]; started: IntakeItem[] } {
+    const items = listIntakeItems(this.db, { softwareId }).filter(
+      (i) => i.routedBy === "default" && (i.reason ?? "").startsWith(NOT_TRIAGED),
+    );
+    return {
+      again: items.filter((i) => i.status === "waiting" && i.workItemId !== null),
+      started: items.filter((i) => i.status === "working"),
+    };
+  }
+
+  /** Triage again the items that went in untriaged and whose work has not started. */
+  async triageAgain(softwareId: string): Promise<IntakeView> {
+    if (!getSoftware(this.db, softwareId)) {
+      throw new ServiceError(
+        "NOT_FOUND",
+        "That software is not in premise. Pick one from the list.",
+      );
+    }
+    if (!this.line) throw new Error("Intake has no line to take work back from.");
+    const line = this.line;
+    const { again } = this.untriaged(softwareId);
+    if (again.length === 0) {
+      throw new ServiceError(
+        "INVALID",
+        "No item is waiting to be triaged again: their work has started or finished, and stays as it is.",
+      );
+    }
+    transaction(this.db, () => {
+      for (const item of again) {
+        if (!line.withdrawWaitingWork(item.workItemId!)) continue;
+        setIntakeItem(this.db, item.id, {
+          status: "taken",
+          kind: null,
+          touches: [],
+          size: null,
+          touchesFloor: false,
+          changesWhat: null,
+          route: null,
+          reason: null,
+          routedBy: null,
+          joins: null,
+          workItemId: null,
+          triaged: null,
+        });
+        recordEvent(this.db, {
+          softwareId,
+          module: "intake",
+          kind: "triage-again",
+          reference: `I-${item.number}`,
+        });
+        const job = this.queueTriage(getIntakeItem(this.db, item.id)!);
+        setIntakeItem(this.db, item.id, { triageJob: job });
+        this.say(
+          softwareId,
+          item,
+          "taken back off the line to be triaged again: it went in untriaged before. An agent reads it against the record next.",
+        );
+      }
+    });
+    this.options.queue.tick();
+    return this.view(softwareId);
   }
 
   /** IntakeHooks: chat that is not an answer or a correction. */
@@ -413,8 +486,10 @@ export class Intake implements IntakeHooks {
     const item = getIntakeItem(this.db, Number(job.payload.intake));
     if (!item || (item.status !== "taken" && item.status !== "triaging")) return;
     if (item.triageJob !== job.id) return;
-    const why =
-      job.status === "done"
+    const refused = job.status === "stopped" ? null : refusedAnswer(this.db, job);
+    const why = refused
+      ? `the triager ${refusedAnswerWords(refused)}`
+      : job.status === "done"
         ? "the triager finished without an answer"
         : job.status === "stopped"
           ? "the triager was stopped"
@@ -429,7 +504,7 @@ export class Intake implements IntakeHooks {
           touchesFloor: false,
           changesWhat: true,
           route: "in-normally",
-          reason: `Not triaged: ${why}, so it goes in normally, premise's default. The sizer decides what it needs.`,
+          reason: `${NOT_TRIAGED} ${why}, so it goes in normally, premise's default. The sizer decides what it needs.`,
           joins: null,
           answer: null,
           notes: [],
@@ -1154,10 +1229,11 @@ export class Intake implements IntakeHooks {
     const reading = getReading(this.db, Number(job.payload.reading));
     if (!reading || reading.status !== "reading") return;
     setReading(this.db, reading.id, { status: "failed", finished: now() });
+    const refused = job.status === "stopped" ? null : refusedAnswer(this.db, job);
     addChatMessage(this.db, {
       softwareId: reading.softwareId,
       author: "premise",
-      text: `The reading of held items ${job.status === "done" ? "ended without a short list" : `did not finish (${job.result ?? "no reason was given"})`}. The items stay held; ask for a reading again on the Intake tab.`,
+      text: `The reading of held items ${refused ? `ended without a short list: the reader ${refusedAnswerWords(refused)}` : job.status === "done" ? "ended without a short list" : `did not finish (${job.result ?? "no reason was given"})`}. The items stay held; ask for a reading again on the Intake tab.`,
     });
   }
 
@@ -1757,6 +1833,16 @@ export class Intake implements IntakeHooks {
       routes: routeCounts(items),
       feedback: this.feedbackLink(softwareId),
       github: this.githubView(softwareId),
+      untriaged: this.untriagedView(softwareId),
+    };
+  }
+
+  private untriagedView(softwareId: string): IntakeView["untriaged"] {
+    const { again, started } = this.untriaged(softwareId);
+    if (again.length === 0) return null;
+    return {
+      again: again.map((i) => `I-${i.number}`),
+      started: started.map((i) => `I-${i.number}`),
     };
   }
 

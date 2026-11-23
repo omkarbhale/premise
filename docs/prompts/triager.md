@@ -56,8 +56,8 @@ Your answer, through triage_submit, as JSON fields:
 - kind: bug, wish, change-of-purpose, question, opinion, duplicate, or noise;
 - touches: the record items it touches, each as {"id": "W-3", "reason": "why it touches it"}; an empty list if none;
 - size: small, medium or large (rough);
-- touches_floor: yes or no (losing data, security holes, spending money, acting publicly in someone's name);
-- changes_what: yes or no: whether building it changes what the software must do. A bug never does;
+- touches_floor: true or false (losing data, security holes, spending money, acting publicly in someone's name);
+- changes_what: true or false: whether building it changes what the software must do. A bug never does;
 - route: in-normally, asked-at-once, held, or merged-or-closed;
 - reason: one line on why it goes where it goes;
 - joins: for a duplicate, the item it repeats, such as "I-3";

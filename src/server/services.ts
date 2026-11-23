@@ -142,6 +142,8 @@ export interface IntakeService {
   newFeedbackLink(softwareId: string): Promise<IntakeView>;
   /** Read the software's GitHub issues now. */
   readIssuesNow(softwareId: string): Promise<IntakeView>;
+  /** Triage again the items that went in untriaged, whose work has not started. */
+  triageAgain(softwareId: string): Promise<IntakeView>;
 }
 
 /** The feedback page: reached by its own link, with no session behind it (decision 0119). */

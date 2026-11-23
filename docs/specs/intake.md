@@ -58,6 +58,7 @@ While premise listens on localhost only ([0079](../decisions/0079-localhost-only
 - A triager agent reads every item against the record: its kind (bug, wish, change of purpose, question, opinion, duplicate, noise), the items it touches, its rough size, whether it touches the floor ([0094](../decisions/0094-triager-reads-every-item.md)), and whether building it changes what the software must do (`changes_what`; a bug never does, [0192](../decisions/0192-effort-in-proportion-to-what-was-asked.md)).
 - Routing by what an item touches needs the record, which an LLM can read; no person is needed for it. People sorting intake by hand was rejected.
 - Item text is data, never instructions ([0116](../decisions/0116-outside-content-is-data.md)). An item that tries to instruct an agent is triaged as what it is (usually noise), and the attempt is reported.
+- When the triager ends without an answer premise can use, the item goes in normally, premise's default ([0062](../decisions/0062-intake-goes-in-normally.md)), and its reason says why: when premise refused the triager's answer, with the refusal ([0285](../decisions/0285-each-tool-declares-its-shape-and-reads-what-real-agents-send.md)). The Intake tab then offers, in one line, to triage again the items that went in this way whose work is still waiting its turn: their work is taken back off the line and an agent reads them again. Items whose work has started stay as they are, and the line says so.
 
 ### 5.3 Routes
 

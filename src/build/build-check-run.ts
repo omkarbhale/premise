@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 
 import { join } from "node:path";
 import type { AgentOutcome } from "../agents/agent-runner.js";
 import type { ToolBinding, ToolEnvelope } from "../agents/tool-server.js";
-import { toolFail, toolOk } from "../agents/tool-server.js";
+import { refusedAnswer, refusedAnswerWords, toolFail, toolOk } from "../agents/tool-server.js";
 import {
   EVIDENCE_FOLDER,
   branchFor,
@@ -404,13 +404,16 @@ export class BuildCheckRun implements LaterStages {
       this.save(job.softwareId, state);
       return this.progress(job.softwareId, state);
     }
+    const refused = job.status === "stopped" ? null : refusedAnswer(this.db, job);
     const ask =
       taste.openProposal(claim) ??
       taste.noProposal(
         claim,
-        job.status === "done"
-          ? "the agent finished without one"
-          : `the agent ${job.status === "stopped" ? "was stopped" : `did not finish: ${job.result ?? "no reason was given"}`}`,
+        refused
+          ? `the agent ${refusedAnswerWords(refused)}`
+          : job.status === "done"
+            ? "the agent finished without one"
+            : `the agent ${job.status === "stopped" ? "was stopped" : `did not finish: ${job.result ?? "no reason was given"}`}`,
         job.id,
       );
     entry.ask = ask.id;
@@ -1166,19 +1169,14 @@ export class BuildCheckRun implements LaterStages {
       ? (job.payload.context as { items: string[] }).items
       : this.itemsToCheck(id, state.milestone);
     const verdicts = this.verdictsOf(job.id);
+    const refused = items.some((i) => !verdicts.has(i)) ? refusedAnswer(this.db, job) : null;
+    const none = refused
+      ? `The checker gave no verdict for this item: it ${refusedAnswerWords(refused, 200)}.`
+      : "The checker gave no verdict for this item.";
     for (const item of items) {
       if (!verdicts.has(item)) {
-        this.recordVerdict(
-          id,
-          job,
-          item,
-          "could-not-check",
-          "The checker gave no verdict for this item.",
-        );
-        verdicts.set(item, {
-          verdict: "could-not-check",
-          evidence: "The checker gave no verdict for this item.",
-        });
+        this.recordVerdict(id, job, item, "could-not-check", none);
+        verdicts.set(item, { verdict: "could-not-check", evidence: none });
       }
     }
     const findings = this.findingsOf(job.id);

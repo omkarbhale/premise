@@ -335,7 +335,7 @@ describe("learning from corrections", () => {
           behave: (_request, call) => {
             const bad = call("lesson_submit", { destination: "somewhere", mistake: "" });
             expect(bad.ok).toBe(false);
-            expect(bad.error!.message).toContain("destination must be one of");
+            expect(bad.diagnostics.join(" ")).toContain('"destination" must be one of');
             const good = call("lesson_submit", {
               mistake: "assumed how the person works",
               destination: "taste",

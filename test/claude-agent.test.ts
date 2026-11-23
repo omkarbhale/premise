@@ -19,7 +19,7 @@ import { createApp } from "../src/server/app.js";
 import { openDatabase } from "../src/storage/database.js";
 import { createSoftware } from "../src/storage/softwares.js";
 import { MockUsageLedger } from "../src/usage-ledger/mock-usage-ledger.js";
-import { tempFolder, testConfig } from "./helpers.js";
+import { tempFolder, testApp, testConfig } from "./helpers.js";
 
 const FAKE_CLAUDE = join(import.meta.dirname, "fixtures", "fake-claude.mjs");
 const DOCS = join(import.meta.dirname, "..", "docs");
@@ -428,4 +428,81 @@ describe("prerequisites for real agents", () => {
     mkdirSync(join(folder, "work"));
     expect(workingCopyPath(folder, "../evil", 3)).toBe(join(folder, "work", "__evil", "job-3"));
   });
+});
+
+describe("real-agent-shaped tool calls, end to end", () => {
+  it("lets a sizer, a drafter and a triager hand in answers shaped as real agents sent them", async () => {
+    // The claude command is a wrapper that runs the fake claude in its "real-shapes" scenario for
+    // every session, whatever premise's brief says.
+    const bin = tempFolder();
+    const wrapper = join(bin, "claude");
+    writeFileSync(
+      wrapper,
+      `#!/bin/sh\nexec "${process.execPath}" "${FAKE_CLAUDE}" --fake-scenario real-shapes "$@"\n`,
+      { mode: 0o755 },
+    );
+    const port = await freePort();
+    const app = await testApp(
+      {
+        PREMISE_AGENTS__CLAUDE__COMMAND: wrapper,
+        PREMISE_AGENTS__CLAUDE__STOP_GRACE_SECONDS: "1",
+        PREMISE_SERVER__PORT: String(port),
+      },
+      {
+        makeRunner: (tools, config) =>
+          new ClaudeAgentRunner({
+            config,
+            tools,
+            toolsUrl: `http://127.0.0.1:${port}/mcp`,
+            docsFolder: DOCS,
+            env: { ...process.env },
+            home: tempFolder(),
+          }),
+      },
+    );
+    await app.app.listen({ host: "127.0.0.1", port });
+    try {
+      const { body } = await app.call("POST", "/api/softwares", { idea: "A reading list" });
+      await app.settle();
+      const report = await app.call("POST", `/api/softwares/${body.id}/intake`, {
+        text: "Add a dark theme",
+      });
+      expect(report.status).toBe(201);
+      await app.settle();
+
+      const calls = (
+        app.db.prepare("SELECT detail FROM events WHERE kind = 'tool-call' ORDER BY id").all() as {
+          detail: string;
+        }[]
+      ).map((r) => JSON.parse(r.detail) as Record<string, unknown>);
+      const of = (tool: string) => calls.filter((c) => c.tool === tool);
+      // Lists sent as quoted text, and yes or no, are taken.
+      expect(of("sizing_submit").map((c) => c.ok)).toEqual([true]);
+      expect(of("triage_submit").map((c) => c.ok)).toEqual([true]);
+      // A drafted item's words under "line" are refused, naming the field and where to put it;
+      // the fixed draft is taken.
+      const drafts = of("draft_submit");
+      expect(drafts[0]).toMatchObject({ ok: false, error: "MALFORMED" });
+      expect((drafts[0]!.diagnostics as string[])[0]).toContain(
+        '"items[0].text" is missing: The item\'s words, one line, without an ID or list mark. It has "line", which premise does not read here: put that in "text".',
+      );
+      expect(drafts.at(-1)).toMatchObject({ ok: true });
+      // A record operation without "from" is refused, naming it, with an example.
+      const proposal = of("record_propose")[0]!;
+      expect(proposal).toMatchObject({ ok: false, error: "MALFORMED" });
+      expect((proposal.diagnostics as string[])[0]).toBe(
+        '"operations[0].from" is missing: Who it comes from: "assumed" for your own idea, or the role whose own words it is, such as "operator". For example: "from": "assumed"',
+      );
+
+      const intake = await app.call("GET", `/api/softwares/${body.id}/intake`);
+      expect(intake.body.items[0]).toMatchObject({ ref: "I-1", routedBy: "triager" });
+      expect(intake.body.untriaged).toBeNull();
+      const asks = await app.call("GET", `/api/asks?softwareId=${body.id}`);
+      expect(JSON.stringify(asks.body)).toContain(
+        "People keep track of the books they want to read.",
+      );
+    } finally {
+      await app.app.close();
+    }
+  }, 60_000);
 });

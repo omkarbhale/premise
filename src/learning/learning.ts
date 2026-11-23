@@ -185,7 +185,8 @@ export class Learning implements LessonSource {
       const rows = this.db
         .prepare(
           `SELECT id, software_id, module, kind, reference, detail FROM events
-           WHERE id > ? AND module IN ('asks', 'softwares', 'intake') ORDER BY id LIMIT 200`,
+           WHERE id > ? AND (module IN ('asks', 'softwares', 'intake')
+             OR (module = 'agent-tools' AND kind = 'answer-refused')) ORDER BY id LIMIT 200`,
         )
         .all(cursor) as unknown as EventRow[];
       const last = (
@@ -255,6 +256,34 @@ export class Learning implements LessonSource {
         ];
       }
       return [];
+    }
+    if (row.module === "agent-tools" && row.kind === "answer-refused" && row.reference) {
+      const detail = parse<{
+        tool?: string;
+        role?: string;
+        message?: string;
+        diagnostics?: string[];
+        calls?: number;
+      }>(row.detail);
+      const tool = detail.tool ?? "its answer";
+      const why =
+        (detail.diagnostics ?? []).find((d) => !d.startsWith("This is the same refusal")) ??
+        detail.message ??
+        null;
+      const times = detail.calls && detail.calls > 1 ? ` ${detail.calls} times` : "";
+      return [
+        {
+          softwareId: row.software_id,
+          kind: "answer-refused",
+          source: `job:${row.reference}:answer-refused`,
+          what: `The ${detail.role ?? "agent"} ended without its answer: premise refused its ${tool} call${times}`,
+          said: why ? cut(why, 300) : null,
+          touches: [],
+          subject: tool,
+          replacement: null,
+          stage: null,
+        },
+      ];
     }
     if (row.module === "intake" && row.kind === "triaged" && row.reference) {
       if (parse<{ kind?: string }>(row.detail).kind !== "bug") return [];

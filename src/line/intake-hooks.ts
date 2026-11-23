@@ -39,4 +39,9 @@ export interface IntakeLine {
   ): WorkItem;
   /** Send the whole software back to Why, with the operator (a reading's short list). */
   backToWhy(softwareId: string): Promise<void>;
+  /**
+   * Take back an intake item's work that is still waiting its turn, so the item can be triaged
+   * again. False when the work has started, and is left as it is.
+   */
+  withdrawWaitingWork(workItemId: number): boolean;
 }

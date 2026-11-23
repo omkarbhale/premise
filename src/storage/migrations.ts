@@ -535,6 +535,60 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+  {
+    version: 17,
+    name: "an agent's refused answer is kept as an improvement for premise",
+    // SQLite cannot change a CHECK in place, so corrections and the lessons that reference it are
+    // copied into new tables; the new lessons reference the new corrections, renamed after.
+    sql: `
+      CREATE TABLE corrections_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        software_id TEXT NOT NULL REFERENCES softwares(id),
+        kind TEXT NOT NULL CHECK (kind IN
+          ('strike', 'edit', 'reject-draft', 'send-back', 'decline-gate', 'undo-split', 'bug-after-met',
+           'answer-refused')),
+        source TEXT NOT NULL UNIQUE,
+        what TEXT NOT NULL,
+        said TEXT,
+        touches TEXT NOT NULL DEFAULT '[]',
+        status TEXT NOT NULL CHECK (status IN ('reading', 'read')),
+        mistake TEXT,
+        destination TEXT CHECK (destination IN ('software', 'taste', 'premise', 'none')),
+        reason TEXT,
+        line TEXT,
+        topic TEXT,
+        decided_by TEXT CHECK (decided_by IN ('agent', 'rule', 'operator')),
+        job_id INTEGER,
+        created TEXT NOT NULL,
+        read TEXT
+      );
+      INSERT INTO corrections_new SELECT * FROM corrections;
+
+      CREATE TABLE lessons_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        correction_id INTEGER NOT NULL UNIQUE REFERENCES corrections_new(id),
+        software_id TEXT NOT NULL REFERENCES softwares(id),
+        destination TEXT NOT NULL CHECK (destination IN ('software', 'taste', 'premise')),
+        topic TEXT,
+        text TEXT NOT NULL,
+        state TEXT NOT NULL CHECK (state IN ('live', 'deleted', 'dropped')),
+        uses INTEGER NOT NULL DEFAULT 0,
+        last_used TEXT,
+        created TEXT NOT NULL,
+        edited TEXT,
+        ended TEXT,
+        end_note TEXT
+      );
+      INSERT INTO lessons_new SELECT * FROM lessons;
+
+      DROP TABLE lessons;
+      DROP TABLE corrections;
+      ALTER TABLE corrections_new RENAME TO corrections;
+      ALTER TABLE lessons_new RENAME TO lessons;
+      CREATE INDEX corrections_software ON corrections(software_id, id);
+      CREATE INDEX lessons_destination ON lessons(destination, state);
+    `,
+  },
 ];
 
 export const CURRENT_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

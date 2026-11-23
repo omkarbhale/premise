@@ -112,6 +112,23 @@ export function IntakeView({
           </div>
         </form>
       )}
+      {v.untriaged && (
+        <p className="note untriaged" role="status">
+          {untriagedWords(v.untriaged)}{" "}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() =>
+              void act(
+                () => api.triageAgain(softwareId),
+                "Taken back off the line: an agent triages them again, and they are listed below.",
+              )
+            }
+          >
+            Triage {v.untriaged.again.length === 1 ? "it" : "them"} again
+          </button>
+        </p>
+      )}
       {problem && <Problem>{problem}</Problem>}
       {said && (
         <p className="note" role="status">
@@ -237,6 +254,14 @@ export function IntakeView({
       </section>
     </div>
   );
+}
+
+/** One line: which items went in untriaged, and that they can be triaged again. */
+function untriagedWords(u: NonNullable<IntakeData["untriaged"]>): string {
+  const list = (refs: string[]) =>
+    refs.length === 1 ? refs[0]! : `${refs.slice(0, -1).join(", ")} and ${refs.at(-1)!}`;
+  const one = u.again.length === 1;
+  return `${list(u.again)} went in without being triaged, because the agent's answer could not be used. ${one ? "Its" : "Their"} work has not started, so ${one ? "it" : "they"} can be triaged again.${u.started.length ? ` (${list(u.started)} already started and ${u.started.length === 1 ? "stays" : "stay"} as ${u.started.length === 1 ? "it is" : "they are"}.)` : ""}`;
 }
 
 function Item({
