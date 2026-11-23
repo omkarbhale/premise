@@ -255,7 +255,7 @@ export const scriptedJudge: ScriptBehaviour = async (request, call) => {
   const runProblem = copy ? confirmRunInstructions(copy) : null;
   const items = itemsOf(request);
   const scenarios = scenariosOf(request);
-  const verdicts: { item: string; verdict: string; evidence: string }[] = [];
+  const verdicts: { item: string; verdict: string; evidence: string; try_it_on?: string }[] = [];
   for (const item of items) {
     const mine = scenarios.filter((s) => s.items.includes(item));
     const runnable = mine.filter((s) => s.steps.every((st) => /^(run|open|post):/.test(st)));
@@ -267,6 +267,11 @@ export const scriptedJudge: ScriptBehaviour = async (request, call) => {
           mine.length === 0
             ? "No scenario was written for this item."
             : "The scripted checker cannot take these steps; a person or a real checker is needed.",
+        // Every could-not-check names what a person should try (decision 0300).
+        try_it_on:
+          mine.length === 0
+            ? "the software itself, doing what this item asks"
+            : `the steps of "${mine[0]!.name}" yourself`,
       });
       continue;
     }

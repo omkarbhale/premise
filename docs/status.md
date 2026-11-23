@@ -1,6 +1,6 @@
 # Status
 
-Where premise is, in plain words. The owner said to build the whole of premise ([0130](decisions/0130-the-build-starts-and-covers-all-of-premise.md)); the plan is in the [roadmap](product/roadmap.md). Last updated 2026-11-23.
+Where premise is, in plain words. The owner said to build the whole of premise ([0130](decisions/0130-the-build-starts-and-covers-all-of-premise.md)); the plan is in the [roadmap](product/roadmap.md). Last updated 2026-11-24.
 
 ## One real run, everything else scripted
 
@@ -20,6 +20,7 @@ Where premise is, in plain words. The owner said to build the whole of premise (
 - **Roles and taste** in the one session ([0196](decisions/0196-roles-and-taste-in-one-session.md)); **the measures** and **learning from corrections** ([0193](decisions/0193-how-the-measures-are-built.md)–[0195](decisions/0195-two-kinds-of-learning.md)).
 - **Several softwares at once,** with priority, pause, resume and archive ([0197](decisions/0197-how-several-softwares-at-once-is-built.md)).
 - **Pausing everything and coming back:** "Pause everything" and "Resume" on the page, a clean Ctrl+C (or `premise stop`), a pause that survives a restart, one line on what the start picked up, an optional same link across restarts, and a check of agent sessions after the computer sleeps ([0290](decisions/0290-pausing-and-resuming-the-whole-of-premise.md)). Tested with scripted agents only; never tried with real agents or a real sleep.
+- **Judgement fixes from the first real runs:** a choice against premise's recommendation keeps the person's one line of why (first in the say-back, in the report, learned from); the choices at What exists say what they mean; a must that works only under a condition is shown before building; the checker says "could not check" when the real thing is out of reach and judges the plan's assumptions; a tool the agents lack is asked for once, with real buttons (allow its host for that software, "I installed it", go on without it); hedges are kept; the plan's costly choices get the foundation review; the researcher reads long pages in parts ([0300](decisions/0300-judgement-fixes-from-the-first-real-runs.md)). Tested with scripted agents and a fake agent; not yet tried with real agents.
 - **Cost and the spending limit,** on a mock of usage-ledger (see Mocked) ([0200](decisions/0200-how-cost-and-the-spending-limit-are-built.md)).
 - **premise's own count** of what real sessions used (cost at list prices, tokens, turns, and the weekly window as last read), shown before the mocked figures and not marked mocked; every job names the change it served; attention counts only questions the line waited on; the "what exists" findings are one line each and strikable ([0270](decisions/0270-premises-own-figures-and-asks-that-cost-attention-honestly.md)). The figures are tested against a fake agent only; a real session has not yet confirmed their shape on the installed version ([issue 189](https://github.com/omkarbhale/premise/issues/189)).
 

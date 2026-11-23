@@ -56,6 +56,7 @@ export const FLOOR_KINDS = [
   "publish",
   "post",
   "write-repository",
+  "network",
 ] as const;
 export type FloorKind = (typeof FLOOR_KINDS)[number];
 /** Always asked one action at a time; never approved as a kind (decision 0101). */
@@ -395,6 +396,14 @@ export const SETTINGS: readonly Setting[] = [
     default: 10,
     check: summarised(wholeNumber(1, 50), "1 to 50"),
     meaning: "Most items an agent may put in one question to a person.",
+  },
+  {
+    key: "tools.page_part_chars",
+    default: 12000,
+    check: summarised(wholeNumber(1000, 100000), "1000 to 100000"),
+    meaning:
+      "How many characters of a web page the researcher reads at a time, when it reads a long page in parts.",
+    record: "0300",
   },
   {
     key: "usage_ledger.mode",
@@ -998,7 +1007,7 @@ export interface PremiseConfig {
     scripted: { script_file: string | null; step_seconds: number };
     tasks: Record<AgentTaskKind, TaskSettings>;
   };
-  tools: { progress_max_chars: number; ask_max_items: number };
+  tools: { progress_max_chars: number; ask_max_items: number; page_part_chars: number };
   usage_ledger: {
     mode: UsageLedgerMode;
     seed: number | null;

@@ -475,13 +475,15 @@ describe("what exists: not building it is said first", { timeout: 30_000 }, () =
     const exists = await only(app, id);
     expect(exists.title).toBe("premise recommends not building it: something already does this");
     expect(exists.instruction).toMatch(/^Instead: alias revlines='tac'\. /);
-    expect(exists.choices![0]).toBe("Do not build it");
-    await answer(app, exists, { kind: "text", text: "Do not build it" });
+    // The choice says what it means: not building, and what to use instead (decision 0300).
+    expect(exists.choices![0]).toBe("Do not build: use alias revlines='tac'");
+    expect(exists.choiceNotes![exists.choices![0]!]).toMatch(/builds nothing/);
+    await answer(app, exists, { kind: "text", text: exists.choices![0]! });
     const record = (await app.call("GET", `/api/softwares/${id}/record`)).body;
     const e = record.files.find((f: { file: string }) => f.file === "exists.md").items as {
       text: string;
     }[];
-    expect(e.at(-1)!.text).toBe("Outcome: Do not build it. Instead: alias revlines='tac'");
+    expect(e.at(-1)!.text).toBe("Outcome: Do not build: use alias revlines='tac'");
   });
 });
 

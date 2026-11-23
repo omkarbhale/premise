@@ -65,6 +65,12 @@ export interface ClaudeAgentRunnerOptions {
   /** premise's own environment; only what a program needs is passed on. */
   env?: NodeJS.ProcessEnv;
   home?: string;
+  /**
+   * Hosts the person allowed for one software's agents, besides the package registries (decision
+   * 0300). Read for every session, so an allowance applies from the next session on, without
+   * restarting premise.
+   */
+  extraHosts?: (softwareId: string) => string[];
 }
 
 /** The message that carries a cut-off session on. */
@@ -218,7 +224,10 @@ class ClaudeSession implements AgentSession {
             dataFolder,
             home: this.options.home ?? homedir(),
             access,
-            allowedDomains: config.agents.network.allowed_domains,
+            allowedDomains: [
+              ...config.agents.network.allowed_domains,
+              ...(this.options.extraHosts?.(request.softwareId) ?? []),
+            ],
             claudeConfigFolder: config.agents.claude_config_folder,
             extraDeniedPaths: config.agents.confinement.extra_denied_paths,
           }),

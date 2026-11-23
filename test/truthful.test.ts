@@ -25,6 +25,7 @@ function judge(metFirst: boolean): ScriptBehaviour {
               verdict: "could-not-check",
               judged_on: "real",
               evidence: "It needs a sample file only a person can give.",
+              try_it_on: "your own sample file",
             },
       ),
     });

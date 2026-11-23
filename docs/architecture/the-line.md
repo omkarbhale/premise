@@ -38,7 +38,7 @@ flowchart LR
    - The roles become the labels on what premise asks from then on ([0065](../decisions/0065-one-open-session.md)). Writes `who.md`.
 3. **What exists.**
    - The researcher agent searches the web and reads sources, within its budget ([0085](../decisions/0085-stage-effort-budgets.md)).
-   - It lists what exists, with sources, and recommends one outcome: do not build, build on something, or build something different. It reads the motive from Why: saving effort, or finding a gap ([0023](../decisions/0023-looking-at-what-exists.md)).
+   - It lists what exists, with sources, and recommends one outcome: do not build (use what exists), build it on top of something, build it anyway, or build it because nothing out there does it. Only the choices that apply are shown, each saying what it changes, and a choice against the recommendation keeps the person's one line of why ([0300](../decisions/0300-judgement-fixes-from-the-first-real-runs.md)). It reads the motive from Why: saving effort, or finding a gap ([0023](../decisions/0023-looking-at-what-exists.md)).
    - The operator decides the outcome. "Do not build" ends the line with a report.
    - It repeats at a smaller size before a large feature or a foundation choice. Writes `exists.md`.
 4. **What.**

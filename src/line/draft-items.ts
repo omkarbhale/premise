@@ -15,6 +15,14 @@ import { SIZE_CLASSES, type SizeClass } from "../shared/stages.js";
  * a draft is accepted leniently: a leading ID or prefix and trailing marks are read, not required.
  */
 
+/** A dependency a decision adds, and whether it needs a compiler or a system library to install. */
+export interface DraftDependency {
+  name: string;
+  installs?: string;
+  needsCompiler: boolean;
+  builtinAlternative?: string;
+}
+
 /** One drafted item, with what the record needs beyond its words. */
 export interface DraftItem {
   key: string;
@@ -42,7 +50,23 @@ export interface DraftItem {
   checked?: "read" | "summary" | "not-read";
   /** The person's answer to it at the change's earlier question. */
   earlier?: EarlierAnswer;
+  /**
+   * For a D item: the condition a must item then works only under, or what it assumes without
+   * having checked (decision 0300).
+   */
+  condition?: string;
+  /** For a D item with a condition: the must items that work only under it. */
+  must?: string[];
+  /** For a D item with a condition a person must meet: the role who can meet it. */
+  who?: string;
+  /** For a D item: each dependency it adds (decision 0300). */
+  dependencies?: DraftDependency[];
 }
+
+/** The words a decision's condition is kept under in the record, for the checker to judge it. */
+export const CONDITION_LEAD = "Holds only if:";
+/** A record decision the checker judges: an assumption not checked, or a condition (0300). */
+export const ASSUMED_DECISION = /\b(assumed, not checked|holds only if)\b/i;
 
 export class DraftError extends Error {
   constructor(readonly problems: string[]) {
@@ -171,6 +195,33 @@ export function readDraftItems(
       str(value.source) ?? (typeof value.sources === "string" ? str(value.sources) : undefined);
     const shortLine = str(value.short);
     const quote = options.quotes ? str(value.quote) : undefined;
+    const condition = kind === "D" ? str(value.condition) : undefined;
+    const must =
+      condition && Array.isArray(value.must)
+        ? value.must
+            .filter((m): m is string => typeof m === "string")
+            .map((m) => m.trim().toUpperCase())
+            .filter((m) => /^W-\d+$/.test(m))
+        : [];
+    const who = condition ? str(value.who) : undefined;
+    const dependencies: DraftDependency[] =
+      kind === "D" && Array.isArray(value.dependencies)
+        ? value.dependencies.flatMap((entry): DraftDependency[] => {
+            const v = (entry && typeof entry === "object" ? entry : {}) as Record<string, unknown>;
+            const name = str(v.name);
+            if (!name) return [];
+            const installs = str(v.installs);
+            const alternative = str(v.builtin_alternative);
+            return [
+              {
+                name: oneLine(name).slice(0, 100),
+                needsCompiler: v.needs_compiler === true || v.needs_compiler === "true",
+                ...(installs && { installs: oneLine(installs).slice(0, 300) }),
+                ...(alternative && { builtinAlternative: oneLine(alternative).slice(0, 100) }),
+              },
+            ];
+          })
+        : [];
     items.push({
       key: `k${i + 1}`,
       text,
@@ -187,6 +238,10 @@ export function readDraftItems(
       ...(refs && refs.length > 0 && { refs }),
       ...(typeof value.follows === "string" &&
         /^L-\d+$/.test(value.follows.trim()) && { follows: value.follows.trim() }),
+      ...(condition && { condition: oneLine(condition).slice(0, 300) }),
+      ...(must.length > 0 && { must }),
+      ...(who && { who: who.slice(0, 60) }),
+      ...(dependencies.length > 0 && { dependencies }),
     });
   });
   if (problems.length) throw new DraftError(problems);
@@ -305,6 +360,11 @@ export function addOperation(
     text = p.rest;
   }
   if (item.suggestion && !entry.edited && !/suggestion/i.test(text)) text = `Suggestion: ${text}`;
+  if (item.kind === "D" && item.condition && !ASSUMED_DECISION.test(text)) {
+    // The condition stays with the decision in the record, where the checker judges it (0300).
+    const condition = item.condition.replace(/[()]/g, (c) => (c === "(" ? "[" : "]"));
+    text = `${text.replace(/[.\s]+$/, "")}. ${CONDITION_LEAD} ${condition.replace(/[.\s]+$/, "")}.`;
+  }
   return {
     op: "add",
     kind: item.kind,

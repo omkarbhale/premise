@@ -19,6 +19,7 @@ Two of the big mistakes premise guards against are silent contradiction, where a
 - **Two live items never disagree.** A conflicting change must name the item it replaces ([the record](../architecture/the-record.md), "Keeping it true"). The reviewer's job is to find conflicts nobody named.
 - **Purpose changes go to the say-back.** Replacing a `Y` or `U` item, a must `W` item, or a foundation decision goes to the say-back; the reviewer flags these so the line engine can send them there.
 - **Object with reasons, do not rewrite.** The reviewer does not draft alternatives into the record. It agrees or objects, with reasons, so the proposer (or the planner) decides and records why.
+- **Foundation decisions get the foundation review.** In the first real runs the plan's costly choices were sent to the contradiction review, whose brief says "do not judge whether the change is a good idea", while the chat said they were being reviewed; a native module the planner chose then failed to build in four sessions. The plan's foundation decisions now get the foundation review brief, and the chat says what the reviewer did ([record 0300](../decisions/0300-judgement-fixes-from-the-first-real-runs.md)).
 - **No output for people.** The reviewer's findings are shown on the page as they are; it does not load the skills for writing to people, and its output is structured.
 
 ## Inputs and placeholders
@@ -89,7 +90,7 @@ Working copy (existing software only): {{working_copy}}
 Do this:
 1. Check the decision against the record: does it serve the Why, the users and the must items? Does it fit how the software must run (run.md, if one exists)?
 2. Check it against the security defaults: does it make any of them hard to keep?
-3. Check the rejected alternative: was a clearly better common option missed? Use the smaller look; do not research further.
+3. Check the rejected alternative: was a clearly better common option missed? Use what the look at what exists found; do not research further. A dependency that builds native code (it needs a compiler to install) is a cost in premise's sandboxes, which have none: object unless the decision's "dependencies" say how it installs without one, or name a built-in that would do.
 4. Ask: if this is wrong, what does it cost later? A choice that is cheap to change needs little; one that every later task builds on needs a clear reason.
 5. Agree, or object with your reasons in a few items. Do not propose a different decision as if it were made; the planner decides.
 6. Submit with review_submit and end with task_finish.

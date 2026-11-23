@@ -151,7 +151,8 @@ export type OperatorAnswer =
   | { kind: "items"; items: { key: string; decision: "keep" | "strike"; reason?: string }[] }
   | { kind: "scope"; items: { key: string; place: ScopePlace }[] }
   | { kind: "text"; text: string }
-  | { kind: "approval"; decision: "refuse" };
+  | { kind: "approval"; decision: "refuse" }
+  | { kind: "needed"; decision: "done" | "cannot" | "allow" | "installed" | "without" };
 
 /**
  * The scripted operator of a demo (decision 0108): answers written down before the run. It keeps
@@ -162,6 +163,10 @@ export function demoOperator(demo: DemoSoftware): (ask: AskView) => OperatorAnsw
   let struck = false;
   return (ask) => {
     if (ask.kind === "approval") return { kind: "approval", decision: "refuse" };
+    // Something only a person can do: a scripted operator does none of it.
+    if (ask.kind === "needed") {
+      return { kind: "needed", decision: ask.tool ? "without" : "cannot" };
+    }
     if (ask.kind === "scope") return scopeAsIs(ask);
     if (ask.kind === "say-back" && !struck) {
       const target = ask.items.find((i) => demo.strike.match.test(i.text));
@@ -337,11 +342,13 @@ export async function runDemo(
               ? answer.text
               : answer.kind === "approval"
                 ? "No"
-                : answer.kind === "scope"
-                  ? scopeWords(answer)
-                  : answer.items.some((i) => i.decision === "strike")
-                    ? `struck "${struck?.text}": ${struck?.reason}`
-                    : "kept every item";
+                : answer.kind === "needed"
+                  ? answer.decision
+                  : answer.kind === "scope"
+                    ? scopeWords(answer)
+                    : answer.items.some((i) => i.decision === "strike")
+                      ? `struck "${struck?.text}": ${struck?.reason}`
+                      : "kept every item";
           log(`operator, to "${ask.title}": ${words}`);
           answered.push({ title: ask.title, answer: words });
           await session.services.asks.answer(ask.id, answer);

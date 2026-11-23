@@ -130,7 +130,12 @@ export function AskCard({ ask, showSoftware = false }: { ask: AskView; showSoftw
           )}
           {ask.kind === "question" && <QuestionAnswer ask={ask} busy={busy} onSend={send} />}
           {ask.kind === "approval" && <ApprovalAnswer ask={ask} busy={busy} onSend={send} />}
-          {ask.kind === "needed" && <NeededAnswer ask={ask} busy={busy} onSend={send} />}
+          {ask.kind === "needed" &&
+            (ask.tool ? (
+              <ToolAnswer ask={ask} busy={busy} onSend={send} />
+            ) : (
+              <NeededAnswer ask={ask} busy={busy} onSend={send} />
+            ))}
           {ask.kind === "proposal" && <ProposalAnswer ask={ask} busy={busy} onSend={send} />}
           {ask.kind === "scope" && <ScopeAnswer ask={ask} busy={busy} onSend={send} />}
           {problem && <Problem>{problem}</Problem>}
@@ -232,6 +237,7 @@ function ItemsAnswer({ ask, busy, onSend }: AnswerProps) {
       kind: "items",
       items: ask.items.map((item): ItemAnswer => {
         const s = state(item);
+        if (s.decision === "check") return { key: item.key, decision: "check" };
         if (s.decision === "strike") {
           return s.reason.trim()
             ? { key: item.key, decision: "strike", reason: s.reason.trim() }
@@ -292,31 +298,60 @@ function ItemsAnswer({ ask, busy, onSend }: AnswerProps) {
             </span>
           )}
         </div>
-        <div className="item-actions" role="group" aria-label={`What to do with: ${item.text}`}>
-          <button
-            type="button"
-            aria-pressed={s.decision === "keep"}
-            onClick={() => set(item.key, { decision: "keep", text: item.text }, item)}
-          >
-            Keep
-          </button>
-          <button
-            type="button"
-            aria-pressed={s.decision === "strike"}
-            onClick={() => set(item.key, { decision: "strike" }, item)}
-          >
-            Strike
-          </button>
-          {!sayBack && (
+        {item.condition ? (
+          <div className="item-actions" role="group" aria-label={`What to do with: ${item.text}`}>
             <button
               type="button"
-              aria-pressed={s.decision === "edit"}
-              onClick={() => set(item.key, { decision: "edit" }, item)}
+              aria-pressed={s.decision === "keep"}
+              title="Build it as planned, knowing it works only under this condition."
+              onClick={() => set(item.key, { decision: "keep" }, item)}
             >
-              Edit
+              Keep it
             </button>
-          )}
-        </div>
+            <button
+              type="button"
+              aria-pressed={s.decision === "strike"}
+              title="Take it out of what is built and checked."
+              onClick={() => set(item.key, { decision: "strike" }, item)}
+            >
+              Strike it
+            </button>
+            <button
+              type="button"
+              aria-pressed={s.decision === "check"}
+              title="The builder first checks whether the condition holds, before building on it, and says what it found."
+              onClick={() => set(item.key, { decision: "check" }, item)}
+            >
+              Check it first
+            </button>
+          </div>
+        ) : (
+          <div className="item-actions" role="group" aria-label={`What to do with: ${item.text}`}>
+            <button
+              type="button"
+              aria-pressed={s.decision === "keep"}
+              onClick={() => set(item.key, { decision: "keep", text: item.text }, item)}
+            >
+              Keep
+            </button>
+            <button
+              type="button"
+              aria-pressed={s.decision === "strike"}
+              onClick={() => set(item.key, { decision: "strike" }, item)}
+            >
+              Strike
+            </button>
+            {!sayBack && (
+              <button
+                type="button"
+                aria-pressed={s.decision === "edit"}
+                onClick={() => set(item.key, { decision: "edit" }, item)}
+              >
+                Edit
+              </button>
+            )}
+          </div>
+        )}
         {item.wait !== undefined && s.decision !== "strike" && (
           <label className="wait small">
             <input
@@ -503,10 +538,23 @@ function QuestionAnswer({ ask, busy, onSend }: AnswerProps) {
           </ul>
         </>
       )}
-      {findings && ask.bestAttempt && (
+      {ask.choiceNotes && ask.choices && (
+        <ul className="choice-notes small" aria-label="What each choice changes">
+          {ask.choices
+            .filter((c) => ask.choiceNotes![c])
+            .map((c) => (
+              <li key={c}>
+                <strong>{c}:</strong> {ask.choiceNotes![c]}
+              </li>
+            ))}
+        </ul>
+      )}
+      {(findings || ask.choiceNotes) && ask.bestAttempt && (
         <>
           <label htmlFor={reasonId} className="small">
-            If you choose something other than premise's best guess, say why (optional, one line)
+            If you choose something other than premise's recommendation, say why in one line.
+            premise keeps it in the record; if you leave this empty, it keeps your choice as an
+            overrule with no reason given.
           </label>
           <input
             id={reasonId}
@@ -518,7 +566,8 @@ function QuestionAnswer({ ask, busy, onSend }: AnswerProps) {
       )}
       {ask.bestAttempt && (
         <p className="best">
-          premise's best guess: <strong>{ask.bestAttempt}</strong>{" "}
+          {ask.choiceNotes ? "premise recommends" : "premise's best guess"}:{" "}
+          <strong>{ask.bestAttempt}</strong>{" "}
           <button
             type="button"
             className="link"
@@ -720,6 +769,62 @@ function ApprovalAnswer({ ask, busy, onSend }: AnswerProps) {
           </button>
         </div>
       )}
+    </>
+  );
+}
+
+/**
+ * A program the agents lack (decision 0300): allow the one host it comes from for this software,
+ * say it is installed (premise checks the agents can run it), or go on without it.
+ */
+function ToolAnswer({ ask, busy, onSend }: AnswerProps) {
+  const tool = ask.tool!;
+  return (
+    <>
+      {ask.items.length > 0 && (
+        <ol className="steps">
+          {ask.items.map((i) => (
+            <li key={i.key}>{i.text}</li>
+          ))}
+        </ol>
+      )}
+      <div className="actions">
+        {tool.host && (
+          <button
+            type="button"
+            className="primary"
+            disabled={busy}
+            title={`Only agents working on ${ask.softwareName} may reach ${tool.host}, from their next session on. premise records it with your other approvals.`}
+            onClick={() => onSend({ kind: "needed", decision: "allow" })}
+          >
+            Allow {tool.host} for {ask.softwareName}
+          </button>
+        )}
+        <button
+          type="button"
+          className={tool.host ? undefined : "primary"}
+          disabled={busy}
+          title={`premise then checks that the agents can run ${tool.name}, and says plainly if not.`}
+          onClick={() => onSend({ kind: "needed", decision: "installed" })}
+        >
+          I installed it
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          title={`The agents do what they can without ${tool.name}; the check marks what needs it "could not check".`}
+          onClick={() => onSend({ kind: "needed", decision: "without" })}
+        >
+          Go on without it
+        </button>
+      </div>
+      <p className="muted small">
+        {tool.host
+          ? `Allowing ${tool.host} lets the agents download ${tool.name} themselves, for ${ask.softwareName} only. `
+          : ""}
+        "I installed it": premise checks the agents can run {tool.name} here. "Go on without it":
+        whatever needs it is marked "could not check", with what you would try.
+      </p>
     </>
   );
 }

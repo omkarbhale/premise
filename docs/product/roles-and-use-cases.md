@@ -13,7 +13,7 @@ Sources: [VISION.md](../../VISION.md#who-it-is-for), the [decision records](../d
 - What premise asks of them, always in purpose terms:
   - once, what the software is for, in their own words (Why);
   - to strike or edit drafts: the problem, the users and roles, what the software must do (Why, Who, What);
-  - to decide the outcome of What exists: do not build, build on something, or build something different ([0023](../decisions/0023-looking-at-what-exists.md));
+  - to decide the outcome of What exists: do not build, build it on top of something, build it anyway, or build it because nothing out there does it ([0023](../decisions/0023-looking-at-what-exists.md));
   - to strike what is wrong in the say-back ([0028](../decisions/0028-say-back-as-assumptions-to-strike.md));
   - any change of purpose, including after a reading of held intake ([0095](../decisions/0095-what-is-held.md));
   - to reopen accepted defects if they want ([build, check and run](../architecture/build-check-run.md#check-0030));

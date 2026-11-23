@@ -32,8 +32,17 @@ export function validateAnswer(ask: Ask, answer: AskAnswer): string {
           invalid("One answer names an item that is not on this list. Reload the page.");
         if (seen.has(item.key)) invalid("One item was answered twice. Reload the page.");
         seen.add(item.key);
-        if (!["keep", "strike", "edit"].includes(item.decision))
+        const target = ask.items.find((i) => i.key === item.key);
+        if (item.decision === "check") {
+          if (!target?.condition)
+            invalid(
+              "Only a condition on the milestones list can be checked first. Reload the page.",
+            );
+        } else if (!["keep", "strike", "edit"].includes(item.decision)) {
           invalid("Each item can be kept, struck or edited.");
+        }
+        if (item.decision === "edit" && target?.condition)
+          invalid("A condition can be kept, struck or checked first, not edited.");
         if (item.decision === "edit") {
           if (ask.kind === "say-back")
             invalid("A say-back item can only be kept or struck. Say more in chat.");
@@ -50,8 +59,8 @@ export function validateAnswer(ask: Ask, answer: AskAnswer): string {
         }
       }
       const count = (d: string) => answer.items.filter((i) => i.decision === d).length;
-      const kept = ask.items.length - count("strike") - count("edit");
-      return `Kept ${kept}, struck ${count("strike")}, edited ${count("edit")}.`;
+      const kept = ask.items.length - count("strike") - count("edit") - count("check");
+      return `Kept ${kept}, struck ${count("strike")}, edited ${count("edit")}${count("check") ? `, to check first ${count("check")}` : ""}.`;
     }
     case "question":
       if (answer.kind !== "text" || typeof answer.text !== "string" || !answer.text.trim()) {
@@ -100,11 +109,31 @@ export function validateAnswer(ask: Ask, answer: AskAnswer): string {
           : answer.reason?.trim()
             ? `Declined: ${short(answer.reason)}`
             : "Declined.";
-    case "needed":
-      if (answer.kind !== "needed" || !["done", "cannot"].includes(answer.decision)) {
+    case "needed": {
+      const tool = ask.extra.meta?.tool as { name: string; host?: string } | undefined;
+      if (answer.kind !== "needed") return invalid("Mark it done, or say why it cannot be done.");
+      if (tool) {
+        if (answer.decision === "allow" && !tool.host) {
+          return invalid(
+            "No host was named for this, so there is nothing to allow. Install it, or go on without it.",
+          );
+        }
+        if (!["allow", "installed", "without", "cannot", "done"].includes(answer.decision)) {
+          return invalid(
+            `${tool.host ? `Allow ${tool.host}, say` : "Say"} you installed it, or go on without it.`,
+          );
+        }
+        return answer.decision === "allow"
+          ? `Allowed ${tool.host} for this software.`
+          : answer.decision === "without" || answer.decision === "cannot"
+            ? `Go on without ${tool.name}.`
+            : `Installed ${tool.name}.`;
+      }
+      if (!["done", "cannot"].includes(answer.decision)) {
         return invalid("Mark it done, or say why it cannot be done.");
       }
       return answer.decision === "done" ? "Marked done." : "Cannot be done.";
+    }
     case "proposal":
       if (answer.kind !== "proposal" || !["accept", "change"].includes(answer.decision)) {
         return invalid("Keep the proposal, or say what to change.");
@@ -169,6 +198,17 @@ export function answerWords(
   if (answer.kind === "text") return answer.text;
   if (answer.kind === "needed") {
     const who = roleWords(ask.role);
+    const tool = ask.extra.meta?.tool as { name: string; host?: string } | undefined;
+    if (tool && answer.decision === "allow") {
+      return `The ${who} allowed ${tool.host} for this software: from your next session you can reach it to get ${tool.name}.`;
+    }
+    if (tool && (answer.decision === "installed" || answer.decision === "done")) {
+      const found = ask.extra.meta?.found as string | undefined;
+      return `The ${who} installed ${tool.name}${found ? `; premise found it at ${found}` : ""}. Use it.`;
+    }
+    if (tool && (answer.decision === "without" || answer.decision === "cannot")) {
+      return `The ${who} chose to go on without ${tool.name}. Do what you can without it, and say plainly what needs it; the checker marks that "could not check".`;
+    }
     const secret = ask.extra.meta?.secret as { key: string } | undefined;
     if (answer.decision === "done") {
       if (!secret) return `The ${who} did it and marked it done.`;

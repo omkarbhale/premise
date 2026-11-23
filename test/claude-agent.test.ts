@@ -373,6 +373,32 @@ describe("real agent runner, against a fake claude", () => {
   });
 });
 
+describe("hosts a person allowed for one software (decision 0300)", () => {
+  it("are in the next session's sandbox for that software only, besides the registries", async () => {
+    const { folder, config, tools } = setup();
+    const allowed: Record<string, string[]> = { game: ["downloads.example.org"] };
+    const runner = new ClaudeAgentRunner({
+      config,
+      tools,
+      toolsUrl: `http://127.0.0.1:${config.server.port}/mcp`,
+      docsFolder: DOCS,
+      env: { ...process.env },
+      home: tempFolder(),
+      extraHosts: (softwareId) => allowed[softwareId] ?? [],
+    });
+    await run(runner, { softwareId: "game", taskKind: "build", jobId: 7 });
+    await run(runner, { softwareId: "notes", taskKind: "build", jobId: 8 });
+    const domains = (id: string) =>
+      (calls(folder, id)[0]!.settings.sandbox.network as { allowedDomains: string[] })
+        .allowedDomains;
+    expect(domains("game")).toEqual([
+      ...config.agents.network.allowed_domains,
+      "downloads.example.org",
+    ]);
+    expect(domains("notes")).toEqual(config.agents.network.allowed_domains);
+  });
+});
+
 describe("real agents in the work queue", () => {
   it("pauses all work at the usage limit, then carries the same session on", async () => {
     const { db, config, runner } = setup();

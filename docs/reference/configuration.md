@@ -36,6 +36,7 @@ A wrong setting stops premise at start with a message naming the setting and why
 | `agents.scripted.step_seconds` | `2` | 0 to 600 | When no script file is set: how long each scripted job takes, so you can watch work move on the page. 0 finishes every job at once. | [0154](../decisions/README.md) |
 | `tools.progress_max_chars` | `200` | 20 to 2000 | Longest progress line an agent may send; longer lines are cut. |  |
 | `tools.ask_max_items` | `10` | 1 to 50 | Most items an agent may put in one question to a person. |  |
+| `tools.page_part_chars` | `12000` | 1000 to 100000 | How many characters of a web page the researcher reads at a time, when it reads a long page in parts. | [0300](../decisions/README.md) |
 | `usage_ledger.mode` | `"mock-fixed"` | "mock-fixed", "mock-random" or "real" (not built yet) | Where usage figures come from. "mock-fixed": the same made-up figures every time. "mock-random": made-up figures from a seed. Mocked figures are labelled on the page. | [0133](../decisions/README.md) |
 | `usage_ledger.seed` | `null` | a whole number, or null | Seed for "mock-random". null means a new seed each time premise starts. | [0133](../decisions/README.md) |
 | `usage_ledger.mock_weekly_allowance_usd` | `100` | 1 to 1000000 | In the mock only: what a whole week's usage is worth in dollars. A budget set as a share of the week's usage is a share of this. The figures stay marked as mocked. | [0200](../decisions/README.md) |

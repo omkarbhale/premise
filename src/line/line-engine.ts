@@ -1,4 +1,5 @@
 import { mkdirSync, readFileSync, existsSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import type { AgentOutcome } from "../agents/agent-runner.js";
 import { ANSWER_SHAPES, againJob, askedAgain } from "../agents/ask-again.js";
@@ -12,6 +13,7 @@ import {
   type FloorKind,
 } from "../config/settings.js";
 import {
+  ALLOW_HOST,
   type Gate,
   GateError,
   type GateRequest,
@@ -31,6 +33,8 @@ import { type ItemKind, type RecordItem, formatItemLine } from "../record/format
 import { RecordError, type RecordKeeper } from "../record/record-keeper.js";
 import { intakeItemOfWork } from "../intake/items.js";
 import { secretWritten, secretsFile } from "../runner/secrets.js";
+import { PROGRAM_NAME, checkProgram, hostName } from "../agents/tool-check.js";
+import { isHedged, keepsHedge, unsureSentences } from "../shared/hedges.js";
 import { type Taste, roleLabel, roleWords } from "../taste/taste.js";
 import {
   ServiceError,
@@ -43,6 +47,7 @@ import type {
   ClaimView,
   EarlierAnswer,
   AskAnswer,
+  AskItem,
   AskView,
   ChangeView,
   ChatMessage,
@@ -111,6 +116,13 @@ import {
   setExisting,
 } from "../existing/store.js";
 import { answerWords, validateAnswer } from "./answers.js";
+import {
+  OVERRULE_LINE,
+  existsChoices,
+  isOverrule,
+  outcomeFromWords,
+  overruleLine,
+} from "./exists-outcomes.js";
 import type { BriefName, Briefs } from "./briefs.js";
 import {
   type DraftItem,
@@ -164,7 +176,7 @@ import {
   scopeTiers,
   scopeWords,
 } from "./scope.js";
-import { planProblems, waitAfterFirst } from "./plan-checks.js";
+import { dependencyProblems, planProblems, waitAfterFirst } from "./plan-checks.js";
 import { StandInWholeCheck, type WholeCheck } from "./whole-check.js";
 import {
   type SizedBy,
@@ -234,12 +246,6 @@ const STAGE_OF_KIND: Partial<Record<ItemKind, EarlyStage>> = {
   M: "plan",
 };
 
-export const EXISTS_OUTCOMES = [
-  "Build it",
-  "Build on something that exists",
-  "Build something different",
-  "Do not build it",
-] as const;
 /** What exists now, for software premise took on: is all of it still needed? (decision 0189) */
 export const EXISTING_OUTCOMES = [
   "Keep it as it is",
@@ -266,6 +272,7 @@ type AskPurpose =
   | "repository-retry"
   | "change-confirm"
   | "change-notice"
+  | "condition"
   | "agent";
 
 /** The line's notes on one work item, kept with the item. */
@@ -301,7 +308,7 @@ interface LineState extends ItemNotes {
   boost?: number;
   sayBackRounds?: number;
   /** Foundation review round, the objections left open, and whether the reviewer answered. */
-  review?: { round: number; objections: string[]; submitted?: boolean };
+  review?: { round: number; objections: string[]; submitted?: boolean; agreed?: number };
   /** The milestone being worked on, from Build to Report. */
   milestone?: string | null;
   /** Record changes agents proposed in this round, accepted when the plan is confirmed. */
@@ -379,6 +386,12 @@ export class LineEngine implements IntakeLine {
       { onCutOff: (request) => this.repositoryCutOff(request) },
     );
     options.gate.registerPerformer("add-record", (request) => this.addRecordToRepository(request));
+    // Allowing a host is only recorded: the agent runner reads the allowed hosts from the gate's
+    // records for each new session, so nothing needs restarting (decision 0300).
+    options.gate.registerPerformer(ALLOW_HOST, async (request) => ({
+      ok: true,
+      outcome: `Agents for this software may reach ${request.items.join(", ")} from their next session on.`,
+    }));
   }
 
   private get queue(): WorkQueue {
@@ -3266,7 +3279,8 @@ export class LineEngine implements IntakeLine {
       purpose === "correction"
         ? "chat corrections brief"
         : purpose === "review"
-          ? "contradiction review brief"
+          ? // The plan's costly choices get the foundation review, not only a consistency check (0300).
+            "foundation review brief"
           : purpose === "change"
             ? "change plan brief"
             : purpose === "revision"
@@ -3641,7 +3655,7 @@ export class LineEngine implements IntakeLine {
         software.id,
         change
           ? `The plan for your change ${change.ref ?? ""} changes ${foundations.length === 1 ? "a decision" : `${foundations.length} decisions`} that would be costly to undo. A second agent is reviewing ${foundations.length === 1 ? "it" : "them"}.`
-          : `The planner made ${decisions.length} technical choices. A second agent is reviewing the ${foundations.length === 1 ? "one" : foundations.length} that would be costly to change later.`,
+          : `The planner made ${decisions.length} technical choices. A second agent is reviewing the ${foundations.length === 1 ? "one" : foundations.length} that would be costly to change later: whether each serves what the software is for, keeps the security defaults, and whether the option it rejected was better.`,
       );
       this.queueStageJob(
         software,
@@ -3650,10 +3664,22 @@ export class LineEngine implements IntakeLine {
         {
           proposed_change: foundations.map((d) => `- ${d.text}`).join("\n"),
           decision: foundations.map((d) => `- ${d.text}`).join("\n"),
+          exists_look: this.recordText(software.id, ["E"]),
         },
         { decisions: foundations.map((d) => d.text) },
       );
       return;
+    }
+    if (purpose === "review" && review.submitted) {
+      // Say what really ran (decision 0300): how many choices the reviewer judged, and how.
+      const objected = review.objections.length;
+      const agreed = review.agreed ?? 0;
+      this.premiseSays(
+        software.id,
+        objected === 0
+          ? `The reviewer looked at ${foundations.length === 1 ? "1 costly choice" : `${foundations.length} costly choices`} and agreed with ${agreed >= foundations.length ? (foundations.length === 1 ? "it" : "all of them") : `${agreed} of them, giving no verdict on the rest`}.`
+          : `The reviewer looked at ${foundations.length === 1 ? "1 costly choice" : `${foundations.length} costly choices`} and objected to ${objected}: ${review.objections.join(" ")}`,
+      );
     }
     if (purpose === "review" && review.objections.length > 0 && review.round === 1) {
       this.setState(software.id, { review: { round: 2, objections: review.objections } });
@@ -3689,6 +3715,28 @@ export class LineEngine implements IntakeLine {
       ...m,
       wait: m.wait ?? (defaults || (i === 0 && firstWaits)),
     }));
+    // A must that works only under a condition is shown here, where the person can keep it, strike
+    // it, or have it checked first; a condition a role can meet is asked of that role (0300).
+    const live = new Map(this.recordLines(software.id).map((i) => [i.id, i]));
+    const conditional = plan.decisions.filter((d) => d.condition && (d.must ?? []).length > 0);
+    const conditions = conditional
+      .filter((d) => !d.who)
+      .map((d, n) => ({
+        key: `cond${n + 1}`,
+        condition: d.condition!,
+        must: d.must!.filter((m) => live.has(m)),
+      }))
+      .filter((c) => c.must.length > 0);
+    const conditionItems: AskItem[] = conditions.map((c) => ({
+      key: c.key,
+      text: `${c.must.map((m) => `${m} "${live.get(m)!.text}"`).join(" and ")} ${c.must.length === 1 ? "works" : "work"} only if: ${c.condition}`,
+      mark: "assumed",
+      refs: c.must,
+      condition: true,
+    }));
+    for (const d of conditional.filter((x) => x.who)) {
+      this.askToMeetCondition(software, d);
+    }
     createAsk(this.db, {
       softwareId: software.id,
       role: OPERATOR,
@@ -3699,14 +3747,39 @@ export class LineEngine implements IntakeLine {
         (firstWaits
           ? "The first milestone is what you asked for; the later ones are premise's own additions, so premise stops after the first for you to try it before more is built (untick to go straight on). "
           : "") +
-        "Each milestone ends with running software and a report. Tick a milestone to make premise stop after it until you say go on. Strike or edit milestones, then confirm; the technical choices are in the Record tab afterwards.",
-      items: items.map(toAskItem),
-      extra: { meta: { purpose: "milestones", items } },
+        "Each milestone ends with running software and a report. Tick a milestone to make premise stop after it until you say go on. Strike or edit milestones, then confirm; the technical choices are in the Record tab afterwards." +
+        (conditionItems.length > 0
+          ? ` Below the milestones: ${conditionItems.length === 1 ? "something you asked for works" : `${conditionItems.length} things you asked for work`} only under a condition. Keep it as it is, strike it, or have it checked first, before anything is built on it.`
+          : ""),
+      items: [...items.map(toAskItem), ...conditionItems],
+      extra: { meta: { purpose: "milestones", items, conditions } },
     });
     this.premiseSays(
       software.id,
-      `The plan is ready: ${plan.tasks.length} ${plan.tasks.length === 1 ? "task" : "tasks"} in ${items.length} ${items.length === 1 ? "milestone" : "milestones"}. Check the milestones under Waiting on you.`,
+      `The plan is ready: ${plan.tasks.length} ${plan.tasks.length === 1 ? "task" : "tasks"} in ${items.length} ${items.length === 1 ? "milestone" : "milestones"}.${conditionItems.length > 0 ? ` ${conditionItems.length === 1 ? "One thing you asked for works" : `${conditionItems.length} things you asked for work`} only under a condition; that is on the same card.` : ""} Check the milestones under Waiting on you.`,
     );
+  }
+
+  /**
+   * A must works only under a condition a person can meet (decision 0300): that role is asked, as
+   * something only a person can do. Nothing waits on it; until it is met, the must is not checked
+   * as working.
+   */
+  private askToMeetCondition(software: Software, decision: DraftItem): void {
+    const role = roleLabel(decision.who ?? "") || OPERATOR;
+    const live = new Map(this.recordLines(software.id).map((i) => [i.id, i]));
+    const musts = (decision.must ?? []).filter((m) => live.has(m));
+    createAsk(this.db, {
+      softwareId: software.id,
+      role,
+      kind: "needed",
+      stage: "plan",
+      title: `Needed for ${musts.join(" and ")} to work: ${decision.condition}`.slice(0, 140),
+      instruction: `What you asked for in ${musts.map((m) => `${m} ("${live.get(m)!.text}")`).join(" and ")} works only if this is done, and only a person can do it. Do it, then mark it done. If you cannot, premise still builds it and says plainly that it does not work until this is done. Nothing else waits on it.`,
+      items: [{ key: "s1", text: decision.condition!, mark: "assumed" }],
+      blocking: false,
+      extra: { meta: { purpose: "condition", must: musts, condition: decision.condition } },
+    });
   }
 
   // ---- Asks -----------------------------------------------------------------------------------
@@ -3745,6 +3818,9 @@ export class LineEngine implements IntakeLine {
         })),
       }),
       ...(ask.extra.choices !== undefined && { choices: ask.extra.choices }),
+      ...(ask.extra.meta?.choiceNotes !== undefined && {
+        choiceNotes: ask.extra.meta.choiceNotes as Record<string, string>,
+      }),
       ...(ask.extra.approval !== undefined && { approval: ask.extra.approval }),
       ...(ask.extra.meta?.purpose === "taste-proposal" && {
         claim: {
@@ -3754,6 +3830,9 @@ export class LineEngine implements IntakeLine {
       }),
       ...(ask.extra.meta?.secret !== undefined && {
         secret: ask.extra.meta.secret as { key: string; file: string },
+      }),
+      ...(ask.extra.meta?.tool !== undefined && {
+        tool: ask.extra.meta.tool as { name: string; host?: string; why?: string },
       }),
       ...(typeof ask.extra.meta?.milestone === "string" && {
         milestone: {
@@ -3805,7 +3884,20 @@ export class LineEngine implements IntakeLine {
       }
       out.push(item);
     }
-    return out;
+    // A choice the person made against premise's recommendation comes first, so it can be struck
+    // (decision 0300): their why when they gave it, or that none was given.
+    const first: DraftItem[] = [];
+    for (const y of record.filter((i) => i.kind === "Y" && OVERRULE_LINE.test(i.text))) {
+      first.push({
+        key: `overrule-${y.id}`,
+        kind: "Y",
+        text: y.text,
+        from: OPERATOR,
+        refs: [y.id],
+      });
+    }
+    const firstRefs = new Set(first.flatMap((f) => f.refs ?? []));
+    return [...first, ...out.filter((i) => !(i.refs ?? []).some((r) => firstRefs.has(r)))];
   }
 
   /** What the person struck before this list was redone, so they can see they were heard. */
@@ -3866,6 +3958,21 @@ export class LineEngine implements IntakeLine {
         "INVALID",
         `premise looked, and ${secret.key} is not in ${secret.file} yet. Write it there as one line, ${secret.key}=the value, then mark this done again. Nothing else was changed.`,
       );
+    }
+
+    const tool = ask.extra.meta?.tool as { name: string } | undefined;
+    if (tool && answer.kind === "needed" && answer.decision === "installed") {
+      // premise checks the program can be run where the agents run (decision 0300).
+      const check = checkProgram(tool.name, {
+        path: process.env.PATH,
+        dataFolder: this.config.data.folder,
+        home: homedir(),
+        claudeConfigFolder: this.config.agents.claude_config_folder,
+        extraDeniedPaths: this.config.agents.confinement.extra_denied_paths,
+      });
+      if (!check.found)
+        throw new ServiceError("INVALID", `${check.problem} Nothing else was changed.`);
+      ask.extra.meta = { ...ask.extra.meta, found: check.path };
     }
 
     if (ask.extra.meta?.gateRequest !== undefined && answer.kind === "approval") {
@@ -4063,6 +4170,11 @@ export class LineEngine implements IntakeLine {
         const extraText = extras.length > 0 ? `. ${extras.join(". ")}` : "";
         const alternative =
           typeof ask.extra.meta?.alternative === "string" ? ask.extra.meta.alternative : "";
+        // A choice against premise's recommendation keeps the person's why (decision 0300): from
+        // the card's reason box; with the box empty it is kept as "no reason given".
+        const recommended = ask.extra.bestAttempt;
+        const overruled = isOverrule(recommended, text);
+        const why = answer.kind === "text" ? (answer.reason?.trim() ?? "") : "";
         this.land(
           id,
           [
@@ -4070,13 +4182,15 @@ export class LineEngine implements IntakeLine {
             {
               op: "add",
               kind: "E",
-              text: `Outcome: ${text.replace(/[()]/g, "")}${notBuild && alternative ? `. Instead: ${alternative.replace(/[()]/g, "")}` : ""}${extraText}`,
+              text: `Outcome: ${text.replace(/[()]/g, "")}${notBuild && alternative && !text.includes(alternative) ? `. Instead: ${alternative.replace(/[()]/g, "")}` : ""}${extraText}`,
               from: OPERATOR,
             },
           ],
           "The operator decided what to do about what already exists.",
         );
+        const kept = overruled ? this.keepOverrule(id, recommended!, text, why) : null;
         return () => {
+          if (kept) this.overruleNoted(id, kept);
           const item = this.active(id);
           if (notBuild && item.parentId !== null) {
             this.premiseSays(
@@ -4122,7 +4236,7 @@ export class LineEngine implements IntakeLine {
       case "recovered-say-back":
         return this.recoveredSayBackEffects(software, ask, answer);
       case "milestones":
-        return this.milestoneEffects(software, items, answer);
+        return this.milestoneEffects(software, items, answer, ask);
       case "change-confirm":
         return this.changeConfirmEffects(software, ask, items, answer);
       case "change-notice":
@@ -4232,6 +4346,32 @@ export class LineEngine implements IntakeLine {
           }
         };
       }
+      case "condition": {
+        // A condition a must works only under, asked of the role who can meet it (decision 0300).
+        const must = ((ask.extra.meta?.must ?? []) as string[]).join(" and ");
+        const condition = String(ask.extra.meta?.condition ?? ask.title);
+        const met = answer.kind === "needed" && answer.decision === "done";
+        return () => {
+          recordEvent(this.db, {
+            softwareId: id,
+            module: "line",
+            kind: met ? "condition-met" : "condition-unmet",
+            reference: must,
+            detail: {
+              condition,
+              must: ask.extra.meta?.must ?? [],
+              ...(answer.kind === "needed" &&
+                answer.reason?.trim() && { why: answer.reason.trim() }),
+            },
+          });
+          this.premiseSays(
+            id,
+            met
+              ? `Noted: ${condition.replace(/[.\s]+$/, "")} is done, so ${must} can work. The checker checks it as usual.`
+              : `Noted: ${condition.replace(/[.\s]+$/, "")} cannot be done for now. premise builds ${must} anyway; the check says it could not be checked, and the report says what it needs.`,
+          );
+        };
+      }
       case "agent":
       default: {
         const said = answerWords(ask, answer);
@@ -4250,6 +4390,7 @@ export class LineEngine implements IntakeLine {
           };
         }
         return () => {
+          this.toolAnswered(software, ask, answer);
           const later = this.options.later.answered?.(ask, answer) ?? null;
           if (purpose === "agent" || later === null) {
             const answers = [...(this.state(id).answers ?? []), `${ask.title} → ${said}`].slice(
@@ -4267,6 +4408,42 @@ export class LineEngine implements IntakeLine {
         };
       }
     }
+  }
+
+  /**
+   * The person chose against premise's recommendation: their one line of why goes into the record
+   * as a Why item from them (decision 0300). Returns what the event and the say-back need.
+   */
+  private keepOverrule(
+    softwareId: string,
+    recommended: string,
+    chosen: string,
+    why: string,
+  ): { recommended: string; chosen: string; why: string; item: string | null } {
+    const [item] = this.land(
+      softwareId,
+      [{ op: "add", kind: "Y", text: overruleLine(recommended, chosen, why), from: OPERATOR }],
+      "The operator chose against premise's recommendation.",
+    );
+    return { recommended, chosen, why, item: item ?? null };
+  }
+
+  /** An overrule is noted for the report and for learning (0300). */
+  private overruleNoted(
+    softwareId: string,
+    kept: { recommended: string; chosen: string; why: string; item: string | null },
+  ): ChatMessage {
+    recordEvent(this.db, {
+      softwareId,
+      module: "line",
+      kind: "overruled",
+      reference: kept.item,
+      detail: kept,
+    });
+    return this.premiseSays(
+      softwareId,
+      `${kept.why ? `Kept as your reason${kept.item ? ` (${kept.item})` : ""}: ${kept.why}` : `Kept as an overrule with no reason given${kept.item ? ` (${kept.item})` : ""}.`} It comes first when premise says back what it understood, so you can still strike it.`,
+    );
   }
 
   /** Minutes one agent session takes, as premise measured it; the configured guess until then. */
@@ -4578,6 +4755,7 @@ export class LineEngine implements IntakeLine {
     software: Software,
     items: readonly DraftItem[],
     answer: AskAnswer,
+    ask: Ask,
   ): () => void {
     const id = software.id;
     const plan = this.readPlan(id) ?? { decisions: [], milestones: [], tasks: [] };
@@ -4625,8 +4803,10 @@ export class LineEngine implements IntakeLine {
       "The operator confirmed the plan's milestones.",
     );
     const milestoneIds = assigned.slice(decisions.length).filter((x): x is string => Boolean(x));
+    const conditionAnswers = this.conditionEffects(id, plan, ask, answer);
     return () => {
       this.setState(id, { proposed: undefined });
+      for (const line of conditionAnswers) this.premiseSays(id, line);
       const all = this.milestones(id);
       const waits = all.some((m) => m.wait);
       this.db
@@ -4652,6 +4832,69 @@ export class LineEngine implements IntakeLine {
       setWorkItem(this.db, piece.id, { state: "waiting" });
       this.beginItem(id, parts[0]!, "plan confirmed");
     };
+  }
+
+  /**
+   * The person's answer to each condition on the milestones question (decision 0300): kept as it
+   * is, the must struck, or checked first by the first build task. Returns what to say.
+   */
+  private conditionEffects(
+    softwareId: string,
+    plan: StoredPlan,
+    ask: Ask,
+    answer: AskAnswer,
+  ): string[] {
+    const conditions = (ask.extra.meta?.conditions ?? []) as {
+      key: string;
+      condition: string;
+      must: string[];
+    }[];
+    if (conditions.length === 0 || answer.kind !== "items") return [];
+    const said: string[] = [];
+    const strikes: Operation[] = [];
+    const checkFirst: string[] = [];
+    const live = new Set(this.recordLines(softwareId).map((i) => i.id));
+    for (const c of conditions) {
+      const a = answer.items.find((x) => x.key === c.key);
+      if (a?.decision === "strike") {
+        const reason = a.reason?.trim() || `it works only if ${c.condition}`;
+        for (const m of c.must.filter((x) => live.has(x))) {
+          strikes.push({ op: "strike", id: m, reason: `Struck at the plan: ${reason}` });
+        }
+        said.push(`Struck ${c.must.join(" and ")}: it is not built or checked.`);
+      } else if (a?.decision === "check") {
+        checkFirst.push(c.condition);
+        said.push(
+          `The builder first checks whether ${c.condition.replace(/[.\s]+$/, "")}, before building on it, and says what it found.`,
+        );
+      }
+    }
+    if (strikes.length > 0) {
+      this.land(
+        softwareId,
+        strikes,
+        "The operator struck these at the plan: they work only under a condition.",
+      );
+    }
+    if (checkFirst.length > 0 && plan.tasks.length > 0) {
+      const [first, ...rest] = plan.tasks;
+      const already = first!.check ?? "";
+      const before = checkFirst
+        .map(
+          (c) =>
+            `First check whether ${c.replace(/[.\s]+$/, "")}, before building on it, and say what you found in task_finish; if it does not hold, say so plainly and build what you can.`,
+        )
+        .filter((line) => !already.includes(line))
+        .join(" ");
+      this.writePlan(softwareId, {
+        ...plan,
+        tasks: [
+          before ? { ...first!, check: `${before}${already ? ` ${already}` : ""}` } : first!,
+          ...rest,
+        ],
+      });
+    }
+    return said;
   }
 
   /** Wait for work deferred until after a transaction committed. For tests and shutdown. */
@@ -4958,6 +5201,8 @@ export class LineEngine implements IntakeLine {
         );
         break;
       case "done":
+        // Allowing a host on a missing tool's card is said when it is chosen (decision 0300).
+        if (request.act === ALLOW_HOST) break;
         this.premiseSays(software.id, `Approved and done: ${request.outcome ?? request.action}`);
         break;
       case "unavailable":
@@ -5212,6 +5457,25 @@ export class LineEngine implements IntakeLine {
       );
       if (problems.length)
         return toolFail("MALFORMED", "Some decisions would not fit the record.", problems);
+      // A decision that makes a must work only under a condition names live must items (0300).
+      const musts = new Set(
+        this.recordLines(id)
+          .filter((i) => i.kind === "W" && i.marks.priority === "must")
+          .map((i) => i.id),
+      );
+      const wrongMusts = ds.flatMap((d, n) =>
+        (d.must ?? [])
+          .filter((m) => !musts.has(m))
+          .map(
+            (m) =>
+              `Decision ${n + 1} names ${m} in "must", but ${m} is not a live must item. Name only must items (${[...musts].join(", ") || "there are none"}), or leave "must" out.`,
+          ),
+      );
+      if (wrongMusts.length)
+        return toolFail("MALFORMED", "A decision's condition names the wrong items.", wrongMusts);
+      const native = dependencyProblems(ds);
+      if (native.length)
+        return toolFail("MALFORMED", "A decision needs to say how it installs.", native);
       if (milestones.length === 0) {
         return toolFail(
           "MALFORMED",
@@ -5270,64 +5534,77 @@ export class LineEngine implements IntakeLine {
     if (stage === "exists") {
       const items = readDraftItems(args.items ?? [], { defaultKind: "E", allowed: ["E"] });
       const outcome = typeof args.outcome === "string" ? args.outcome : "";
-      const recommended =
-        EXISTS_OUTCOMES.find((o) => o.toLowerCase() === outcome.toLowerCase()) ??
-        (/do not|don't/i.test(outcome)
-          ? EXISTS_OUTCOMES[3]
-          : /different/i.test(outcome)
-            ? EXISTS_OUTCOMES[2]
-            : /build on/i.test(outcome)
-              ? EXISTS_OUTCOMES[1]
-              : EXISTS_OUTCOMES[0]);
       const problems = this.dryRun(
         id,
         items.map((item) => addOperation({ item, text: item.text, edited: false })!),
       );
       if (problems.length)
         return toolFail("MALFORMED", "Some items would not fit the record.", problems);
-      const why =
-        typeof args.reason === "string" && args.reason.trim() ? ` ${args.reason.trim()}` : "";
+      const line = (value: unknown, max = 300) =>
+        typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, max) : "";
+      const why = line(args.reason, 600) ? ` ${line(args.reason, 600)}` : "";
       const takingOn = this.isRecovery(this.active(id));
-      const alternative =
-        typeof args.alternative === "string"
-          ? args.alternative.replace(/\s+/g, " ").trim().slice(0, 300)
-          : "";
-      const advice = takingOn
-        ? /no longer|unnecessary|not needed|stop|do not/i.test(outcome)
+      const alternative = line(args.alternative);
+      const deciding = line(args.deciding_question);
+      const decides = deciding ? ` What decides it: ${deciding.replace(/[.\s]+$/, "")}.` : "";
+      if (takingOn) {
+        const advice = /no longer|unnecessary|not needed|stop|do not/i.test(outcome)
           ? EXISTING_OUTCOMES[2]
           : /part|replace|use|build on/i.test(outcome)
             ? EXISTING_OUTCOMES[1]
-            : EXISTING_OUTCOMES[0]
-        : recommended;
+            : EXISTING_OUTCOMES[0];
+        const ask = createAsk(this.db, {
+          softwareId: id,
+          role: OPERATOR,
+          kind: "question",
+          stage: "exists",
+          title: "Is all of it still needed?",
+          instruction: `This is what exists now that could do part of its job${items.length ? "" : " (nothing was found)"}. premise recommends: ${advice}.${why}${decides} Pick one, or write your own answer.`,
+          items: items.map(toFindingItem),
+          extra: {
+            bestAttempt: advice,
+            choices: [...EXISTING_OUTCOMES],
+            meta: { purpose: "exists", items, job: job.id },
+          },
+        });
+        replace(ask);
+        return toolOk({
+          draft_id: ask.id,
+          status: "shown",
+          note: "The operator decides the outcome.",
+        });
+      }
+      // The choices say what they mean and change, and only those that apply are shown (0300).
+      const look = existsChoices({
+        recommended: outcomeFromWords(outcome),
+        ...(alternative && { alternative }),
+        ...(line(args.builds_on) && { base: line(args.builds_on) }),
+        ...(line(args.gap) && { gap: line(args.gap) }),
+      });
       // "Do not build" is the cheapest outcome of all, so it is said first and plainly (0192).
-      const notBuild = !takingOn && recommended === EXISTS_OUTCOMES[3];
+      const notBuild = /^do not build/i.test(look.recommended);
       const ask = createAsk(this.db, {
         softwareId: id,
         role: OPERATOR,
         kind: "question",
         stage: "exists",
-        title: takingOn
-          ? "Is all of it still needed?"
-          : notBuild
-            ? "premise recommends not building it: something already does this"
-            : "Build it, build on something, or not build it?",
-        instruction: takingOn
-          ? `This is what exists now that could do part of its job${items.length ? "" : " (nothing was found)"}. premise recommends: ${advice}.${why} Pick one, or write your own answer.`
-          : notBuild
-            ? `${alternative ? `Instead: ${alternative}. ` : ""}Something that already exists does the job, which is the cheapest outcome: nothing to build, check or keep running.${why} Pick "Do not build it" to stop here with a short report, or another choice to build it anyway. What was found is listed below.`
-            : `This is what already exists${items.length ? "" : " (nothing was found)"}. premise recommends: ${recommended}.${why} Pick one, or write your own answer.`,
+        title: notBuild
+          ? "premise recommends not building it: something already does this"
+          : look.choices.some((c) => /^Build it on top of/.test(c))
+            ? "Build it, build it on top of something, or not build it?"
+            : "Build it, or not build it?",
+        instruction: notBuild
+          ? `${alternative ? `Instead: ${alternative}. ` : ""}Something that already exists does the job, which is the cheapest outcome: nothing to build, check or keep running.${why}${decides} Each choice below says what it changes. If you choose another, say in one line why; premise keeps it. What was found is listed below.`
+          : `This is what already exists${items.length ? "" : " (nothing was found)"}. premise recommends: ${look.recommended}.${why}${decides} Each choice below says what it changes. If you choose another, say in one line why; premise keeps it.`,
         items: items.map(toFindingItem),
         extra: {
-          bestAttempt: advice,
-          choices: takingOn
-            ? [...EXISTING_OUTCOMES]
-            : notBuild
-              ? [EXISTS_OUTCOMES[3], ...EXISTS_OUTCOMES.slice(0, 3)]
-              : [...EXISTS_OUTCOMES],
+          bestAttempt: look.recommended,
+          choices: look.choices,
           meta: {
             purpose: "exists",
             items,
             job: job.id,
+            choiceNotes: look.notes,
             ...(alternative && { alternative }),
           },
         },
@@ -5385,6 +5662,27 @@ export class LineEngine implements IntakeLine {
     );
     if (problems.length)
       return toolFail("MALFORMED", "Some items would not fit the record.", problems);
+    // Words that leave a choice open stay open: an item resting on hedged words keeps the hedge
+    // rather than settling it to one reading (decision 0300).
+    const settled = items.filter(
+      (i) => i.from === OPERATOR && i.quote && isHedged(i.quote) && !keepsHedge(i.text),
+    );
+    if (settled.length) {
+      return toolFail(
+        "MALFORMED",
+        "Some items settle a choice the person left open. Keep it open and submit again.",
+        settled.map(
+          (i) =>
+            `"${i.text}" rests on the person's words "${i.quote}", which leave a choice open. Keep both readings, or the doubt, in the item, for example "Show the share per project, or perhaps per session; the operator is not sure which", rather than picking one.`,
+        ),
+      );
+    }
+    const quoted = items.map((i) => (i.quote ?? "").toLowerCase()).filter(Boolean);
+    const unsure = [
+      ...new Set(this.operatorSources(software).flatMap((source) => unsureSentences(source))),
+    ]
+      .filter((sentence) => !quoted.some((q) => sentence.toLowerCase().includes(q)))
+      .slice(0, 3);
     const piece = this.active(id);
     const changeItem = stage === "what" ? this.changeOf(piece) : null;
     if (changeItem) {
@@ -5422,6 +5720,10 @@ export class LineEngine implements IntakeLine {
       note: `The operator strikes, keeps or edits each item.${
         downgraded
           ? ` ${downgraded} item${downgraded === 1 ? "" : "s"} marked from: operator had no quote of at least three words (or a whole source shorter than that) that appears word for word in what the operator said, answered or edited, so ${downgraded === 1 ? "it was" : "they were"} marked assumed. To mark an item from the operator, give "quote": their exact words, copied from their description, a chat message, an answer or an edited item.`
+          : ""
+      }${
+        unsure.length
+          ? ` The person was unsure here: ${unsure.map((u) => `"${u}"`).join("; ")}. If an item rests on that, keep the choice open in it and submit again; do not settle it to one reading.`
           : ""
       }`,
     });
@@ -5550,6 +5852,9 @@ export class LineEngine implements IntakeLine {
     steps: string[],
     args: Record<string, unknown>,
   ): ToolEnvelope {
+    if (typeof args.tool === "string" && args.tool.trim()) {
+      return this.askForTool(binding, job, role, steps, args);
+    }
     const what =
       typeof args.what === "string" && args.what.trim()
         ? args.what.trim().replace(/[.\s]+$/, "")
@@ -5593,6 +5898,137 @@ export class LineEngine implements IntakeLine {
       status: "asked",
       note: `The ${roleWords(role)} is asked to do it. Do not do it yourself or wait: finish what you can without it, and end with task_finish "waiting-for-person". The answer reaches your next attempt${key ? `; the secret is in the software's secrets file, which the running software gets as ${key} and you never see` : ""}.`,
     });
+  }
+
+  /**
+   * A program, download or access the agents lack (decision 0300; the owner: "not only the agent
+   * can't access godot, it can't download it either"). One ask per missing tool and software, with
+   * real choices: allow the one host it comes from for this software, install it (premise checks
+   * the agents can run it), or go on without it (the checker marks what needs it could not check).
+   */
+  private askForTool(
+    binding: ToolBinding,
+    job: Job,
+    role: string,
+    steps: string[],
+    args: Record<string, unknown>,
+  ): ToolEnvelope {
+    const name = String(args.tool).trim();
+    if (!PROGRAM_NAME.test(name)) {
+      return toolFail(
+        "MALFORMED",
+        `Give "tool" as the command that runs it, such as "godot", with no path or spaces; you gave "${name.slice(0, 60)}".`,
+      );
+    }
+    const rawHost = typeof args.host === "string" ? args.host.trim() : "";
+    const host = rawHost ? hostName(rawHost) : null;
+    if (rawHost && !host) {
+      return toolFail(
+        "MALFORMED",
+        `Give "host" as one public host name, such as "downloads.example.org", or leave it out; "${rawHost.slice(0, 80)}" is not one.`,
+      );
+    }
+    const why =
+      typeof args.why === "string" && args.why.trim()
+        ? args.why.trim().replace(/\s+/g, " ").slice(0, 300)
+        : typeof args.what === "string"
+          ? args.what.trim().slice(0, 300)
+          : "";
+    const open = listAsks(this.db, { softwareId: job.softwareId, status: "open" }).find(
+      (a) => (a.extra.meta?.tool as { name?: string } | undefined)?.name === name,
+    );
+    if (open) {
+      return toolOk({
+        ask_id: open.id,
+        status: "asked",
+        note: `${name} was already asked for. Do not ask again: finish what you can without it, and end with task_finish "waiting-for-person".`,
+      });
+    }
+    const software = this.require(job.softwareId);
+    const ask = createAsk(this.db, {
+      softwareId: job.softwareId,
+      role,
+      kind: "needed",
+      stage: job.stage,
+      title: `The agents need ${name}, and it is not here`,
+      instruction: `The ${binding.role} needs ${name} to go on with ${stageName(job.stage ?? "")}${why ? `: ${why.replace(/[.\s]+$/, "")}` : ""}. Agents cannot install or download programs themselves. ${host ? `Allow ${host} and the agents fetch it themselves, for ${software.name} only; or install` : "Install"} it yourself and premise checks the agents can run it; or go on without it, and whatever needs it is marked "could not check". Only this work waits.`,
+      items: steps.map((text, i) => ({ key: `s${i + 1}`, text, mark: "assumed" as const })),
+      waitingJob: job.id,
+      extra: {
+        meta: {
+          purpose: "agent",
+          job: job.id,
+          act: true,
+          tool: { name, ...(host && { host }), ...(why && { why }) },
+        },
+      },
+    });
+    return toolOk({
+      ask_id: ask.id,
+      status: "asked",
+      note: `The ${roleWords(role)} is asked for ${name}. Do not wait: finish what you can without it, and end with task_finish "waiting-for-person". The answer reaches your next attempt.`,
+    });
+  }
+
+  /** What the person chose on a card asking for a missing tool (decision 0300). */
+  private toolAnswered(software: Software, ask: Ask, answer: AskAnswer): void {
+    const tool = ask.extra.meta?.tool as { name: string; host?: string; why?: string } | undefined;
+    if (!tool || answer.kind !== "needed") return;
+    const id = software.id;
+    if (answer.decision === "allow" && tool.host) {
+      this.options.gate.approvedInSession({
+        softwareId: id,
+        kind: "network",
+        act: ALLOW_HOST,
+        perform: ALLOW_HOST,
+        action: `Let the agents working on ${software.name} reach ${tool.host}, to get ${tool.name}.`,
+        why: tool.why || `The agents need ${tool.name}.`,
+        items: [tool.host],
+        requestedBy: "you, on the card asking for a missing tool",
+        role: ask.role,
+        stage: ask.stage,
+        card: {
+          title: `Allow the agents to reach ${tool.host}?`,
+          reality: {
+            real: true,
+            text: `Agents working on ${software.name}, and no other software, may reach ${tool.host} from their next session on.`,
+          },
+        },
+      });
+      this.premiseSays(
+        id,
+        `Allowed: agents working on ${software.name}, and no other software, may now reach ${tool.host}, from their next session on. premise did not need restarting. This is recorded on the Line tab with your other approvals.`,
+      );
+      return;
+    }
+    if (answer.decision === "installed") {
+      const found = ask.extra.meta?.found as string | undefined;
+      recordEvent(this.db, {
+        softwareId: id,
+        module: "line",
+        kind: "tool-installed",
+        reference: tool.name,
+        detail: { tool: tool.name, path: found ?? null },
+      });
+      this.premiseSays(
+        id,
+        `premise found ${tool.name}${found ? ` at ${found}` : ""}, where the agents can run it. The work that needs it goes on.`,
+      );
+      return;
+    }
+    if (answer.decision === "without") {
+      recordEvent(this.db, {
+        softwareId: id,
+        module: "line",
+        kind: "tool-without",
+        reference: tool.name,
+        detail: { tool: tool.name, why: tool.why ?? null },
+      });
+      this.premiseSays(
+        id,
+        `Going on without ${tool.name}. The agents do what they can without it, and the check marks whatever needs it as "could not check", saying what you would try.`,
+      );
+    }
   }
 
   /** gate_request: a floor action goes to the gate. */
@@ -5653,6 +6089,7 @@ export class LineEngine implements IntakeLine {
     if (!Array.isArray(args.reviews))
       return toolFail("MALFORMED", 'Give "reviews": a list of verdicts.');
     const objections: string[] = [];
+    let agreed = 0;
     for (const r of args.reviews as Record<string, unknown>[]) {
       const verdict = String(r?.verdict ?? "");
       if (!["agree", "object", "consistent", "conflicting"].includes(verdict)) {
@@ -5661,6 +6098,7 @@ export class LineEngine implements IntakeLine {
           'Each review needs a verdict: "agree" or "object" for a decision, "consistent" or "conflicting" for a change.',
         );
       }
+      if (verdict === "agree" || verdict === "consistent") agreed += 1;
       if (verdict === "object" || verdict === "conflicting") {
         objections.push(
           `${typeof r.decision === "string" ? `${r.decision}: ` : ""}${typeof r.reasons === "string" ? r.reasons : "no reason given"}`,
@@ -5668,7 +6106,9 @@ export class LineEngine implements IntakeLine {
       }
     }
     const review = this.state(job.softwareId).review ?? { round: 1, objections: [] };
-    this.setState(job.softwareId, { review: { ...review, objections, submitted: true } });
+    this.setState(job.softwareId, {
+      review: { ...review, objections, agreed, submitted: true },
+    });
     return toolOk({ status: "received", objections: objections.length });
   }
 

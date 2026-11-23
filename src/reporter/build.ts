@@ -3,6 +3,7 @@ import { ownFiguresWords } from "../shared/own-figures.js";
 import { stageName } from "../shared/stages.js";
 import { roleWords } from "../shared/roles.js";
 import type { Facts } from "./facts.js";
+import { OVERRULE_LINE } from "../line/exists-outcomes.js";
 
 function plural(n: number, word: string): string {
   return `${n} ${word}${n === 1 ? "" : "s"}`;
@@ -82,7 +83,18 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
       evidence: `record item ${facts.milestone.id}`,
     });
   }
-  const changedNow = (i: (typeof facts.items)[number]) => !lastDay || i.marks.date >= lastDay;
+  // Where the person chose against premise's recommendation, the report always says so, with
+  // their why (decision 0300), whenever it was decided.
+  const overruled = (i: (typeof facts.items)[number]) =>
+    i.kind === "Y" && OVERRULE_LINE.test(i.text);
+  for (const item of facts.items.filter(overruled)) {
+    decided.push({
+      text: sentence(item.text),
+      evidence: `record item ${item.id}, ${item.file}`,
+    });
+  }
+  const changedNow = (i: (typeof facts.items)[number]) =>
+    !overruled(i) && (!lastDay || i.marks.date >= lastDay);
   // What people decided leads; premise's own assumptions and choices follow, folded on the page.
   const byPeople = (i: (typeof facts.items)[number]) =>
     i.marks.from !== "assumed" && i.marks.from !== "recovered" ? 0 : 1;
@@ -99,7 +111,7 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
     };
   };
   const now = [...facts.items.filter(changedNow)].sort((x, y) => byPeople(x) - byPeople(y));
-  const before = facts.items.filter((i) => !changedNow(i));
+  const before = facts.items.filter((i) => !changedNow(i) && !overruled(i));
   const ownNow = now.filter((i) => byPeople(i) === 1);
   for (const item of options.detail ? now : now.filter((i) => byPeople(i) === 0)) {
     decided.push(itemLine(item, false));
@@ -275,7 +287,7 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
       });
     } else if (verdict.verdict === "could-not-check") {
       failed.push({
-        text: `Could not be checked: ${sentence(item.text)}${verdict.evidence ? ` ${sentence(verdict.evidence)}` : ""}`,
+        text: `Could not be checked: ${sentence(item.text)}${verdict.evidence ? ` ${sentence(verdict.evidence)}` : ""}${verdict.tryItOn ? ` To check it, try ${sentence(verdict.tryItOn)}` : ""}`,
         evidence: `check of ${item.id}`,
       });
     } else if (verdict.madeUp !== undefined) {

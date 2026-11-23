@@ -37,6 +37,7 @@ import { type Database, now, recordEvent } from "../storage/database.js";
 import { RecordWriter, droppedLine } from "../line/record-writer.js";
 import { answerWords } from "../line/answers.js";
 import { activeWorkItem } from "../line/work-items.js";
+import { ASSUMED_DECISION } from "../line/draft-items.js";
 import { type Taste, roleWords } from "../taste/taste.js";
 
 /**
@@ -563,7 +564,49 @@ export class BuildCheckRun implements LaterStages {
   private isMust(softwareId: string, id: string): boolean {
     const item = this.items(softwareId).find((i) => i.id === id);
     if (!item) return true;
+    // A decision the plan assumed is judged and reported, but it is not something the builder
+    // can fix, so it never holds up landing (decision 0300).
+    if (item.kind === "D" && ASSUMED_DECISION.test(item.text)) return false;
     return item.kind !== "W" || item.marks.priority === "must";
+  }
+
+  /** The plan's decisions that rest on something not checked or on a condition (decision 0300). */
+  private assumedDecisions(softwareId: string): string[] {
+    return this.items(softwareId)
+      .filter((i) => i.kind === "D" && ASSUMED_DECISION.test(i.text))
+      .map((i) => i.id);
+  }
+
+  /**
+   * What the agents do not have, by the person's choice or because a person could not provide it
+   * (decision 0300): a tool they went on without, or a condition a must needs that could not be met.
+   */
+  private notAvailable(softwareId: string): string {
+    const rows = this.db
+      .prepare(
+        `SELECT kind, reference, detail FROM events WHERE software_id = ? AND module = 'line'
+           AND kind IN ('tool-without', 'tool-installed', 'condition-unmet', 'condition-met') ORDER BY id`,
+      )
+      .all(softwareId) as { kind: string; reference: string | null; detail: string | null }[];
+    const lines = new Map<string, string | null>();
+    for (const row of rows) {
+      const detail = JSON.parse(row.detail ?? "{}") as { tool?: string; condition?: string };
+      const key = `${row.kind.startsWith("tool") ? "tool" : "condition"}:${row.reference}`;
+      if (row.kind === "tool-without") {
+        lines.set(
+          key,
+          `- ${detail.tool}: not available here; the person chose to go on without it.`,
+        );
+      } else if (row.kind === "condition-unmet") {
+        lines.set(
+          key,
+          `- ${row.reference} works only if ${detail.condition}, and a person could not do that yet.`,
+        );
+      } else {
+        lines.set(key, null);
+      }
+    }
+    return [...lines.values()].filter((l): l is string => l !== null).join("\n");
   }
 
   // ---- Scenarios ------------------------------------------------------------------------------
@@ -947,7 +990,11 @@ export class BuildCheckRun implements LaterStages {
   }
 
   private checkJob(softwareId: string, state: BuildState): EnqueueInput {
-    const items = this.checkedItems(softwareId, state);
+    // The checker also judges the decisions the plan assumed without checking (decision 0300).
+    const items = [
+      ...this.checkedItems(softwareId, state),
+      ...(state.change ? [] : this.assumedDecisions(softwareId)),
+    ].filter((id, n, all) => all.indexOf(id) === n);
     const commit = state.head!.commit;
     state.checks.push({ round: state.round, job: null, commit, status: "checking", when: now() });
     this.save(softwareId, state);
@@ -975,6 +1022,7 @@ export class BuildCheckRun implements LaterStages {
             working_copy: "the folder you start in, a clean copy of that commit",
             evidence_folder: `${EVIDENCE_FOLDER}/ inside your working copy (premise keeps it)`,
             check_notes: state.checkNotes.join("\n") || "none",
+            not_available: this.notAvailable(softwareId) || "none",
             budget: this.budgetText("check"),
           },
           softwareId,
@@ -1273,6 +1321,17 @@ export class BuildCheckRun implements LaterStages {
       (v) => v.verdict === "met" && v.judgedOn === "made-up",
     ).length;
     const tally = `${counts.met} met${madeUp > 0 ? ` (${madeUp} of them only on made-up data)` : ""}, ${counts["not-met"]} not met, ${counts["could-not-check"]} could not check`;
+    // A decision the plan assumed and the checker found false is said at once (decision 0300).
+    const assumed = new Set(this.assumedDecisions(id));
+    const broken = [...verdicts.entries()].filter(
+      ([item, v]) => v.verdict === "not-met" && assumed.has(item),
+    );
+    if (broken.length > 0) {
+      this.say(
+        id,
+        `The check found that ${broken.length === 1 ? "something the plan assumed without checking does not hold" : `${broken.length} things the plan assumed without checking do not hold`}: ${broken.map(([item, v]) => `${item}: ${v.evidence}`).join("; ")}. That is not the builder's to fix, so it does not hold up landing; it is in the report. If it matters, say in chat what to do instead, or send the software back to Plan.`,
+      );
+    }
     if (failing.length === 0 && blocking.length === 0) {
       return this.noFailureFound(job, state, check, verdicts, tally);
     }
@@ -1917,11 +1976,16 @@ export class BuildCheckRun implements LaterStages {
         );
       if (judgedOn === null) {
         problems.push(
-          `${where}: say what it was judged on. Add "judged_on": "real" (the real data, service or environment the software is for) or "made-up" (stand-ins only); with "made-up" also add "try_it_on": what a person should try it on. Example: { "item": "W-1", "verdict": "met", "evidence": "...", "judged_on": "made-up", "try_it_on": "a real Claude Code status line" }.`,
+          `${where}: say what it was judged on. Add "judged_on": "real" (the real data, service or environment the software is for) or "made-up" (stand-ins only). Example: { "item": "W-1", "verdict": "met", "evidence": "...", "judged_on": "real" }.`,
         );
-      } else if (judgedOn === "made-up" && !tryItOn) {
+      } else if (verdict === "met" && judgedOn === "made-up") {
+        // The real data, service or tool was out of reach: that is could-not-check (0300).
         problems.push(
-          `${where}: judged on made-up data, so add "try_it_on": what a person should try it on, such as "a real Claude Code status line".`,
+          `${where}: met on made-up data only is not met. When the real data, service or tool was out of your reach, the verdict is could-not-check, with "try_it_on": what a person should try. Example: { "item": "${item || "W-1"}", "verdict": "could-not-check", "evidence": "Worked on my own sample input only; the real status line was not reachable here.", "judged_on": "made-up", "try_it_on": "one real session with the status line set" }. If what you used is the real thing the software is for, say "judged_on": "real".`,
+        );
+      } else if ((judgedOn === "made-up" || verdict === "could-not-check") && !tryItOn) {
+        problems.push(
+          `${where}: add "try_it_on": what a person should try or do to check it, such as "one real session with the status line set".`,
         );
       }
       clean.push({ item, verdict: verdict as VerdictValue, evidence, judgedOn, tryItOn });
@@ -1990,7 +2054,7 @@ export class BuildCheckRun implements LaterStages {
         verdict,
         evidence,
         ...(judgedOn && { judgedOn }),
-        ...(judgedOn === "made-up" && tryItOn && { tryItOn }),
+        ...(tryItOn && (judgedOn === "made-up" || verdict === "could-not-check") && { tryItOn }),
         commit: job.payload.commit ?? null,
         job: job.id,
         round: job.payload.round ?? null,

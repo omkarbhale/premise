@@ -142,6 +142,7 @@ export const PREMISE_TOOLS_BY_ROLE: Record<AgentRole, readonly string[]> = {
     "record_read",
     "record_propose",
     "draft_submit",
+    "page_read",
     "ask",
     "gate_request",
     "progress",
