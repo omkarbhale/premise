@@ -645,7 +645,7 @@ export const SETTINGS: readonly Setting[] = [
     default: 10,
     check: summarised(wholeNumber(1, 120), "1 to 120"),
     meaning:
-      "How long premise waits for GitHub (creating a repository, or the first push to it) before it gives up and says so.",
+      "How long premise waits for GitHub (creating a repository, or a push to it) before it gives up and says so.",
     record: "0260",
   },
   {
