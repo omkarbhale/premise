@@ -1204,7 +1204,7 @@ export class LineEngine implements IntakeLine {
         .groups(softwareId)
         .map((g) => ({ pieces: g.pieces, about: about(g.shared) })),
       notice:
-        notice && long
+        notice && long?.long
           ? {
               items: long.items,
               total: long.total,

@@ -459,7 +459,12 @@ export class LineQueue {
   /** The notice to show, while it waits for the person's answer. */
   notice(softwareId: string): { given: string } | null {
     const notice = this.rootNotes(softwareId).notice;
-    return notice && !notice.answered ? { given: notice.given } : null;
+    if (!notice) return null;
+    if (!this.longQueue(softwareId).long) {
+      this.setRootNotes(softwareId, { notice: undefined });
+      return null;
+    }
+    return notice.answered ? null : { given: notice.given };
   }
 
   /**

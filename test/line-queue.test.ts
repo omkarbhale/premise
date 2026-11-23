@@ -334,6 +334,26 @@ describe("the line's queue", () => {
     expect(() => queue.answerNotice(software.id, "leave")).toThrow(/already answered/);
   });
 
+  it("drops the notice once the queue is short again, so a later long queue is said again", () => {
+    const { db, queue, add, software } = setUp({
+      env: { PREMISE_LINE__QUEUE_NOTICE_ITEMS: "2" },
+    });
+    const said = () =>
+      listChatMessages(db, software.id).filter((m) => m.text.includes("changes are waiting"));
+    const works = [1, 2, 3].map((i) => {
+      const w = add(`Change ${i}`).work;
+      queue.afterTaken(software.id);
+      return w;
+    });
+    expect(queue.notice(software.id)).not.toBeNull();
+    setWorkItem(db, works[0]!.id, { state: "active" });
+    expect(queue.notice(software.id)).toBeNull();
+    add("Change 4");
+    queue.afterTaken(software.id);
+    expect(said()).toHaveLength(2);
+    expect(queue.notice(software.id)).not.toBeNull();
+  });
+
   it("never holds the only waiting change, even when its estimate is over the limit", () => {
     const { db, queue, add, software, held } = setUp({
       env: { PREMISE_LINE__QUEUE_NOTICE_DAYS: "1" },
