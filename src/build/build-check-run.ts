@@ -1823,7 +1823,8 @@ export class BuildCheckRun implements LaterStages {
           : "";
       const evidence = typeof v.evidence === "string" ? v.evidence.trim() : "";
       const judgedOn = v.judged_on === "real" || v.judged_on === "made-up" ? v.judged_on : null;
-      const tryItOn = typeof v.try_it_on === "string" && v.try_it_on.trim() ? v.try_it_on.trim() : null;
+      const tryItOn =
+        typeof v.try_it_on === "string" && v.try_it_on.trim() ? v.try_it_on.trim() : null;
       const where = `Verdict ${n + 1}${item ? ` (${item})` : ""}`;
       if (!known.has(item)) problems.push(`${where}: name a record item, such as W-1.`);
       if (!["met", "not-met", "could-not-check"].includes(verdict)) {

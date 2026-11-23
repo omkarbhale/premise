@@ -225,7 +225,13 @@ export function readVerdicts(db: Database, softwareId: string): VerdictFact[] {
   const latest = new Map<string, VerdictFact>();
   for (const row of rows) {
     if (!row.reference || !row.detail) continue;
-    let detail: { verdict?: string; evidence?: string; commit?: string; judgedOn?: string; tryItOn?: string };
+    let detail: {
+      verdict?: string;
+      evidence?: string;
+      commit?: string;
+      judgedOn?: string;
+      tryItOn?: string;
+    };
     try {
       detail = JSON.parse(row.detail) as typeof detail;
     } catch {

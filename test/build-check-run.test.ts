@@ -376,7 +376,9 @@ describe("the checker's scenarios", () => {
       { tool: "scenario_write", code: "NOT_ALLOWED" },
     ]);
     expect(tried.length).toBeGreaterThanOrEqual(7);
-    expect(tried.slice(2).every((t) => t.tool === "verdict_submit" && t.code === "MALFORMED")).toBe(true);
+    expect(tried.slice(2).every((t) => t.tool === "verdict_submit" && t.code === "MALFORMED")).toBe(
+      true,
+    );
     expect(result.stage).toBe("intake");
   }, 60_000);
 });
