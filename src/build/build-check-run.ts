@@ -1509,7 +1509,12 @@ export class BuildCheckRun implements LaterStages {
     const head = keeper.git.headCommit(repo) ?? merged;
     if (keeper.git.remoteUrl(repo, "origin") !== undefined) {
       try {
-        const failures = keeper.pushChecked(repo, "origin", this.config.record.default_branch);
+        const failures = keeper.pushChecked(
+          repo,
+          "origin",
+          this.config.record.default_branch,
+          this.config.github.timeout_minutes * 60_000,
+        );
         if (failures.length) {
           notes.push(
             `It was not pushed to the second copy: ${failures.length} commit(s) failed the trace check.`,
@@ -1518,7 +1523,12 @@ export class BuildCheckRun implements LaterStages {
           notes.push("It is pushed to the software's second copy.");
         }
       } catch (error) {
-        notes.push(`It was not pushed to the second copy: ${(error as Error).message}`);
+        const message = (error as Error).message;
+        notes.push(
+          message.includes("took longer")
+            ? "Pushing to the second copy took too long and was stopped. premise pushes again after the next change lands."
+            : `It was not pushed to the second copy: ${message}`,
+        );
       }
     }
     recordEvent(this.db, {

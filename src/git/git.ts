@@ -84,7 +84,7 @@ export class Git {
   }
 
   /** Run git in a folder and return what it printed. */
-  run(cwd: string, args: string[]): string {
+  run(cwd: string, args: string[], timeoutMs?: number): string {
     try {
       return execFileSync(
         "git",
@@ -95,10 +95,23 @@ export class Git {
           encoding: "utf8",
           stdio: ["ignore", "pipe", "pipe"],
           maxBuffer: 64 * 1024 * 1024,
+          ...(timeoutMs ? { timeout: timeoutMs } : {}),
         },
       );
     } catch (error) {
-      const failure = error as { stderr?: string; stdout?: string; message: string };
+      const failure = error as {
+        stderr?: string;
+        stdout?: string;
+        message: string;
+        killed?: boolean;
+        code?: string;
+      };
+      if (timeoutMs && (failure.killed || failure.code === "ETIMEDOUT")) {
+        throw new GitError(
+          "GIT_FAILED",
+          `git ${args[0] ?? ""} took longer than ${Math.max(1, Math.round(timeoutMs / 60_000))} minute(s) and was stopped`,
+        );
+      }
       const said = (failure.stderr || failure.stdout || failure.message).toString().trim();
       throw new GitError("GIT_FAILED", `git ${args[0] ?? ""} failed: ${said}`);
     }
@@ -225,12 +238,16 @@ export class Git {
   }
 
   /** Push a branch. Never forced: a remote that has moved on refuses, and premise says so. */
-  push(cwd: string, remote: string, branch: string): void {
+  push(cwd: string, remote: string, branch: string, timeoutMs?: number): void {
     if (branch.startsWith("+") || remote.startsWith("-") || branch.startsWith("-")) {
       throw new GitError("NOT_ALLOWED", "premise never forces a push.");
     }
     try {
-      this.run(cwd, ["push", "--quiet", remote, `refs/heads/${branch}:refs/heads/${branch}`]);
+      this.run(
+        cwd,
+        ["push", "--quiet", remote, `refs/heads/${branch}:refs/heads/${branch}`],
+        timeoutMs,
+      );
     } catch (error) {
       throw new GitError(
         "PUSH_REFUSED",
