@@ -652,6 +652,39 @@ describe("chat and stage problems", () => {
     expect((await lineAsk(app, id)).title).toBe("Why build it: is this right?");
   });
 
+  it("marks a drafted line as the operator's only when it quotes what they said, and tells the drafter what to supply", async () => {
+    const script: AgentScript = {
+      rules: [
+        {
+          when: { task: "draft", stage: "why" },
+          calls: [
+            {
+              tool: "draft_submit",
+              arguments: {
+                stage: "why",
+                items: [
+                  { text: "Keeping a list matters.", from: "operator", quote: "I keep my reading list" },
+                  { text: "Reading is a habit worth supporting.", from: "operator" },
+                  { text: "A friend should see it.", from: "operator", quote: "share it with a friend" },
+                ],
+              },
+            },
+          ],
+          end: { outcome: "done" },
+        },
+        ...standInScript(0).rules,
+      ],
+    };
+    const app = await testApp({}, { script });
+    const id = await start(app);
+    const why = await lineAsk(app, id);
+    expect(why.items.map((i) => i.mark)).toEqual(["from-role", "assumed", "assumed"]);
+    expect(why.items[0]!.detail).toContain("I keep my reading list");
+    const reply = app.runner.calls.find((c) => c.tool === "draft_submit")!.result;
+    expect(JSON.stringify(reply)).toContain("quote");
+    expect(id).toBeTruthy();
+  });
+
   it("refuses a draft that does not fit the record, and tells the agent why", async () => {
     const script: AgentScript = {
       rules: [

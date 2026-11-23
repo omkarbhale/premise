@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  checkOperatorWords,
-  inOwnWords,
+  checkOperatorQuotes,
   readDraftItems,
   sameWords,
   toAskItem,
@@ -20,33 +19,43 @@ describe("draft items", () => {
   });
 });
 
-describe("provenance: from operator only for the operator's own words", () => {
-  const said = "A small page where I keep my reading list, with the books I want to read next.";
-  it("keeps the operator's mark on their own words, and marks what was added as assumed", () => {
-    const items = checkOperatorWords(
+describe("provenance: from operator only with a quote the operator said", () => {
+  const sources = [
+    "A small page where I keep my reading list, with the books I want to read next.",
+    "Make it say Welcome back at the top",
+  ];
+  it("keeps the mark on a true quote, from any source, however it is spaced or cased", () => {
+    const { items, downgraded } = checkOperatorQuotes(
+      [
+        { text: "Keep a reading list.", from: "operator", quote: "where I keep my  reading LIST" },
+        { text: "A greeting.", from: "operator", quote: "say Welcome back at the top" },
+      ],
+      sources,
+    );
+    expect(items.map((i) => i.from)).toEqual(["operator", "operator"]);
+    expect(downgraded).toBe(0);
+  });
+
+  it("marks a paraphrase with no quote, or a quote that is not there, as assumed", () => {
+    const { items, downgraded } = checkOperatorQuotes(
       [
         { text: "Keep my reading list on a small page.", from: "operator" },
-        { text: "Books I want to read next.", from: "operator" },
-        { text: "Share the list with friends by email link.", from: "operator" },
+        { text: "Share the list with friends.", from: "operator", quote: "share it with friends" },
         { text: "Export to a spreadsheet.", from: "assumed" },
       ],
-      said,
+      sources,
     );
-    expect(items.map((i) => i.from)).toEqual(["operator", "operator", "assumed", "assumed"]);
+    expect(items.map((i) => i.from)).toEqual(["assumed", "assumed", "assumed"]);
+    expect(items.some((i) => i.quote)).toBe(false);
+    expect(downgraded).toBe(2);
   });
 
-  it("keeps a plain paraphrase of the operator's words as theirs", () => {
-    const idea =
-      "A small command-line tool that counts the lines, words and characters of a text file.";
-    expect(inOwnWords("It prints the number of lines and characters in a text file.", idea)).toBe(
-      true,
+  it("shows the quote behind the item's details", () => {
+    const [item] = readDraftItems(
+      [{ text: "Keep a list.", from: "operator", quote: "I keep my reading list" }],
+      { defaultKind: "W", allowed: ["W"] },
     );
-  });
-
-  it("treats a line with a clause the drafter added as not the operator's own", () => {
-    expect(
-      inOwnWords("Keep my reading list, synced across devices through a cloud account.", said),
-    ).toBe(false);
+    expect(toAskItem(item!).detail).toContain("I keep my reading list");
   });
 });
 

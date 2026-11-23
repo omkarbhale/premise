@@ -113,7 +113,7 @@ import {
   DraftError,
   addOperation,
   applyAnswers,
-  checkOperatorWords,
+  checkOperatorQuotes,
   readDraftItems,
   sameWords,
   sizeFrom,
@@ -4277,15 +4277,28 @@ export class LineEngine implements IntakeLine {
   }
 
   /**
-   * Everything the operator has said about a software in their own words: the first description,
-   * the words of the piece of work, and their chat messages. What a drafted item may claim as theirs.
+   * Everything the operator has said about a software in their own words, one source each: the
+   * first description, the words of the piece of work, their chat messages, and what they answered
+   * or edited on a page. What a drafted item may quote to count as theirs.
    */
-  private operatorSaid(software: Software): string {
+  private operatorSources(software: Software): string[] {
     const piece = this.active(software.id);
     const chat = listChatMessages(this.db, software.id)
       .filter((m) => m.author === "person")
       .map((m) => m.text);
-    return [software.idea, piece.words ?? "", ...chat].join("\n");
+    const answered = listAsks(this.db, { softwareId: software.id, status: "answered" }).flatMap(
+      (ask) => {
+        const a = ask.answer;
+        if (!a) return [];
+        if (a.kind === "items")
+          return a.items.flatMap((i) =>
+            i.decision === "edit" ? [i.text] : i.decision === "strike" && i.reason ? [i.reason] : [],
+          );
+        if (a.kind === "text") return [a.text, ...(a.reason ? [a.reason] : [])];
+        return [];
+      },
+    );
+    return [software.idea, piece.words ?? "", ...chat, ...answered].filter((t) => t.trim());
   }
 
   private dryRun(softwareId: string, operations: Operation[]): string[] {
@@ -4482,14 +4495,14 @@ export class LineEngine implements IntakeLine {
     }
 
     const kinds = STAGE_KINDS[stage];
-    const items = checkOperatorWords(
+    const { items, downgraded } = checkOperatorQuotes(
       readDraftItems(args.items, {
         defaultKind: kinds.kind,
         allowed: kinds.allowed,
         allowSize: stage === "why",
         ...(stage === "why" && { max: this.config.line.why_items_max + 1 }),
       }),
-      this.operatorSaid(software),
+      this.operatorSources(software),
       OPERATOR,
     );
     const problems = this.dryRun(
@@ -4522,7 +4535,11 @@ export class LineEngine implements IntakeLine {
     return toolOk({
       draft_id: ask.id,
       status: "shown",
-      note: "The operator strikes, keeps or edits each item.",
+      note: `The operator strikes, keeps or edits each item.${
+        downgraded
+          ? ` ${downgraded} item${downgraded === 1 ? "" : "s"} marked from: operator had no quote that appears word for word in what the operator said, answered or edited, so ${downgraded === 1 ? "it was" : "they were"} marked assumed. To mark an item from the operator, give "quote": their exact words, copied from their description, a chat message, an answer or an edited item.`
+          : ""
+      }`,
     });
   }
 

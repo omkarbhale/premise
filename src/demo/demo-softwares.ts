@@ -10,6 +10,8 @@ import type { ScenarioSpec } from "./scripted-work.js";
 export interface DraftLine {
   text: string;
   from?: "operator" | "assumed" | "suggestion";
+  /** For an item from the operator: their words in the idea it rests on, word for word. */
+  quote?: string;
   kind?: string;
   priority?: "must" | "should" | "could";
 }
@@ -128,6 +130,7 @@ export const COUNT_DEMO: DemoSoftware = {
     {
       text: "Checking the length of a text means opening an editor today.",
       from: "operator",
+      quote: "check the length of what I write without opening an editor",
     },
     { text: "Word limits come up often when writing.", from: "assumed" },
     { text: "Size: small. One command and short stages.", from: "assumed", kind: "size" },
@@ -146,16 +149,19 @@ export const COUNT_DEMO: DemoSoftware = {
       priority: "must",
       text: "It prints the number of lines and characters in a text file it is given.",
       from: "operator",
+      quote: "counts the lines, words and characters of a text file",
     },
     {
       priority: "must",
       text: "It prints the number of words in that file; words are separated by any spaces or line breaks.",
       from: "operator",
+      quote: "counts the lines, words and characters of a text file",
     },
     {
       priority: "should",
       text: "It says plainly what went wrong when the file cannot be read.",
       from: "operator",
+      quote: "say plainly when it cannot read one",
     },
     {
       priority: "could",
@@ -315,7 +321,7 @@ export const READING_LIST_DEMO: DemoSoftware = {
   title: "a small web app",
   idea: "A small web page where I keep the books I want to read. I type a title, add it, and see the whole list on the same page, so I stop losing book recommendations in chat messages.",
   why: [
-    { text: "Book recommendations get lost in chat messages.", from: "operator" },
+    { text: "Book recommendations get lost in chat messages.", from: "operator", quote: "stop losing book recommendations in chat messages" },
     { text: "A list kept in one place is looked at more often.", from: "assumed" },
     { text: "Size: small. One page and short stages.", from: "assumed", kind: "size" },
   ],
@@ -328,11 +334,13 @@ export const READING_LIST_DEMO: DemoSoftware = {
       priority: "must",
       text: "The page shows the reading list, with a box to add a title.",
       from: "operator",
+      quote: "I type a title, add it, and see the whole list on the same page",
     },
     {
       priority: "must",
       text: "A title added through the box appears on the list.",
       from: "operator",
+      quote: "I type a title, add it, and see the whole list on the same page",
     },
     {
       priority: "must",

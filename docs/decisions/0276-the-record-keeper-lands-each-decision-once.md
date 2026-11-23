@@ -22,7 +22,7 @@
 4. **One path for the plan's decisions.** The planner puts its decisions only in the plan it submits; its prompt says not to also propose them. And when the plan is confirmed, a plan decision whose words an item in the record already carries is not added again. An agent's own proposal of an item the record already says, in the same words, is refused, naming the item.
 5. **Every refusal says what is wrong and how to fix it.** The shape of each operation is checked first, so a missing or misnamed field (`kind`, `text`, `from`, `id`, `reason`, `op`) is named as such, with a complete example of that operation. A role's limit (a builder adds decisions only) is reported only for an operation that is otherwise well formed.
 6. **Each role's instructions carry a working example of each of its tools.** The examples live with the tool definitions and are added to each role's instructions when they are assembled, so the prompt and the server cannot drift; a test calls each example as written and expects it to be accepted.
-7. **"from: operator" only for the operator's own words.** A drafted line that claims to be the operator's is kept so only when at least half of its meaning words are in what the operator said: the first description, the words of the piece of work, and their chat messages. Otherwise it is marked `assumed`, so the operator sees it as premise's assumption and can strike it. The drafter's prompt says the same.
+7. **"from: operator" only for the operator's own words.** What the operator writes or edits on the page, or answers, is theirs by that act. A drafted line may claim to be the operator's only with a `quote`: their exact words, which premise checks word for word against the first description, the words of the piece of work, their chat messages, and their answers and edited items; the quote is shown behind the item's details. Without a true quote the line is marked `assumed`, so the operator sees it as premise's assumption and can strike it, and the reply tells the drafter what to supply. No word-overlap guess decides it. The drafter's prompt gives a working example.
 8. **Record commits name their items.** The subject reads "Record: add D-4 Keep tasks in one file…, strike W-2", with the rest counted when it is long.
 
 ## Reason
@@ -42,7 +42,8 @@
 | Merge record files line by line, like a version control merge | More machinery than re-applying a list of operations, which is already how a change is made. |
 | Let the planner propose decisions and drop them from the plan draft | The operator confirms the plan as a whole; its decisions belong with it. |
 | Accept any shape and guess what an agent meant (a `file` for a `kind`) | Guesses are wrong silently; a precise refusal with an example is fixed once and teaches the shape. |
-| Ask the drafter to mark provenance more carefully, without a check | The first real run shows prompts alone do not hold this; the check is cheap and errs towards "assumed", which the operator can strike. |
+| Ask the drafter to mark provenance more carefully, without a check | The first real run shows prompts alone do not hold this; the quote check is cheap and errs towards "assumed", which the operator can strike. |
+| Decide by how many of an item's words the operator used | A share of words wrongly demotes the operator's own edited wording and lets a paraphrase through; a quote is checkable. |
 
 ## Consequences
 

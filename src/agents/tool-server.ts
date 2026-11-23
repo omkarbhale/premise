@@ -166,6 +166,7 @@ const TOOLS: ToolDefinition[] = [
           text: "People can add a book to the list by its title.",
           priority: "must",
           from: "operator",
+          quote: "where I keep my reading list",
         },
         {
           text: "Suggestion: people can mark a book as read.",

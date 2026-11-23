@@ -23,6 +23,8 @@ export interface DraftItem {
   kind: ItemKind | "size";
   /** "assumed", or the role it came from. */
   from: string;
+  /** For an item from the operator: their exact words it rests on, checked against what they said. */
+  quote?: string;
   /** True when premise offers it as its own idea. */
   suggestion?: boolean;
   priority?: Priority;
@@ -165,11 +167,13 @@ export function readDraftItems(
     const source =
       str(value.source) ?? (typeof value.sources === "string" ? str(value.sources) : undefined);
     const shortLine = str(value.short);
+    const quote = str(value.quote);
     items.push({
       key: `k${i + 1}`,
       text,
       kind,
       from,
+      ...(quote && { quote: oneLine(quote).slice(0, 500) }),
       ...(checked && { checked }),
       ...(source && { source: source.slice(0, 300) }),
       ...(shortLine && { short: oneLine(shortLine) }),
@@ -239,6 +243,7 @@ export function toAskItem(item: DraftItem): AskItem {
     text: displayText(item),
     mark,
     ...(mark === "from-role" && { from: item.from }),
+    ...(mark === "from-role" && item.quote && { detail: `Your words: "${item.quote}"` }),
     ...(item.wait !== undefined && { wait: item.wait }),
     ...(item.refs && { refs: item.refs }),
     ...(item.follows && { follows: { label: item.follows, text: "" } }),
@@ -321,48 +326,32 @@ export function sameWords(text: string): string {
     .toLowerCase();
 }
 
-/**
- * The words of a text that carry meaning, as rough stems: lower case, four letters or more, cut to
- * their first five letters, so "prints" and "printed", or "characters" and "character", match.
- */
-function meaningWords(text: string): string[] {
-  return (text.toLowerCase().match(/[a-z0-9][a-z0-9'-]{3,}/g) ?? []).map((w) =>
-    w
-      .replace(/'s$/, "")
-      .replace(/(?<!s)s$/, "")
-      .slice(0, 5),
-  );
-}
-
-/** How much of an item's meaning words must be in the person's words for it to count as theirs. */
-export const OWN_WORDS_SHARE = 0.5;
-
-/**
- * Whether an item is in a person's own words: at least half of its meaning words appear in what
- * they said.
- * An item with no meaning words (very short) counts as theirs only when its text appears whole.
- */
-export function inOwnWords(itemText: string, said: string): boolean {
-  const words = meaningWords(itemText);
-  if (words.length === 0) return said.toLowerCase().includes(itemText.trim().toLowerCase());
-  const theirs = new Set(meaningWords(said));
-  const found = words.filter((w) => theirs.has(w)).length;
-  return found / words.length >= OWN_WORDS_SHARE;
+/** Case and spacing do not make a quote different from its source. */
+function squash(text: string): string {
+  return text.replace(/\s+/g, " ").trim().toLowerCase();
 }
 
 /**
- * Provenance (decision 0276): "from: operator" only for the operator's own words. A drafted item
- * that claims to be from the operator but is not in what the operator said becomes "assumed", so
- * the operator sees it marked as premise's assumption and can strike it.
+ * Provenance (decision 0276): "from: operator" only for words the operator said, shown by a quote.
+ * A drafted item that claims to be the operator's keeps that mark only when it carries a `quote`
+ * that appears word for word in one of the sources (what the operator wrote, said or answered).
+ * Otherwise it becomes "assumed", so the operator sees it as premise's assumption and can strike it.
+ * Returns the items and how many were marked down.
  */
-export function checkOperatorWords<T extends Pick<DraftItem, "from" | "text">>(
+export function checkOperatorQuotes<T extends Pick<DraftItem, "from" | "quote">>(
   items: readonly T[],
-  operatorSaid: string,
+  sources: readonly string[],
   operatorRole = "operator",
-): T[] {
-  return items.map((item) =>
-    item.from === operatorRole && !inOwnWords(item.text, operatorSaid)
-      ? { ...item, from: "assumed" }
-      : item,
-  );
+): { items: T[]; downgraded: number } {
+  const said = sources.map(squash);
+  let downgraded = 0;
+  const checked = items.map((item) => {
+    if (item.from !== operatorRole) return item;
+    const quote = item.quote ? squash(item.quote) : "";
+    if (quote && said.some((source) => source.includes(quote))) return item;
+    downgraded++;
+    const { quote: _dropped, ...rest } = item;
+    return { ...rest, from: "assumed" } as T;
+  });
+  return { items: checked, downgraded };
 }
