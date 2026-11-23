@@ -84,16 +84,18 @@ export function Timeline({
             <strong>The queue is long.</strong> {t.notice.words}
           </p>
           <div className="actions">
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void act(() => api.answerQueueNotice(t.softwareId, "hold"))}
-            >
-              Hold the{" "}
-              {t.notice.holdCount === 1
-                ? "lowest-value one"
-                : `${t.notice.holdCount} lowest-value ones`}
-            </button>
+            {t.notice.holdCount > 0 && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void act(() => api.answerQueueNotice(t.softwareId, "hold"))}
+              >
+                Hold the{" "}
+                {t.notice.holdCount === 1
+                  ? "lowest-value one"
+                  : `${t.notice.holdCount} lowest-value ones`}
+              </button>
+            )}
             <button
               type="button"
               className="quiet"

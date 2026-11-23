@@ -334,6 +334,20 @@ describe("the line's queue", () => {
     expect(() => queue.answerNotice(software.id, "leave")).toThrow(/already answered/);
   });
 
+  it("never holds the only waiting change, even when its estimate is over the limit", () => {
+    const { db, queue, add, software, held } = setUp({
+      env: { PREMISE_LINE__QUEUE_NOTICE_DAYS: "1" },
+    });
+    for (const minutes of [3000, 3000, 3000]) finished(db, software.id, "small", minutes, 3);
+    add("Only one");
+    queue.afterTaken(software.id);
+    expect(queue.longQueue(software.id)).toMatchObject({ long: true, holdCount: 0 });
+    const words = listChatMessages(db, software.id).find((m) => m.text.includes("waiting for"))!;
+    expect(words.text).not.toContain("hold the");
+    queue.answerNotice(software.id, "hold");
+    expect(held).toHaveLength(0);
+  });
+
   it("tells about a long queue by its estimated time too", () => {
     const { db, queue, add, software } = setUp({ env: { PREMISE_LINE__QUEUE_NOTICE_DAYS: "1" } });
     for (const minutes of [600, 600, 600]) finished(db, software.id, "small", minutes, 3);

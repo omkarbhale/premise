@@ -452,7 +452,7 @@ export class LineQueue {
       long: tooMany || tooLong,
       items: queued.length,
       total,
-      holdCount: Math.max(1, holdCount),
+      holdCount: Math.min(holdCount, Math.max(0, queued.length - 1)),
     };
   }
 
@@ -484,7 +484,11 @@ export class LineQueue {
     const time = total.enough
       ? `By a rough estimate from premise's own history, that is about ${durationWords(total.minutes ?? 0)} of work before the last one starts.`
       : "premise has not finished enough changes yet to estimate how long that takes.";
-    return `${items} changes are waiting for ${name}, one after another. ${time} You can hold the ${holdCount === 1 ? "lowest-value one" : `${holdCount} lowest-value ones`} (they are read together later, like other held items), raise its budget, or let more agents work at once. The timeline on its page has the buttons.`;
+    const hold =
+      holdCount > 0
+        ? `hold the ${holdCount === 1 ? "lowest-value one" : `${holdCount} lowest-value ones`} (they are read together later, like other held items), `
+        : "";
+    return `${items} changes are waiting for ${name}, one after another. ${time} You can ${hold}raise its budget, or let more agents work at once. The timeline on its page has the buttons.`;
   }
 
   /** The person answers the long-queue notice. */
@@ -496,7 +500,7 @@ export class LineQueue {
       }
       if (answer === "hold") {
         const { holdCount } = this.longQueue(softwareId);
-        const lowest = this.queued(softwareId).slice(-holdCount);
+        const lowest = holdCount > 0 ? this.queued(softwareId).slice(-holdCount) : [];
         const held: string[] = [];
         for (const q of lowest) {
           if (this.options.hold(q.workItemId, "You held it when the queue grew long.")) {
@@ -507,7 +511,7 @@ export class LineQueue {
           softwareId,
           held.length
             ? `Held ${held.join(", ")}: they are read together later with other held items. Take any of them in again on the Intake tab.`
-            : "Nothing could be held: the changes at the end of the queue have started.",
+            : "Nothing could be held: the change next in line is never held, and the others have started.",
         );
       }
       this.setRootNotes(softwareId, { notice: { given: notice.given, answered: answer } });

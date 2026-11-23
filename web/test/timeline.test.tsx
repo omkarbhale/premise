@@ -293,6 +293,27 @@ describe("the timeline", () => {
   });
 });
 
+describe("the long-queue notice with nothing to hold", () => {
+  it("does not offer to hold when no change can be set aside", () => {
+    inSession(
+      <Timeline
+        timeline={timeline({
+          notice: {
+            items: 1,
+            total: NO_HISTORY,
+            holdCount: 0,
+            words: "1 changes are waiting for Arena.",
+          },
+        })}
+        onAnswer={vi.fn()}
+      />,
+      fakeApi({}),
+    );
+    expect(screen.getByRole("button", { name: "Raise its budget" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Hold the/ })).toBeNull();
+  });
+});
+
 describe("the order around milestones", () => {
   it("shows whether premise stops after a milestone, and lets the person change it", async () => {
     const api = fakeApi({ setMilestoneWait: vi.fn(() => Promise.resolve(software())) });
