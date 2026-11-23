@@ -3588,6 +3588,15 @@ export class LineEngine implements IntakeLine {
     const front = this.active(softwareId);
     if (item.kind === "intake") {
       const resting = front.id === root.id && root.currentStage === "intake";
+      // Between milestones: more feedback on what landed, else the next milestone (decision 0321).
+      const ownNext = childItems(this.db, root.id).find(
+        (c) => c.state === "ahead" && c.kind !== "intake",
+      );
+      if (resting && ownNext && this.notes(root).children === "plan") {
+        const feedback = this.lineQueue.nextBeforeMilestones(softwareId);
+        this.beginItem(softwareId, feedback ?? ownNext, `${item.ref ?? "a change"} landed`);
+        return;
+      }
       const queued = resting ? this.nextIntakeWork(softwareId) : undefined;
       if (queued) this.beginItem(softwareId, queued, `${item.ref ?? "a change"} landed`);
       else if (resting && this.flights(softwareId).length === 0) {
