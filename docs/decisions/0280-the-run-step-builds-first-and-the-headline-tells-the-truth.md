@@ -35,7 +35,7 @@
 - Builders' note: the line ends at running software ([0017](0017-the-line-ends-at-running-software.md)). A start that fails is the line not ending there, so it cannot be "run done". The first real run shows that a builder told to fix it in chat does not get the chance unless premise sends it. One automatic send-back costs one fix round and usually ends the matter. Asking after that spends the operator's attention only when the builder could not fix it ([0027](0027-spend-least-of-peoples-attention.md)).
 - Builders' note: build lines in the block, rather than reading the free-text "Build" section of `run.md` or the plan's "how to run", keep one machine-read place that the builder writes, the checker runs and the runner runs, so they cannot drift apart.
 - Chosen for the owner: most software cannot be built without installing what it depends on, and without the network the build would fail exactly as the first real run's start did. Limiting it to the registries needs a filtering proxy premise does not have yet; the setting turns it off for anyone who prefers a failed build to a networked one.
-- Builders' note: a report is built from recorded facts only ([0097](0097-reports-from-recorded-facts.md)). A verdict whose own evidence says the real data was missing is a recorded fact the headline must not contradict. Reading the evidence's words as well as the new field covers checkers that do not use the field.
+- Builders' note: a report is built from recorded facts only ([0097](0097-reports-from-recorded-facts.md)). A verdict the checker says was judged on made-up data is a recorded fact the headline must not contradict. `judged_on` is the only signal: it is required on every verdict and the tool refuses a verdict without it, so it cannot be left unsaid; verdicts recorded before it existed are shown as not stated, never guessed from their evidence.
 
 ## Alternatives considered
 
@@ -52,7 +52,7 @@
 ## Consequences
 
 - New settings `runner.build_timeout_seconds`, `runner.build_network` and `line.start_send_backs` ([configuration](../reference/configuration.md)).
-- `verdict_submit` takes `not_available` per verdict ([agent tools](../specs/agent-tools.md)); a verdict event may carry `notAvailable`.
+- `verdict_submit` requires `judged_on` (`real` or `made-up`) per verdict, and `try_it_on` when `made-up` ([agent tools](../specs/agent-tools.md)); a verdict event carries `judgedOn` and `tryItOn`.
 - The report line gains `earlier` (decided before this report), which the page folds ([reporter](../specs/reporter.md)).
 - Carried in the [runner](../specs/runner.md), the [line engine](../specs/line-engine.md), [build, check and run](../architecture/build-check-run.md), and the [builder](../prompts/builder.md), [checker](../prompts/checker.md) and [planner](../prompts/planner.md) prompts.
 - Kept tests: a tool whose sample needs a build step; a build that fails; a start that fails once and is fixed by the automatic send-back; each case of the headline.
