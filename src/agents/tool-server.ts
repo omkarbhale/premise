@@ -366,6 +366,7 @@ const TOOLS: ToolDefinition[] = [
           item: "W-1",
           verdict: "met",
           evidence: "After adding a book titled Dune, the page lists Dune (evidence/add-book.txt).",
+          judged_on: "real",
         },
       ],
     },
