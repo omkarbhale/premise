@@ -545,6 +545,7 @@ describe("a change planned again and an edited decision", () => {
     name: string;
     second: Record<string, unknown>[];
     strikeSecond?: string;
+    editFirst?: string;
     live: string[];
     gone: string[];
   }[] = [
@@ -563,11 +564,18 @@ describe("a change planned again and an edited decision", () => {
       live: [STREAM.text, INDEX.text],
       gone: [],
     },
+    {
+      name: "a decision the person edited the first time",
+      second: [CHUNKS],
+      editFirst: "Read the file by lines",
+      live: [CHUNKS.text],
+      gone: [STREAM.text, "Read the file by lines"],
+    },
   ];
 
   it.each(table)(
     "re-planned with $name, the record holds each decision once",
-    async ({ second, strikeSecond, live, gone }) => {
+    async ({ second, strikeSecond, editFirst, live, gone }) => {
       let plans = 0;
       let lines: { id: string; text: string }[] = [];
       let built: string[] = [];
@@ -576,7 +584,10 @@ describe("a change planned again and an edited decision", () => {
         await session.services.softwares.setChangeQuestions(softwareId, "every-change");
         await sendWish(context);
         const first = await untilQuestion(context);
-        await session.services.asks.answer(first.id, keepAll(first));
+        await session.services.asks.answer(
+          first.id,
+          keepAll(first, editFirst ? { key: "d1", text: editFirst } : undefined),
+        );
         for (let i = 0; i < 100; i++) {
           const change = listWorkItems(db, softwareId).find(
             (w) => w.kind === "intake" && w.state === "active",

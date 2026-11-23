@@ -46,8 +46,8 @@ export interface ChangeNotes {
   suggestions: { key: string; text: string; added?: string }[];
   /** Decisions of the change put into the record. */
   decisions?: string[];
-  /** The pieces whose plan's decisions are in the record already. */
-  landedFor?: number[];
+  /** The record items each piece's plan landed, by the piece's work item; a piece with an entry has landed. */
+  landed?: Record<number, string[]>;
   /** A real choice the person's words left open, in the drafter's words. */
   openChoice?: string;
   /** The drafted What, kept until the drafter's job ends. */
