@@ -369,14 +369,6 @@ export const SETTINGS: readonly Setting[] = [
     record: "0087",
   },
   {
-    key: "agents.confinement.virtual_display",
-    default: true,
-    check: summarised(yesNo, "true or false"),
-    meaning:
-      "Whether the checker may start a virtual screen of its own (Xvfb) inside its sandbox, to see and screenshot a game or desktop program. It needs local sockets, which the sandbox otherwise blocks; the screen lives only inside the checker's sandbox, and your own screen, Docker and other sockets on this machine stay out of reach. false: nobody sees such a program on screen, and the report says so.",
-    record: "0310",
-  },
-  {
     key: "agents.scripted.script_file",
     default: null,
     check: summarised(orNone(text), "a file path, or null"),
@@ -1011,7 +1003,7 @@ export interface PremiseConfig {
     claude_config_folder: string | null;
     claude: { command: string; stop_grace_seconds: number };
     network: { allowed_domains: string[] };
-    confinement: { extra_denied_paths: string[]; virtual_display: boolean };
+    confinement: { extra_denied_paths: string[] };
     scripted: { script_file: string | null; step_seconds: number };
     tasks: Record<AgentTaskKind, TaskSettings>;
   };

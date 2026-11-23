@@ -38,11 +38,7 @@ The run's records showed five faults:
    (Builders' choice.)
 4. **A fix round names the items that were not met** in its title ("Fix what the check found: W-3 not met"), its task items and so its trace line. This also holds when the person gives more rounds: the items the last check found not met. When only a finding failed, the round names no items, and the builder names what its commit serves. A round that rebuilds for another reason says so in its title ("Make it start from a clean copy", "Build it again"). (Builders' choice.)
 5. **A check that could not run the software for a reason outside it does not count as a failed round.** When a check ends with a must not met, a blocking finding, or a must it could not check, and a program the agents lack is asked for and still open, the round is not counted. The check is marked "waiting for a tool", and the chat says why. The same commit is checked again once the person answers that card. The checker is told that a missing program, a blocked download or a sandbox limit is "could not check", never "not met", and to ask for what is missing. (Builders' choice.)
-6. **The checker can start its own virtual screen** (chosen for the owner). With `agents.confinement.virtual_display` (on by default), the checker's sandbox allows local sockets. The checker starts its own screen (`Xvfb :99 ... -nolisten tcp -nolisten unix`), runs the program on it and saves screenshots.
-   - That screen listens only on an abstract socket inside the sandbox's own network namespace, so nothing outside reaches it.
-   - The machine's own sockets are denied by path: the person's screen, the session bus, the user runtime folder, Docker, containerd, podman, snapd and systemd.
-   - Builders and other roles are unchanged.
-   - The runner's confinement needs nothing new: a virtual screen started inside it already works, because the runner's confinement does not block sockets.
+6. **No session may open local sockets, so no virtual screen is promised** (chosen for the owner: never allow all local sockets). Claude Code's sandbox can allow a single socket path only on macOS; on Linux the one switch, `allowAllUnixSockets`, allows every local socket, including a tmux server, an ssh-agent or a gpg-agent, which a denylist cannot cover. premise never sets it, for any role, and there is no setting for it. The checker is told to try a screen only if one works in its sandbox, and to say `seen_on_screen: false` otherwise.
 7. **"Nobody has seen it on screen"** (chosen for the owner). `verdict_submit` takes `seen_on_screen`. For a game or desktop program, if the latest check did not say it saw it on a screen, the report's Running section says: "Nobody has seen it on screen: the check could not show it on a screen here, so how it looks and plays is unchecked. Start it yourself and look."
 
 ## Reason
@@ -53,7 +49,7 @@ The run's records showed five faults:
 - Builders' note: "a builder is working but I don't know what on". What a job serves and carries is already in its brief. Saying it on the page costs nothing.
 - Builders' note: a fix round's trace line is how a commit is tied to the record. Naming another item made the record say the wrong thing about what was fixed.
 - Builders' note: the stop after three failed rounds exists because a builder could not fix the software from the evidence. A missing program is not the software's fault, and the builder cannot fix it either.
-- Chosen for the owner: tried on this machine with bubblewrap, not with a real agent. A virtual screen started with `-nolisten tcp -nolisten unix` inside an unshared network namespace answers there and cannot be reached from the machine outside. Claude Code's sandbox on Linux blocks creating local sockets unless `allowAllUnixSockets` is set; that is the one loosening, for the checker only, and the machine's own sockets are denied by path. premise's tests never start a real agent, so it has not been seen working inside a real session. If it still fails, the checker says `seen_on_screen: false` and the report says so plainly.
+- Chosen for the owner: opening every local socket lets a checker with a shell reach any host socket outside a short denylist (a tmux server is full command execution outside the sandbox). Claude Code on Linux cannot allow one path, so the screen is given up rather than the sandbox loosened; the report says plainly that nobody has seen the program on screen.
 
 ## Alternatives considered
 
@@ -66,7 +62,8 @@ The run's records showed five faults:
 | Let the builder poll for answers mid-session | A new tool and a new habit for every agent; building the task again after it ends gives the same result with what exists. |
 | Count an environment failure as half a round | Still burns rounds on what no builder can fix; the person's answer on the missing program is what unblocks it. |
 | Share the person's own screen with the checker | The checker would see whatever else is on the person's screen. |
-| Allow local sockets for every role | Only the checker needs to see the software; builders run tests headless. |
+| Allow all local sockets for the checker, denying host sockets by path | A denylist cannot name every socket (tmux, ssh-agent, gpg-agent); one missed socket escapes the sandbox. |
+| Allow one private socket path for the session's own screen | Claude Code's sandbox cannot filter by path on Linux. |
 
 ## Consequences
 
@@ -77,9 +74,8 @@ The run's records showed five faults:
   - `fate` on `AskView`.
   - A check status, `waiting-for-tool`.
 - New page parts: the "What is being worked on" card, the answered card's "What happens with it", and the Activity row's words ([page](../specs/page.md)).
-- New setting `agents.confinement.virtual_display` ([configuration](../reference/configuration.md)).
 - New field `seen_on_screen` on `verdict_submit` ([agent tools](../specs/agent-tools.md)).
-- The [checker](../prompts/checker.md) prompt now covers environment failures and the virtual screen.
+- The [checker](../prompts/checker.md) prompt now covers environment failures and what to say when no screen could be used.
 - Carried in the [line engine](../specs/line-engine.md) and [Build, Check and Run](../architecture/build-check-run.md).
 - Kept tests with the scripted agent, for each point: `test/answers-visible.test.ts`.
 - Left for later, filed as issues: a running agent reading an answer mid-session ([222](https://github.com/omkarbhale/premise/issues/222)), a verdict naming an environment cause without a missing program ([223](https://github.com/omkarbhale/premise/issues/223)), the checker's screenshots on the page ([224](https://github.com/omkarbhale/premise/issues/224)), starting a desktop program on the owner's own screen ([225](https://github.com/omkarbhale/premise/issues/225)), and the planner's brief carrying earlier answers ([226](https://github.com/omkarbhale/premise/issues/226)).

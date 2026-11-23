@@ -60,11 +60,6 @@ export interface TaskAccess {
   registries: boolean;
   /** The session may search and fetch the web (the researcher alone). */
   web: boolean;
-  /**
-   * The session may start a virtual screen inside its sandbox (the checker alone, decision 0310),
-   * when agents.confinement.virtual_display allows it.
-   */
-  display?: boolean;
 }
 
 const READ_TOOLS = ["Read", "Glob", "Grep"];
@@ -92,7 +87,6 @@ export function accessFor(kind: AgentTaskKind): TaskAccess {
         shell: true,
         registries: true,
         web: false,
-        display: true,
       };
     case "researcher":
       return {

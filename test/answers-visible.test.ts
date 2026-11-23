@@ -350,7 +350,7 @@ describe("a check that could not run the software for a reason outside it", () =
 });
 
 describe("seeing a game or desktop program on screen", () => {
-  it("lets only the checker start its own virtual screen, keeping the machine's sockets out of reach", () => {
+  it("never lets any session open local sockets, so none can reach the machine's own", () => {
     const base = {
       workingCopy: "/data/work/s/1",
       dataFolder: "/data",
@@ -358,18 +358,11 @@ describe("seeing a game or desktop program on screen", () => {
       allowedDomains: ["registry.npmjs.org"],
       claudeConfigFolder: null,
       extraDeniedPaths: [],
-      virtualDisplay: true,
     };
-    const checker = sessionSettings({ ...base, access: accessFor("check") });
-    expect(checker.sandbox.network.allowAllUnixSockets).toBe(true);
-    for (const path of ["/tmp/.X11-unix", "/var/run/docker.sock", "/run/user"]) {
-      expect(checker.sandbox.filesystem.denyRead).toContain(path);
+    for (const kind of ["check", "build"] as const) {
+      const settings = sessionSettings({ ...base, access: accessFor(kind) });
+      expect(Object.keys(settings.sandbox.network).sort()).toEqual(["allowedDomains"]);
     }
-    const builder = sessionSettings({ ...base, access: accessFor("build") });
-    expect(builder.sandbox.network.allowAllUnixSockets).toBeUndefined();
-    expect(builder.sandbox.filesystem.denyRead).not.toContain("/tmp/.X11-unix");
-    const off = sessionSettings({ ...base, virtualDisplay: false, access: accessFor("check") });
-    expect(off.sandbox.network.allowAllUnixSockets).toBeUndefined();
   });
 });
 
