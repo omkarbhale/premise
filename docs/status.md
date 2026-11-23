@@ -1,6 +1,6 @@
 # Status
 
-Where premise is, in plain words. The owner said to build the whole of premise ([0130](decisions/0130-the-build-starts-and-covers-all-of-premise.md)); the plan is in the [roadmap](product/roadmap.md). Last updated 2026-11-21.
+Where premise is, in plain words. The owner said to build the whole of premise ([0130](decisions/0130-the-build-starts-and-covers-all-of-premise.md)); the plan is in the [roadmap](product/roadmap.md). Last updated 2026-11-23.
 
 ## One real run, everything else scripted
 
@@ -24,7 +24,7 @@ Where premise is, in plain words. The owner said to build the whole of premise (
 ## Built, but never exercised with real agents or real GitHub
 
 - **Every stage after the first real run's path.** The one real run used the thin path with the fast tier at low effort. The Sonnet and Opus tiers, the other roles, taste claims, work split into parts, and several softwares at once have only been run with the scripted agent.
-- **Real GitHub.** Creating a repository on GitHub is gated and is not carried out yet ([0161](decisions/0161-github-repository-step-not-approved.md)); reading a software's issues is built behind an interface and runs against a local fixture; pushing a brought-in repository with the person's own git login is tested on local remotes only ([0141](decisions/0141-github-repositories-in-tests-and-behind-the-gate.md)).
+- **Real GitHub.** Creating a new software's repository on GitHub and pushing to it is built, through the GitHub CLI login, and asked through the gate each time ([0260](decisions/0260-the-real-github-step-is-built-and-each-use-is-asked.md)); it is tested only against a fake GitHub CLI and has not yet been run against GitHub: the first real use is the owner's own approval on the page. Reading a software's issues is built behind an interface and runs against a local fixture; pushing a brought-in repository with the person's own git login is tested on local remotes only ([0141](decisions/0141-github-repositories-in-tests-and-behind-the-gate.md)).
 - **Claude Code details never seen with the real program:** a Claude Code configuration folder other than the default, a real usage-limit rejection and the resume after it, and escapes from the sandbox beyond the ones tested ([test record](record/subscription-sandbox-test-2026-11-21.md)).
 
 ## Mocked

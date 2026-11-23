@@ -109,9 +109,12 @@ const run = promisify(execFile);
  * software with a GitHub repository, and the command line signed in.
  */
 export class GhCliIssueSource implements IssueSource {
+  /** `command`: the GitHub CLI program (setting github.command). */
+  constructor(private readonly command = "gh") {}
+
   async listOpenIssues(repository: GitHubRepository): Promise<GitHubIssue[]> {
     const { stdout } = await run(
-      "gh",
+      this.command,
       [
         "issue",
         "list",
@@ -144,7 +147,7 @@ export class GhCliIssueSource implements IssueSource {
 
   async comment(repository: GitHubRepository, number: number, text: string): Promise<void> {
     await run(
-      "gh",
+      this.command,
       ["issue", "comment", String(number), "--repo", repositoryName(repository), "--body", text],
       { timeout: 60_000 },
     );

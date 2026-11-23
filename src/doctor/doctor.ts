@@ -115,17 +115,34 @@ export async function runDoctor(options: DoctorOptions): Promise<DoctorReport> {
         },
   );
 
-  const gh = await run("gh", ["--version"], timeoutMs);
-  checks.push(
-    gh.ok
-      ? { name: "GitHub CLI", status: "ok", detail: firstLine(gh.output) }
-      : {
-          name: "GitHub CLI",
-          status: "warn",
-          detail: "not found; needed later, when premise creates repositories",
-          fix: "Install the GitHub CLI (https://cli.github.com), then run `gh auth login`.",
-        },
-  );
+  // The GitHub CLI, logged in as the operator, is how the server creates repositories (0077, 0260).
+  const ghCommand = config?.github.command ?? "gh";
+  const wantsGitHub = (config?.line.remote ?? "github") === "github";
+  const gh = await run(ghCommand, ["--version"], timeoutMs);
+  if (!gh.ok) {
+    checks.push({
+      name: "GitHub CLI",
+      status: "warn",
+      detail: wantsGitHub
+        ? "not found; premise cannot create your softwares' repositories on GitHub without it, so they stay on this machine"
+        : "not found; not needed while softwares are not copied to GitHub",
+      fix: "Install the GitHub CLI (https://cli.github.com), then run `gh auth login` in a terminal.",
+    });
+  } else {
+    const auth = await run(ghCommand, ["auth", "status", "--hostname", "github.com"], timeoutMs);
+    checks.push(
+      auth.ok
+        ? { name: "GitHub CLI", status: "ok", detail: `${firstLine(gh.output)}; logged in` }
+        : {
+            name: "GitHub CLI",
+            status: "warn",
+            detail: wantsGitHub
+              ? "installed, but not logged in: premise cannot create your softwares' repositories on GitHub until it is, so they stay on this machine"
+              : "installed, but not logged in; not needed while softwares are not copied to GitHub",
+            fix: "Run `gh auth login` in a terminal and log in to your GitHub account.",
+          },
+    );
+  }
 
   if (platform === "linux") {
     const tools: [string, string, string[], string][] = [

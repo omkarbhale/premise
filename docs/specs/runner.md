@@ -133,7 +133,7 @@ The settings are listed in the [configuration reference](../reference/configurat
 
 ## 11. Milestones
 
-- Milestone 1 step 1: the server creates a private repository on the owner's GitHub and pushes to it (point 7).
+- Milestone 1 step 1: the server creates a private repository on the owner's GitHub and pushes to it (point 7). Built behind the gate, and not yet run against GitHub ([0260](../decisions/0260-the-real-github-step-is-built-and-each-use-is-asked.md)).
 - Milestone 1 step 2: the server's merge and push; the runner, with a link or a command on the page.
 - Milestone 4: log errors as intake.
 - Milestone 7: running software for its real users on hosts the operator approves; keeping it up; incidents back as intake. Several softwares at once is built ([0197](../decisions/0197-how-several-softwares-at-once-is-built.md)). Every first deployment to a public host is public-facing and may spend money, so it is asked ([gate](gate.md)).

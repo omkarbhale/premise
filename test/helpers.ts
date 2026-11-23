@@ -51,6 +51,7 @@ import { runDoctor } from "../src/doctor/doctor.js";
 import { TOKEN_HEADER, createApp } from "../src/server/app.js";
 import { issueSessionToken } from "../src/server/session-token.js";
 import type { IssueSource } from "../src/intake/issues.js";
+import type { GitHubCli } from "../src/git/github.js";
 import { createSession } from "../src/server/wiring.js";
 import { openDatabase } from "../src/storage/database.js";
 import { MockUsageLedger } from "../src/usage-ledger/mock-usage-ledger.js";
@@ -63,6 +64,10 @@ export async function testApp(
     folder?: string;
     later?: LaterStages;
     issues?: IssueSource;
+    /** Act as with real agents (outside this machine), though the agents stay scripted. */
+    realAgents?: boolean;
+    /** The GitHub CLI, normally a fake one on its PATH (test/fixtures/fake-gh). */
+    github?: GitHubCli;
   } = {},
 ) {
   const folder = options.folder ?? tempFolder();
@@ -93,6 +98,8 @@ export async function testApp(
     record,
     later: options.later,
     issues: options.issues,
+    ...(options.realAgents !== undefined && { realAgents: () => options.realAgents! }),
+    ...(options.github && { github: options.github }),
   });
   const setup = await runDoctor({
     dataFolder: folder,
@@ -140,6 +147,9 @@ export async function testApp(
       await session.line.idle();
       await new Promise((r) => setTimeout(r, 5));
       if (session.queue.list("queued").length === 0 && session.queue.list("running").length === 0) {
+        // Work started after an answer (a gate request asked a moment later) may still be going.
+        await session.line.idle();
+        await session.gate.idle();
         return;
       }
     }

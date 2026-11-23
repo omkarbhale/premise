@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { devNull } from "node:os";
 import { existsSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
@@ -237,6 +237,38 @@ export class Git {
         `The remote did not accept ${branch}: ${(error as Error).message}. Bring the remote's changes in (merge) and push again; premise never forces a push.`,
       );
     }
+  }
+
+  /**
+   * Push a branch without holding up the server while it goes over the network, within a time
+   * limit. Never forced: a remote that has something premise does not refuses, and premise says so.
+   */
+  pushAsync(cwd: string, remote: string, branch: string, timeoutMs: number): Promise<void> {
+    if (branch.startsWith("+") || remote.startsWith("-") || branch.startsWith("-")) {
+      return Promise.reject(new GitError("NOT_ALLOWED", "premise never forces a push."));
+    }
+    return new Promise((resolve, reject) => {
+      execFile(
+        "git",
+        [
+          "-c",
+          "core.hooksPath=" + devNull,
+          "push",
+          "--quiet",
+          remote,
+          `refs/heads/${branch}:refs/heads/${branch}`,
+        ],
+        { cwd, env: this.environment(), encoding: "utf8", timeout: timeoutMs },
+        (error, stdout, stderr) => {
+          if (!error) return resolve();
+          const killed = (error as { killed?: boolean }).killed === true;
+          const said = killed
+            ? `it took longer than ${Math.round(timeoutMs / 60_000)} minute(s) and was stopped`
+            : (stderr || stdout || error.message).toString().trim().split("\n").slice(-3).join(" ");
+          reject(new GitError("PUSH_REFUSED", said));
+        },
+      );
+    });
   }
 
   /** The commits on HEAD that a remote branch lacks, oldest first; all of them when it has no such branch. */

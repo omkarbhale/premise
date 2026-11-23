@@ -337,7 +337,7 @@ describe("the gate on the line", () => {
     return { app, id, approval: approvals[0]! };
   }
 
-  it("asks before creating the repository on GitHub; approved, it says the approval is recorded but the step is not available yet", async () => {
+  it("asks before creating the repository on GitHub; with scripted agents nothing leaves this machine, and it says so", async () => {
     const { app, id, approval } = await toGate();
     expect(approval.title).toMatch(/^Create a private repository on GitHub for /);
     expect(approval.approval!.action).toMatch(
@@ -348,7 +348,7 @@ describe("the gate on the line", () => {
     expect(approval.approval!.kindLabel).toBe("creating private repositories on GitHub");
     expect(approval.approval!.real).toBe(false);
     expect(approval.approval!.reality).toMatch(
-      /^Nothing is created on GitHub whichever you choose/,
+      /^Nothing is created on GitHub whichever you choose: premise is running with scripted agents/,
     );
     // Building went on meanwhile: only the work that depends on the answer waits.
     expect((await app.call("GET", `/api/softwares/${id}`)).body.stage).toBe("intake");
@@ -358,9 +358,9 @@ describe("the gate on the line", () => {
     });
     await app.settle();
     const said = await chat(app, id);
-    // Never "not approved" after the person approved it: approved, but not available, and why.
+    // Never "not approved" after the person approved it: approved, but nothing was done, and why.
     expect(said.at(-1)).toMatch(
-      /^Approved, but this step is not available yet: premise cannot create the GitHub repository .* not built.* stays on this machine, and nothing is lost/,
+      /^Approved, but nothing was done: Nothing was created on GitHub: premise is running with scripted agents .* stays on this machine, and nothing is lost/,
     );
     expect(said.join("\n")).not.toMatch(/not been approved/);
     const requests = app.session.gate.list(id);

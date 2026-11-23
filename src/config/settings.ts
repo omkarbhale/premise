@@ -480,8 +480,8 @@ export const SETTINGS: readonly Setting[] = [
     default: "github",
     check: summarised(oneOf(REMOTES), `"github", "local" or "none"`),
     meaning:
-      '"github": at the end of Plan, premise asks you (through the gate) before creating the software\'s repository on your GitHub account; that step is not available yet (premise cannot create GitHub repositories yet), so the software stays on this machine. "local": a second copy in the data folder\'s remotes folder, no question asked. "none": the software stays on this machine only.',
-    record: "0161",
+      '"github": at the end of Plan, premise asks you (through the gate) before creating the software\'s repository on your GitHub account, with the GitHub CLI you are logged in with; once you approve, it creates the repository, pushes to it, and pushes again after every change lands. With scripted agents (a demo) nothing is created on GitHub. "local": a second copy in the data folder\'s remotes folder, no question asked. "none": the software stays on this machine only.',
+    record: "0260",
   },
   {
     key: "line.splitting",
@@ -631,6 +631,22 @@ export const SETTINGS: readonly Setting[] = [
     meaning:
       "How long premise waits for a copy of an existing software's repository before it gives up and says so.",
     record: "0189",
+  },
+  {
+    key: "github.command",
+    default: "gh",
+    check: summarised(text, "a program name or path"),
+    meaning:
+      'The GitHub CLI program the server runs to create repositories and read issues, logged in as you. "gh" means the one found on your PATH.',
+    record: "0260",
+  },
+  {
+    key: "github.timeout_minutes",
+    default: 10,
+    check: summarised(wholeNumber(1, 120), "1 to 120"),
+    meaning:
+      "How long premise waits for GitHub (creating a repository, or the first push to it) before it gives up and says so.",
+    record: "0260",
   },
   {
     key: "runner.default_visibility",
@@ -946,6 +962,7 @@ export interface PremiseConfig {
     estimate_items_per_build: number;
     budgets: Record<BudgetGroup, Record<"small" | "medium" | "large", StageBudget>>;
   };
+  github: { command: string; timeout_minutes: number };
   existing: {
     record_branch: string;
     history_commits: number;

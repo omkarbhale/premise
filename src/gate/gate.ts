@@ -148,6 +148,9 @@ export type PerformResult =
 /** A server act the gate can carry out once approved. */
 export type Performer = (request: GateRequest) => Promise<PerformResult>;
 
+/** Asks the person about a request premise stopped in the middle of carrying out. */
+export type CutOffHandler = (request: GateRequest) => void;
+
 /** Told when a request is decided and, when approved, after it was performed. */
 export type GateListener = (request: GateRequest) => void;
 
@@ -236,6 +239,7 @@ export interface GateOptions {
 export class Gate {
   private readonly db: Database;
   private readonly performers = new Map<string, Performer>();
+  private readonly cutOffHandlers = new Map<string, CutOffHandler>();
   private readonly listeners: GateListener[] = [];
   private readonly performing = new Set<Promise<void>>();
 
@@ -243,9 +247,19 @@ export class Gate {
     this.db = options.db;
   }
 
-  /** Register a server act by name, such as "create-repository". */
-  registerPerformer(name: string, performer: Performer): void {
+  /**
+   * Register a server act by name, such as "create-repository". `onCutOff`, when given, asks the
+   * person what to do about a request of this act that premise stopped in the middle of, in place
+   * of the gate's own general question; it runs inside the start-up transaction.
+   */
+  registerPerformer(
+    name: string,
+    performer: Performer,
+    options: { onCutOff?: CutOffHandler } = {},
+  ): void {
     this.performers.set(name, performer);
+    if (options.onCutOff) this.cutOffHandlers.set(name, options.onCutOff);
+    else this.cutOffHandlers.delete(name);
   }
 
   onDecided(listener: GateListener): void {
@@ -547,6 +561,11 @@ export class Gate {
           detail: { outcome },
         });
         if (!software) return;
+        const handler = request.perform ? this.cutOffHandlers.get(request.perform) : undefined;
+        if (handler) {
+          handler(this.get(request.id)!);
+          return;
+        }
         createAsk(this.db, {
           softwareId: request.softwareId,
           role: request.role,
@@ -645,29 +664,6 @@ export class Gate {
       });
     });
     return this.getApproval(id)!;
-  }
-
-  /**
-   * The small seam other modules use (src/git/repository-host.ts): request, and say whether it went
-   * through at once. "asked" means the answer comes later, in the session.
-   */
-  seam(requestedBy: string): {
-    request: (r: { softwareId: string; kind: FloorKind; what: string; why: string }) => Promise<{
-      status: "approved" | "asked" | "refused";
-    }>;
-  } {
-    return {
-      request: async (r) => {
-        const made = this.request({
-          softwareId: r.softwareId,
-          kind: r.kind,
-          action: r.what,
-          why: r.why,
-          requestedBy,
-        });
-        return { status: made.status === "asked" ? "asked" : "approved" };
-      },
-    };
   }
 }
 
