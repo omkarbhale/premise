@@ -210,12 +210,49 @@ export async function runScenario(
 }
 
 /**
- * The scripted checker's judging job: run each scenario for each item to check and submit a
- * verdict per item, with what it saw as the evidence. An item with no scenario it can run is
- * "could not check", honestly.
+ * Confirm run.md works from the clean copy the way the runner will use it (decision 0280): each
+ * "build:" line in order, then a command software's sample. Returns what failed, or null.
+ */
+export function confirmRunInstructions(copy: string): string | null {
+  let text: string | undefined;
+  try {
+    text = readFileSync(join(copy, "premise", "run.md"), "utf8");
+  } catch {
+    text = undefined;
+  }
+  const parsed = parseRunInstructions(text, "premise/run.md");
+  if (!parsed.ok) return parsed.problem;
+  const steps = [
+    ...parsed.instructions.build.map((b) => ({ what: "build step", line: b })),
+    ...(parsed.instructions.kind === "command"
+      ? [{ what: "sample", line: parsed.instructions.sample! }]
+      : []),
+  ];
+  for (const step of steps) {
+    try {
+      execFileSync("sh", ["-c", step.line], {
+        cwd: copy,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        timeout: 60_000,
+      });
+    } catch (error) {
+      const e = error as { stdout?: string; stderr?: string; message: string };
+      const output = `${e.stdout ?? ""}${e.stderr ?? ""}`.trim() || e.message;
+      return `run.md does not work from a clean copy: the ${step.what} "${step.line}" failed. Its output: ${output.slice(-400)}`;
+    }
+  }
+  return null;
+}
+
+/**
+ * The scripted checker's judging job: first confirm run.md works from the clean copy as the runner
+ * will use it, then run each scenario for each item to check and submit a verdict per item, with
+ * what it saw as the evidence. An item with no scenario it can run is "could not check", honestly.
  */
 export const scriptedJudge: ScriptBehaviour = async (request, call) => {
   const copy = request.workingCopy;
+  const runProblem = copy ? confirmRunInstructions(copy) : null;
   const items = itemsOf(request);
   const scenarios = scenariosOf(request);
   const verdicts: { item: string; verdict: string; evidence: string }[] = [];
@@ -249,5 +286,8 @@ export const scriptedJudge: ScriptBehaviour = async (request, call) => {
         : { item, verdict: "met", evidence: `Saw: ${seen}` },
     );
   }
-  call("verdict_submit", { verdicts });
+  call("verdict_submit", {
+    verdicts: verdicts.map((v) => ({ ...v, judged_on: "real" })),
+    ...(runProblem && { findings: [{ text: runProblem, blocking: true }] }),
+  });
 };

@@ -1,6 +1,6 @@
 # Runner specification
 
-Status: specification. Built so far: starting, keeping up, restarting and stopping software, the link or command on the page, ports, confinement, secrets and logs ([0162](../decisions/0162-how-the-runner-is-built.md), [0163](../decisions/0163-running-software-is-confined-with-bubblewrap.md)). Merge and push are the server's at landing, through the record keeper ([0186](../decisions/0186-how-build-check-and-run-are-built.md)); the line starts each landed commit. Not built yet: repositories on GitHub, release notes committed, log errors as intake. Being built ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Related: [build, check and run](../architecture/build-check-run.md), [record keeper](record-keeper.md), [gate](gate.md), [intake](intake.md), [reporter](reporter.md), [storage](storage.md).
+Status: specification. Built so far: building (run.md's build lines) and starting, keeping up, restarting and stopping software, the link or command on the page, ports, confinement, secrets and logs ([0162](../decisions/0162-how-the-runner-is-built.md), [0163](../decisions/0163-running-software-is-confined-with-bubblewrap.md)). Merge and push are the server's at landing, through the record keeper ([0186](../decisions/0186-how-build-check-and-run-are-built.md)); the line starts each landed commit. Not built yet: repositories on GitHub, release notes committed, log errors as intake. Being built ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Related: [build, check and run](../architecture/build-check-run.md), [record keeper](record-keeper.md), [gate](gate.md), [intake](intake.md), [reporter](reporter.md), [storage](storage.md).
 
 ## 1. Purpose
 
@@ -58,9 +58,14 @@ Not responsible for:
 
 ### 5.3 Starting the software
 
-`run.md` holds one fenced block marked `premise-run` that the runner reads ([0162](../decisions/0162-how-the-runner-is-built.md)): `kind: web` with `start:` (and `open:`), `kind: command` with `command:` (and `sample:`), or `kind: program` with `program:`.
+`run.md` holds one fenced block marked `premise-run` that the runner reads ([0162](../decisions/0162-how-the-runner-is-built.md)): `kind: web` with `start:` (and `open:`), `kind: command` with `command:` (and `sample:`), or `kind: program` with `program:`. Any kind may have `build:` lines, one command each ([0280](../decisions/0280-the-run-step-builds-first-and-the-headline-tells-the-truth.md)).
 
-The runner starts the checked commit from a clean copy using `run.md`, confined like an agent ([0087](../decisions/0087-agents-run-confined.md)):
+The runner starts the checked commit from a clean copy using `run.md`, confined like an agent ([0087](../decisions/0087-agents-run-confined.md)). It runs the block and nothing else from `run.md`:
+
+1. each `build:` line in order, in the clean copy and confined the same way, with the network when `runner.build_network` allows it (to install what the software depends on), all of them within `runner.build_timeout_seconds`, their output kept in the run's log and shown on the page while it builds;
+2. then the `start:` line (web) or the `sample:` line (command, with no network). A program is called built only once its build lines worked.
+
+A build line that fails, or a start that fails, is a failed run with the last lines of output. It is not "run done" ([line engine](line-engine.md)): the line holds at Run and says plainly "built and checked, but it would not start" with that output; the first time (`line.start_send_backs`) the change goes back to Build by itself with the output as the evidence, and after that the operator is asked: send it back to Build, try starting it again, or leave it not running ([0280](../decisions/0280-the-run-step-builds-first-and-the-headline-tells-the-truth.md)).
 
 | Kind of software | How it runs | What the page shows |
 |---|---|---|
@@ -68,7 +73,7 @@ The runner starts the checked commit from a clean copy using `run.md`, confined 
 | Command-line tools and libraries | The command, run once on a sample | The command and the sample run's output |
 | Desktop apps | Built | The built program and how to start it on the owner's machine |
 
-- `run.md` is the same file the checker runs from a clean copy every time, so it cannot go stale without the check failing.
+- `run.md` is the same file the checker runs from a clean copy every time, so it cannot go stale without the check failing. The checker runs the block's build lines and then its start or sample exactly as the runner will, before anything else; a block that does not work that way is a blocking finding. The builder's and planner's instructions say exactly what premise runs, so they write the block to match.
 - The software listens on localhost unless the operator decided otherwise; exposing it beyond localhost is a gated act ([0092](../decisions/0092-security-defaults.md)).
 - Several softwares run at once, each on its own port of `runner.port_range` ([0197](../decisions/0197-how-several-softwares-at-once-is-built.md)). Before starting one more, the runner says plainly when the machine is the limit: `runner.max_running_softwares` already run (it names them and says to stop one), or the machine has less free memory than `runner.min_free_memory_mb`. The refusal is a failed run on the software's page, with the setting to change, and an event `no-room`.
 - Secrets: the runner places the software's secrets file from premise's data folder into the run copy, ignored by git. A person writes that file; premise never holds the values in its database, and agents never see it ([0120](../decisions/0120-secrets-stay-out-of-premise.md)).
@@ -91,7 +96,7 @@ The runner starts the checked commit from a clean copy using `run.md`, confined 
 
 ## 6. Configuration
 
-The settings are listed in the [configuration reference](../reference/configuration.md) (`runner.*`). The ones below are the specification's; the reference also holds `runner.port_range`, the start and sample time limits, the restart delay, the stop grace, the output kept for the page, `runner.confinement` and `runner.read_only_paths`.
+The settings are listed in the [configuration reference](../reference/configuration.md) (`runner.*`). The ones below are the specification's; the reference also holds `runner.port_range`, the build, start and sample time limits, whether the build may use the network, the restart delay, the stop grace, the output kept for the page, `runner.confinement` and `runner.read_only_paths`.
 
 | Key | Default | Meaning |
 |---|---|---|
@@ -112,7 +117,8 @@ The settings are listed in the [configuration reference](../reference/configurat
 
 | Failure | Detection | Effect | Recovery |
 |---|---|---|---|
-| `run.md` does not start the software | Start fails | No run | Back to the builder as a task, with the log (the checker should have caught it first) |
+| `run.md` does not start the software, or a build line fails | Build or start fails | No run; the line holds at Run | Back to Build by itself once with the last lines of output, then the operator is asked (the checker should have caught it first, [0280](../decisions/0280-the-run-step-builds-first-and-the-headline-tells-the-truth.md)) |
+| The build lines take too long | `runner.build_timeout_seconds` | No run | As above; the message names the setting |
 | The software keeps crashing | Restart limit | Stopped | Reported; the errors are intake items |
 | As many softwares run as allowed, or too little free memory | Before the start | Not started; the page says which ones run, or how much memory is free, and the setting | Stop one, or change `runner.max_running_softwares` or `runner.min_free_memory_mb` |
 | Another program takes the chosen port | Software says the port is in use | Not counted as a crash | The next free port is tried; if the range runs out the run fails and names `runner.port_range` |

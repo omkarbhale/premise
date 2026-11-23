@@ -42,6 +42,13 @@ export interface VerdictFact {
   /** Judged by a scripted agent, which cannot judge software. */
   scripted?: boolean;
   /**
+   * Judged on made-up data only (decision 0280): what real data, service or environment the
+   * checker did not have ("" when it did not say). Absent when the verdict rests on the real thing.
+   */
+  madeUp?: string;
+  /** A verdict recorded before the checker had to say whether real data was used. */
+  notStated?: boolean;
+  /**
    * True when the latest commit has the same code as the commit judged: only merges or changes to
    * the record came after it, so the verdict still holds for the latest version.
    */
@@ -178,6 +185,8 @@ export interface Facts {
   doing: { plain: string; lines: ReportLine[] } | null;
   /** How many intake items went each route, from the intake table (src/intake). */
   intake: IntakeRouteCounts | null;
+  /** Record items the person chose for a later milestone: not built yet (decision 0280). */
+  later: { item: string; milestone: string }[];
 }
 
 export interface FactSources {
@@ -194,6 +203,8 @@ export interface FactSources {
   measures?: { reportBlock(softwareId: string): { plain: string; lines: ReportLine[] } };
   /** Cost per stage, change and item, and the budget (src/usage); only totals when not given. */
   usage?: Pick<Usage, "view">;
+  /** Items planned for a milestone after the one being built (src/build); none when not given. */
+  plannedLater?: (softwareId: string) => { item: string; milestone: string }[];
 }
 
 interface EventRow {
@@ -214,7 +225,13 @@ export function readVerdicts(db: Database, softwareId: string): VerdictFact[] {
   const latest = new Map<string, VerdictFact>();
   for (const row of rows) {
     if (!row.reference || !row.detail) continue;
-    let detail: { verdict?: string; evidence?: string; commit?: string };
+    let detail: {
+      verdict?: string;
+      evidence?: string;
+      commit?: string;
+      judgedOn?: string;
+      tryItOn?: string;
+    };
     try {
       detail = JSON.parse(row.detail) as typeof detail;
     } catch {
@@ -226,6 +243,9 @@ export function readVerdicts(db: Database, softwareId: string): VerdictFact[] {
       detail.verdict !== "could-not-check"
     )
       continue;
+    const met = detail.verdict === "met";
+    const madeUp = met && detail.judgedOn === "made-up" ? (detail.tryItOn ?? "real data") : null;
+    const notStated = met && detail.judgedOn !== "made-up" && detail.judgedOn !== "real";
     latest.set(row.reference, {
       item: row.reference,
       verdict: detail.verdict,
@@ -233,6 +253,8 @@ export function readVerdicts(db: Database, softwareId: string): VerdictFact[] {
       commit: detail.commit ?? null,
       time: row.time,
       ...(row.runtime === "scripted" && { scripted: true }),
+      ...(madeUp !== null && { madeUp }),
+      ...(notStated && { notStated }),
     });
   }
   return [...latest.values()];
@@ -401,5 +423,12 @@ export async function gatherFacts(
     milestone,
     doing: sources.measures ? sources.measures.reportBlock(softwareId) : null,
     intake: intakeCounts(db, softwareId),
+    later: (() => {
+      try {
+        return sources.plannedLater?.(softwareId) ?? [];
+      } catch {
+        return [];
+      }
+    })(),
   };
 }

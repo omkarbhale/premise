@@ -468,6 +468,14 @@ export const SETTINGS: readonly Setting[] = [
     record: "0186",
   },
   {
+    key: "line.start_send_backs",
+    default: 1,
+    check: summarised(wholeNumber(0, 5), "0 to 5"),
+    meaning:
+      "When a software was built and checked but would not start, how many times premise sends it back to Build by itself, with the start's output, before it asks you what to do. 0 asks you at once.",
+    record: "0280",
+  },
+  {
     key: "line.when_nothing_verified",
     default: "ask",
     check: summarised(oneOf(UNVERIFIED_CHOICES), '"ask" or "land"'),
@@ -761,6 +769,22 @@ export const SETTINGS: readonly Setting[] = [
     record: "0162",
   },
   {
+    key: "runner.build_timeout_seconds",
+    default: 600,
+    check: summarised(wholeNumber(10, 7200), "10 to 7200"),
+    meaning:
+      "How long the build steps in a software's run.md may take, all together, before premise stops them and says the build did not finish. They run in a clean copy before every start.",
+    record: "0280",
+  },
+  {
+    key: "runner.build_network",
+    default: true,
+    check: summarised(yesNo, "true or false"),
+    meaning:
+      "Whether the build steps in run.md may use the network, to install what the software depends on. The software itself still runs as before: a command-line software without any network.",
+    record: "0280",
+  },
+  {
     key: "runner.max_running_softwares",
     default: 5,
     check: summarised(wholeNumber(1, 50), "1 to 50"),
@@ -949,6 +973,7 @@ export interface PremiseConfig {
     why_items_min: number;
     why_items_max: number;
     check_rounds_before_stop: number;
+    start_send_backs: number;
     remote: Remote;
     when_nothing_verified: UnverifiedChoice;
     splitting: boolean;
@@ -991,6 +1016,8 @@ export interface PremiseConfig {
     restart_delay_seconds: number;
     port_range: string;
     start_timeout_seconds: number;
+    build_timeout_seconds: number;
+    build_network: boolean;
     max_running_softwares: number;
     min_free_memory_mb: number;
     sample_timeout_seconds: number;

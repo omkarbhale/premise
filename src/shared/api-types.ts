@@ -558,6 +558,8 @@ export interface ReportLine {
   evidence?: string;
   /** premise's own assumption or choice, not a person's: the page folds these under a disclosure. */
   premises?: boolean;
+  /** Decided before this report and unchanged since: the page folds these too (decision 0280). */
+  earlier?: boolean;
 }
 
 /** A standing approval for a kind of floor action, for one software. */

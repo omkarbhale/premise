@@ -95,22 +95,26 @@ Do this:
 
    ```premise-run
    kind: web
+   build: npm ci
+   build: npm run build
    start: node server.js --port {port}
    open: /
    ```
 
    ```premise-run
    kind: command
+   build: a step needed before it runs, such as npm run build
    command: what a person types, such as tool <file>
    sample: a command premise runs once to show it working, such as tool sample.txt
    ```
 
    ```premise-run
    kind: program
+   build: how to build it, such as make
    program: what was built and how to start it
    ```
 
-   A web software listens on 127.0.0.1 and the port premise gives ({port}, also in the PORT variable). Under the block, add a section "## How to check" saying in a few lines how a person checks it works.
+   This block is all premise runs, and nothing else in run.md: in a fresh clone of the commit, each "build:" line in order (installing what it depends on, building), then the "start:" line (web) or the "sample:" line (command). Nothing is installed beforehand, and a command's sample runs with no network. So every step needed before the start goes on its own "build:" line; a software that needs no build has none. Before you finish, run exactly those lines yourself from a fresh clone of your commit, and fix run.md until they work. A web software listens on 127.0.0.1 and the port premise gives ({port}, also in the PORT variable). Under the block, add a section "## How to check" saying in a few lines how a person checks it works.
 5. Commit. The last paragraph of every commit message is exactly this line:
    {{trace}}
    Commit everything the task needs; premise uses only what is committed on your branch. If an earlier task already did everything this task asks, commit nothing and finish done, saying so.

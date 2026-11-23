@@ -500,7 +500,9 @@ export class LineEngine implements IntakeLine {
       return "Ended: you decided not to build it, so nothing was built. Send it back to any stage to pick it up again.";
     }
     if (software.state === "waiting-milestone") {
-      return "Stopped after a milestone. Try it, then say go on.";
+      return this.options.later.notRunning?.(software.id)
+        ? "Stopped after a milestone, but it is not running: read the report, then say go on."
+        : "Stopped after a milestone. Try it, then say go on.";
     }
     if (software.state === "paused-budget") {
       return "Paused: its budget is used up. Open Usage to raise the budget, let it finish the change it is on, or leave it paused.";
@@ -2604,6 +2606,7 @@ export class LineEngine implements IntakeLine {
     const nextMilestone = after ? { id: after.ref ?? "", text: after.title ?? "" } : undefined;
     const waits = index >= 0 && all[index]!.wait;
     if (waits) {
+      const notRunning = this.options.later.notRunning?.(software.id) ?? null;
       this.setLifecycle(software.id, "waiting-milestone", `${milestone!.id} reached`);
       createAsk(this.db, {
         softwareId: software.id,
@@ -2611,7 +2614,7 @@ export class LineEngine implements IntakeLine {
         kind: "question",
         stage: "report",
         title: `Milestone reached: ${milestone!.text.replace(/\.+$/, "")}. Go on?`,
-        instruction: `You asked premise to stop after this milestone. Try the software and read the report. ${nextMilestone ? `"Go on" builds the next milestone, "${nextMilestone.text.replace(/\.+$/, "")}".` : `This is the last milestone, so "Go on" builds nothing more: premise finishes, and then takes in any problem or wish you send in the conversation.`} If it is solving the wrong problem, "Go back to Why" redoes the work from Why with what you say then.`,
+        instruction: `You asked premise to stop after this milestone. ${notRunning ? `${notRunning} Read the report.` : "Try the software and read the report."} ${nextMilestone ? `"Go on" builds the next milestone, "${nextMilestone.text.replace(/\.+$/, "")}".` : `This is the last milestone, so "Go on" builds nothing more: premise finishes, and then takes in any problem or wish you send in the conversation.`} If it is solving the wrong problem, "Go back to Why" redoes the work from Why with what you say then.`,
         extra: {
           choices: [...MILESTONE_CHOICES],
           meta: {

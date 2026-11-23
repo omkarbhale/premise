@@ -97,8 +97,11 @@ interface Live {
   port: number | null;
   child: ChildProcess | null;
   stopping: boolean;
-  /** first-start: start() reports a failure itself; up and restarting: a stop by itself is a crash. */
-  phase: "first-start" | "up" | "restarting";
+  /**
+   * building: run.md's build lines run first; first-start: start() reports a failure itself; up and
+   * restarting: a stop by itself is a crash.
+   */
+  phase: "building" | "first-start" | "up" | "restarting";
   restartTimes: number[];
   /** Ports this run found taken by another program, not to be tried again. */
   busyPorts: Set<number>;
@@ -110,6 +113,11 @@ interface Live {
 }
 
 const SAMPLE_OUTPUT_LIMIT = 64 * 1024;
+
+/** The last lines of a run's output, enough to see why it ended, short enough to read. */
+function lastLines(output: string, count = 15): string {
+  return output.split("\n").slice(-count).join("\n").trim();
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -227,7 +235,10 @@ export class Runner {
     const short = row.commit_sha.slice(0, 7);
     const plains: Record<RunState, string> = {
       none: empty.plain,
-      starting: "Starting up. This page updates by itself when it is ready.",
+      starting:
+        live?.phase === "building"
+          ? "Building it from a clean copy first, as run.md says. This page updates by itself when it is ready."
+          : "Starting up. This page updates by itself when it is ready.",
       running:
         row.kind === "web"
           ? "It is running. Open the link below; it only works on this computer."
@@ -255,7 +266,7 @@ export class Runner {
           ? join(this.deps.config.data.folder, "work", softwareId, "run")
           : null,
       output,
-      outputIsSample: row.kind === "command",
+      outputIsSample: row.kind === "command" && row.sample_output !== null,
       restarts: row.restarts,
       confined: row.confined === 1,
       started: row.started,
@@ -355,27 +366,22 @@ export class Runner {
     const instructions = parsed.instructions;
     const confinedMode = config.runner.confinement === "bubblewrap" ? 1 : 0;
 
-    if (instructions.kind === "program") {
-      const id = insert("program", "built", { command: instructions.program!, confined: 1 });
-      recordEvent(db, {
-        softwareId,
-        module: "runner",
-        kind: "started",
-        reference: sha,
-        detail: { run: id, kind: "program" },
-      });
-      return this.view(softwareId);
-    }
-
-    const noRoom = this.noRoom(softwareId, instructions.kind);
-    if (noRoom) {
-      insert(instructions.kind, "failed", { failure: noRoom });
-      throw new RunnerError("RUN_FAILED", noRoom);
+    if (instructions.kind !== "program") {
+      const noRoom = this.noRoom(softwareId, instructions.kind);
+      if (noRoom) {
+        insert(instructions.kind, "failed", { failure: noRoom });
+        throw new RunnerError("RUN_FAILED", noRoom);
+      }
     }
 
     const logFile = join(logFolder, `run-${Date.now()}.log`);
     const runId = insert(instructions.kind, "starting", {
-      command: instructions.kind === "web" ? instructions.start! : instructions.command!,
+      command:
+        instructions.kind === "web"
+          ? instructions.start!
+          : instructions.kind === "command"
+            ? instructions.command!
+            : instructions.program!,
       confined: confinedMode,
       log_file: logFile,
     });
@@ -397,7 +403,23 @@ export class Runner {
     };
 
     try {
-      if (instructions.kind === "command") {
+      if (instructions.build.length > 0) {
+        this.live.set(softwareId, live);
+        await this.runBuild(live);
+        if (live.stopping) return this.view(softwareId);
+        this.live.delete(softwareId);
+        live.phase = "first-start";
+      }
+      if (instructions.kind === "program") {
+        this.update(runId, { status: "built", ended: now() });
+        recordEvent(db, {
+          softwareId,
+          module: "runner",
+          kind: "started",
+          reference: sha,
+          detail: { run: runId, kind: "program" },
+        });
+      } else if (instructions.kind === "command") {
         await this.runSample(live, sha);
       } else {
         this.live.set(softwareId, live);
@@ -596,6 +618,69 @@ export class Runner {
     if (live.lines.length > keep) live.lines.splice(0, live.lines.length - keep);
   }
 
+  // ---- Building first -----------------------------------------------------------------------
+
+  /**
+   * run.md's build lines, in order, in the clean copy and confined like the software itself
+   * (decision 0280). They may use the network when runner.build_network allows it, to install what
+   * the software depends on. All of them together have runner.build_timeout_seconds. Their output
+   * goes to the run's log and the page. A failing line ends the start with its last lines.
+   */
+  private async runBuild(live: Live): Promise<void> {
+    const { config } = this.deps;
+    const limit = config.runner.build_timeout_seconds;
+    const deadline = Date.now() + limit * 1000;
+    live.phase = "building";
+    for (const step of live.instructions.build) {
+      if (live.stopping || this.closed) return;
+      this.takeOutput(live, `$ ${step}\n`);
+      const left = deadline - Date.now();
+      const result = await new Promise<
+        { code: number | null } | { timedOut: true } | { error: Error }
+      >((resolve) => {
+        if (left <= 0) {
+          resolve({ timedOut: true });
+          return;
+        }
+        const child = this.spawnConfined(live, step, config.runner.build_network);
+        live.child = child;
+        const timer = setTimeout(() => {
+          this.killTree(live, "SIGKILL");
+          resolve({ timedOut: true });
+        }, left);
+        child.once("error", (error) => {
+          clearTimeout(timer);
+          resolve({ error });
+        });
+        child.once("exit", (code) => {
+          clearTimeout(timer);
+          resolve({ code });
+        });
+      });
+      live.child = null;
+      if (live.stopping || this.closed) return;
+      const tail = live.lines.slice(-15).join("\n") || "(none)";
+      if ("error" in result) {
+        throw new RunnerError(
+          "RUN_FAILED",
+          `premise could not run the build step "${step}": ${result.error.message}. ${this.confinementHint()}`,
+        );
+      }
+      if ("timedOut" in result) {
+        throw new RunnerError(
+          "RUN_FAILED",
+          `Building it took more than ${limit} seconds, so premise stopped the build step "${step}". Its last lines of output:\n${tail}\nIf the build really needs longer, raise runner.build_timeout_seconds in the settings.`,
+        );
+      }
+      if (result.code !== 0) {
+        throw new RunnerError(
+          "RUN_FAILED",
+          `The build step "${step}" from run.md ended with an error (exit code ${result.code}). Its last lines of output:\n${tail}`,
+        );
+      }
+    }
+  }
+
   // ---- Command-line software ----------------------------------------------------------------
 
   private runSample(live: Live, sha: string): Promise<void> {
@@ -653,7 +738,7 @@ export class Runner {
           reject(
             new RunnerError(
               "RUN_FAILED",
-              `The sample run of "${sample}" ended with an error (exit code ${code}). Its output:\n${output || "(none)"}`,
+              `The sample run of "${sample}" ended with an error (exit code ${code}). Its last lines of output:\n${lastLines(output) || "(none)"}`,
             ),
           );
         }

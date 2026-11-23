@@ -12,6 +12,14 @@
  * kind command  command (needed: what a person types), sample (what the runner runs once; defaults to command)
  * kind program  program (needed: what was built and how to start it on the owner's machine)
  *
+ * Any kind may also have build lines, one command each, as many as needed:
+ *
+ *     build: npm ci
+ *     build: npm run build
+ *
+ * The runner runs them in order in the clean copy before the start or the sample (decision 0280),
+ * so a software that must be built first starts the same way from a clean copy every time.
+ *
  * `{port}` in start is replaced by the port the runner chose; PORT and HOST are also set in the
  * software's environment.
  */
@@ -25,6 +33,8 @@ export interface RunInstructions {
   command?: string;
   sample?: string;
   program?: string;
+  /** Commands run in order in the clean copy before the start or the sample; empty when none. */
+  build: string[];
 }
 
 export type ParsedRunInstructions =
@@ -38,7 +48,7 @@ const EXAMPLE = [
   "```",
 ].join("\n");
 
-const KEYS = ["kind", "start", "open", "command", "sample", "program"] as const;
+const KEYS = ["kind", "build", "start", "open", "command", "sample", "program"] as const;
 
 export function parseRunInstructions(
   text: string | undefined,
@@ -58,6 +68,7 @@ export function parseRunInstructions(
     };
   }
   const values = new Map<string, string>();
+  const build: string[] = [];
   for (const raw of block[1]!.split("\n")) {
     const line = raw.trim();
     if (line === "" || line.startsWith("#")) continue;
@@ -69,7 +80,18 @@ export function parseRunInstructions(
         problem: `In ${file}, the line "${line}" is not understood. Lines look like "key: value", with keys from: ${KEYS.join(", ")}.`,
       };
     }
-    values.set(key, line.slice(colon + 1).trim());
+    const value = line.slice(colon + 1).trim();
+    if (key === "build") {
+      if (value.length === 0) {
+        return {
+          ok: false,
+          problem: `In ${file}, a "build:" line needs the command to run, such as "build: npm run build".`,
+        };
+      }
+      build.push(value);
+      continue;
+    }
+    values.set(key, value);
   }
   const kind = values.get("kind");
   if (kind !== "web" && kind !== "command" && kind !== "program") {
@@ -94,7 +116,7 @@ export function parseRunInstructions(
       problem: `In ${file}, "open" must be a path starting with /, such as /; it is "${open}".`,
     };
   }
-  const instructions: RunInstructions = { kind, open };
+  const instructions: RunInstructions = { kind, open, build };
   const start = values.get("start");
   const command = values.get("command");
   const sample = values.get("sample");

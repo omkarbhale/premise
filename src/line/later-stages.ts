@@ -68,6 +68,11 @@ export interface LaterStages {
    * of these stages waited on it.
    */
   claimReleased?(softwareId: string, claimId: number): LaterOutcome | null;
+  /**
+   * Said when the software is built but not running because its latest start failed; null when it
+   * runs or nothing was started. The line does not ask anyone to try a software that is not running.
+   */
+  notRunning?(softwareId: string): string | null;
   /** An agent of these stages proposed a record change the record keeper accepted for review. */
   proposed?(softwareId: string, changeId: number): void;
 }

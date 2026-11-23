@@ -217,7 +217,8 @@ Do this:
 5. Work out how to build it, start it and check that it works, from its files (package files, scripts, a Makefile, its README, its tests). Give them as "run": "build", "start" and "check" in plain words, and "premise_run", the block premise's runner reads:
    kind: web, with start: the command, using {port} for the port, and open: the path to open;
    kind: command, with command: what a person types, and sample: a harmless command to run once;
-   kind: program, with program: what is built and how to start it.
+   kind: program, with program: what is built and how to start it;
+   and for any kind, one "build:" line per step needed before the start, in order (installing what it depends on, building). premise runs only this block from a fresh copy: the build lines, then the start or sample, with nothing installed beforehand.
    Where you cannot tell, or the software needs something premise does not have (a database, an account, a key, a device), say what is needed in "could_not_check", one line each. Never pretend it can be checked.
 6. Draft no item about the software's real people. Name roles only.
 7. Submit with recovery_submit. The say-back will cover the whole recovered record; recovered items stay unconfirmed until it passes. Submitting again replaces what you submitted.

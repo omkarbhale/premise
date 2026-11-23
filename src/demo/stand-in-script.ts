@@ -283,6 +283,7 @@ const trialJudge: ScriptBehaviour = async (request, call) => {
     verdicts: itemsOf(request).map((item) => ({
       item,
       verdict: "could-not-check",
+      judged_on: "real",
       evidence: `This is a scripted trial, so nothing real was built and nothing was judged. The placeholder program ${started.met ? `ran and printed: ${started.seen}` : `did not run: ${started.seen}`}`,
     })),
   });
