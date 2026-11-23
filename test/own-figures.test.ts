@@ -126,7 +126,7 @@ describe("premise's own count of what sessions used", () => {
       { runtime: "claude", figures: { ...bare, turns: 1 } },
     ]);
     expect(ownFiguresWords(some)).toBe(
-      "$0.50 at list prices, 7.4k tokens, 7 turns; cost not reported by 1 session, tokens not reported by 1 session (from 2 sessions).",
+      "$0.50 at list prices, 3.7k tokens, 5 turns; cost not reported by 1 session, tokens not reported by 1 session (from 2 sessions).",
     );
   });
 
