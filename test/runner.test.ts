@@ -69,8 +69,24 @@ describe("reading run instructions", () => {
     );
     expect(parsed).toEqual({
       ok: true,
-      instructions: { kind: "web", open: "/", start: "node a.js --port {port}" },
+      instructions: { kind: "web", open: "/", start: "node a.js --port {port}", build: [] },
     });
+  });
+
+  it("reads build lines, in order, for any kind", () => {
+    const parsed = parseRunInstructions(
+      runBlock(["kind: command", "build: npm ci", "build: npm run build", "command: tool <file>"]),
+      "premise/run.md",
+    );
+    expect(parsed).toMatchObject({
+      ok: true,
+      instructions: { kind: "command", build: ["npm ci", "npm run build"], sample: "tool <file>" },
+    });
+    const empty = parseRunInstructions(
+      runBlock(["kind: command", "build:", "command: tool"]),
+      "premise/run.md",
+    );
+    expect(JSON.stringify(empty)).toContain('a \\"build:\\" line needs the command');
   });
 
   it("explains what to add when there is no block, and what is wrong in a bad one", () => {
@@ -125,6 +141,94 @@ describe("a command-line software", () => {
     expect((error as Error).message).toContain("ended with an error");
     expect((error as Error).message).toContain("nothing.js");
     expect(runner.view(s.id)).toMatchObject({ state: "failed" });
+  });
+});
+
+/** A tool that exists only once built: build.js writes dist/hello.js from src/hello.js. */
+const NEEDS_BUILD = {
+  "src/hello.js": HELLO_SCRIPT,
+  "build.js": [
+    'const fs = require("node:fs");',
+    'console.log("building dist/hello.js");',
+    'fs.mkdirSync("dist", { recursive: true });',
+    'fs.copyFileSync("src/hello.js", "dist/hello.js");',
+  ].join("\n"),
+};
+
+describe("software that needs a build first (decision 0280)", () => {
+  it("runs run.md's build lines in the clean copy before the sample", async () => {
+    const s = makeSoftware(db, config, "Built greeter", {
+      ...NEEDS_BUILD,
+      "premise/run.md": runBlock([
+        "kind: command",
+        "build: node build.js",
+        "command: node dist/hello.js <your name>",
+        "sample: node dist/hello.js Ada",
+      ]),
+    });
+    const view = await runner.start(s.id);
+    expect(view).toMatchObject({ state: "finished", output: ["Hello, Ada!"] });
+    const log = readFileSync(runner.history(s.id)[0]!.log_file!, "utf8");
+    expect(log).toContain("$ node build.js");
+    expect(log).toContain("building dist/hello.js");
+  });
+
+  it("without the build line, the same sample would not start: the start fails", async () => {
+    const s = makeSoftware(db, config, "Unbuilt greeter", {
+      ...NEEDS_BUILD,
+      "premise/run.md": runBlock(["kind: command", "command: node dist/hello.js Ada"]),
+    });
+    const error = await runner.start(s.id).catch((e: unknown) => e);
+    expect((error as Error).message).toContain("ended with an error");
+    expect(runner.view(s.id).state).toBe("failed");
+  });
+
+  it("says plainly when a build step fails, with its last lines of output, and does not start", async () => {
+    const s = makeSoftware(db, config, "Broken build", {
+      ...NEEDS_BUILD,
+      "premise/run.md": runBlock([
+        "kind: web",
+        "build: node build.js",
+        "build: node -e \"console.error('missing compiler for native module'); process.exit(3)\"",
+        "start: node dist/never.js",
+      ]),
+    });
+    const error = await runner.start(s.id).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(RunnerError);
+    const message = (error as Error).message;
+    expect(message).toContain("The build step");
+    expect(message).toContain("exit code 3");
+    expect(message).toContain("missing compiler for native module");
+    const view = runner.view(s.id);
+    expect(view.state).toBe("failed");
+    expect(view.plain).toContain("missing compiler for native module");
+    expect(view.output.join("\n")).toContain("building dist/hello.js");
+  });
+
+  it("stops a build that takes longer than its own time limit, and names the setting", async () => {
+    await runner.close();
+    db.close();
+    setup({ PREMISE_RUNNER__BUILD_TIMEOUT_SECONDS: "10" });
+    const s = makeSoftware(db, config, "Slow build", {
+      "premise/run.md": runBlock([
+        "kind: command",
+        'build: node -e "setTimeout(() => {}, 60000)"',
+        "command: node -e 1",
+      ]),
+    });
+    const started = Date.now();
+    const error = await runner.start(s.id).catch((e: unknown) => e);
+    expect(Date.now() - started).toBeLessThan(30_000);
+    expect((error as Error).message).toContain("runner.build_timeout_seconds");
+  }, 40_000);
+
+  it("builds a desktop program before calling it built", async () => {
+    const s = makeSoftware(db, config, "Built program", {
+      "premise/run.md": runBlock(["kind: program", "build: exit 1", "program: dist/app"]),
+    });
+    const error = await runner.start(s.id).catch((e: unknown) => e);
+    expect((error as Error).message).toContain('The build step "exit 1"');
+    expect(runner.view(s.id).state).toBe("failed");
   });
 });
 

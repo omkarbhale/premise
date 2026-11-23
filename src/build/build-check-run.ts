@@ -28,6 +28,7 @@ import { type Ask, createAsk, listAsks } from "../storage/asks.js";
 import { addChatMessage } from "../storage/chat.js";
 import { type Database, now, recordEvent } from "../storage/database.js";
 import { RecordWriter } from "../line/record-writer.js";
+import { madeUpData } from "../reporter/made-up.js";
 import { answerWords } from "../line/answers.js";
 import { activeWorkItem } from "../line/work-items.js";
 import { type Taste, roleWords } from "../taste/taste.js";
@@ -110,6 +111,13 @@ interface BuildState {
   leftStopped: boolean;
   /** Proposals for claimed areas in this milestone (decision 0196); absent in older notes. */
   taste?: TasteState[];
+  /**
+   * The landed commit would not start (decision 0280): what the start said. Cleared once a start
+   * succeeds. Absent in older notes.
+   */
+  startFailure?: { commit: string; message: string } | null;
+  /** Times this milestone was sent back to Build by itself because it would not start. */
+  startSendBacks?: number;
 }
 
 /** One claimed area's proposal, as Build waits on it. */
@@ -167,6 +175,11 @@ const CHECK_LANDED_WORDS: Partial<Record<CheckView["status"], string>> = {
   "not-verified": "not verified: nothing could be checked",
 };
 const NOTHING_VERIFIED = ["Land it unverified", "Stop here"] as const;
+const START_PROBLEM = [
+  "Send it back to Build",
+  "Try starting it again",
+  "Leave it not running",
+] as const;
 
 const PURPOSES = [
   "build-task-stopped",
@@ -174,8 +187,13 @@ const PURPOSES = [
   "build-check-problem",
   "build-land-problem",
   "build-nothing-verified",
+  "build-start-problem",
 ] as const;
 type Purpose = (typeof PURPOSES)[number];
+
+function firstLine(text: string): string {
+  return text.trim().split("\n")[0] ?? "";
+}
 
 function short(sha: string | null | undefined): string {
   return sha ? sha.slice(0, 7) : "none";
@@ -258,6 +276,8 @@ export class BuildCheckRun implements LaterStages {
       proposals: [],
       leftStopped: false,
       taste: [],
+      startFailure: null,
+      startSendBacks: 0,
     };
   }
 
@@ -1171,7 +1191,11 @@ export class BuildCheckRun implements LaterStages {
       (all, v) => ({ ...all, [v.verdict]: all[v.verdict] + 1 }),
       { met: 0, "not-met": 0, "could-not-check": 0 },
     );
-    const tally = `${counts.met} met, ${counts["not-met"]} not met, ${counts["could-not-check"]} could not check`;
+    // A "met" on made-up data only is said with it, so the caveat is not lost (decision 0280).
+    const madeUp = [...verdicts.values()].filter(
+      (v) => v.verdict === "met" && madeUpData(v.evidence, v.notAvailable) !== null,
+    ).length;
+    const tally = `${counts.met} met${madeUp > 0 ? ` (${madeUp} of them only on made-up data)` : ""}, ${counts["not-met"]} not met, ${counts["could-not-check"]} could not check`;
     if (failing.length === 0 && blocking.length === 0) {
       return this.noFailureFound(job, state, check, verdicts, tally);
     }
@@ -1322,7 +1346,10 @@ export class BuildCheckRun implements LaterStages {
   }
 
   private runEnded(job: Job, state: BuildState): LaterOutcome {
-    if (job.status === "done") return { kind: "next" };
+    if (job.status === "done") {
+      if (!state.startFailure) return { kind: "next" };
+      return this.wouldNotStart(job.softwareId, state);
+    }
     this.save(job.softwareId, state);
     createAsk(this.db, {
       softwareId: job.softwareId,
@@ -1337,6 +1364,71 @@ export class BuildCheckRun implements LaterStages {
       },
     });
     return { kind: "wait" };
+  }
+
+  /**
+   * Built and checked, but it would not start (decision 0280). The line holds at Run. The first
+   * time (line.start_send_backs) it goes back to Build by itself, with the start's output as the
+   * evidence; after that premise asks the person.
+   */
+  private wouldNotStart(id: string, state: BuildState): LaterOutcome {
+    const failure = state.startFailure!;
+    const output = failure.message;
+    const allowed = this.config.line.start_send_backs;
+    const sent = state.startSendBacks ?? 0;
+    if (sent < allowed) {
+      state.startSendBacks = sent + 1;
+      this.sendBackToBuild(id, state, this.startEvidence(failure));
+      this.say(
+        id,
+        `Built and checked, but it would not start. premise started it from a clean copy exactly as premise/run.md says, and it ended like this:\n${output}\nIt goes back to Build by itself${allowed > 1 ? ` (${sent + 1} of ${allowed})` : ""}, with this output, so the builder can make it start. Nobody needs to do anything yet.`,
+      );
+      return { kind: "back-to-build", evidence: "it would not start" };
+    }
+    this.save(id, state);
+    this.say(
+      id,
+      `Built and checked, but it would not start${sent === 0 ? "" : `, even after going back to Build ${sent === 1 ? "once" : `${sent} times`}`}. What to do is under Waiting on you.`,
+    );
+    createAsk(this.db, {
+      softwareId: id,
+      role: "operator",
+      kind: "question",
+      stage: "run",
+      title: "Built and checked, but it would not start",
+      instruction: [
+        `premise started commit ${short(failure.commit)} from a clean copy exactly as premise/run.md says, and it would not start. Its last lines of output:`,
+        output,
+        sent > 0
+          ? `It already went back to Build ${sent === 1 ? "once" : `${sent} times`} with this output, and still does not start.`
+          : "",
+        `"Send it back to Build" has the builder fix it with this output. "Try starting it again" starts the same version again, for when the cause was outside it (the machine, a missing program you have now installed). "Leave it not running" goes on without a running version; the report says it is not running. You can also write what the builder needs to know.`,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      extra: {
+        choices: [...START_PROBLEM],
+        meta: { purpose: "build-start-problem" satisfies Purpose },
+      },
+    });
+    return { kind: "wait" };
+  }
+
+  private startEvidence(failure: { commit: string; message: string }): string {
+    return [
+      `premise landed commit ${short(failure.commit)} and started it from a clean copy exactly as premise/run.md says: first each "build:" line in order, then the "start:" or "sample:" line. It would not start:`,
+      failure.message,
+      `Make it start that way from a clean copy: put every step needed before the start (installing what it depends on, building) on its own "build:" line in the premise-run block, and make the start or sample line work after them. Run them yourself from a fresh clone before you finish.`,
+    ].join("\n");
+  }
+
+  /** Back to Build on the landed code, with this evidence. */
+  private sendBackToBuild(id: string, state: BuildState, evidence: string): void {
+    this.fixRound(state, evidence, []);
+    state.startFailure = null;
+    state.head = null;
+    state.base = this.repositoryHead(id);
+    this.save(id, state);
   }
 
   // ---- People's answers -----------------------------------------------------------------------
@@ -1445,6 +1537,38 @@ export class BuildCheckRun implements LaterStages {
         this.startCheck(id, state);
         return { kind: "wait" };
       }
+      case "build-start-problem": {
+        const failure = state.startFailure;
+        if (text === START_PROBLEM[1]) {
+          this.say(id, "Starting the same version again.");
+          this.enqueue(id, state, {
+            softwareId: id,
+            kind: "run",
+            stage: "run",
+            payload: { startOnly: true },
+          });
+          return { kind: "wait" };
+        }
+        if (text === START_PROBLEM[2]) {
+          state.startFailure = null;
+          this.save(id, state);
+          this.say(
+            id,
+            "You said: leave it not running. The line goes on; the report says it would not start, and nothing claims it works. Press Start under Running to try again any time.",
+          );
+          return { kind: "next" };
+        }
+        const words = text && text !== START_PROBLEM[0] ? `\nFrom the operator: ${text}` : "";
+        this.sendBackToBuild(
+          id,
+          state,
+          (failure
+            ? this.startEvidence(failure)
+            : "The operator sent it back to Build because it would not start.") + words,
+        );
+        this.say(id, "Back to Build, with the start's output for the builder.");
+        return { kind: "back-to-build", evidence: "it would not start" };
+      }
       case "build-land-problem":
         if (text === LAND_PROBLEM[0]) {
           if (!state.head) return { kind: "wait" };
@@ -1481,6 +1605,17 @@ export class BuildCheckRun implements LaterStages {
 
   async runServerJob(job: Job): Promise<AgentOutcome> {
     const id = job.softwareId;
+    if (job.payload.startOnly === true) {
+      const landed = this.load(id)?.landed?.commit ?? null;
+      if (!landed) {
+        return {
+          kind: "failed",
+          summary: "Nothing has landed, so there is nothing to start.",
+          failureSignature: "start-nothing",
+        };
+      }
+      return this.startLanded(id, landed);
+    }
     const branch = typeof job.payload.branch === "string" ? job.payload.branch : null;
     const commit = typeof job.payload.commit === "string" ? job.payload.commit : null;
     if (!branch || !commit) {
@@ -1555,25 +1690,41 @@ export class BuildCheckRun implements LaterStages {
       `Landed: the checked commit ${short(commit)} is merged as ${short(head)}. ${notes.join(" ")}`.trim(),
     );
     if (!this.deps.runner) return { kind: "done", summary: `Landed as ${short(head)}.` };
+    return this.startLanded(id, head);
+  }
+
+  /**
+   * Start the landed commit. A start that fails is noted in the build notes, and runEnded holds the
+   * line at Run for it (decision 0280): it is not "run done".
+   */
+  private async startLanded(id: string, commit: string): Promise<AgentOutcome> {
+    const runner = this.deps.runner;
+    if (!runner) return { kind: "done", summary: `Landed as ${short(commit)}.` };
     try {
-      const view = await this.deps.runner.start(id, head);
+      const view = await runner.start(id, commit);
       const how =
         view.state === "running"
           ? `It is running: open ${view.link}.`
           : view.state === "finished"
             ? `It is a command: ${view.command ?? "see run.md"}. A sample run's output is under Running.`
             : "It is built; how to start it is under Running.";
+      const state = this.load(id);
+      if (state) {
+        state.startFailure = null;
+        this.save(id, state);
+      }
       this.say(id, how);
       return { kind: "done", summary: how };
     } catch (error) {
       const message = (error as Error).message;
-      this.say(
-        id,
-        `It landed, but it did not start: ${message} The report says so; say in chat what to do, or send it back to Build.`,
-      );
+      const state = this.load(id);
+      if (state) {
+        state.startFailure = { commit, message };
+        this.save(id, state);
+      }
       return {
         kind: "done",
-        summary: `Landed as ${short(head)}, but it did not start: ${message}`,
+        summary: `Landed as ${short(commit)}, but it would not start: ${firstLine(message)}`,
       };
     }
   }
@@ -1654,7 +1805,12 @@ export class BuildCheckRun implements LaterStages {
     }
     const known = new Set(this.items(job.softwareId).map((i) => i.id));
     const problems: string[] = [];
-    const clean: { item: string; verdict: VerdictValue; evidence: string }[] = [];
+    const clean: {
+      item: string;
+      verdict: VerdictValue;
+      evidence: string;
+      notAvailable: string | null;
+    }[] = [];
     (args.verdicts as unknown[]).forEach((raw, n) => {
       const v = (raw ?? {}) as Record<string, unknown>;
       const item = typeof v.item === "string" ? v.item.trim() : "";
@@ -1666,6 +1822,10 @@ export class BuildCheckRun implements LaterStages {
               .replace(/[\s_]+/g, "-")
           : "";
       const evidence = typeof v.evidence === "string" ? v.evidence.trim() : "";
+      const notAvailable =
+        typeof v.not_available === "string" && v.not_available.trim()
+          ? v.not_available.trim()
+          : null;
       const where = `Verdict ${n + 1}${item ? ` (${item})` : ""}`;
       if (!known.has(item)) problems.push(`${where}: name a record item, such as W-1.`);
       if (!["met", "not-met", "could-not-check"].includes(verdict)) {
@@ -1675,11 +1835,13 @@ export class BuildCheckRun implements LaterStages {
         problems.push(
           `${where}: give the evidence (output, a response, a log line, or the file saved in ${EVIDENCE_FOLDER}/).`,
         );
-      clean.push({ item, verdict: verdict as VerdictValue, evidence });
+      clean.push({ item, verdict: verdict as VerdictValue, evidence, notAvailable });
     });
     if (problems.length)
       return toolFail("MALFORMED", "The verdicts cannot be taken as they are.", problems);
-    for (const v of clean) this.recordVerdict(job.softwareId, job, v.item, v.verdict, v.evidence);
+    for (const v of clean) {
+      this.recordVerdict(job.softwareId, job, v.item, v.verdict, v.evidence, v.notAvailable);
+    }
     const findings = Array.isArray(args.findings) ? args.findings : [];
     for (const f of findings) {
       const text =
@@ -1727,6 +1889,7 @@ export class BuildCheckRun implements LaterStages {
     item: string,
     verdict: VerdictValue,
     evidence: string,
+    notAvailable: string | null = null,
   ): void {
     recordEvent(this.db, {
       softwareId,
@@ -1736,6 +1899,7 @@ export class BuildCheckRun implements LaterStages {
       detail: {
         verdict,
         evidence,
+        ...(notAvailable && { notAvailable }),
         commit: job.payload.commit ?? null,
         job: job.id,
         round: job.payload.round ?? null,
@@ -1744,16 +1908,29 @@ export class BuildCheckRun implements LaterStages {
     });
   }
 
-  private verdictsOf(jobId: number): Map<string, { verdict: VerdictValue; evidence: string }> {
+  private verdictsOf(
+    jobId: number,
+  ): Map<string, { verdict: VerdictValue; evidence: string; notAvailable?: string }> {
     const rows = this.db
       .prepare(
         "SELECT reference, detail FROM events WHERE module = 'checker' AND kind = 'verdict' AND json_extract(detail, '$.job') = ? ORDER BY id",
       )
       .all(jobId) as { reference: string; detail: string }[];
-    const found = new Map<string, { verdict: VerdictValue; evidence: string }>();
+    const found = new Map<
+      string,
+      { verdict: VerdictValue; evidence: string; notAvailable?: string }
+    >();
     for (const row of rows) {
-      const detail = JSON.parse(row.detail) as { verdict: VerdictValue; evidence: string };
-      found.set(row.reference, { verdict: detail.verdict, evidence: detail.evidence });
+      const detail = JSON.parse(row.detail) as {
+        verdict: VerdictValue;
+        evidence: string;
+        notAvailable?: string;
+      };
+      found.set(row.reference, {
+        verdict: detail.verdict,
+        evidence: detail.evidence,
+        ...(detail.notAvailable && { notAvailable: detail.notAvailable }),
+      });
     }
     return found;
   }
@@ -1778,10 +1955,49 @@ export class BuildCheckRun implements LaterStages {
       lines.push(
         `${about}: commit ${short(state.landed.commit)} is built and landed${check ? ` (check round ${check.round}: ${CHECK_LANDED_WORDS[check.status] ?? "landed as it was, with what the check found still open"})` : ""}.`,
       );
+      const notRunning = this.notRunning(softwareId);
+      if (notRunning) lines.push(notRunning);
     } else {
       lines.push(`${about}, but nothing landed.`);
     }
     return lines;
+  }
+
+  /**
+   * Said when the latest start of this software failed: it is built and checked, but not running,
+   * so nobody is asked to try it. Null when it runs, or nothing was started.
+   */
+  notRunning(softwareId: string): string | null {
+    const latest = this.deps.runner?.history(softwareId, 1)[0];
+    if (!latest || (latest.status !== "failed" && latest.status !== "crashed")) return null;
+    return latest.status === "crashed"
+      ? "It started, but kept stopping by itself, so it is not running now. The Report has its last output."
+      : "It is built and checked, but it would not start, so there is nothing to try yet. The Report has its last lines of output.";
+  }
+
+  /**
+   * Record items planned only for a milestone after the one being built: the person chose them for
+   * later, so they are not built yet (decision 0280). Read from the plan's tasks, like
+   * itemsToCheck.
+   */
+  laterItems(softwareId: string): { item: string; milestone: string }[] {
+    const order = this.milestoneIds(softwareId).map((m) => m.id);
+    if (order.length < 2) return [];
+    const state = this.load(softwareId);
+    const current = state?.milestone ?? state?.landed?.milestone ?? null;
+    const at = current ? order.indexOf(current) : 0;
+    const first = new Map<string, number>();
+    const byMilestone = this.tasksByMilestone(softwareId);
+    order.forEach((id, i) => {
+      for (const task of byMilestone.get(id) ?? []) {
+        for (const item of task.items) {
+          if (!first.has(item) || first.get(item)! > i) first.set(item, i);
+        }
+      }
+    });
+    return [...first.entries()]
+      .filter(([, i]) => i > Math.max(at, 0))
+      .map(([item, i]) => ({ item, milestone: order[i]! }));
   }
 
   view(softwareId: string): BuildView | null {

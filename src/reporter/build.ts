@@ -3,6 +3,7 @@ import { ownFiguresWords } from "../shared/own-figures.js";
 import { stageName } from "../shared/stages.js";
 import { roleWords } from "../shared/roles.js";
 import type { Facts } from "./facts.js";
+import { tryItOn } from "./made-up.js";
 
 function plural(n: number, word: string): string {
   return `${n} ${word}${n === 1 ? "" : "s"}`;
@@ -67,28 +68,56 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
   const lastDay = facts.lastReport?.slice(0, 10) ?? null;
 
   // ---- Decided -----------------------------------------------------------------------------
+  // What this milestone changed, people's own words first (decision 0280). premise's own
+  // assumptions and choices, and what was decided before, are behind "Show more detail".
+  const latestRun = facts.runs[0];
+  const startFailed =
+    latestRun !== undefined && (latestRun.status === "failed" || latestRun.status === "crashed");
   const decided: ReportLine[] = [];
   if (facts.milestone) {
+    const what = facts.milestone.text ? `: ${sentence(facts.milestone.text)}` : ".";
     decided.push({
-      text: `This milestone is reached${facts.milestone.text ? `: ${sentence(facts.milestone.text)}` : "."}`,
+      text: startFailed
+        ? `This milestone is built and checked, but it is not running${what}`
+        : `This milestone is reached${what}`,
       evidence: `record item ${facts.milestone.id}`,
     });
   }
-  const sinceLast = facts.items.filter(
-    (i) => options.detail || !lastDay || i.marks.date >= lastDay,
-  );
+  const changedNow = (i: (typeof facts.items)[number]) => !lastDay || i.marks.date >= lastDay;
   // What people decided leads; premise's own assumptions and choices follow, folded on the page.
-  const byPeople = (i: (typeof sinceLast)[number]) =>
+  const byPeople = (i: (typeof facts.items)[number]) =>
     i.marks.from !== "assumed" && i.marks.from !== "recovered" ? 0 : 1;
-  for (const item of [...sinceLast].sort((x, y) => byPeople(x) - byPeople(y))) {
+  const itemLine = (item: (typeof facts.items)[number], earlier: boolean): ReportLine => {
     const priority = item.marks.priority ? `${item.marks.priority}: ` : "";
     const tag = item.marks.priority ? ` (${item.marks.priority})` : "";
-    decided.push({
+    return {
       ...(byPeople(item) === 1 && { premises: true }),
+      ...(earlier && { earlier: true }),
       text: item.marks.leftOut
         ? `Left out, not built: ${item.id}${tag}: ${sentence(item.text)} To build it after all, send the software back to What on the Line tab; premise asks how much to build again.`
         : `${priority}${sentence(item.text)}`,
       evidence: `record item ${item.id}, ${item.file}`,
+    };
+  };
+  const now = [...facts.items.filter(changedNow)].sort((x, y) => byPeople(x) - byPeople(y));
+  const before = facts.items.filter((i) => !changedNow(i));
+  const ownNow = now.filter((i) => byPeople(i) === 1);
+  for (const item of options.detail ? now : now.filter((i) => byPeople(i) === 0)) {
+    decided.push(itemLine(item, false));
+  }
+  if (!options.detail && ownNow.length > 0) {
+    decided.push({
+      premises: true,
+      text: `premise assumed or chose ${plural(ownNow.length, "more thing")} itself. "Show more detail" lists them.`,
+      evidence: "the software's record",
+    });
+  }
+  if (options.detail) {
+    for (const item of before) decided.push(itemLine(item, true));
+  } else if (before.length > 0) {
+    decided.push({
+      text: `${plural(before.length, "thing")} decided before this report ${before.length === 1 ? "is" : "are"} unchanged. "Show more detail" lists them; the Record tab has them all.`,
+      evidence: "the software's record",
     });
   }
   if (!facts.recordAvailable) {
@@ -141,6 +170,18 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
           evidence: `run ${latest.id}, ${at}`,
         });
         runningBlock = { how: "Start it on your computer.", where: latest.command ?? "" };
+        break;
+      case "failed":
+        running.push({
+          text: 'Not running: it would not start. "Failed or not checked" has its last lines of output.',
+          evidence: `run ${latest.id}, ${at}`,
+        });
+        break;
+      case "crashed":
+        running.push({
+          text: 'Not running: it started, but kept stopping by itself. "Failed or not checked" has its last output.',
+          evidence: `run ${latest.id}, ${at}`,
+        });
         break;
       default:
         running.push({
@@ -197,8 +238,25 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
 
   // ---- Failed or not checked ---------------------------------------------------------------
   const failed: ReportLine[] = [];
-  // What the operator left out at the scope check is not built, so it is not "not checked".
-  const mustCheck = facts.items.filter((i) => i.kind === "W" && !i.marks.leftOut);
+  if (latest && (latest.status === "failed" || latest.status === "crashed")) {
+    failed.push({
+      text:
+        latest.status === "crashed"
+          ? `It kept crashing and was stopped: ${latest.failure?.trim() || "no reason was recorded"}`
+          : `Built and checked, but it would not start: ${latest.failure?.trim() || "no reason was recorded"}`,
+      evidence: `run ${latest.id}`,
+    });
+  }
+  // What the operator left out at the scope check is not built, so it is not "not checked"; nor is
+  // what the person chose for a later milestone (decision 0280).
+  const laterOf = new Map(facts.later.map((l) => [l.item, l.milestone]));
+  const asked = facts.items.filter((i) => i.kind === "W" && !i.marks.leftOut);
+  const mustCheck = asked.filter((i) => {
+    if (!laterOf.has(i.id)) return true;
+    const v = verdictOf.get(i.id);
+    return v !== undefined && checkedAt(v.commit, current);
+  });
+  const later = asked.filter((i) => !mustCheck.includes(i));
   for (const item of mustCheck) {
     const verdict = verdictOf.get(item.id);
     if (!verdict) {
@@ -221,7 +279,18 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
         text: `Could not be checked: ${sentence(item.text)}${verdict.evidence ? ` ${sentence(verdict.evidence)}` : ""}`,
         evidence: `check of ${item.id}`,
       });
+    } else if (verdict.madeUp !== undefined) {
+      failed.push({
+        text: `Checked on made-up data only: ${sentence(item.text)} Try it on ${tryItOn(verdict.madeUp)} yourself; the check could not. ${sentence(verdict.evidence)}`,
+        evidence: `check of ${item.id}`,
+      });
     }
+  }
+  for (const item of later) {
+    failed.push({
+      text: `Not built yet (you chose later, for milestone ${laterOf.get(item.id)}): ${sentence(item.text)}`,
+      evidence: `record item ${item.id}, the plan`,
+    });
   }
   for (const verdict of facts.verdicts) {
     if (!itemById.has(verdict.item) && verdict.verdict !== "met") {
@@ -241,12 +310,6 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
     failed.push({
       text: `The ${job.kind} work${job.stage ? ` (${stageName(job.stage)})` : ""} ${job.status === "stuck" ? "got stuck" : "failed"}: ${firstLine(job.result) || "no reason was recorded"}`,
       evidence: `job ${job.id}`,
-    });
-  }
-  if (latest && (latest.status === "failed" || latest.status === "crashed")) {
-    failed.push({
-      text: `It ${latest.status === "crashed" ? "kept crashing and was stopped" : "could not be started"}: ${firstLine(latest.failure) || "no reason was recorded"}`,
-      evidence: `run ${latest.id}`,
     });
   }
 
@@ -371,32 +434,57 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
       section.lines = section.lines.slice(0, keep);
     }
   }
-  // ---- The first line: a plain verdict a newcomer can act on (decision 0197) -----------------
+  // ---- The first line: a plain verdict a newcomer can act on (decisions 0197, 0280) -----------
+  // Never "Works" when the latest start failed, or for what was checked on made-up data only.
   const at = (i: (typeof mustCheck)[number]) => {
     const v = verdictOf.get(i.id);
     return v && checkedAt(v.commit, current) ? v : undefined;
   };
-  const met = mustCheck.filter((i) => at(i)?.verdict === "met").length;
+  const madeUp = mustCheck.filter(
+    (i) => at(i)?.verdict === "met" && at(i)?.madeUp !== undefined,
+  ).length;
+  const met = mustCheck.filter((i) => at(i)?.verdict === "met").length - madeUp;
   const notMet = mustCheck.filter((i) => at(i)?.verdict === "not-met").length;
-  const unchecked = mustCheck.length - met - notMet;
+  const unchecked = mustCheck.length - met - madeUp - notMet;
   const things = (n: number) => `${n} ${n === 1 ? "thing" : "things"}`;
   const tryIt = runningBlock ? " How to try it is just below." : "";
+  const laterWords =
+    later.length > 0
+      ? ` ${later.length} more ${later.length === 1 ? "is" : "are"} for a later milestone you chose, not built yet.`
+      : "";
+  const asks = `${things(mustCheck.length)} you asked for${later.length > 0 ? " in this milestone" : ""}`;
+  const notStarted =
+    latest?.status === "crashed"
+      ? `It is not running: it started, but kept stopping by itself. "Failed or not checked" has its last output.`
+      : `Built and checked, but it would not start, so there is nothing to try yet. "Failed or not checked" has its last lines of output.`;
+  const partly = [
+    madeUp > 0 ? `${madeUp} only on made-up data` : "",
+    unchecked > 0 ? `${unchecked} could not be checked` : "",
+  ]
+    .filter(Boolean)
+    .join(", ");
   const headline = !latest
     ? mustCheck.length > 0
-      ? `Nothing has been built or checked yet. ${things(mustCheck.length)} you asked for ${mustCheck.length === 1 ? "is" : "are"} still to do.`
+      ? `Nothing has been built or checked yet. ${things(mustCheck.length)} you asked for ${mustCheck.length === 1 ? "is" : "are"} still to do.${laterWords}`
       : "Nothing has been built or checked yet."
     : mustCheck.length === 0
-      ? `Not verified: nothing in the record says what it must do, so premise could not check it.${runningBlock ? " Try it yourself: how is just below." : ""}`
+      ? startFailed
+        ? notStarted
+        : `Not verified: nothing in the record says what it must do, so premise could not check it.${runningBlock ? " Try it yourself: how is just below." : ""}`
       : notMet > 0
-        ? `Does not work yet: ${notMet} of ${things(mustCheck.length)} you asked for failed ${notMet === 1 ? "its" : "their"} check. "Failed or not checked" says what is wrong.${tryIt}`
-        : met === mustCheck.length
-          ? `Works: all ${things(mustCheck.length)} you asked for ${mustCheck.length === 1 ? "was" : "were"} checked and ${mustCheck.length === 1 ? "is" : "are"} met.${tryIt}`
-          : met > 0
-            ? `Partly verified: ${met} of ${things(mustCheck.length)} you asked for ${met === 1 ? "was" : "were"} checked and ${met === 1 ? "works" : "work"}; ${unchecked} could not be checked. "Failed or not checked" says which, and what is needed to check ${unchecked === 1 ? "it" : "them"}.${tryIt}`
-            : `Not verified: premise could not check this, so it does not know whether it works.${runningBlock ? " Try it yourself: how is just below." : ""}`;
+        ? `Does not work yet: ${notMet} of ${asks} failed ${notMet === 1 ? "its" : "their"} check. "Failed or not checked" says what is wrong.${startFailed ? " It is not running either." : tryIt}`
+        : startFailed
+          ? `${notStarted}${laterWords}`
+          : met === mustCheck.length
+            ? `Works: all ${asks} ${mustCheck.length === 1 ? "was" : "were"} checked and ${mustCheck.length === 1 ? "is" : "are"} met.${laterWords}${tryIt}`
+            : met > 0
+              ? `Partly verified: ${met} of ${asks} ${met === 1 ? "was" : "were"} checked and ${met === 1 ? "works" : "work"}; ${partly}. "Failed or not checked" says which, and what is needed to check ${mustCheck.length - met === 1 ? "it" : "them"}.${laterWords}${tryIt}`
+              : madeUp > 0 && unchecked === 0
+                ? `Not verified on real data: ${madeUp === mustCheck.length && mustCheck.length > 1 ? "all " : ""}${asks} ${mustCheck.length === 1 ? "was" : "were"} checked on made-up data only. "Failed or not checked" says what to try ${mustCheck.length === 1 ? "it" : "them"} on.${laterWords}${tryIt}`
+                : `Not verified: premise could not check this, so it does not know whether it works.${laterWords}${runningBlock ? " Try it yourself: how is just below." : ""}`;
   const counts =
     latest && mustCheck.length > 0
-      ? `Of the ${things(mustCheck.length)} you asked for: ${met} met, ${notMet} not met, ${unchecked} not checked.`
+      ? `Of the ${asks}: ${met} met, ${madeUp > 0 ? `${madeUp} met on made-up data only, ` : ""}${notMet} not met, ${unchecked} not checked.${later.length > 0 ? ` ${later.length} more for a later milestone, not built yet.` : ""}`
       : null;
   const scripted =
     latest && facts.verdicts.some((v) => v.scripted)

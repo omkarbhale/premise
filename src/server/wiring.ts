@@ -148,7 +148,16 @@ export function createSession(options: {
   });
   const learner = learning;
   const reporter = new Reporter(
-    { db, config, records: record, runner: runs, ledger, measures, usage },
+    {
+      db,
+      config,
+      records: record,
+      runner: runs,
+      ledger,
+      measures,
+      usage,
+      plannedLater: (id) => build.laterItems(id),
+    },
     config,
   );
   const writer = new RecordWriter(record);

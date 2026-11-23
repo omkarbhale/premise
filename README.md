@@ -57,7 +57,7 @@ One TypeScript package ([0075](docs/decisions/0075-one-package.md)):
 | `src/usage/` | Usage per software, step, change and item beside premise's own counts; budgets; pausing a software that overruns | [usage and budgets](docs/specs/usage.md) |
 | `src/record/` | The record keeper: the record's format, proposed changes, trace trailers, the reading API; `premise record check <folder>` | [record keeper](docs/specs/record-keeper.md) |
 | `src/git/` | The one small module for git, the GitHub CLI wrapper, and the repository hosts (GitHub, or a local bare repository) | [record keeper](docs/specs/record-keeper.md#54a-repositories) |
-| `src/runner/` | The runner: starts a built software from a clean copy by its `run.md`, confined, on a local port; restarts it a few times when it crashes; shows the link or the command and the latest output | [runner](docs/specs/runner.md) |
+| `src/runner/` | The runner: builds and starts a software from a clean copy by its `run.md` (the build lines first, then the start or sample), confined, on a local port; restarts it a few times when it crashes; shows the link or the command and the latest output | [runner](docs/specs/runner.md) |
 | `src/reporter/` | The reporter: gathers recorded facts and builds the report (short by default, more on request), release-note drafts and milestone reports | [reporter](docs/specs/reporter.md) |
 | `src/doctor/` | The setup check | [page server](docs/specs/page-server.md#51-prerequisites) |
 | `src/server/` | The page server: the session token, Host and Origin checks, the API, the event stream, and the service interfaces the rest of premise answers | [page server](docs/specs/page-server.md) |

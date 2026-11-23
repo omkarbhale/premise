@@ -159,8 +159,9 @@ export function ReportView({ softwareId }: { softwareId: string }) {
  * disclosure, so the person sees their own decisions without reading premise's.
  */
 function ReportLines({ lines }: { lines: ReportLine[] }) {
-  const people = lines.filter((l) => !l.premises);
-  const own = lines.filter((l) => l.premises);
+  const people = lines.filter((l) => !l.premises && !l.earlier);
+  const own = lines.filter((l) => l.premises && !l.earlier);
+  const earlier = lines.filter((l) => l.earlier);
   return (
     <>
       {people.length > 0 ? (
@@ -180,6 +181,16 @@ function ReportLines({ lines }: { lines: ReportLine[] }) {
           </summary>
           <ul>
             {own.map((line, i) => (
+              <Line key={i} line={line} />
+            ))}
+          </ul>
+        </details>
+      )}
+      {earlier.length > 0 && (
+        <details className="premises-own">
+          <summary>Decided before this report, unchanged ({earlier.length})</summary>
+          <ul>
+            {earlier.map((line, i) => (
               <Line key={i} line={line} />
             ))}
           </ul>

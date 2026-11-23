@@ -328,3 +328,184 @@ describe("writing reports", () => {
     expect(join(dataFolder)).toBeTruthy();
   });
 });
+
+describe("the headline tells the truth (decision 0280)", () => {
+  /** A recorded run of the latest commit, with this status and failure. */
+  function ran(s: ReturnType<typeof makeSoftware>, status: string, failure: string | null = null) {
+    db.prepare(
+      "INSERT INTO runs (software_id, commit_sha, kind, status, command, failure, started) VALUES (?, ?, 'command', ?, 'tool <file>', ?, ?)",
+    ).run(s.id, s.git.headCommit(s.repo)!, status, failure, new Date().toISOString());
+  }
+  function allMet(id: string) {
+    for (const item of ["W-1", "W-2", "W-3"]) verdict(id, item, "met", "Seen it work.");
+  }
+  async function viewWith(id: string, later: { item: string; milestone: string }[] = []) {
+    const facts = await gatherFacts(
+      {
+        db,
+        config,
+        records: new RecordKeeper({ db, config }),
+        runner,
+        ledger: new MockUsageLedger("mock-fixed", 1),
+        plannedLater: () => later,
+      },
+      id,
+    );
+    return {
+      short: buildReport(facts, { detail: false, maxLines: 999 }),
+      full: buildReport(facts, { detail: true, maxLines: 999 }),
+    };
+  }
+
+  it("says Works only when everything was met and the latest start did not fail", async () => {
+    const s = makeSoftware(db, config, "Greeter", FILES);
+    allMet(s.id);
+    ran(s, "finished");
+    const { short } = await viewWith(s.id);
+    expect(short.headline).toMatch(/^Works: all 3 things you asked for were checked and are met\./);
+  });
+
+  it("never says Works when the latest start failed, and gives the start's last lines", async () => {
+    const s = makeSoftware(db, config, "Greeter", FILES);
+    allMet(s.id);
+    ran(
+      s,
+      "failed",
+      'The sample run of "tool sample.txt" ended with an error (exit code 127). Its last lines of output:\nsh: 1: tool: not found',
+    );
+    const { short } = await viewWith(s.id);
+    expect(short.headline).not.toMatch(/Works/);
+    expect(short.headline).toMatch(/^Built and checked, but it would not start/);
+    expect(short.running).toBeNull();
+    const failed = section(short, "Failed or not checked");
+    expect(failed[0]).toContain("Built and checked, but it would not start");
+    expect(failed[0]).toContain("sh: 1: tool: not found");
+    expect(section(short, "Running")[0]).toContain("Not running: it would not start");
+    expect(short.counts).toContain("3 met");
+  });
+
+  it("says it does not work, and that it is not running either, when a check failed and the start too", async () => {
+    const s = makeSoftware(db, config, "Greeter", FILES);
+    verdict(s.id, "W-1", "not-met", "Nothing was shown.");
+    ran(s, "failed", "It would not start.");
+    const { short } = await viewWith(s.id);
+    expect(short.headline).toMatch(/^Does not work yet: 1 of 3/);
+    expect(short.headline).toContain("It is not running either.");
+  });
+
+  it("moves a met verdict on made-up data under failed or not checked, with what to try it on", async () => {
+    const s = makeSoftware(db, config, "Greeter", FILES);
+    allMet(s.id);
+    verdict(
+      s.id,
+      "W-1",
+      "met",
+      "Only checked against fixture status line input; real Claude Code status line data was not available here.",
+    );
+    ran(s, "finished");
+    const { short } = await viewWith(s.id);
+    expect(short.headline).toMatch(
+      /^Partly verified: 2 of 3 things you asked for were checked and work; 1 only on made-up data\./,
+    );
+    const failed = section(short, "Failed or not checked").join("\n");
+    expect(failed).toContain(
+      "Checked on made-up data only: People can open the page and read a greeting. Try it on real Claude Code status line data yourself",
+    );
+    expect(short.counts).toContain("1 met on made-up data only");
+  });
+
+  it("takes what the checker said was not available, and says so when every item rests on made-up data", async () => {
+    const s = makeSoftware(db, config, "Greeter", FILES);
+    for (const item of ["W-1", "W-2", "W-3"]) {
+      recordEvent(db, {
+        softwareId: s.id,
+        module: "checker",
+        kind: "verdict",
+        reference: item,
+        detail: {
+          verdict: "met",
+          evidence: "Printed the expected figures.",
+          notAvailable: "the real log files",
+        },
+      });
+    }
+    ran(s, "finished");
+    const { short } = await viewWith(s.id);
+    expect(short.headline).toMatch(
+      /^Not verified on real data: all 3 things you asked for were checked on made-up data only\./,
+    );
+    expect(section(short, "Failed or not checked").join("\n")).toContain(
+      "Try it on the real log files yourself",
+    );
+  });
+
+  it("names items the person chose for a later milestone as not built yet, not as could not be checked", async () => {
+    const s = makeSoftware(db, config, "Greeter", FILES);
+    verdict(s.id, "W-1", "met", "Seen.");
+    verdict(s.id, "W-2", "met", "Seen.");
+    ran(s, "finished");
+    const { short } = await viewWith(s.id, [{ item: "W-3", milestone: "M-2" }]);
+    expect(short.headline).toMatch(
+      /^Works: all 2 things you asked for in this milestone were checked and are met\. 1 more is for a later milestone you chose, not built yet\./,
+    );
+    const failed = section(short, "Failed or not checked").join("\n");
+    expect(failed).toContain(
+      "Not built yet (you chose later, for milestone M-2): The page works on a phone.",
+    );
+    expect(failed).not.toContain("Not checked:");
+    expect(failed).not.toContain("could not be checked");
+    expect(short.counts).toContain("1 more for a later milestone, not built yet");
+  });
+
+  it("counts a later item that was checked anyway like any other", async () => {
+    const s = makeSoftware(db, config, "Greeter", FILES);
+    allMet(s.id);
+    ran(s, "finished");
+    const { short } = await viewWith(s.id, [{ item: "W-3", milestone: "M-2" }]);
+    expect(short.headline).toMatch(/^Works: all 3 things you asked for were checked/);
+  });
+
+  it("shows under Decided what changed and people's own words, with the rest behind more detail", async () => {
+    const what = [
+      "# What it must do",
+      "",
+      "- [W-1] People can open the page and read a greeting. (must; from: operator; 2026-11-22)",
+      "- [W-2] People can change the greeting. (should; from: operator; 2026-11-22)",
+      "- [W-3] The page works on a phone. (could; from: assumed; 2026-11-22)",
+      "- [W-4] The greeting is saved between visits. (must; from: operator; 2026-11-20)",
+      "",
+    ].join("\n");
+    const s = makeSoftware(db, config, "Greeter", { ...FILES, "premise/what.md": what });
+    recordEvent(db, { softwareId: s.id, module: "reporter", kind: "report-written" });
+    db.prepare("UPDATE events SET time = ? WHERE module = 'reporter'").run(
+      "2026-11-21T10:00:00.000Z",
+    );
+    const { short, full } = await viewWith(s.id);
+    const decided = short.sections.find((x) => x.title === "Decided")!.lines;
+    const shown = decided.filter((l) => !l.premises && !l.earlier).map((l) => l.text);
+    expect(shown).toContain("must: People can open the page and read a greeting.");
+    expect(shown.join("\n")).not.toContain("The greeting is saved between visits");
+    expect(shown.join("\n")).toContain("decided before this report");
+    // premise's own choices are one folded line in the short report.
+    const own = decided.filter((l) => l.premises);
+    expect(own).toHaveLength(1);
+    expect(own[0]!.text).toContain("premise assumed or chose 1 more thing itself");
+    // With more detail: every line, the earlier ones marked so the page folds them.
+    const fullDecided = full.sections.find((x) => x.title === "Decided")!.lines;
+    expect(fullDecided.find((l) => l.text.includes("saved between visits"))?.earlier).toBe(true);
+    expect(fullDecided.find((l) => l.text.includes("works on a phone"))?.premises).toBe(true);
+  });
+
+  it("says a milestone is built but not running when its start failed", async () => {
+    const s = makeSoftware(db, config, "Greeter", {
+      ...FILES,
+      "premise/milestones.md":
+        "# Milestones\n\n- [M-1] A page that greets people. (from: operator; 2026-11-22)\n",
+    });
+    ran(s, "failed", "It would not start.");
+    const written = await reporter.write(s.id, "milestone", "M-1");
+    expect(written.view.sections[0]!.lines[0]!.text).toBe(
+      "This milestone is built and checked, but it is not running: A page that greets people.",
+    );
+  });
+});

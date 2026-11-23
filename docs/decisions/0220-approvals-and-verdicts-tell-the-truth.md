@@ -1,6 +1,6 @@
 # 0220. Approvals and verdicts tell the truth
 
-- Status: Accepted
+- Status: Partly superseded by [0280](0280-the-run-step-builds-first-and-the-headline-tells-the-truth.md) (point 9: the headline never says "Works" when the latest start failed or an item was met only on made-up data)
 - Partly supersedes: [0182](0182-how-the-gate-is-built.md) point 5 (what an approved GitHub step says) and how standing approvals are scoped; [0186](0186-how-build-check-and-run-are-built.md) on when a check has passed ("could not check" no longer passes silently)
 - Scope: Making premise
 - Date: 2026-11-21
