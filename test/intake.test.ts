@@ -94,7 +94,7 @@ describe("intake in a thin form", () => {
     expect(said.at(-1)).toContain("Back at Intake");
   });
 
-  it("takes a wish that changes what it must do through one confirm of What, then builds it", async () => {
+  it("takes a wish that changes what it must do without a question, and says what it took", async () => {
     const app = await testApp(
       {},
       {
@@ -110,22 +110,27 @@ describe("intake in a thin form", () => {
     const id = await runningSoftware(app);
     await say(app, id, "Let me sort the books by author");
 
-    const what = (await openAsks(app, id))[0]!;
-    expect(what.stage).toBe("what");
-    expect((await item(app, id, "I-1")).where).toBe("Being understood: at What.");
     const drafter = app.runner.requests.filter((r) => r.taskKind === "draft").at(-1)!;
     expect(drafter.brief).toContain("the intake item I-1, a change to the software");
 
-    // One plain confirm, and no say-back after it (decision 0192).
-    expect(what.title).toMatch(/^This changes what it must do; confirm to change it/);
-    await keepAll(app, what);
-    expect(await openAsks(app, id)).toEqual([]);
-
+    // Nothing blocks: the change was taken in and built at once (decision 0274).
+    expect((await openAsks(app, id)).filter((a) => !a.notice)).toEqual([]);
     const wish = await item(app, id, "I-1");
     expect(wish.status).toBe("running");
     const work = (await softwareDetail(app, id)).work.find((w) => w.id === wish.workItemId)!;
     expect(work.origin).toBe("change");
     expect(work.stages).toEqual(["what", "build", "check", "run", "report"]);
+    const said = await chat(app, id);
+    expect(
+      said.some((t) => /^I-1 taken as: It does what this asks: .*Building now: one task/.test(t)),
+    ).toBe(true);
+    // What it took from the words is in the record.
+    const record = (await app.call("GET", `/api/softwares/${id}/record`)).body as {
+      files: { items: { text: string }[] }[];
+    };
+    expect(
+      record.files.flatMap((f) => f.items).some((i) => i.text.includes("sort the books by author")),
+    ).toBe(true);
   });
 
   it("asks the operator about a change of purpose, and takes it back to Why when confirmed", async () => {
@@ -265,9 +270,8 @@ describe("intake in a thin form", () => {
     await app.settle();
     const back = await item(app, id, "I-3");
     expect(back).toMatchObject({ route: "in-normally", routedBy: "operator", canUndo: false });
-    // Taken in by the operator, noise becomes a wish: its change to What is confirmed once, then built.
+    // Taken in by the operator, noise becomes a wish: built at once, premise telling what it took.
     expect(back.kind).toBe("wish");
-    await keepAll(app, (await openAsks(app, id))[0]!);
     expect((await item(app, id, "I-3")).status).toBe("running");
     expect(back.reason).toContain("You took it in (it was closed)");
 
@@ -275,7 +279,6 @@ describe("intake in a thin form", () => {
     expect(unmerge.status).toBe(200);
     await app.settle();
     expect((await item(app, id, "I-2")).joins).toBeNull();
-    await keepAll(app, (await openAsks(app, id))[0]!);
 
     // A running item cannot be undone.
     const again = await app.call("POST", `/api/intake/${back.id}/undo`);
@@ -356,6 +359,10 @@ describe("intake in a thin form", () => {
         text: expect.stringContaining("An agent could not hand in triage_submit: "),
       }),
     ]);
+    // It was asked once more, with the exact shape of the answer, before premise's default.
+    const triages = app.runner.requests.filter((r) => r.taskKind === "triage");
+    expect(triages).toHaveLength(2);
+    expect(triages[1]!.brief).toContain('"touches" (a JSON list, not text');
   });
 
   it("offers to triage again an item that went in untriaged, while its work waits", async () => {
@@ -368,8 +375,8 @@ describe("intake in a thin form", () => {
           rules: [
             triager(() => {
               jobs++;
-              // The first triage sends "touches" as text that is not a list, as a real agent did.
-              return jobs === 1
+              // The first triage, and its one retry, send "touches" as text that is not a list.
+              return jobs <= 2
                 ? { ...routed("wish", "in-normally"), touches: "W-1 and W-2" }
                 : routed("bug", "in-normally");
             }),
@@ -399,6 +406,45 @@ describe("intake in a thin form", () => {
     const none = await app.call("POST", `/api/softwares/${body.id}/intake/triage-again`);
     expect(none.status).toBe(422);
     expect(none.body.error).toContain("No item is waiting to be triaged again");
+  });
+
+  it("takes the triager's answer when it gives none the first time and a correct one the second", async () => {
+    let tries = 0;
+    const app = await testApp(
+      {},
+      {
+        script: script(triager(() => (++tries === 1 ? null : routed("bug", "in-normally")))),
+      },
+    );
+    const id = await runningSoftware(app);
+    await say(app, id, "Saving a book fails");
+    expect(tries).toBe(2);
+    expect(await item(app, id, "I-1")).toMatchObject({
+      kind: "bug",
+      routedBy: "triager",
+      status: "running",
+    });
+  });
+
+  it("reads a list the triager sent as text, as real sessions sometimes do", async () => {
+    const app = await testApp(
+      {},
+      {
+        script: script({
+          when: { task: "triage" },
+          behave: (_request, call) => {
+            // The list as a text holding it, as the first real run's triager sent it.
+            call("triage_submit", { ...routed("bug", "in-normally"), touches: "[]" });
+          },
+          end: { outcome: "done" },
+        }),
+      },
+    );
+    const id = await runningSoftware(app);
+    await say(app, id, "Saving a book fails");
+    const submitted = app.runner.calls.find((c) => c.tool === "triage_submit")!;
+    expect(submitted.result.ok, JSON.stringify(submitted.result)).toBe(true);
+    expect((await item(app, id, "I-1")).routedBy).toBe("triager");
   });
 
   it("takes items reported on the page, and keeps work taken in mid-line for after Intake", async () => {

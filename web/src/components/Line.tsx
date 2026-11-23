@@ -53,6 +53,7 @@ export function Line({ software }: { software: SoftwareDetail }) {
             : whereNow(software.stage, software.takingOn)}
         </strong>
       </p>
+      {software.change && <ChangeCard change={software.change} />}
       <ol className="phases">
         {PHASES.map((phase, n) => {
           const steps = software.stages.filter((st) =>
@@ -250,6 +251,37 @@ export function Line({ software }: { software: SoftwareDetail }) {
       </section>
 
       <section className="card">
+        <h2>Changes you send</h2>
+        <label className="small">
+          When premise asks you about a change before building it.{" "}
+          <select
+            value={software.changeQuestions}
+            disabled={busy}
+            onChange={(e) =>
+              void act(() =>
+                api.setChangeQuestions(
+                  software.id,
+                  e.target.value as SoftwareDetail["changeQuestions"],
+                ),
+              )
+            }
+          >
+            <option value="when-it-matters">
+              Only when it matters; otherwise build and tell me
+            </option>
+            <option value="every-change">Ask about every change before building it</option>
+            <option value="never">Never ask: build and tell me</option>
+          </select>
+        </label>
+        <p className="muted small">
+          It matters when a change replaces a foundation decision or is otherwise costly to undo, or
+          your words left a real choice open. Even then premise asks only once. A bug is never asked
+          about. When premise does not ask, it tells you what it understood and assumed, and you can
+          strike any line while it builds.
+        </p>
+      </section>
+
+      <section className="card">
         <h2>Priority</h2>
         <label className="small">
           When agents are busy, the most important software goes first.{" "}
@@ -309,5 +341,52 @@ export function Line({ software }: { software: SoftwareDetail }) {
         )}
       </section>
     </div>
+  );
+}
+
+/** The change being worked on, as one compact card (decision 0274). */
+function ChangeCard({ change }: { change: NonNullable<SoftwareDetail["change"]> }) {
+  return (
+    <section className="card change-card" aria-label={`Your change ${change.ref}`}>
+      <h2>
+        Your change {change.ref}: {change.title}
+      </h2>
+      <p className="small">
+        <strong>Your words:</strong> {change.words}
+      </p>
+      {change.understood.length > 0 && (
+        <>
+          <p className="small">
+            <strong>What premise took from them:</strong>
+          </p>
+          <ul className="small">
+            {change.understood.map((t) => (
+              <li key={t}>{t}</li>
+            ))}
+          </ul>
+        </>
+      )}
+      {change.assumed.length > 0 && (
+        <>
+          <p className="small">
+            <strong>What premise assumed</strong> (not checked with you):
+          </p>
+          <ul className="small">
+            {change.assumed.map((t) => (
+              <li key={t}>{t}</li>
+            ))}
+          </ul>
+        </>
+      )}
+      <p className="small">
+        <strong>Now:</strong> {change.doing}
+      </p>
+      <p className="muted small">
+        The steps below are this change's own. The software's milestones were built already and are
+        not built again.
+        {change.askId !== null &&
+          " To strike a line, use the card for this change under Waiting on you."}
+      </p>
+    </section>
   );
 }

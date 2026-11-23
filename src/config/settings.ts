@@ -572,6 +572,25 @@ export const SETTINGS: readonly Setting[] = [
     record: "0191",
   },
   {
+    key: "line.change_questions",
+    default: null,
+    check: summarised(
+      orNone(oneOf(["every-change", "when-it-matters", "never"])),
+      "every-change, when-it-matters, never, or null",
+    ),
+    meaning:
+      "When premise asks you about a change you sent (a wish or a change to a finished software) before building it. every-change: always, once. when-it-matters: only when it replaces a foundation decision or is otherwise costly to undo, or your words left a real choice open; otherwise premise builds it at once and tells you what it understood and assumed, and you can still strike any line. never: never asks, only tells. null follows each software's effort: high effort asks about every change, low and medium only when it matters. A bug is never asked about. You can choose per software on its Line tab.",
+    record: "0274",
+  },
+  {
+    key: "line.change_max_tasks",
+    default: 3,
+    check: summarised(wholeNumber(1, 20), "1 to 20"),
+    meaning:
+      "The most tasks the planner may give one change. A change is planned as a change, never as the software's whole plan again; a larger change is split by the sizer into steps of the change.",
+    record: "0273",
+  },
+  {
     key: "line.estimate_minutes_per_session",
     default: 3,
     check: summarised(wholeNumber(1, 120), "1 to 120"),
@@ -1009,6 +1028,8 @@ export interface PremiseConfig {
     high_effort_budget_percent: number;
     scope_check: boolean;
     wait_after_asked: boolean;
+    change_questions: "every-change" | "when-it-matters" | "never" | null;
+    change_max_tasks: number;
     estimate_minutes_per_session: number;
     estimate_items_per_build: number;
     budgets: Record<BudgetGroup, Record<"small" | "medium" | "large", StageBudget>>;

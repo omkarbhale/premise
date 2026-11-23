@@ -45,6 +45,11 @@ const draftItem = (kinds: string) =>
           mark: text('Another name for "from".'),
           priority,
           foundation: yesNo("For a D item: whether later work stands on it."),
+          reason: text("For a D item: why it is chosen."),
+          rejected: text("For a D item: what was rejected instead."),
+          replaces: text(
+            'For a D item in a change\'s plan: the decision it replaces, such as "D-6".',
+          ),
           wait: yesNo("For an M item: whether the work waits for the operator after it."),
           suggestion: yesNo("Whether premise offers it as its own idea."),
           quote: text(
@@ -152,7 +157,10 @@ export const TOOL_INPUTS: Record<string, ObjectShape> = {
       stage: text("The stage drafted: why, who, exists, what, say-back or plan.", {
         example: "what",
       }),
-      items: list(draftItem("Y, U, R, E, W, T, D or M"), "The drafted items, at least one.", 1),
+      items: list(
+        draftItem("Y, U, R, E, W, T, D or M"),
+        "The drafted items. At least one, except at plan for a change, which may add no decision: then [].",
+      ),
       milestones: list(
         draftItem("M"),
         "At plan: the milestones in order, the first the smallest version that runs.",
@@ -177,6 +185,9 @@ export const TOOL_INPUTS: Record<string, ObjectShape> = {
       outcome: text('At What exists: the outcome, such as "Build it".'),
       alternative: text("At What exists: what already does the job, if anything."),
       reason: text("Why, in one or two lines."),
+      open_choice: text(
+        "For a change: a real choice the person's words left open, in one line, which premise asks them once before building.",
+      ),
     },
     ["stage", "items"],
   ),

@@ -214,10 +214,12 @@ function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) 
   const asks = useLoad(() => api.asks({ status: "open" }), [], version, onNotCurrent);
   const openAsks = asks.state === "ready" ? asks.data : [];
 
-  useTabTitle(openAsks.length);
+  // A change's notice waits on nobody: it is listed, but neither counted nor notified.
+  const waiting = openAsks.filter((a) => !a.notice);
+  useTabTitle(waiting.length);
   usePresence(api, overview.state === "ready" ? (overview.data.page.presenceSeconds ?? 30) : null);
   useNotifications(
-    asks.state === "ready" ? openAsks : null,
+    asks.state === "ready" ? waiting : null,
     overview.state === "ready" ? overview.data.page.notifications : "off",
   );
 

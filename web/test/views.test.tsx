@@ -612,3 +612,48 @@ describe("the other views", () => {
     expect(screen.queryByRole("textbox")).toBeNull();
   });
 });
+
+describe("a change from intake (decision 0274)", () => {
+  it("shows one compact card: the words, what premise took, what it assumed, and what it does now", () => {
+    inSession(
+      <Line
+        software={software({
+          stage: "build",
+          change: {
+            ref: "I-1",
+            title: "Count paragraphs",
+            words: "Also count the paragraphs",
+            understood: ["It prints the number of paragraphs."],
+            assumed: ["A paragraph ends at an empty line."],
+            doing: "Build: build it",
+            askId: 7,
+            suggestions: [],
+          },
+        })}
+      />,
+    );
+    const card = screen.getByRole("region", { name: "Your change I-1" });
+    expect(within(card).getByText("Your change I-1: Count paragraphs")).toBeTruthy();
+    expect(within(card).getByText("It prints the number of paragraphs.")).toBeTruthy();
+    expect(within(card).getByText("A paragraph ends at an empty line.")).toBeTruthy();
+    expect(card.textContent).toContain("not checked with you");
+    expect(card.textContent).toContain("not built again");
+  });
+
+  it("marks a notice as waiting on nobody, and adds a suggestion in one click", async () => {
+    const addSuggestion = vi.fn(() => Promise.resolve(ask()));
+    inSession(
+      <AskCard
+        ask={ask({
+          title: "Your change I-1: taken as below, building now",
+          notice: true,
+          suggestions: [{ key: "s1", text: "It also counts sentences." }],
+        })}
+      />,
+      fakeApi({ addSuggestion }),
+    );
+    expect(screen.getByText("For your information: nothing waits on you")).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Add this" }));
+    expect(addSuggestion).toHaveBeenCalledWith(1, "s1");
+  });
+});

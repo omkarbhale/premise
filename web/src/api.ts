@@ -91,6 +91,7 @@ export interface Api {
   undoSplit(itemId: number): Promise<SoftwareDetail>;
   setPriority(id: string, priority: number): Promise<SoftwareDetail>;
   setEffort(id: string, effort: SoftwareEffort): Promise<SoftwareDetail>;
+  setChangeQuestions(id: string, value: SoftwareDetail["changeQuestions"]): Promise<SoftwareDetail>;
   pause(id: string): Promise<SoftwareDetail>;
   resume(id: string): Promise<SoftwareDetail>;
   archive(id: string): Promise<SoftwareDetail>;
@@ -105,6 +106,7 @@ export interface Api {
   scriptedDemo(): Promise<{ ok: true }>;
   asks(filter?: { software?: string; status?: "open" | "answered" }): Promise<AskView[]>;
   answer(id: number, answer: AskAnswer): Promise<AskView>;
+  addSuggestion(id: number, key: string): Promise<AskView>;
   activity(): Promise<ActivityView>;
   /** Pause everything: let what is running finish, or stop it now. */
   pauseEverything(mode: "finish" | "stop-now"): Promise<PauseView>;
@@ -213,6 +215,8 @@ export function createApi(token: string): Api {
     undoSplit: (itemId) => post(`/api/work-items/${itemId}/undo-split`),
     setPriority: (id, priority) => post(`/api/softwares/${enc(id)}/priority`, { priority }),
     setEffort: (id, effort) => post(`/api/softwares/${enc(id)}/effort`, { effort }),
+    setChangeQuestions: (id, value) =>
+      post(`/api/softwares/${enc(id)}/change-questions`, { value }),
     pause: (id) => post(`/api/softwares/${enc(id)}/pause`),
     resume: (id) => post(`/api/softwares/${enc(id)}/resume`),
     archive: (id) => post(`/api/softwares/${enc(id)}/archive`),
@@ -237,6 +241,7 @@ export function createApi(token: string): Api {
       return get(`/api/asks${qs ? `?${qs}` : ""}`);
     },
     answer: (id, answer) => post(`/api/asks/${id}/answer`, { answer }),
+    addSuggestion: (id, key) => post(`/api/asks/${id}/suggestions/${enc(key)}/add`),
     activity: () => get("/api/activity"),
     pauseEverything: (mode) => post("/api/pause", { mode }),
     resumeEverything: () => post("/api/resume"),

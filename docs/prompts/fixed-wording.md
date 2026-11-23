@@ -136,12 +136,23 @@ premise sorted what it must do into what you asked for, what premise recommends 
 
 When the software's effort is not premise's usual one, the second sentence says "the choice already picked follows the effort you set for this software ({{effort}})": a person who never chose an effort is not told they did. Each choice shows its rough time first and agent sessions second; a choice that costs the same as the one above it says why ("premise has nothing more to add here", or "what it adds fits in the same builds").
 
-A change from intake to what the software must do, and a "do not build" recommendation ([record 0192](../decisions/0192-effort-in-proportion-to-what-was-asked.md)):
+A change from intake ([record 0274](../decisions/0274-a-change-asks-at-most-one-question.md)): when it matters, its one question; otherwise the line premise says, and the card that waits on nobody:
 
 ````text
-This changes what it must do; confirm to change it ({{item_id}})
-These lines are what changes in what the software must do. Strike or edit any that are wrong, then confirm to change it. Nothing else is asked before it is planned and built.
+Your change {{item_id}}: check this once before it is built
+premise asks first because {{reasons}}. Below: what premise took from your words, what it assumed (marked assumed: not checked with you), and the decisions the change makes. It will build {{tasks}}. Strike any line that is wrong and say why, or edit it; what you keep is built. This is the only question about this change.
 ````
+
+````text
+{{item_id}} taken as: {{understood}}. Assumed, not checked with you: {{assumed}}. Building now: {{tasks}}. Nothing waits on you; strike a line under Your change if it is wrong.
+````
+
+````text
+Your change {{item_id}}: taken as below, building now
+Nothing waits on you: premise is building this already. If a line is wrong, strike it and say why; premise takes your correction in as a follow-up change. Lines marked assumed were not checked with you.
+````
+
+A "do not build" recommendation ([record 0192](../decisions/0192-effort-in-proportion-to-what-was-asked.md)):
 
 ````text
 premise recommends not building it: something already does this

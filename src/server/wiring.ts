@@ -281,6 +281,7 @@ export function createSession(options: {
       setSize: (id, size) => engine.setSize(id, size),
       setPriority: (id, priority) => engine.setPriority(id, priority),
       setEffort: (id, effort) => engine.setEffort(id, effort),
+      setChangeQuestions: (id, value) => engine.setChangeQuestions(id, value),
       setMilestoneWait: (id, milestone, wait) => engine.setMilestoneWait(id, milestone, wait),
       withdrawApproval: (id) => engine.withdrawApproval(id),
       claim: (id, input) => engine.claimArea(id, input),
@@ -304,6 +305,7 @@ export function createSession(options: {
     asks: {
       list: async (filter) => portfolio.shownAsks(await engine.askList(filter)),
       answer: (id, answer) => engine.answer(id, answer),
+      addSuggestion: (id, key) => engine.addSuggestion(id, key),
     },
     records: { view: (id) => engine.recordView(id) },
     intake: {

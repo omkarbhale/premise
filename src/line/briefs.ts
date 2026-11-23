@@ -20,6 +20,7 @@ export type BriefName =
   | "full look brief"
   | "smaller look brief"
   | "plan brief"
+  | "change plan brief"
   | "proposal brief"
   | "foundation revision brief"
   | "contradiction review brief"
@@ -41,6 +42,7 @@ export const BRIEF_ROLE: Record<BriefName, AgentRole> = {
   "full look brief": "researcher",
   "smaller look brief": "researcher",
   "plan brief": "planner",
+  "change plan brief": "planner",
   "proposal brief": "planner",
   "foundation revision brief": "planner",
   "contradiction review brief": "reviewer",

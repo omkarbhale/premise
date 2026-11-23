@@ -622,6 +622,26 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
       },
     );
 
+    api.post<{ Params: { id: string }; Body: { value: string } }>(
+      "/api/softwares/:id/change-questions",
+      {
+        schema: {
+          params: idParam,
+          body: {
+            type: "object",
+            properties: {
+              value: { type: "string", enum: ["every-change", "when-it-matters", "never"] },
+            },
+            required: ["value"],
+          },
+        },
+      },
+      async (request) => {
+        await services.softwares.setChangeQuestions(request.params.id, request.body.value);
+        return services.softwares.get(request.params.id);
+      },
+    );
+
     api.post<{ Params: { id: string; milestone: string }; Body: { wait: boolean } }>(
       "/api/softwares/:id/milestones/:milestone/wait",
       {
@@ -789,6 +809,20 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
         },
       },
       async (request) => services.asks.answer(request.params.id, request.body.answer),
+    );
+
+    api.post<{ Params: { id: number; key: string } }>(
+      "/api/asks/:id/suggestions/:key/add",
+      {
+        schema: {
+          params: {
+            type: "object",
+            properties: { id: { type: "integer" }, key: { type: "string", maxLength: 20 } },
+            required: ["id", "key"],
+          },
+        },
+      },
+      async (request) => services.asks.addSuggestion(request.params.id, request.params.key),
     );
 
     api.post("/api/agents/scripted-demo", async () => {

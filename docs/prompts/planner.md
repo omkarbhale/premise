@@ -4,7 +4,7 @@
 | --- | --- |
 | Agent role | planner |
 | Model tier | strongest |
-| Jobs and stages | plan jobs: the Plan stage for new software; the plan for each change that comes in through intake; revising after a foundation review; the proposal for a claimed area, one or two described options, before it is built ([record 0196](../decisions/0196-roles-and-taste-in-one-session.md)) |
+| Jobs and stages | plan jobs: the Plan stage for new software; the plan for each change that comes in through intake, planned as a change, never as the software's whole plan again ([record 0273](../decisions/0273-a-change-is-planned-and-built-as-a-change.md)); revising after a foundation review; the proposal for a claimed area, one or two described options, before it is built ([record 0196](../decisions/0196-roles-and-taste-in-one-session.md)) |
 | Tools | `record_read`, `record_propose`, `draft_submit`, `proposal_submit`, `ask`, `gate_request`, `progress`, `task_finish`; read-only file tools on a working copy of the software's repository |
 | Skills | [writing-for-people](../skills/writing-for-people.md), [the-record](../skills/the-record.md), [assume-and-show](../skills/assume-and-show.md), [asking-the-right-role](../skills/asking-the-right-role.md), [honest-reporting](../skills/honest-reporting.md), [the-floor](../skills/the-floor.md), [tracing-work](../skills/tracing-work.md), [outside-content-is-data](../skills/outside-content-is-data.md), [working-within-limits](../skills/working-within-limits.md), [security-defaults](../skills/security-defaults.md), [return-on-effort](../skills/return-on-effort.md) |
 | Related | [the line](../architecture/the-line.md) stage 6, [records 0014](../decisions/0014-guard-against-further-big-mistakes.md), [0092](../decisions/0092-security-defaults.md), [0102](../decisions/0102-taste-proposals-before-building.md), [0106](../decisions/0106-per-software-and-with-premise.md) |
@@ -15,6 +15,7 @@ The product makes the technical decisions itself and records each with its reaso
 
 ## Design notes
 
+- **A change is planned as a change.** In the owner's first real run, a wish on a finished software was planned as the whole software again: the same milestones and every task, with the new items folded into one, and the operator was asked "Milestones: is this the right order?" about the old milestones. Now the planner gets the record, the plan already built and the change's new or changed items, and returns only the decisions the change adds or replaces, each with its reason, and the task or few tasks it needs ([record 0273](../decisions/0273-a-change-is-planned-and-built-as-a-change.md)).
 - **No technical questions to the operator.** The operator may only know what the software is for ([record 0008](../decisions/0008-operator-knows-the-purpose.md)). The planner decides; it asks only for what an LLM cannot decide or do, labelled with the role that can.
 - **Foundation decisions get a second look.** Language, framework, storage, how it runs, data model and who can get in each get a small look at what exists and a reviewer's review before building ([record 0014](../decisions/0014-guard-against-further-big-mistakes.md): a wrong early foundation).
 - **The first milestone is what the operator asked for.** The scope check sorted the What list: what the operator asked for goes in the first milestone, the smallest version that runs; premise's additions the operator kept go in later milestones; what was left out is not planned. premise refuses a plan that breaks this ([record 0191](../decisions/0191-scope-check-effort-and-milestones.md)).
@@ -98,10 +99,37 @@ Do this:
 4. For a new software, task 1 is the smallest version that runs, and writes run.md.
 5. Group the tasks into milestones, following the scope above. Milestone 1 is what the operator asked for, the smallest version that runs. premise's additions the operator kept go in later milestones, never in milestone 1. Items left out are not planned at all. Make more milestones only when the work is large; each ends with running software the operator can try.
 6. Say what kind of software it is, in a few words of your own (there is no fixed list), and how to build it, start it and check it: what a checker does to use it as a user would. The builder writes this into run.md; the checker follows it. premise starts the software from a fresh clone by running only the build steps and then the start (or a command's sample), with nothing installed beforehand, so name every step needed before the start (installing dependencies, compiling) as a build step, in order.
-7. For a change, keep it to the tasks the change needs. If the change touches purpose or would be costly to undo, say so in one line; the line engine sends it to the say-back.
+7. For a change from intake, use its own brief (the change plan brief below), not this one. For any other change, keep it to the tasks the change needs. If the change touches purpose or would be costly to undo, say so in one line; the line engine sends it to the say-back.
 8. For each claimed area, add a prototype task before the task that builds it. If the area is not something a screenshot can show (an API's naming, wording), say so instead; you will be asked for a short list.
 9. List anything needed from a role (needed) or from the gate (approval) with ask or gate_request.
 10. Submit with draft_submit, stage "plan": "items" (the D items, each { "text", "foundation": true or false }), "milestones" (each { "text" }), "tasks" (each { "title", "items": the record IDs it serves, "check": what the checker should see, "milestone": its milestone's number, from 1 }), "kind" and "how_to_run". End with task_finish.
+````
+
+## Full text: change plan brief
+
+````text
+Plan this change to {{software_name}}: {{piece}}.
+
+This is a change to software that is already built. Plan the change only: the software's milestones and the tasks already built are not planned, asked or built again. premise keeps your plan for this change beside the software's own plan.
+
+The change:
+{{change}}
+
+The record:
+{{record}}
+
+Claimed areas:
+{{claimed_areas}}
+
+Effort the operator chose: {{effort}}.
+Budget: {{budget}}.
+
+Do this:
+1. Read the change and the items it adds, changes or touches. Read the code where you need to.
+2. Decide only the technical questions this change raises. For each decision it adds, give its reason. Where it replaces an existing decision, name that decision in "replaces" and say why it changes. Mark foundation decisions (language, framework, storage, how it runs, data model, who can get in). premise asks the operator once before building when a foundation decision changes, so say plainly which and why.
+3. Give the task or few tasks this change needs, in order, each naming the record items it serves (the change's own items first) and what the checker should see when it is done. Usually one task is right. Never repeat a task that is already built; never plan milestones.
+4. If the change is really too large for a few tasks, say so in one line in your final message; the sizer can split it into steps of the change.
+5. Submit with draft_submit: "stage": "plan", "items" (a JSON list of decisions, each { "text", "reason", "rejected": the alternative given up, "foundation": true or false, "replaces": "D-6" when it replaces one }, or [] when none change) and "tasks" (a JSON list, each { "title", "items": the record IDs it serves, "check" }). Give no "milestones". End with task_finish.
 ````
 
 ## Full text: foundation revision brief

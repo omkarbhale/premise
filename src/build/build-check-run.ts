@@ -11,7 +11,14 @@ import {
 } from "../agents/working-copy.js";
 import type { PremiseConfig } from "../config/settings.js";
 import type { Briefs } from "../line/briefs.js";
-import type { LaterEntry, LaterOutcome, LaterStages, MilestoneRef } from "../line/later-stages.js";
+import { againJob, askedAgain } from "../agents/ask-again.js";
+import type {
+  ChangeWork,
+  LaterEntry,
+  LaterOutcome,
+  LaterStages,
+  MilestoneRef,
+} from "../line/later-stages.js";
 import type { EnqueueInput, Job, WorkQueue } from "../queue/work-queue.js";
 import { type RecordItem, formatItemLine } from "../record/format.js";
 import { formatTrailerFailures } from "../record/trace.js";
@@ -117,6 +124,8 @@ interface BuildState {
   startFailure?: { commit: string; message: string } | null;
   /** Times this milestone was sent back to Build by itself because it would not start. */
   startSendBacks?: number;
+  /** The change from intake being built, instead of a milestone (decision 0273). */
+  change?: ChangeWork | null;
 }
 
 /** One claimed area's proposal, as Build waits on it. */
@@ -253,6 +262,7 @@ export class BuildCheckRun implements LaterStages {
     // What landed stays known; the work in progress is forgotten.
     this.save(softwareId, {
       ...this.fresh(state.run, null),
+      change: state.change ?? null,
       landed: state.landed,
       checkNotes: state.checkNotes,
     });
@@ -602,23 +612,28 @@ export class BuildCheckRun implements LaterStages {
     const { softwareId, stage, milestone } = entry;
     let state = this.load(softwareId);
     if (stage === "build") {
+      const change = entry.change ?? null;
       const fixRound =
         entry.why === "check not passed" &&
         state !== null &&
-        state.milestone === (milestone?.id ?? null);
+        state.milestone === (milestone?.id ?? null) &&
+        (state.change?.ref ?? null) === (change?.ref ?? null);
       if (!fixRound) {
         const before = state;
         state = this.fresh(entry.run, milestone);
+        state.change = change;
         state.landed = before?.landed ?? null;
         state.checkNotes = before?.checkNotes ?? [];
         state.base = this.repositoryHead(softwareId);
-        state.tasks = this.planTasks(softwareId, milestone);
+        state.tasks = change
+          ? this.changeTasks(softwareId, change)
+          : this.planTasks(softwareId, milestone);
       }
       const current = state!;
       current.run = entry.run;
       this.save(softwareId, current);
       if (!fixRound) this.startProposals(softwareId, current);
-      if (!fixRound && !this.scenariosCover(softwareId, milestone)) {
+      if (!fixRound && !this.scenariosCover(softwareId, current)) {
         this.enqueue(softwareId, current, this.scenarioJob(softwareId, current));
         return null;
       }
@@ -670,7 +685,7 @@ export class BuildCheckRun implements LaterStages {
       stage: "build",
       title: "Nothing was built to check",
       instruction:
-        "No task of this milestone produced a commit, so there is nothing to check or start. Try the tasks again, or send the software back to Plan from the Line tab.",
+        "No task produced a commit, so there is nothing to check or start. Try the tasks again, or send the software back to Plan from the Line tab.",
       extra: {
         choices: [...TASK_STOPPED],
         meta: { purpose: "build-task-stopped" satisfies Purpose },
@@ -734,8 +749,62 @@ export class BuildCheckRun implements LaterStages {
     };
   }
 
-  private scenariosCover(softwareId: string, milestone: MilestoneRef | null): boolean {
-    const items = this.itemsToCheck(softwareId, milestone?.id ?? null);
+  /** A change's own tasks (decision 0273); never the software's whole plan. */
+  private changeTasks(softwareId: string, change: ChangeWork): TaskState[] {
+    const known = new Set(this.items(softwareId).map((i) => i.id));
+    const tasks = change.tasks.length
+      ? change.tasks
+      : [{ title: `${change.ref}: ${change.title}`, items: change.touched }];
+    return tasks.map((t, i) =>
+      this.task(
+        i + 1,
+        t.title,
+        t.items.filter((x) => known.has(x)),
+        t.check ?? null,
+      ),
+    );
+  }
+
+  /**
+   * The items a check of a change judges: those the change touches, plus every must item already
+   * met, so nothing that worked is broken unseen (decision 0273). With no verdict recorded yet,
+   * every must item counts as met.
+   */
+  changeItemsToCheck(softwareId: string, change: ChangeWork): string[] {
+    const live = this.items(softwareId);
+    const known = new Set(live.map((i) => i.id));
+    const musts = live
+      .filter((i) => i.kind === "W" && i.marks.priority === "must" && !i.marks.leftOut)
+      .map((i) => i.id);
+    const latest = this.latestVerdicts(softwareId);
+    const anyJudged = musts.some((m) => latest.has(m));
+    const met = musts.filter((m) => !anyJudged || latest.get(m) === "met");
+    return [...new Set([...change.touched.filter((i) => known.has(i)), ...met])];
+  }
+
+  /** The last verdict each item got, over every check of the software. */
+  private latestVerdicts(softwareId: string): Map<string, VerdictValue> {
+    const rows = this.db
+      .prepare(
+        "SELECT reference, detail FROM events WHERE software_id = ? AND module = 'checker' AND kind = 'verdict' ORDER BY id",
+      )
+      .all(softwareId) as { reference: string; detail: string }[];
+    const found = new Map<string, VerdictValue>();
+    for (const row of rows) {
+      found.set(row.reference, (JSON.parse(row.detail) as { verdict: VerdictValue }).verdict);
+    }
+    return found;
+  }
+
+  /** The items the check of the work in progress judges: a change's, or a milestone's. */
+  private checkedItems(softwareId: string, state: BuildState): string[] {
+    return state.change
+      ? this.changeItemsToCheck(softwareId, state.change)
+      : this.itemsToCheck(softwareId, state.milestone);
+  }
+
+  private scenariosCover(softwareId: string, state: BuildState): boolean {
+    const items = this.checkedItems(softwareId, state);
     const covered = new Set(this.scenarios(softwareId).flatMap((s) => s.items));
     return items.every((i) => covered.has(i));
   }
@@ -760,7 +829,7 @@ export class BuildCheckRun implements LaterStages {
   }
 
   private scenarioJob(softwareId: string, state: BuildState): EnqueueInput {
-    const items = this.itemsToCheck(softwareId, state.milestone);
+    const items = this.checkedItems(softwareId, state);
     return {
       softwareId,
       kind: "check",
@@ -878,7 +947,7 @@ export class BuildCheckRun implements LaterStages {
   }
 
   private checkJob(softwareId: string, state: BuildState): EnqueueInput {
-    const items = this.itemsToCheck(softwareId, state.milestone);
+    const items = this.checkedItems(softwareId, state);
     const commit = state.head!.commit;
     state.checks.push({ round: state.round, job: null, commit, status: "checking", when: now() });
     this.save(softwareId, state);
@@ -1167,8 +1236,19 @@ export class BuildCheckRun implements LaterStages {
       job.payload.context && (job.payload.context as { items?: unknown }).items,
     )
       ? (job.payload.context as { items: string[] }).items
-      : this.itemsToCheck(id, state.milestone);
+      : this.checkedItems(id, state);
     const verdicts = this.verdictsOf(job.id);
+    if (items.length > 0 && verdicts.size === 0 && !askedAgain(job)) {
+      // No verdict at all: the checker is asked once more, with the exact shape (decision 0277).
+      check.job = this.deps.queue.enqueue(againJob(job, "verdict_submit"));
+      check.status = "checking";
+      this.save(id, state);
+      this.say(
+        id,
+        "The checker finished without any verdict; premise asks it once more, saying exactly what the answer must look like.",
+      );
+      return { kind: "wait" };
+    }
     const refused = items.some((i) => !verdicts.has(i)) ? refusedAnswer(this.db, job) : null;
     const none = refused
       ? `The checker gave no verdict for this item: it ${refusedAnswerWords(refused, 200)}.`
@@ -1959,6 +2039,7 @@ export class BuildCheckRun implements LaterStages {
 
   reportLines(softwareId: string, milestone: MilestoneRef | null): string[] {
     const state = this.load(softwareId);
+    if (state?.change) return this.changeReportLines(softwareId, state, state.change);
     const lines: string[] = [];
     const about = milestone ? `${milestone.id} reached` : "Reached the end of the plan";
     const check = state ? [...state.checks].reverse().find((c) => c.job !== null) : undefined;
@@ -2011,6 +2092,45 @@ export class BuildCheckRun implements LaterStages {
       .map(([item, i]) => ({ item, milestone: order[i]! }));
   }
 
+  /**
+   * What a change's report says (decision 0273): what changed, what was checked again, and what
+   * was not, against the commit that landed.
+   */
+  private changeReportLines(softwareId: string, state: BuildState, change: ChangeWork): string[] {
+    const live = this.items(softwareId);
+    const checked = this.changeItemsToCheck(softwareId, change);
+    const touched = new Set(change.touched);
+    const check = [...state.checks].reverse().find((c) => c.job !== null);
+    const verdicts = check?.job ? this.verdictsOf(check.job) : new Map();
+    const said = (id: string) => {
+      const v = verdicts.get(id)?.verdict;
+      return v
+        ? `${id} ${v === "met" ? "met" : v === "not-met" ? "not met" : "could not be checked"}`
+        : id;
+    };
+    const again = checked.filter((i) => !touched.has(i));
+    const notChecked = live
+      .filter((i) => ["W", "T"].includes(i.kind) && !i.marks.leftOut && !checked.includes(i.id))
+      .map((i) => i.id);
+    return [
+      state.landed
+        ? `${change.ref} changed: ${state.tasks.map((t) => t.title.replace(/\.$/, "")).join("; ")}. Commit ${short(state.landed.commit)} is built and landed${check ? ` (check round ${check.round}: ${CHECK_LANDED_WORDS[check.status] ?? "landed as it was, with what the check found still open"})` : ""}.`
+        : `${change.ref}: nothing landed.`,
+      `Checked for the change: ${
+        checked
+          .filter((i) => touched.has(i))
+          .map(said)
+          .join(", ") || "no record item named"
+      }.`,
+      again.length
+        ? `Checked again so nothing that worked is broken: ${again.map(said).join(", ")}.`
+        : "No other must item needed checking again.",
+      notChecked.length
+        ? `Not checked again (the change does not touch them): ${notChecked.join(", ")}.`
+        : "Every item of the record was checked.",
+    ];
+  }
+
   view(softwareId: string): BuildView | null {
     const state = this.load(softwareId);
     if (!state) return null;
@@ -2060,6 +2180,7 @@ export class BuildCheckRun implements LaterStages {
       .map((a) => a.title);
     return {
       milestone: state.milestone ? { id: state.milestone, text: state.milestoneText ?? "" } : null,
+      ...(state.change && { change: { ref: state.change.ref, title: state.change.title } }),
       round: state.round,
       roundsAllowed: this.config.line.check_rounds_before_stop,
       scenarios: this.scenarios(softwareId).length,
