@@ -686,6 +686,13 @@ details summary {
   gap: 0.4rem;
   margin: 0.5rem 0;
 }
+.choice-notes {
+  margin: 0.4rem 0;
+  padding-left: 1.2rem;
+}
+.choice-notes li {
+  margin-bottom: 0.25rem;
+}
 .best {
   background: var(--accent-soft);
   border-radius: 8px;

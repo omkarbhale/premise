@@ -86,3 +86,35 @@ export function waitAfterFirst(
     .filter((t) => (t.milestone ?? 1) > 1)
     .every((t) => !t.items.some((id) => asked.has(id)));
 }
+
+/** Words that say how a native package installs without a compiler. */
+const INSTALLS_WITHOUT_COMPILER =
+  /\b(prebuilt|pre-built|without a compiler|no compiler|binary wheels?|wheels? for|ships? (a |its )?binar|--ignore-scripts|precompiled|pre-compiled)\b/i;
+
+/**
+ * A plan decision that names a package which builds native code must say how it installs without a
+ * compiler, or the planner picks a built-in (decision 0300). Returns one problem per decision.
+ */
+export function nativeDependencyProblems(
+  decisions: readonly { text: string }[],
+  natives: readonly string[],
+): string[] {
+  const problems: string[] = [];
+  decisions.forEach((d, n) => {
+    // What a decision rejects is not used, so only the words before "Rejected:" count.
+    const chosen = d.text.split(/\brejected\s*:/i)[0] ?? d.text;
+    const named = natives.find((pkg) =>
+      new RegExp(
+        `(^|[^a-z0-9-])${pkg.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^a-z0-9-]|$)`,
+        "i",
+      ).test(chosen),
+    );
+    const native =
+      named ?? (/\bnative (module|addon|extension)\b/i.test(chosen) ? "a native module" : null);
+    if (!native || INSTALLS_WITHOUT_COMPILER.test(d.text)) return;
+    problems.push(
+      `Decision ${n + 1} uses ${native}, which builds native code when it is installed; in the first real runs such a build failed in every sandbox, which has no compiler. Say in the decision how it installs without a compiler (for example "prebuilt binaries for this platform", or "npm ci --ignore-scripts with the shipped binary"), or choose something built in, such as node:sqlite.`,
+    );
+  });
+  return problems;
+}

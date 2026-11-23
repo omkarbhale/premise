@@ -49,7 +49,7 @@ Not responsible for:
 |---|---|---|
 | `why.md` | The problem, and why to build | `Y-n` |
 | `who.md` | Who the software is for, and the roles it needs | `U-n` users, `R-n` roles |
-| `exists.md` | What already exists, with sources, and the outcome: do not build, build on something, or build something different | `E-n` |
+| `exists.md` | What already exists, with sources, and the outcome: do not build, build it on top of something, build it anyway, or build it because nothing out there does it | `E-n` |
 | `what.md` | What it must do, each with priority must, should or could | `W-n` |
 | `taste.md` | What people said about areas they claimed | `T-n` |
 | `decisions.md` | Decisions, with reasons and rejected alternatives | `D-n` |

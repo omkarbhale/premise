@@ -47,6 +47,7 @@ export function testConfig(dataFolder: string, env: NodeJS.ProcessEnv = {}): Pre
 import type { AgentRunner } from "../src/agents/agent-runner.js";
 import { type AgentScript, ScriptedAgentRunner } from "../src/agents/scripted-agent.js";
 import { AgentToolServer } from "../src/agents/tool-server.js";
+import { PageReader } from "../src/agents/page-reader.js";
 import { standInScript } from "../src/demo/stand-in-script.js";
 import { runDoctor } from "../src/doctor/doctor.js";
 import { TOKEN_HEADER, createApp } from "../src/server/app.js";
@@ -56,6 +57,15 @@ import type { GitHubCli } from "../src/git/github.js";
 import { createSession } from "../src/server/wiring.js";
 import { openDatabase } from "../src/storage/database.js";
 import { MockUsageLedger } from "../src/usage-ledger/mock-usage-ledger.js";
+
+/** A page reader that never touches the network: every public page is the same short page. */
+export function testPages(config: PremiseConfig, body = "<h1>A page</h1><p>Its text.</p>") {
+  return new PageReader({
+    partChars: config.tools.page_part_chars,
+    resolve: async () => ["203.0.113.7"],
+    fetch: async () => ({ status: 200, contentType: "text/html", body }),
+  });
+}
 
 /** A page server on a fresh data folder, with the line engine and scripted agents that finish at once. */
 export async function testApp(
@@ -92,7 +102,8 @@ export async function testApp(
   });
   const { db, schemaVersion } = openDatabase(folder);
   const ledger = new MockUsageLedger("mock-fixed", 1);
-  const tools = new AgentToolServer({ db, config });
+  // Tests never touch the network: a page the researcher reads is a fixed one.
+  const tools = new AgentToolServer({ db, config, pages: testPages(config) });
   // Tests that bring their own runner never read the scripted runner's calls.
   const runner = (options.makeRunner?.(tools, config) ??
     new ScriptedAgentRunner(options.script ?? standInScript(0))) as ScriptedAgentRunner;

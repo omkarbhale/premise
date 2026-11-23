@@ -48,6 +48,8 @@ export interface VerdictFact {
   madeUp?: string;
   /** A verdict recorded before the checker had to say whether real data was used. */
   notStated?: boolean;
+  /** For could-not-check: what a person should try, as the checker named it (decision 0300). */
+  tryItOn?: string;
   /**
    * True when the latest commit has the same code as the commit judged: only merges or changes to
    * the record came after it, so the verdict still holds for the latest version.
@@ -255,6 +257,7 @@ export function readVerdicts(db: Database, softwareId: string): VerdictFact[] {
       ...(row.runtime === "scripted" && { scripted: true }),
       ...(madeUp !== null && { madeUp }),
       ...(notStated && { notStated }),
+      ...(detail.verdict === "could-not-check" && detail.tryItOn && { tryItOn: detail.tryItOn }),
     });
   }
   return [...latest.values()];

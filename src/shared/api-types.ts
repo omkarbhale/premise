@@ -469,6 +469,11 @@ export interface AskItem {
   quote?: string;
   /** For a milestone: whether premise stops after it until the operator says go on. */
   wait?: boolean;
+  /**
+   * On the milestones question: a must item that works only under a condition (decision 0300). It
+   * is kept, struck, or checked first ("check").
+   */
+  condition?: boolean;
   /** Record items the item stands for (a say-back item), or sources (What exists). */
   refs?: string[];
   /** The heading a long list is grouped under on the page, such as "Why". */
@@ -503,6 +508,8 @@ export interface AskView {
   suggestions?: { key: string; text: string; added?: string }[];
   /** For a question: answers to pick from, besides writing one's own. */
   choices?: string[];
+  /** For a choice: one line on what choosing it changes (What exists, decision 0300). */
+  choiceNotes?: Record<string, string>;
   /** For the scope check: the three choices with their rough cost, and the one effort picks. */
   scope?: { cuts: ScopeCut[]; preselected: ScopeCut["id"]; estimateNote: string };
   /** For an approval: exactly what will happen and why (the gate's fixed card). */
@@ -527,6 +534,11 @@ export interface AskView {
   claim?: { id: number; area: string };
   /** For something only a person can do that ends in a secret: the file and key to write it as. */
   secret?: { file: string; key: string };
+  /**
+   * For a program the agents lack (decision 0300): its command, the one host it comes from when
+   * allowing that host would let the agents get it, and what it is needed for.
+   */
+  tool?: { name: string; host?: string; why?: string };
   /** For a redone list: what the person struck before, with the reason, so they see they were heard. */
   struckBefore?: { text: string; reason: string }[];
   status: "open" | "answered" | "withdrawn";
@@ -539,7 +551,9 @@ export interface AskView {
 export type ItemAnswer =
   | { key: string; decision: "keep"; wait?: boolean }
   | { key: string; decision: "strike"; reason?: string }
-  | { key: string; decision: "edit"; text: string; wait?: boolean };
+  | { key: string; decision: "edit"; text: string; wait?: boolean }
+  /** For a condition on the milestones question: check whether it holds before building on it. */
+  | { key: string; decision: "check" };
 
 export type AskAnswer =
   | { kind: "items"; items: ItemAnswer[] }
@@ -555,7 +569,15 @@ export type AskAnswer =
       reason?: string;
     }
   | { kind: "approval"; decision: "approve-once" | "approve-kind" | "refuse"; reason?: string }
-  | { kind: "needed"; decision: "done" | "cannot"; reason?: string }
+  /**
+   * Something only a person can do. For a missing tool (decision 0300) also: allow its host for
+   * this software, "I installed it", or go on without it.
+   */
+  | {
+      kind: "needed";
+      decision: "done" | "cannot" | "allow" | "installed" | "without";
+      reason?: string;
+    }
   /** For a proposal: keep one of its options (`choice`, an item's key), or say what to change. */
   | { kind: "proposal"; decision: "accept" | "change"; text?: string; choice?: string }
   | { kind: "scope"; items: { key: string; place: ScopePlace }[] };

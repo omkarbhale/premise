@@ -50,6 +50,16 @@ const draftItem = (kinds: string) =>
           replaces: text(
             'For a D item in a change\'s plan: the decision it replaces, such as "D-6".',
           ),
+          condition: text(
+            "For a D item: the condition a must item then works only under, or what it assumes without having checked, in one line.",
+          ),
+          must: list(
+            itemId,
+            "For a D item with a condition: the must items that work only under it.",
+          ),
+          who: text(
+            'For a D item with a condition a person must meet: the role who can meet it, such as "operator".',
+          ),
           wait: yesNo("For an M item: whether the work waits for the operator after it."),
           suggestion: yesNo("Whether premise offers it as its own idea."),
           quote: text(
@@ -183,7 +193,12 @@ export const TOOL_INPUTS: Record<string, ObjectShape> = {
       kind: text('At plan: the kind of software, in a few words; or "say-back" for a say-back.'),
       how_to_run: text("At plan: how to build, start and check it."),
       outcome: text('At What exists: the outcome, such as "Build it".'),
-      alternative: text("At What exists: what already does the job, if anything."),
+      alternative: text("At What exists: what already does the job, if anything, by name."),
+      builds_on: text("At What exists: what it could be built on top of, by name, if anything."),
+      gap: text("At What exists: what nothing out there does, in a few words, if anything."),
+      deciding_question: text(
+        "At What exists: the one question whose answer decides the outcome, in one line.",
+      ),
       reason: text("Why, in one or two lines."),
       open_choice: text(
         "For a change: a real choice the person's words left open, in one line, which premise asks them once before building.",
@@ -241,6 +256,13 @@ export const TOOL_INPUTS: Record<string, ObjectShape> = {
       ),
       what: text("For needed: one line on what is needed."),
       secret: text("For needed: the key name of a secret the act ends in, such as MAIL_API_KEY."),
+      tool: text(
+        'For needed: a program or tool agents lack here, by the command that runs it, such as "godot".',
+      ),
+      host: text(
+        'For needed with "tool": the one host it downloads from, such as "downloads.example.org", when allowing agents to reach it would let them get it.',
+      ),
+      why: text('For needed with "tool": what it is needed for, in one line.'),
       waits_on: text("What waits on the answer."),
     },
     ["role", "kind", "items"],
@@ -309,7 +331,9 @@ export const TOOL_INPUTS: Record<string, ObjectShape> = {
               ["real", "made-up"],
               '"real" (the real data, service or environment) or "made-up" (stand-ins only).',
             ),
-            try_it_on: text('With "made-up": what a person should try it on.'),
+            try_it_on: text(
+              'With "made-up" or could-not-check: what a person should try it on or do to check it.',
+            ),
           },
           ["item", "verdict", "evidence", "judged_on"],
         ),
@@ -429,6 +453,13 @@ export const TOOL_INPUTS: Record<string, ObjectShape> = {
       split_reason: text("Why it is split, or why it stays whole."),
     },
     ["size", "size_reason", "stages", "stages_reason", "split_reason"],
+  ),
+  page_read: object(
+    {
+      url: text("The page's address, http or https.", { example: "https://example.org/docs" }),
+      part: whole("Which part to read, from 1; leave out for the first.", 1),
+    },
+    ["url"],
   ),
   facts_read: object({
     since: text("A time, such as 2026-11-01T00:00:00Z."),

@@ -208,7 +208,7 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
   const tools = deps.tools;
   if (tools) {
     app.post("/mcp", async (request, reply) => {
-      const answer = tools.handleHttp(request.headers.authorization, request.body);
+      const answer = await tools.handleHttpAsync(request.headers.authorization, request.body);
       reply.code(answer.status);
       return answer.body === undefined ? reply.send() : reply.send(answer.body);
     });

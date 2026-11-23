@@ -56,6 +56,7 @@ export const FLOOR_KINDS = [
   "publish",
   "post",
   "write-repository",
+  "network",
 ] as const;
 export type FloorKind = (typeof FLOOR_KINDS)[number];
 /** Always asked one action at a time; never approved as a kind (decision 0101). */
@@ -397,6 +398,14 @@ export const SETTINGS: readonly Setting[] = [
     meaning: "Most items an agent may put in one question to a person.",
   },
   {
+    key: "tools.page_part_chars",
+    default: 12000,
+    check: summarised(wholeNumber(1000, 100000), "1000 to 100000"),
+    meaning:
+      "How many characters of a web page the researcher reads at a time, when it reads a long page in parts.",
+    record: "0300",
+  },
+  {
     key: "usage_ledger.mode",
     default: "mock-fixed",
     check: realLedgerNotBuilt,
@@ -589,6 +598,28 @@ export const SETTINGS: readonly Setting[] = [
     meaning:
       "The most tasks the planner may give one change. A change is planned as a change, never as the software's whole plan again; a larger change is split by the sizer into steps of the change.",
     record: "0273",
+  },
+  {
+    key: "line.native_dependencies",
+    default: [
+      "better-sqlite3",
+      "sqlite3",
+      "bcrypt",
+      "argon2",
+      "sharp",
+      "canvas",
+      "node-gyp",
+      "node-sass",
+      "re2",
+      "psycopg2",
+      "mysqlclient",
+      "lxml",
+      "pycairo",
+    ],
+    check: summarised(textList, "a list of package names"),
+    meaning:
+      "Packages that build native code when installed. A plan decision naming one must say how it installs without a compiler (for example prebuilt binaries), or the planner picks a built-in instead: in the first real runs such a build failed in every sandbox.",
+    record: "0300",
   },
   {
     key: "line.estimate_minutes_per_session",
@@ -998,7 +1029,7 @@ export interface PremiseConfig {
     scripted: { script_file: string | null; step_seconds: number };
     tasks: Record<AgentTaskKind, TaskSettings>;
   };
-  tools: { progress_max_chars: number; ask_max_items: number };
+  tools: { progress_max_chars: number; ask_max_items: number; page_part_chars: number };
   usage_ledger: {
     mode: UsageLedgerMode;
     seed: number | null;
@@ -1030,6 +1061,7 @@ export interface PremiseConfig {
     wait_after_asked: boolean;
     change_questions: "every-change" | "when-it-matters" | "never" | null;
     change_max_tasks: number;
+    native_dependencies: string[];
     estimate_minutes_per_session: number;
     estimate_items_per_build: number;
     budgets: Record<BudgetGroup, Record<"small" | "medium" | "large", StageBudget>>;

@@ -15,6 +15,7 @@ import type {
   LessonView,
 } from "../shared/api-types.js";
 import { stageName } from "../shared/stages.js";
+import { isUnsure, keepsHedge } from "../shared/hedges.js";
 import { type Ask, getAsk } from "../storage/asks.js";
 import { addChatMessage } from "../storage/chat.js";
 import { type Database, now, recordEvent, transaction } from "../storage/database.js";
@@ -196,7 +197,7 @@ export class Learning implements LessonSource {
       const rows = this.db
         .prepare(
           `SELECT id, software_id, module, kind, reference, detail FROM events
-           WHERE id > ? AND module IN ('asks', 'softwares', 'intake') ORDER BY id LIMIT 200`,
+           WHERE id > ? AND module IN ('asks', 'softwares', 'intake', 'line') ORDER BY id LIMIT 200`,
         )
         .all(cursor) as unknown as EventRow[];
       const last = (
@@ -221,6 +222,27 @@ export class Learning implements LessonSource {
 
   private correctionsIn(row: EventRow): Found[] {
     if (!row.software_id) return [];
+    if (row.module === "line" && row.kind === "overruled") {
+      // The person chose against premise's recommendation and said why (decision 0300): premise's
+      // recommendation was wrong for them, which is a correction like a rejected draft.
+      const detail = parse<{ recommended?: string; chosen?: string; why?: string; item?: string }>(
+        row.detail,
+      );
+      return [
+        {
+          softwareId: row.software_id,
+          kind: "reject-draft",
+          source: `event:${row.id}`,
+          what: `You chose “${detail.chosen ?? "another answer"}” over premise's recommendation “${detail.recommended ?? ""}”`,
+          said: detail.why?.trim() || null,
+          touches: detail.item ? [detail.item] : [],
+          subject: detail.recommended ?? null,
+          replacement: detail.chosen ?? null,
+          stage: "exists",
+        },
+      ];
+    }
+    if (row.module === "line") return [];
     if (row.module === "asks" && row.kind === "ask-answered" && row.reference) {
       const ask = getAsk(this.db, Number(row.reference));
       return ask ? this.fromAsk(ask) : [];
@@ -497,6 +519,21 @@ export class Learning implements LessonSource {
       problems.push("Give the one short line to learn, in line, or choose destination none.");
     }
     if (problems.length > 0) return toolFail("MALFORMED", problems.join(" "));
+    // A lesson for this software reaches every later brief, so it must not quietly contradict a
+    // must item, and it keeps the person's doubt where they had one (decision 0300).
+    if (destination === "software" && !this.readTheRecord(job.id)) {
+      return toolFail(
+        "MALFORMED",
+        'Read the record first with record_read, then submit again: a lesson for this software reaches every later brief, and it must not contradict a must item. If it does, say so in the line, for example "keep per-session figures (W-2); do not add a ranked list of sessions".',
+      );
+    }
+    const said = `${row.said ?? ""}`;
+    if (rawLine && isUnsure(said) && !keepsHedge(rawLine)) {
+      return toolFail(
+        "MALFORMED",
+        `The person was not sure ("${said.slice(0, 160)}"), and the line says it as settled. Keep their doubt in the line, for example "the operator is unsure whether ...; do not ... without asking", and submit again.`,
+      );
+    }
     const line = rawLine ? cut(rawLine, this.config.learning.line_max_chars) : null;
     const topic =
       destination === "premise"
@@ -507,6 +544,19 @@ export class Learning implements LessonSource {
       destination,
       ...(lessonId !== null && { lesson: label(lessonId) }),
       note: "Taken. End your session.",
+    });
+  }
+
+  /** Whether the job read the software's record with record_read, as the tool calls show. */
+  private readTheRecord(jobId: number): boolean {
+    const rows = this.db
+      .prepare(
+        "SELECT detail FROM events WHERE module = 'agent-tools' AND kind = 'tool-call' AND reference = ?",
+      )
+      .all(String(jobId)) as { detail: string | null }[];
+    return rows.some((r) => {
+      const d = JSON.parse(r.detail ?? "{}") as { tool?: string; ok?: boolean };
+      return d.tool === "record_read" && d.ok === true;
     });
   }
 

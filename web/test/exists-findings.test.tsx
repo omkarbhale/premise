@@ -76,14 +76,14 @@ describe("What exists findings", () => {
     const user = userEvent.setup();
     const api = fakeApi();
     inSession(<AskCard ask={exists()} />, api);
-    await user.type(screen.getByLabelText(/say why \(optional, one line\)/), "I want my own");
+    await user.type(screen.getByLabelText(/say why in one line/), "I want my own");
     await user.click(screen.getByRole("button", { name: "Go with this" }));
     // The same as the recommendation: the reason is not sent.
     expect(api.answer).toHaveBeenLastCalledWith(1, { kind: "text", text: "Build it" });
     cleanup();
     const other = fakeApi();
     inSession(<AskCard ask={exists()} />, other);
-    await user.type(screen.getByLabelText(/say why \(optional, one line\)/), "I want my own");
+    await user.type(screen.getByLabelText(/say why in one line/), "I want my own");
     await user.click(screen.getByRole("button", { name: "Do not build it" }));
     await user.click(screen.getByRole("button", { name: "Yes, do not build it" }));
     expect(other.answer).toHaveBeenCalledWith(1, {

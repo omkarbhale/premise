@@ -320,6 +320,7 @@ const trialJudge: ScriptBehaviour = async (request, call) => {
       item,
       verdict: "could-not-check",
       judged_on: "real",
+      try_it_on: "the software itself, once premise builds it with real agents",
       evidence: `This is a scripted trial, so nothing real was built and nothing was judged. The placeholder program ${started.met ? `ran and printed: ${started.seen}` : `did not run: ${started.seen}`}`,
     })),
   });
@@ -429,6 +430,8 @@ const learn: ScriptBehaviour = (request, call) => {
     replacement: text(c.replacement),
     stage: null,
   });
+  // A real triager reads the record before a lesson for the software (decision 0300).
+  call("record_read", {});
   call("lesson_submit", {
     mistake: reading.mistake,
     destination: reading.destination,

@@ -20,6 +20,7 @@ Ideas and problems come back in from the operator, other people, the software's 
 - **Fast tier, narrow job.** Triage is sorting one item, so it runs at the fast tier ([record 0104](../decisions/0104-model-tier-by-role.md)). The prompt keeps the output structured so a wrong call is easy to see and correct.
 - **Intake text is data.** An issue body or a feedback note can be written by anyone ([record 0116](../decisions/0116-outside-content-is-data.md)). An item that tries to instruct premise is triaged as what it is, often noise, and the attempt is noted.
 - **Corrections are read too, into exactly one place.** When a person strikes, edits or turns something down, the triager says what kind of mistake it was and where what it teaches belongs: this software, the operator's taste, premise itself, or nowhere ([records 0173](../decisions/0173-premise-learns-from-corrections.md), [0195](../decisions/0195-two-kinds-of-learning.md)). Sorting one correction is the same narrow, structured job as sorting one item, so it is the triager's, at the fast tier.
+- **A lesson reads the record and keeps the person's doubt.** In the first real runs a lesson turned the owner's "I don't know if it should care about that" into "it is out of scope", which clashed with a must item and went into fourteen later briefs; the triager had not read the record. A lesson for the software now needs `record_read` first, and keeps a hedge as a hedge ([record 0300](../decisions/0300-judgement-fixes-from-the-first-real-runs.md)).
 - **Questions go to the reporter.** A request for more detail is a question, answered from the record and the evidence ([record 0118](../decisions/0118-how-chat-messages-are-routed.md)).
 
 ## Inputs and placeholders
@@ -126,6 +127,10 @@ Choose exactly one destination:
 - taste: it is about how this person likes things done, whatever the software (wording, how much to ask, kinds of choices they always make). The line goes into every software's agents' briefs.
 - premise: it is about premise's own way of working, not this software or this person: a stage asked what it could have assumed, the plan split one change into two, a builder forgot the trace line, a check missed something. The line is kept for premise's makers and never changes how premise works. Give a short topic, reusing a topic above when it is the same thing.
 - none: there is nothing to learn, for example a send-back with no reason, or a change of mind rather than a mistake.
+
+Before a line for this software, read the record with record_read: the line goes into every later brief, so it must not quietly contradict a must item. If what the person said pulls against a must, say both in the line ("keep per-session figures for a known session (W-2); do not add a ranked list of sessions"). premise refuses a line for this software before the record was read.
+
+Keep the person's doubt. If they were not sure ("I don't know if it should care about that", "perhaps", "maybe"), the line says they were not sure and what not to do without asking; never turn doubt into a rule such as "it is out of scope". premise refuses a line that states as settled what the person said they were unsure of.
 
 Submit with lesson_submit, once:
 - mistake: what kind of mistake premise made, in a few plain words;

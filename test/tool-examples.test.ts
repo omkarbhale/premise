@@ -251,7 +251,11 @@ const SCENARIOS: Record<string, { covers: [AgentRole, string[]][]; run: () => Pr
         {
           script: {
             rules: [
-              trying("triager", { task: "triage", purpose: "learn" }, ["lesson_submit"]),
+              // A lesson for the software is taken only after the record was read (0300).
+              trying("triager", { task: "triage", purpose: "learn" }, [
+                "record_read",
+                "lesson_submit",
+              ]),
               ...standInScript(0).rules,
             ],
           },

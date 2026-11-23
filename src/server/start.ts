@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { ClaudeAgentRunner, PrerequisiteMissingError } from "../agents/claude-agent.js";
+import { allowedHosts } from "../gate/gate.js";
 import { SwitchableRunner } from "../agents/switchable-runner.js";
 import { ScriptedAgentRunner, loadScriptFile } from "../agents/scripted-agent.js";
 import { AgentToolServer } from "../agents/tool-server.js";
@@ -56,6 +57,7 @@ async function createRunner(
   tools: AgentToolServer,
   env: NodeJS.ProcessEnv,
   setup: DoctorReport,
+  extraHosts?: (softwareId: string) => string[],
 ): Promise<SwitchableRunner> {
   if (config.agents.mode === "scripted") {
     const scripted = scriptedRunner(config);
@@ -80,6 +82,7 @@ async function createRunner(
         toolsUrl: toolsUrl(config),
         docsFolder: docsFolder(),
         env,
+        ...(extraHosts && { extraHosts }),
       }),
     );
   } catch (error) {
@@ -184,7 +187,7 @@ export async function start(options: StartOptions): Promise<Running> {
   });
   let runner: SwitchableRunner;
   try {
-    runner = await createRunner(config, tools, options.env, setup);
+    runner = await createRunner(config, tools, options.env, setup, (id) => allowedHosts(db, id));
   } catch (error) {
     db.close();
     throw error;

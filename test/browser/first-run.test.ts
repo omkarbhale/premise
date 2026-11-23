@@ -122,7 +122,7 @@ describe("first run, in a browser", () => {
     await who.getByRole("button", { name: "Confirm this list" }).click();
 
     // What exists: a scripted research job runs, then a question with premise's best guess.
-    const exists = card(page, /Build it, build on something/);
+    const exists = card(page, /Build it, or not build it\?/);
     await exists.waitFor({ timeout: 15_000 });
     // One click answers: no second "Answer" press. Declining to build asks once more.
     await exists.getByRole("button", { name: "Do not build it" }).click();

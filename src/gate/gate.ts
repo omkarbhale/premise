@@ -33,6 +33,7 @@ export const FLOOR_WORDS: Record<FloorKind, string> = {
   publish: "acting publicly in your name: creating or publishing something on an outside service",
   post: "acting publicly in your name: posting a comment or message",
   "write-repository": "changing a repository of yours: premise writes to it only with your say",
+  network: "security: letting premise's agents reach a site on the internet",
 };
 
 /** The kind of action, as a button label: "Approve {label} for {software}". */
@@ -46,6 +47,7 @@ export const KIND_LABELS: Record<FloorKind, string> = {
   publish: "creating and publishing on outside services",
   post: "posting comments and messages",
   "write-repository": "writing to your repository",
+  network: "letting agents reach a site",
 };
 
 /**
@@ -378,6 +380,58 @@ export class Gate {
     });
     if (created.status === "approved") this.carryOut(created);
     return created;
+  }
+
+  /**
+   * An action the person approved on a card that named it exactly, such as "Allow <host> for this
+   * software" on a card asking for a missing tool (decision 0300). It is recorded as a request
+   * approved once, by that person, and carried out like any approved request.
+   */
+  approvedInSession(input: GateRequestInput): GateRequest {
+    if (typeof input.action !== "string" || !input.action.trim()) {
+      throw new GateError("MALFORMED", "Say exactly what will happen (the action).");
+    }
+    if (typeof input.why !== "string" || !input.why.trim()) {
+      throw new GateError("MALFORMED", "Say why it is needed.");
+    }
+    if (!getSoftware(this.db, input.softwareId)) {
+      throw new GateError("NOT_FOUND", "That software is not in premise.");
+    }
+    const act = input.act === undefined ? (input.perform ?? null) : input.act;
+    const id = transaction(this.db, () => {
+      const row = this.db
+        .prepare(
+          `INSERT INTO gate_requests (software_id, floor_kind, action, why, items, requested_by, job_id,
+             perform, act, card, role_asked, status, created)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'asked', ?)`,
+        )
+        .run(
+          input.softwareId,
+          input.kind,
+          input.action.trim(),
+          input.why.trim(),
+          JSON.stringify(input.items ?? []),
+          input.requestedBy,
+          input.jobId ?? null,
+          input.perform ?? null,
+          act,
+          JSON.stringify(this.cardFor(input)),
+          input.role?.trim() || "operator",
+          now(),
+        );
+      const made = Number(row.lastInsertRowid);
+      recordEvent(this.db, {
+        softwareId: input.softwareId,
+        module: "gate",
+        kind: "gate-requested",
+        reference: String(made),
+        detail: { floor: input.kind, requestedBy: input.requestedBy, onTheCard: true },
+      });
+      return made;
+    });
+    const decided = this.decide(id, "approve-once");
+    this.afterDecision(decided);
+    return this.get(id)!;
   }
 
   /** Whether premise has a way to carry out this named act itself. Agents have none. */
@@ -746,6 +800,8 @@ function gateTitle(kind: FloorKind): string {
       return "Allow premise to act in your name outside this machine?";
     case "write-repository":
       return "Allow premise to write to your repository?";
+    case "network":
+      return "Allow premise's agents to reach a site?";
   }
 }
 
@@ -774,3 +830,22 @@ function defaultCard(kind: FloorKind, perform: string | null, performable = fals
 /** Approvals with the plain words of the card each was given on. */
 const APPROVAL_SELECT = `SELECT a.*, json_extract(g.card, '$.standingLabel') AS label
   FROM approvals a LEFT JOIN gate_requests g ON g.id = a.request_id`;
+
+/** The act that lets one software's agents reach one more host (decision 0300). */
+export const ALLOW_HOST = "allow-host";
+
+/**
+ * The hosts the person allowed for one software's agents, besides the package registries every
+ * build and check session reaches (decision 0300): read from the gate's own records, so what is
+ * allowed is exactly what was approved.
+ */
+export function allowedHosts(db: Database, softwareId: string): string[] {
+  const rows = db
+    .prepare(
+      `SELECT items FROM gate_requests WHERE software_id = ? AND act = ? AND unavailable = 0
+         AND status IN ('approved', 'done') ORDER BY id`,
+    )
+    .all(softwareId, ALLOW_HOST) as { items: string }[];
+  const hosts = rows.flatMap((r) => JSON.parse(r.items) as string[]);
+  return [...new Set(hosts)];
+}
