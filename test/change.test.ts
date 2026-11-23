@@ -9,6 +9,7 @@ import { commitAll, readRecord, taskOf, writeFiles } from "../src/demo/scripted-
 import type { AskView } from "../src/shared/api-types.js";
 import { createAsk, listAsks } from "../src/storage/asks.js";
 import { listChatMessages } from "../src/storage/chat.js";
+import { listWorkItems } from "../src/line/work-items.js";
 import { tempFolder, uniquePortRange } from "./helpers.js";
 
 /**
@@ -550,7 +551,17 @@ describe("a change planned again and an edited decision", () => {
           : { key: i.key, decision: "keep" as const },
       ),
     });
-    await context.drive();
+    // Send it back while the change is being built, before it finishes.
+    for (let i = 0; i < 100; i++) {
+      const change = listWorkItems(context.db, softwareId).find(
+        (w) => w.kind === "intake" && w.state === "active",
+      );
+      if (change && change.currentStage === "build") break;
+      session.queue.tick();
+      await session.queue.idle();
+      await session.line.idle();
+      await new Promise((r) => setTimeout(r, 5));
+    }
     await session.line.sendBack(softwareId, "plan");
     const second = await untilQuestion(context, first.id);
     await session.services.asks.answer(second.id, {
