@@ -132,6 +132,7 @@ import type {
   MilestoneRef,
 } from "./later-stages.js";
 import {
+  questionFingerprint,
   type ChangeNotes,
   type ChangePlan,
   type ChangeQuestions,
@@ -565,9 +566,15 @@ export class LineEngine implements IntakeLine {
     if (!change) return false;
     const notes = this.changeNotes(change);
     const plan = this.changePlanOf(software.id, item);
-    if (notes.decided || change.origin === "bug") {
+    const same = notes.decided === "asked" && notes.asked === questionFingerprint(plan, notes);
+    if (notes.decided === "told" || same || change.origin === "bug") {
       // Asked or told once already (or a bug, never asked): a later step's decisions go in as made.
       this.landChangeDecisions(software.id, change, item, plan, plan?.decisions ?? []);
+      if (same)
+        this.premiseSays(
+          software.id,
+          `Your change ${change.ref ?? ""} is planned again with the same question you already answered, so premise keeps your earlier answer and builds.`,
+        );
       return false;
     }
     const mode = this.changeQuestionsOf(software);
@@ -659,7 +666,7 @@ export class LineEngine implements IntakeLine {
         },
       },
     });
-    this.setChangeNotes(change, { ask: ask.id });
+    this.setChangeNotes(change, { ask: ask.id, asked: questionFingerprint(plan, notes) });
     this.premiseSays(
       software.id,
       `Your change ${ref} is ready to build. Before it is, one question: ${reasons[0] ? lowerFirst(reasons[0]) : "you asked to check every change"}. It is under Waiting on you.`,
@@ -2813,7 +2820,6 @@ export class LineEngine implements IntakeLine {
           const notes = this.changeNotes(change);
           this.setChangeNotes(change, {
             landedFor: (notes.landedFor ?? []).filter((x) => x !== item.id),
-            decided: undefined,
           });
         }
       }
@@ -4388,9 +4394,9 @@ export class LineEngine implements IntakeLine {
       const entry = corrected.keep.find((k) => k.item.key === `d${i + 1}`);
       if (!entry) return [];
       if (!entry.edited) return [d];
-      const shown = this.decisionLine(d);
-      const suffix = shown.slice(d.text.length);
-      const words = entry.text.endsWith(suffix) ? entry.text.slice(0, -suffix.length) : entry.text;
+      const suffix = this.decisionLine(d).slice(d.text.length);
+      const words =
+        suffix && entry.text.endsWith(suffix) ? entry.text.slice(0, -suffix.length) : entry.text;
       return [{ ...d, text: words.trim() || d.text }];
     });
     this.landChangeDecisions(id, change, piece, plan, kept);

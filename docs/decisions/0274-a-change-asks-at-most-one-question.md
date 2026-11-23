@@ -20,7 +20,8 @@
 4. **What premise adds beyond the person's words stays optional** and is never built on silence: its suggestions are offered on the same card, one click each to add, and an added one comes in as a change of its own.
 5. **A bug still gets no question** and no notice beyond the line's usual words.
 6. **A setting per software chooses this:** ask about every change, only when it matters (the default), or never ask, just tell me. It is on the Line tab ("Changes you send"); `line.change_questions` sets it for every software, and when that is unset the effort decides: high effort asks about every change, low and medium only when it matters.
-7. **On the page a change shows one compact card:** the person's words, what premise took from them, what it assumed (marked not checked), and what it is doing now.
+7. **At most one question is per plan of a change.** When a change is planned again (a send-back, or the person's correction), premise asks again only if what it would put to the person differs from what they already answered: a different decision replaced, a new assumption not checked, a new open choice. It keeps a fingerprint of what was asked on the change's notes. When the question would be the same, premise says in one line that it kept the earlier answer, puts the plan's decisions in the record and builds.
+8. **On the page a change shows one compact card:** the person's words, what premise took from them, what it assumed (marked not checked), and what it is doing now.
 
 ## Reason
 

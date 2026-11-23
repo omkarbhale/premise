@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { AgentRequest } from "../src/agents/agent-runner.js";
@@ -483,4 +483,101 @@ describe("a change is planned and built as a change", () => {
     ).toBe(true);
     expect(built).toEqual(["Count paragraphs"]);
   }, 150_000);
+});
+
+/** Run the line until the change's one question is open, and return it. */
+async function untilQuestion(context: Context, after = 0): Promise<AskView> {
+  const { session, softwareId } = context;
+  for (let i = 0; i < 200; i++) {
+    session.queue.tick();
+    await session.queue.idle();
+    await session.line.idle();
+    await new Promise((r) => setTimeout(r, 5));
+    const open = (await session.services.asks.list({ softwareId, status: "open" })).filter(
+      (a) => !a.notice && a.id > after,
+    );
+    if (open.length) return open[0]!;
+  }
+  throw new Error("the change was never asked about");
+}
+
+function keepAll(ask: AskView, edit?: { key: string; text: string }) {
+  return {
+    kind: "items" as const,
+    items: ask.items.map((i) =>
+      edit && i.key === edit.key
+        ? { key: i.key, decision: "edit" as const, text: edit.text }
+        : { key: i.key, decision: "keep" as const },
+    ),
+  };
+}
+
+describe("a change planned again and an edited decision", () => {
+  it("keeps the person's edit of a decision that has no reason and replaces nothing", async () => {
+    let lines: string[] = [];
+    await run({ decisions: () => [{ text: "Count paragraphs while reading" }] }, async (context) => {
+      const { session, softwareId } = context;
+      await session.services.softwares.setChangeQuestions(softwareId, "every-change");
+      await sendWish(context);
+      const ask = await untilQuestion(context);
+      await session.services.asks.answer(
+        ask.id,
+        keepAll(ask, { key: "d1", text: "Count paragraphs from a stream" }),
+      );
+      await context.drive();
+      const record = (await session.services.records.view(softwareId)) as {
+        files: { items: { text: string }[] }[];
+      };
+      lines = record.files.flatMap((f) => f.items.map((i) => i.text));
+    });
+    expect(lines.some((t) => t.startsWith("Count paragraphs from a stream"))).toBe(true);
+    expect(lines.some((t) => t.startsWith("Count paragraphs while reading"))).toBe(false);
+  }, 150_000);
+
+  it("asks again only when the question changed, and otherwise keeps the earlier answer", async () => {
+    let variant = "A";
+    const seen = { second: 0, third: 0, said: [] as string[], planGone: false };
+    const dataFolder = tempFolder();
+    await run(
+      {
+        decisions: (record) => {
+          const node = record.find((l) => /Node\.js script/.test(l.line))!;
+          return [
+            {
+              text: "Read the file as a stream",
+              reason: "Counted while reading.",
+              ...(variant === "A" && { replaces: node.id }),
+            },
+          ];
+        },
+      },
+      async (context) => {
+        const { session, softwareId } = context;
+        await session.services.softwares.setChangeQuestions(softwareId, "every-change");
+        await sendWish(context);
+        const first = await untilQuestion(context);
+        await session.services.asks.answer(first.id, keepAll(first));
+        await context.drive();
+        const changes = join(dataFolder, "plans", softwareId, "changes");
+        const before = existsSync(changes) ? readdirSync(changes).length : 0;
+        expect(before).toBeGreaterThan(0);
+        await session.line.sendBack(softwareId, "plan");
+        seen.planGone = !existsSync(changes) || readdirSync(changes).length === 0;
+        await context.drive();
+        seen.second = asked(context, "change-confirm").length;
+        variant = "B";
+        await session.line.sendBack(softwareId, "plan");
+        const again = await untilQuestion(context, first.id);
+        await session.services.asks.answer(again.id, keepAll(again));
+        await context.drive();
+        seen.third = asked(context, "change-confirm").length;
+        seen.said = listChatMessages(context.db, softwareId).map((m) => m.text);
+      },
+      { dataFolder },
+    );
+    expect(seen.planGone).toBe(true);
+    expect(seen.second).toBe(1);
+    expect(seen.third).toBe(2);
+    expect(seen.said.filter((t) => /keeps your earlier answer/.test(t))).toHaveLength(1);
+  }, 250_000);
 });
