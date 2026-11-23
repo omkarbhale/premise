@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { Git } from "../src/git/git.js";
 import { LocalRepositoryHost } from "../src/git/repository-host.js";
 import { RecordError, RecordKeeper } from "../src/record/record-keeper.js";
+import { RecordWriter, droppedLine } from "../src/line/record-writer.js";
 import { checkTrailers, readTrailer } from "../src/record/trace.js";
 import { type Database, openDatabase } from "../src/storage/database.js";
 import { createSoftware } from "../src/storage/softwares.js";
@@ -132,14 +133,58 @@ describe("record keeper: changes", () => {
     );
   });
 
-  it("refuses to write when a record file changed under the change", () => {
+  it("applies a change again when a file it touches changed under it, and writes it with the next free ID", () => {
     const copy = keeper.createWorkingCopy(softwareId, "a", "job-a");
     const first = keeper.propose(softwareId, [WHY], "x", { workingCopy: copy });
     keeper.applyReview(first.changeId, { verdict: "consistent" });
-    const second = keeper.propose(softwareId, [WHY], "x", { workingCopy: copy });
+    const other = { ...WHY, text: "Tasks get forgotten." };
+    const second = keeper.propose(softwareId, [other], "x", { workingCopy: copy });
     keeper.applyReview(second.changeId, { verdict: "consistent" });
     keeper.write(second.changeId, { workingCopy: copy });
-    expect(() => keeper.write(first.changeId, { workingCopy: copy })).toThrowError(/changed since/);
+    keeper.write(first.changeId, { workingCopy: copy });
+    const why = readFileSync(join(copy, "premise", "why.md"), "utf8");
+    expect(why).toContain("[Y-1] Tasks get forgotten.");
+    expect(why).toContain("[Y-2] People lose track of tasks.");
+    expect(keeper.git.log(copy)[0]!.subject).toBe("Record: add Y-2 People lose track of tasks.");
+  });
+
+  it("does not refuse a change because a file it does not touch changed (run.md)", () => {
+    land([WHY], "a");
+    const copy = keeper.createWorkingCopy(softwareId, "b", "job-b");
+    const decision = keeper.propose(
+      softwareId,
+      [
+        {
+          op: "add",
+          kind: "D",
+          text: "Keep tasks in a file. Reason: simple. Rejected: a server.",
+          from: "builder",
+        },
+      ],
+      "x",
+      { proposer: { agentRole: "builder" } },
+    );
+    keeper.applyReview(decision.changeId, { verdict: "consistent" });
+    writeFileSync(join(copy, "premise", "run.md"), "# How to run it\nnode tasks.js\n");
+    keeper.write(decision.changeId, { workingCopy: copy, withCode: true });
+    expect(readFileSync(join(copy, "premise", "decisions.md"), "utf8")).toContain("[D-1]");
+  });
+
+  it("refuses, saying why, only when the change no longer fits the record as it stands", () => {
+    land([WHY, MUST], "a");
+    const copy = keeper.createWorkingCopy(softwareId, "b", "job-b");
+    const strike = { op: "strike", id: "W-1", reason: "not wanted" } as const;
+    const first = keeper.propose(softwareId, [strike], "x", { workingCopy: copy });
+    keeper.applyReview(first.changeId, { verdict: "consistent" });
+    keeper.applySayBack(first.changeId, true);
+    const second = keeper.propose(softwareId, [strike], "x", { workingCopy: copy });
+    keeper.applyReview(second.changeId, { verdict: "consistent" });
+    keeper.applySayBack(second.changeId, true);
+    keeper.write(second.changeId, { workingCopy: copy });
+    expect(() => keeper.write(first.changeId, { workingCopy: copy })).toThrowError(
+      /no longer fits the record as it stands.*W-1 is already struck through/,
+    );
+    expect(keeper.change(first.changeId).status).toBe("rejected");
   });
 
   it("lets a builder propose a decision only", () => {
@@ -262,7 +307,7 @@ describe("record keeper: trailer checks before a push", () => {
     const failures = keeper.pushChecked(repo, "origin", "main");
     expect(failures).toHaveLength(1);
     expect(failures[0]).toMatchObject({ subject: "Sneaky" });
-    expect(failures[0]!.reason).toContain("no Premise-Trace trailer");
+    expect(failures[0]!.reason).toContain('no "Premise-Trace:" line');
     expect(keeper.git.commitsToPush(repo, "origin", "main").length).toBeGreaterThan(0);
   });
 
@@ -303,6 +348,27 @@ describe("record keeper: trailer checks before a push", () => {
     expect(readTrailer("A\n\nPremise-Trace: \n", "Premise-Trace")).toHaveProperty("problem");
     expect(readTrailer("A\n\nPremise-Trace: seven\n", "Premise-Trace")).toHaveProperty("problem");
     expect(readTrailer("Premise-Trace: W-1\n", "Premise-Trace")).toHaveProperty("problem");
+  });
+
+  it("tells a missing trace line from one that is not in the last paragraph", () => {
+    const missing = readTrailer("A\n\nbody\n", "Premise-Trace");
+    expect(missing).toHaveProperty("problem", expect.stringContaining("has no"));
+    const notLast = readTrailer(
+      "A\n\nPremise-Trace: W-1\n\nCo-Authored-By: X <x@example.invalid>\n",
+      "Premise-Trace",
+    );
+    expect(notLast).toHaveProperty(
+      "problem",
+      expect.stringContaining("is there, but it is not in the last paragraph"),
+    );
+    expect(readTrailer("A\n\nPremise-Trace: \n", "Premise-Trace")).toHaveProperty(
+      "problem",
+      expect.stringContaining("names no item"),
+    );
+    expect(readTrailer("A\n\nPremise-Trace: seven\n", "Premise-Trace")).toHaveProperty(
+      "problem",
+      expect.stringContaining("not an item ID"),
+    );
   });
 });
 
@@ -382,5 +448,39 @@ describe("record keeper: milestones and priority", () => {
     land([{ op: "add", kind: "M", text: "First.", from: "assumed" }], "a");
     land([{ op: "mark", id: "M-1", wait: true }], "b");
     expect(keeper.effortPlan(softwareId).milestones[0]).toMatchObject({ id: "M-1", wait: true });
+  });
+});
+
+describe("landing the changes agents proposed", () => {
+  const decision = (text: string) =>
+    ({
+      op: "add",
+      kind: "D",
+      text: `${text} Reason: simple. Rejected: a server.`,
+      from: "assumed",
+    }) as const;
+
+  it("lands every builder's decision though each was checked against an older record, and says once what did not fit", () => {
+    land([WHY], "a");
+    const writer = new RecordWriter(keeper);
+    const ids = ["Keep tasks in a file.", "Print errors as one line.", "Keep tasks in a file."].map(
+      (text, i) =>
+        keeper.propose(softwareId, [decision(text)], "x", {
+          proposer: { agentRole: "builder" },
+          proposedBy: `builder, job ${i + 1}`,
+        }).changeId,
+    );
+    const result = writer.landAllProposed(softwareId, ids);
+    expect(result.landed).toBe(2);
+    expect(result.dropped).toHaveLength(1);
+    const decisions = keeper.list(softwareId, { kind: "D" }).map((d) => `${d.id} ${d.text}`);
+    expect(decisions).toEqual([
+      "D-1 Keep tasks in a file. Reason: simple. Rejected: a server.",
+      "D-2 Print errors as one line. Reason: simple. Rejected: a server.",
+    ]);
+    const line = droppedLine(result.dropped, "a builder")!;
+    expect(line).toMatch(/^One record change a builder proposed did not fit/);
+    expect(line).toContain("D-1 already says this");
+    expect(line).not.toMatch(/propose it again/i);
   });
 });

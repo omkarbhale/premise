@@ -149,17 +149,42 @@ export function applyOperations(
   };
 
   operations.forEach((operation, index) => {
-    const at = `Operation ${index + 1} (${operation.op})`;
+    const at = `Operation ${index + 1} (${String((operation as { op?: unknown }).op ?? "no op")})`;
+    // What is wrong with the operation's shape is said first, so a missing field is never
+    // reported as something else (such as "a builder may only add decisions").
+    const shape = shapeProblem(at, operation as unknown as Record<string, unknown>);
+    if (shape) {
+      refuse("MALFORMED", shape);
+      assigned.push(undefined);
+      return;
+    }
     if (
       context.proposer?.agentRole === "builder" &&
       !(operation.op === "add" && operation.kind === "D")
     ) {
       refuse(
         "NOT_ALLOWED",
-        `${at}: a builder may only add decisions (D items). Ask the operator or the planner for anything else.`,
+        `${at}: a builder may only add decisions: { "op": "add", "kind": "D", ... }. To change another item, ask the operator with the ask tool.`,
       );
       assigned.push(undefined);
       return;
+    }
+    if (
+      context.proposer?.agentRole &&
+      operation.op === "add" &&
+      typeof operation.text === "string"
+    ) {
+      const same = before.items.find(
+        (i) => !i.struck && i.kind === operation.kind && sameText(i.text, operation.text),
+      );
+      if (same) {
+        refuse(
+          "CONFLICT",
+          `${at}: ${same.id} already says this, so it is not added again. Leave this operation out; to change ${same.id}, replace it instead.`,
+        );
+        assigned.push(undefined);
+        return;
+      }
     }
     switch (operation.op) {
       case "add": {
@@ -360,4 +385,81 @@ function checkNewItem(
   if (operation.foundation && kind !== "D") return `${at}: only a decision (D) can be foundation.`;
   if (operation.wait && kind !== "M") return `${at}: only a milestone (M) can have a wait.`;
   return undefined;
+}
+
+/** Two item texts that say the same thing, ignoring case, spacing and closing punctuation. */
+function sameText(a: string, b: string): boolean {
+  const norm = (t: string) =>
+    t
+      .replace(/^\s*suggestion\s*:\s*/i, "")
+      .replace(/\s+/g, " ")
+      .replace(/[.!\s]+$/, "")
+      .trim()
+      .toLowerCase();
+  return norm(a) === norm(b);
+}
+
+const EXAMPLES: Record<string, string> = {
+  add: '{ "op": "add", "kind": "D", "text": "Keep tasks in one JSON file. Reason: one user, no server. Rejected: SQLite, more than needed.", "from": "assumed" }',
+  replace:
+    '{ "op": "replace", "id": "W-3", "text": "Show the ten newest tasks first.", "from": "assumed", "reason": "the operator asked for newest first" }',
+  strike: '{ "op": "strike", "id": "W-3", "reason": "the operator dropped it" }',
+  mark: '{ "op": "mark", "id": "M-2", "wait": true }',
+};
+
+/**
+ * What is wrong with one operation's shape, said so the proposer can fix it in one go: the field
+ * that is missing or misnamed, and a complete example of the operation. Undefined when it is fine.
+ */
+function shapeProblem(at: string, operation: Record<string, unknown>): string | undefined {
+  if (!operation || typeof operation !== "object" || Array.isArray(operation)) {
+    return `${at}: each operation is an object, such as ${EXAMPLES.add}.`;
+  }
+  const op = operation.op;
+  if (typeof op !== "string" || !(op in EXAMPLES)) {
+    return `${at}: "op" must be "add", "replace", "strike" or "mark"${op === undefined ? "; it is missing" : `, not "${String(op)}"`}. For example: ${EXAMPLES.add}.`;
+  }
+  const problems: string[] = [];
+  const example = EXAMPLES[op]!;
+  if (op === "add") {
+    if (operation.kind === undefined) {
+      const fromFile =
+        typeof operation.file === "string"
+          ? RECORD_FILES.find((f) => f.file === operation.file)?.kinds[0]
+          : undefined;
+      problems.push(
+        `"kind" is missing${fromFile ? ` (for ${String(operation.file)} it is "${fromFile}")` : ""}; give one of ${ITEM_KINDS.join(", ")} (D is a decision)`,
+      );
+    } else if (!(ITEM_KINDS as readonly unknown[]).includes(operation.kind)) {
+      problems.push(
+        `"kind" is "${String(operation.kind)}", which is not a kind of item; give one of ${ITEM_KINDS.join(", ")}`,
+      );
+    }
+  } else if (typeof operation.id !== "string" || operation.id.trim() === "") {
+    problems.push(`"id" is missing: name the item, such as "W-3"`);
+  }
+  if (op === "add" || op === "replace") {
+    if (operation.text === undefined) {
+      problems.push(
+        `"text" is missing${operation.line !== undefined ? ` (it is called "text", not "line")` : ""}: the item's words only`,
+      );
+    } else if (
+      typeof operation.text === "string" &&
+      /^\s*-?\s*~?~?\[[A-Z]-\d+\]/.test(operation.text)
+    ) {
+      problems.push(
+        `start "text" with the item's words, not with a list mark or an ID such as "- [D-4]"`,
+      );
+    }
+    if (operation.from === undefined) {
+      problems.push(
+        `"from" is missing: "assumed" for your own idea, or the role whose words it is, such as "operator" only when it is the operator's own words`,
+      );
+    }
+  }
+  if ((op === "replace" || op === "strike") && operation.reason === undefined) {
+    problems.push(`"reason" is missing: one line saying why`);
+  }
+  if (problems.length === 0) return undefined;
+  return `${at}: ${problems.join("; ")}. A complete ${op} looks like this: ${example}.`;
 }

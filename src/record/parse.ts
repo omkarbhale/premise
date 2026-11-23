@@ -144,7 +144,7 @@ export function parseRecord(files: ReadonlyMap<string, string>): ParsedRecord {
       }
       if (kind === "D" && !(/\bReason: /.test(itemText) && /\bRejected: /.test(itemText))) {
         bad(
-          `${id}: a decision states what was decided, then "Reason: ..." and "Rejected: ...", the alternative given up`,
+          `${id}: a decision's text states what was decided, then "Reason: ..." and "Rejected: ...", the alternative given up, all in the one "text", such as "Keep tasks in one JSON file. Reason: one user, no server. Rejected: SQLite, more than needed."`,
         );
       }
       if (seen.has(id)) {

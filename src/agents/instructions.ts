@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { AgentRole } from "./roles.js";
+import { type AgentRole, PREMISE_TOOLS_BY_ROLE } from "./roles.js";
+import { toolExample } from "./tool-server.js";
 
 /**
  * Assembles a session's standing instructions (decision 0114, docs/prompts/README.md "How a prompt
@@ -8,7 +9,9 @@ import type { AgentRole } from "./roles.js";
  * catalog's order. The task brief is given separately, as the session's first message.
  *
  * The prompts and skills are read from premise's own docs/prompts and docs/skills, where they are
- * published in full.
+ * published in full. After the skills comes one generated section: a complete example call of each
+ * premise tool the role has, from the tool server's own examples, so the prompt and the server
+ * cannot drift.
  */
 
 const SYSTEM_PROMPT_HEADING = "## Full text: system prompt";
@@ -69,7 +72,24 @@ export function skillText(markdown: string, file = "the skill file"): string {
   return markdown.slice(at + SKILL_MARKER.length).trim();
 }
 
-/** The role's system prompt followed by its skills, ready to hand to the agent. */
+/** The prefix of each example line in the generated tools section. */
+export const EXAMPLE_CALL = "Example call:";
+
+/** The generated section: one complete, accepted call of each premise tool the role has. */
+export function toolExamplesSection(role: AgentRole): string {
+  const lines = PREMISE_TOOLS_BY_ROLE[role].map(
+    (tool) => `${EXAMPLE_CALL} ${tool} ${JSON.stringify(toolExample(tool, role))}`,
+  );
+  return [
+    "# How to call premise's tools",
+    "",
+    "Each example is a complete call that premise accepts; copy its shape.",
+    "",
+    ...lines,
+  ].join("\n");
+}
+
+/** The role's system prompt followed by its skills and its tool examples, ready for the agent. */
 export function assembleInstructions(docsFolder: string, role: AgentRole): string {
   const promptFile = join(docsFolder, "prompts", `${role}.md`);
   const prompt = read(promptFile);
@@ -85,5 +105,6 @@ export function assembleInstructions(docsFolder: string, role: AgentRole): strin
     const file = join(docsFolder, "skills", `${name}.md`);
     parts.push(`# Skill: ${name}\n\n${skillText(read(file), file)}`);
   }
+  parts.push(toolExamplesSection(role));
   return parts.join("\n\n---\n\n");
 }

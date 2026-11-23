@@ -91,6 +91,45 @@ async function toMilestones(app: App, id: string) {
 }
 
 describe("the line engine, Why to Plan", () => {
+  it("records each of the plan's decisions once, even when the planner also proposed it", async () => {
+    const base = standInScript(0);
+    const planRule = base.rules.find((r) => r.when?.task === "plan" && r.when.purpose === "draft")!;
+    const script: AgentScript = {
+      rules: base.rules.map((rule) =>
+        rule === planRule
+          ? {
+              ...rule,
+              behave: async (request, call) => {
+                const proposed = call("record_propose", {
+                  operations: [
+                    {
+                      op: "add",
+                      kind: "D",
+                      foundation: true,
+                      text: "It runs as a small program on this machine. Reason: one user, nothing to host. Rejected: a hosted service, which costs money and needs a lock.",
+                      from: "assumed",
+                    },
+                  ],
+                  reason: "The first foundation decision.",
+                });
+                expect(proposed.ok, JSON.stringify(proposed)).toBe(true);
+                await planRule.behave!(request, call);
+              },
+            }
+          : rule,
+      ),
+    };
+    const app = await testApp({}, { script });
+    const id = await start(app);
+    await toSayBack(app, id);
+    await keepAll(app, await toMilestones(app, id));
+    const decisions = await record(app, id, "decisions.md");
+    const texts = decisions.map((d) => d.text);
+    expect(texts).toHaveLength(3);
+    expect(new Set(texts).size).toBe(3);
+    expect(texts[0]).toMatch(/^It runs as a small program on this machine\./);
+  });
+
   it("makes the local second copy only once the plan confirmation has committed", async () => {
     const app = await testApp({ PREMISE_LINE__REMOTE: "local" });
     const id = await start(app);

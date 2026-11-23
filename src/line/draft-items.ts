@@ -306,3 +306,63 @@ export function addOperation(
     ...(item.kind === "M" && (entry.wait ?? item.wait) && { wait: true }),
   };
 }
+
+/**
+ * An item's words, compared loosely: case, spacing, a "Suggestion:" lead and closing punctuation
+ * do not make two items different. Used so the same item is never landed twice.
+ */
+export function sameWords(text: string): string {
+  return text
+    .replace(/^\s*suggestion\s*:\s*/i, "")
+    .replace(/[()[\]]/g, "")
+    .replace(/\s+/g, " ")
+    .replace(/[.!\s]+$/, "")
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * The words of a text that carry meaning, as rough stems: lower case, four letters or more, cut to
+ * their first five letters, so "prints" and "printed", or "characters" and "character", match.
+ */
+function meaningWords(text: string): string[] {
+  return (text.toLowerCase().match(/[a-z0-9][a-z0-9'-]{3,}/g) ?? []).map((w) =>
+    w
+      .replace(/'s$/, "")
+      .replace(/(?<!s)s$/, "")
+      .slice(0, 5),
+  );
+}
+
+/** How much of an item's meaning words must be in the person's words for it to count as theirs. */
+export const OWN_WORDS_SHARE = 0.5;
+
+/**
+ * Whether an item is in a person's own words: at least half of its meaning words appear in what
+ * they said.
+ * An item with no meaning words (very short) counts as theirs only when its text appears whole.
+ */
+export function inOwnWords(itemText: string, said: string): boolean {
+  const words = meaningWords(itemText);
+  if (words.length === 0) return said.toLowerCase().includes(itemText.trim().toLowerCase());
+  const theirs = new Set(meaningWords(said));
+  const found = words.filter((w) => theirs.has(w)).length;
+  return found / words.length >= OWN_WORDS_SHARE;
+}
+
+/**
+ * Provenance (decision 0276): "from: operator" only for the operator's own words. A drafted item
+ * that claims to be from the operator but is not in what the operator said becomes "assumed", so
+ * the operator sees it marked as premise's assumption and can strike it.
+ */
+export function checkOperatorWords<T extends Pick<DraftItem, "from" | "text">>(
+  items: readonly T[],
+  operatorSaid: string,
+  operatorRole = "operator",
+): T[] {
+  return items.map((item) =>
+    item.from === operatorRole && !inOwnWords(item.text, operatorSaid)
+      ? { ...item, from: "assumed" }
+      : item,
+  );
+}

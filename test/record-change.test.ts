@@ -173,6 +173,63 @@ describe("proposed changes", () => {
     });
   });
 
+  it("says exactly which field is missing or misnamed, with a complete example, before anything else", () => {
+    const builder = { agentRole: "builder" as const };
+    const noKind = apply(
+      [
+        {
+          op: "add",
+          file: "decisions.md",
+          text: "Use CSV. Reason: simple. Rejected: JSON.",
+          from: "assumed",
+        } as unknown as Operation,
+      ],
+      builder,
+    );
+    expect(noKind).toMatchObject({ ok: false, diagnostics: [{ code: "MALFORMED" }] });
+    if (noKind.ok) return;
+    const message = noKind.diagnostics[0]!.message;
+    expect(message).toContain('"kind" is missing (for decisions.md it is "D")');
+    expect(message).not.toContain("may only add decisions");
+    expect(message).toContain('A complete add looks like this: { "op": "add", "kind": "D"');
+
+    const misnamed = apply(
+      [{ op: "add", kind: "D", line: "- [D-2] Use CSV." } as unknown as Operation],
+      builder,
+    );
+    if (misnamed.ok) throw new Error("expected a refusal");
+    expect(misnamed.diagnostics[0]!.message).toContain('it is called "text", not "line"');
+    expect(misnamed.diagnostics[0]!.message).toContain('"from" is missing');
+
+    const withId = apply([
+      { op: "add", kind: "D", text: "- [D-2] Use CSV. Reason: a. Rejected: b.", from: "assumed" },
+    ]);
+    if (withId.ok) throw new Error("expected a refusal");
+    expect(withId.diagnostics[0]!.message).toContain("not with a list mark or an ID");
+
+    const noOp = apply([{ kind: "D" } as unknown as Operation]);
+    if (noOp.ok) throw new Error("expected a refusal");
+    expect(noOp.diagnostics[0]!.message).toContain(
+      '"op" must be "add", "replace", "strike" or "mark"; it is missing',
+    );
+  });
+
+  it("does not let an agent add an item the record already says, and says which one", () => {
+    const again = apply(
+      [
+        {
+          op: "add",
+          kind: "D",
+          text: "use SQLite.  Reason: one file. Rejected: a server",
+          from: "assumed",
+        },
+      ],
+      { agentRole: "planner" },
+    );
+    expect(again).toMatchObject({ ok: false, diagnostics: [{ code: "CONFLICT" }] });
+    if (!again.ok) expect(again.diagnostics[0]!.message).toContain("D-1 already says this");
+  });
+
   it("sets and clears a milestone's wait mark without changing its ID", () => {
     const added = apply([
       { op: "add", kind: "M", text: "First running version.", from: "assumed" },

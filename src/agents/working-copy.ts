@@ -40,7 +40,8 @@ export interface WorkingCopyRequest {
 const TRACE_LINE = /^[A-Za-z][A-Za-z0-9-]*: [A-Z]-[1-9]\d*(, [A-Z]-[1-9]\d*)*$/;
 
 /**
- * Install the commit-msg hook that adds the task's trace trailer when a message names none. It runs
+ * Install the commit-msg hook that puts the task's trace line last in the message, adding it when a
+ * message names none and dropping co-author lines. It runs
  * in the agent's own git, inside its confinement; the server still checks every commit (0083).
  */
 export function installTraceHook(path: string, trace: string): void {
@@ -52,9 +53,16 @@ export function installTraceHook(path: string, trace: string): void {
     hook,
     [
       "#!/bin/sh",
-      "# Placed by premise: names the record items this task serves when the message names none.",
-      `grep -qi '^${name}:' "$1" && exit 0`,
-      `git interpret-trailers --in-place --trailer '${trace}' "$1"`,
+      "# Placed by premise: leaves the message with the task's trace line as the last line of its last",
+      "# paragraph (0275). Co-author lines agents add are dropped; a trace line the message already",
+      "# has is moved there; one is added when the message names none.",
+      'f="$1"',
+      'tmp="$f.premise-tmp"',
+      `line=$(grep -i -m1 '^${name}:' "$f")`,
+      `grep -v -i -e '^co-authored-by:' -e '^${name}:' "$f" > "$tmp"`,
+      `git interpret-trailers --in-place --trailer "\${line:-${trace}}" "$tmp" || exit 1`,
+      'cat "$tmp" > "$f"',
+      'rm -f "$tmp"',
       "",
     ].join("\n"),
   );

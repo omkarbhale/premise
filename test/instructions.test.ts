@@ -6,7 +6,7 @@ import {
   skillsOf,
   systemPromptOf,
 } from "../src/agents/instructions.js";
-import { AGENT_ROLES } from "../src/agents/roles.js";
+import { AGENT_ROLES, PREMISE_TOOLS_BY_ROLE } from "../src/agents/roles.js";
 
 const docs = join(import.meta.dirname, "..", "docs");
 
@@ -27,6 +27,18 @@ describe("agent instructions", () => {
     expect(at("writing-for-people")).toBeLessThan(at("the-record"));
     expect(at("the-record")).toBeLessThan(at("return-on-effort"));
     expect(text).not.toContain("# Skill: unknown");
+  });
+
+  it("ends with an example call of each premise tool the role has", () => {
+    const text = assembleInstructions(docs, "builder");
+    const section = text.slice(text.indexOf("# How to call premise's tools"));
+    expect(text.indexOf("# How to call premise's tools")).toBeGreaterThan(
+      text.indexOf("# Skill: the-floor"),
+    );
+    const lines = section.split("\n").filter((l) => l.startsWith("Example call: "));
+    expect(lines.map((l) => l.split(" ")[2])).toEqual([...PREMISE_TOOLS_BY_ROLE.builder]);
+    // The builder may only add decisions, so its record_propose example adds one.
+    expect(section).toContain('Example call: record_propose {"operations":[{"op":"add","kind":"D"');
   });
 
   it("reads the parts of a prompt file", () => {

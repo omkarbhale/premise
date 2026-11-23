@@ -154,7 +154,21 @@ export async function testApp(
       }
     }
   };
-  return { app, db, config, token, host, headers, call, settle, session, folder, record, runner };
+  return {
+    app,
+    db,
+    config,
+    token,
+    host,
+    headers,
+    call,
+    settle,
+    session,
+    folder,
+    record,
+    runner,
+    tools,
+  };
 }
 
 /**
