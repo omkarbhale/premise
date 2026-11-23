@@ -555,13 +555,16 @@ describe("the gate on the line", () => {
     const id = await start(app);
     await keepAll(app, await lineAsk(app, id));
     await keepAll(app, await lineAsk(app, id));
-    // The researcher finished without a draft. Nothing was asked of the person for its two
-    // requests: premise cannot do either, so they are recorded as unavailable and said in chat.
+    // The researcher finished without a draft, so it was asked once more (decision 0275) and made
+    // its two requests again. Nothing was asked of the person for any of them: premise cannot do
+    // either, so they are recorded as unavailable and said in chat.
     expect((await open(app, id)).filter((a) => a.kind === "approval")).toEqual([]);
     const requests = app.session.gate
       .list(id)
       .filter((r) => r.requestedBy.startsWith("researcher"));
     expect(requests.map((r) => [r.kind, r.status, r.askId])).toEqual([
+      ["post", "unavailable", null],
+      ["spend", "unavailable", null],
       ["post", "unavailable", null],
       ["spend", "unavailable", null],
     ]);
