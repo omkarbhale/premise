@@ -772,41 +772,83 @@ export class LineEngine implements IntakeLine {
     );
   }
 
-  /** Put a piece's change decisions into the record, once per piece. */
+  /** Put a piece's change decisions into the record, once per piece; what is already there is not put in again. */
   private landChangeDecisions(
     softwareId: string,
     change: WorkItem,
     item: WorkItem,
     plan: ChangePlan | null,
     decisions: ChangePlan["decisions"],
+    struck: { decision: ChangePlan["decisions"][number]; reason: string }[] = [],
   ): void {
     const notes = this.changeNotes(change);
     if (!plan || (notes.landedFor ?? []).includes(item.id)) return;
     const ref = change.ref ?? "the change";
-    const ops: Operation[] = decisions.map((d) =>
-      d.replaces
-        ? {
-            op: "replace" as const,
-            id: d.replaces,
-            text: decisionText(d, ref),
-            from: "assumed",
-            reason: d.reason || `The change ${ref} needs it.`,
-            ...(d.foundation && { foundation: true }),
-          }
-        : {
-            op: "add" as const,
-            kind: "D" as const,
-            text: decisionText(d, ref),
-            from: "assumed",
-            ...(d.foundation && { foundation: true }),
-          },
-    );
+    const own = new Set(notes.decisions ?? []);
+    const live = this.recordLines(softwareId).filter((i) => own.has(i.id));
+    const ops: Operation[] = [];
+    for (const { decision: d, reason } of struck) {
+      const text = decisionText(d, ref);
+      const found = live.find((i) => i.text === text);
+      if (found) ops.push({ op: "strike", id: found.id, reason });
+    }
+    for (const d of decisions) {
+      const text = decisionText(d, ref);
+      if (live.some((i) => i.text === text)) continue;
+      if (d.replaces) {
+        const successor = live.find((i) => i.marks.replaces === d.replaces);
+        ops.push({
+          op: "replace",
+          id: successor?.id ?? d.replaces,
+          text,
+          from: "assumed",
+          reason: d.reason || `The change ${ref} needs it.`,
+          ...(d.foundation && { foundation: true }),
+        });
+      } else {
+        ops.push({
+          op: "add",
+          kind: "D",
+          text,
+          from: "assumed",
+          ...(d.foundation && { foundation: true }),
+        });
+      }
+    }
     const assigned = ops.length
       ? this.land(softwareId, ops, `The plan for the change ${change.ref ?? ""}.`)
       : [];
+    const gone = new Set(
+      ops.flatMap((o) => (o.op === "strike" || o.op === "replace" ? [o.id] : [])),
+    );
     this.setChangeNotes(change, {
-      decisions: [...(notes.decisions ?? []), ...assigned.filter((x): x is string => Boolean(x))],
+      decisions: [
+        ...(notes.decisions ?? []).filter((id) => !gone.has(id)),
+        ...assigned.filter((x): x is string => Boolean(x)),
+      ],
       landedFor: [...(notes.landedFor ?? []), item.id],
+    });
+  }
+
+  /** The software goes back to Plan: what this piece's old plan added is struck, so the new plan lands once. */
+  private retractChangeDecisions(softwareId: string, change: WorkItem, item: WorkItem): void {
+    const old = this.changePlanOf(softwareId, item);
+    const notes = this.changeNotes(change);
+    if (!old || !(notes.landedFor ?? []).includes(item.id)) return;
+    const ref = change.ref ?? "the change";
+    const own = new Set(notes.decisions ?? []);
+    const live = this.recordLines(softwareId).filter((i) => own.has(i.id));
+    const ops: Operation[] = [];
+    for (const d of old.decisions) {
+      if (d.replaces) continue;
+      const found = live.find((i) => i.text === decisionText(d, ref));
+      if (found)
+        ops.push({ op: "strike", id: found.id, reason: `The change ${ref} was planned again.` });
+    }
+    if (ops.length) this.land(softwareId, ops, `The change ${ref} was planned again.`);
+    const gone = new Set(ops.map((o) => (o as { id: string }).id));
+    this.setChangeNotes(change, {
+      decisions: (notes.decisions ?? []).filter((id) => !gone.has(id)),
     });
   }
 
@@ -2847,6 +2889,7 @@ export class LineEngine implements IntakeLine {
         this.setState(software.id, { review: { round: 0, objections: [] } });
         const change = this.changeOf(item);
         if (change) {
+          this.retractChangeDecisions(software.id, change, item);
           removeChangePlan(this.config.data.folder, software.id, item.id);
           const notes = this.changeNotes(change);
           this.setChangeNotes(change, {
@@ -4432,7 +4475,11 @@ export class LineEngine implements IntakeLine {
       if (!entry) return [];
       return [entry.edited ? this.editedDecision(d, entry.text) : d];
     });
-    this.landChangeDecisions(id, change, piece, plan, keptNow);
+    const strikes = asked.flatMap((d) => {
+      const gave = corrected.struck.find((s) => s.item.text === this.decisionLine(d));
+      return gave ? [{ decision: d, reason: gave.reason }] : [];
+    });
+    this.landChangeDecisions(id, change, piece, plan, keptNow, strikes);
     const dropped = asked.length - keptNow.length;
     return () => {
       this.setChangeNotes(change, { decided: "asked" });

@@ -538,68 +538,85 @@ describe("a change planned again and an edited decision", () => {
     expect(lines.some((t) => t.startsWith("Count paragraphs while reading"))).toBe(false);
   }, 150_000);
 
-  const struckOnce = async (context: Context, again: "strike" | "keep") => {
-    const { session, softwareId } = context;
-    await session.services.softwares.setChangeQuestions(softwareId, "every-change");
-    await sendWish(context);
-    const first = await untilQuestion(context);
-    await session.services.asks.answer(first.id, {
-      kind: "items",
-      items: first.items.map((i) =>
-        i.key === "d1"
-          ? { key: i.key, decision: "strike" as const, reason: "Not as a stream." }
-          : { key: i.key, decision: "keep" as const },
-      ),
-    });
-    // Send it back while the change is being built, before it finishes.
-    for (let i = 0; i < 100; i++) {
-      const change = listWorkItems(context.db, softwareId).find(
-        (w) => w.kind === "intake" && w.state === "active",
-      );
-      if (change && change.currentStage === "build") break;
-      session.queue.tick();
-      await session.queue.idle();
-      await session.line.idle();
-      await new Promise((r) => setTimeout(r, 5));
-    }
-    await session.line.sendBack(softwareId, "plan");
-    const second = await untilQuestion(context, first.id);
-    await session.services.asks.answer(second.id, {
-      kind: "items",
-      items: second.items.map((i) =>
-        i.key === "d1" && again === "strike"
-          ? { key: i.key, decision: "strike" as const, reason: "Still not." }
-          : { key: i.key, decision: "keep" as const },
-      ),
-    });
-    await context.drive();
-    const record = (await session.services.records.view(softwareId)) as {
-      files: { items: { text: string }[] }[];
-    };
-    return {
-      second,
-      lines: record.files.flatMap((f) => f.items.map((i) => i.text)),
-      asks: asked(context, "change-confirm").length,
-    };
-  };
-  const decisions = () => [{ text: "Read the file as a stream", reason: "Counted while reading." }];
+  const STREAM = { text: "Read the file as a stream", reason: "Counted while reading." };
+  const CHUNKS = { text: "Read the file in chunks", reason: "Counted while reading." };
+  const INDEX = { text: "Keep an index of paragraphs", reason: "Needed to count them." };
+  const table: {
+    name: string;
+    second: Record<string, unknown>[];
+    strikeSecond?: string;
+    live: string[];
+    gone: string[];
+  }[] = [
+    { name: "nothing changed", second: [STREAM], live: [STREAM.text], gone: [] },
+    { name: "one decision changed", second: [CHUNKS], live: [CHUNKS.text], gone: [STREAM.text] },
+    {
+      name: "one decision struck by the person",
+      second: [STREAM],
+      strikeSecond: STREAM.text,
+      live: [],
+      gone: [STREAM.text],
+    },
+    {
+      name: "one decision added",
+      second: [STREAM, INDEX],
+      live: [STREAM.text, INDEX.text],
+      gone: [],
+    },
+  ];
 
-  it("asks again after a send-back, shows the earlier strike selected, and keeps it struck when confirmed", async () => {
-    let seen: Awaited<ReturnType<typeof struckOnce>> | undefined;
-    await run({ decisions }, async (context) => {
-      seen = await struckOnce(context, "strike");
-    });
-    const d1 = seen!.second.items.find((i) => i.key === "d1")!;
-    expect(d1.earlier).toEqual({ decision: "strike", reason: "Not as a stream." });
-    expect(seen!.asks).toBe(2);
-    expect(seen!.lines.some((t) => t.startsWith("Read the file as a stream"))).toBe(false);
-  }, 250_000);
-
-  it("lets the person change the earlier answer, and records what they keep this time", async () => {
-    let seen: Awaited<ReturnType<typeof struckOnce>> | undefined;
-    await run({ decisions }, async (context) => {
-      seen = await struckOnce(context, "keep");
-    });
-    expect(seen!.lines.some((t) => t.startsWith("Read the file as a stream"))).toBe(true);
-  }, 250_000);
+  it.each(table)(
+    "re-planned with $name, the record holds each decision once",
+    async ({ second, strikeSecond, live, gone }) => {
+      let plans = 0;
+      let lines: { id: string; text: string }[] = [];
+      let built: string[] = [];
+      await run({ decisions: () => (plans++ === 0 ? [STREAM] : second) }, async (context) => {
+        const { session, softwareId, runner, db } = context;
+        await session.services.softwares.setChangeQuestions(softwareId, "every-change");
+        await sendWish(context);
+        const first = await untilQuestion(context);
+        await session.services.asks.answer(first.id, keepAll(first));
+        for (let i = 0; i < 100; i++) {
+          const change = listWorkItems(db, softwareId).find(
+            (w) => w.kind === "intake" && w.state === "active",
+          );
+          if (change && change.currentStage === "build") break;
+          session.queue.tick();
+          await session.queue.idle();
+          await session.line.idle();
+          await new Promise((r) => setTimeout(r, 5));
+        }
+        await session.line.sendBack(softwareId, "plan");
+        const again = await untilQuestion(context, first.id);
+        const before = runner.requests.length;
+        await session.services.asks.answer(again.id, {
+          kind: "items",
+          items: again.items.map((i) =>
+            strikeSecond !== undefined && i.text.startsWith(strikeSecond)
+              ? { key: i.key, decision: "strike" as const, reason: "Not as a stream." }
+              : { key: i.key, decision: "keep" as const },
+          ),
+        });
+        await context.drive();
+        const record = (await session.services.records.view(softwareId)) as {
+          files: { items: { id: string; text: string; status?: string }[] }[];
+        };
+        lines = record.files.flatMap((f) => f.items).filter((i) => i.status !== "struck");
+        built = runner.requests
+          .slice(before)
+          .filter((r) => r.taskKind === "build")
+          .flatMap((r) => taskOf(r).items);
+      });
+      for (const text of live) {
+        const own = lines.filter((l) => l.text.startsWith(text));
+        expect(own).toHaveLength(1);
+      }
+      expect(built.length).toBeGreaterThan(0);
+      for (const text of gone) {
+        expect(lines.filter((l) => l.text.startsWith(text))).toHaveLength(0);
+      }
+    },
+    250_000,
+  );
 });
