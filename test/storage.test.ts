@@ -49,7 +49,6 @@ describe("storage", () => {
   it("migrates a schema-16 database without touching its corrections and lessons", () => {
     const folder = tempFolder();
     const old = openDatabase(folder, MIGRATIONS.filter((m) => m.version <= 16));
-    old.db.pragma("foreign_keys = OFF");
     old.db
       .prepare("INSERT INTO softwares (id, name, created) VALUES ('s1', 'Notes', '2026-01-01')")
       .run();
