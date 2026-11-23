@@ -215,9 +215,7 @@ function ItemsAnswer({ ask, busy, onSend }: AnswerProps) {
   const sayBack = ask.kind === "say-back";
   const recovered = ask.items.some((i) => i.mark === "recovered");
   const [items, setItems] = useState<Record<string, ItemState>>(() =>
-    Object.fromEntries(
-      ask.items.map((i) => [i.key, startState(i)]),
-    ),
+    Object.fromEntries(ask.items.map((i) => [i.key, startState(i)])),
   );
   // Items added in chat while the card is open start as kept.
   const state = (item: AskItem): ItemState => items[item.key] ?? startState(item);
