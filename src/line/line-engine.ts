@@ -840,7 +840,8 @@ export class LineEngine implements IntakeLine {
     const restored = ops.flatMap((o, i) =>
       o.op === "add" && assigned[i] ? [assigned[i] as string] : [],
     );
-    const { [item.id]: _gone, ...rest } = notes.landed!;
+    const rest = { ...notes.landed! };
+    delete rest[item.id];
     this.setChangeNotes(change, {
       decisions: (notes.decisions ?? []).filter((id) => !landed.includes(id)),
       landed: rest,
