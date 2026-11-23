@@ -515,21 +515,24 @@ function keepAll(ask: AskView, edit?: { key: string; text: string }) {
 describe("a change planned again and an edited decision", () => {
   it("keeps the person's edit of a decision that has no reason and replaces nothing", async () => {
     let lines: string[] = [];
-    await run({ decisions: () => [{ text: "Count paragraphs while reading" }] }, async (context) => {
-      const { session, softwareId } = context;
-      await session.services.softwares.setChangeQuestions(softwareId, "every-change");
-      await sendWish(context);
-      const ask = await untilQuestion(context);
-      await session.services.asks.answer(
-        ask.id,
-        keepAll(ask, { key: "d1", text: "Count paragraphs from a stream" }),
-      );
-      await context.drive();
-      const record = (await session.services.records.view(softwareId)) as {
-        files: { items: { text: string }[] }[];
-      };
-      lines = record.files.flatMap((f) => f.items.map((i) => i.text));
-    });
+    await run(
+      { decisions: () => [{ text: "Count paragraphs while reading" }] },
+      async (context) => {
+        const { session, softwareId } = context;
+        await session.services.softwares.setChangeQuestions(softwareId, "every-change");
+        await sendWish(context);
+        const ask = await untilQuestion(context);
+        await session.services.asks.answer(
+          ask.id,
+          keepAll(ask, { key: "d1", text: "Count paragraphs from a stream" }),
+        );
+        await context.drive();
+        const record = (await session.services.records.view(softwareId)) as {
+          files: { items: { text: string }[] }[];
+        };
+        lines = record.files.flatMap((f) => f.items.map((i) => i.text));
+      },
+    );
     expect(lines.some((t) => t.startsWith("Count paragraphs from a stream"))).toBe(true);
     expect(lines.some((t) => t.startsWith("Count paragraphs while reading"))).toBe(false);
   }, 150_000);
@@ -579,5 +582,66 @@ describe("a change planned again and an edited decision", () => {
     expect(seen.second).toBe(1);
     expect(seen.third).toBe(2);
     expect(seen.said.filter((t) => /keeps your earlier answer/.test(t))).toHaveLength(1);
+  }, 250_000);
+
+  it("keeps what the person struck struck when planned again, and asks only about what is new", async () => {
+    let extra = false;
+    const seen = {
+      asksAfterSame: 0,
+      recordAfterSame: [] as string[],
+      second: undefined as AskView | undefined,
+      recordAtEnd: [] as string[],
+      said: [] as string[],
+    };
+    const lines = async (context: Context) => {
+      const record = (await context.session.services.records.view(context.softwareId)) as {
+        files: { items: { text: string }[] }[];
+      };
+      return record.files.flatMap((f) => f.items.map((i) => i.text));
+    };
+    await run(
+      {
+        decisions: () => [
+          { text: "Read the file as a stream", reason: "Counted while reading." },
+          ...(extra ? [{ text: "Count in chunks of 64 KiB", reason: "Memory stays small." }] : []),
+        ],
+      },
+      async (context) => {
+        const { session, softwareId } = context;
+        await session.services.softwares.setChangeQuestions(softwareId, "every-change");
+        await sendWish(context);
+        const first = await untilQuestion(context);
+        await session.services.asks.answer(first.id, {
+          kind: "items",
+          items: first.items.map((i) =>
+            i.key === "d1"
+              ? { key: i.key, decision: "strike" as const, reason: "Not as a stream." }
+              : { key: i.key, decision: "keep" as const },
+          ),
+        });
+        await context.drive();
+        await session.line.sendBack(softwareId, "plan");
+        await context.drive();
+        seen.asksAfterSame = asked(context, "change-confirm").length;
+        seen.recordAfterSame = await lines(context);
+        extra = true;
+        await session.line.sendBack(softwareId, "plan");
+        seen.second = await untilQuestion(context, first.id);
+        await session.services.asks.answer(seen.second.id, keepAll(seen.second));
+        await context.drive();
+        seen.recordAtEnd = await lines(context);
+        seen.said = listChatMessages(context.db, softwareId).map((m) => m.text);
+      },
+    );
+    expect(seen.asksAfterSame).toBe(1);
+    expect(seen.recordAfterSame.some((t) => t.startsWith("Read the file as a stream"))).toBe(false);
+    expect(seen.said.some((t) => /keeps your earlier answer/.test(t))).toBe(true);
+    const second = seen.second!;
+    expect(second.items.map((i) => i.text)).toEqual([expect.stringContaining("Count in chunks")]);
+    expect(second.instruction).toMatch(
+      /Settled by your earlier answer.*struck "Read the file as a stream/,
+    );
+    expect(seen.recordAtEnd.some((t) => t.startsWith("Count in chunks of 64 KiB"))).toBe(true);
+    expect(seen.recordAtEnd.some((t) => t.startsWith("Read the file as a stream"))).toBe(false);
   }, 250_000);
 });

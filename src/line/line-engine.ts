@@ -133,6 +133,7 @@ import type {
 } from "./later-stages.js";
 import {
   questionFingerprint,
+  type SettledDecision,
   type ChangeNotes,
   type ChangePlan,
   type ChangeQuestions,
@@ -566,29 +567,89 @@ export class LineEngine implements IntakeLine {
     if (!change) return false;
     const notes = this.changeNotes(change);
     const plan = this.changePlanOf(software.id, item);
-    const same = notes.decided === "asked" && notes.asked === questionFingerprint(plan, notes);
-    if (notes.decided === "told" || same || change.origin === "bug") {
+    if (notes.decided === "told" || change.origin === "bug") {
       // Asked or told once already (or a bug, never asked): a later step's decisions go in as made.
       this.landChangeDecisions(software.id, change, item, plan, plan?.decisions ?? []);
-      if (same)
-        this.premiseSays(
-          software.id,
-          `Your change ${change.ref ?? ""} is planned again with the same question you already answered, so premise keeps your earlier answer and builds.`,
-        );
       return false;
     }
+    const earlier =
+      notes.decided === "asked" && notes.asked === questionFingerprint(notes)
+        ? this.earlierAnswers(notes)
+        : null;
+    const settled: ChangePlan["decisions"] = [];
+    const fresh: ChangePlan["decisions"] = [];
+    for (const d of plan?.decisions ?? []) {
+      const said = earlier?.find((e) => e.line === this.decisionLine(d));
+      if (!said) fresh.push(d);
+      else if (said.decision === "keep") settled.push(d);
+      else if (said.decision === "edit") settled.push(this.editedDecision(d, said.text ?? ""));
+    }
+    const rest = plan && earlier ? { ...plan, decisions: fresh } : plan;
     const mode = this.changeQuestionsOf(software);
-    const reasons = reasonsToAsk(plan, notes, this.recordLines(software.id));
+    const reasons = reasonsToAsk(rest, notes, this.recordLines(software.id));
     // A change of purpose was said back already: that was its one question.
     const asks =
       change.origin !== "purpose" &&
       (mode === "every-change" || (mode === "when-it-matters" && reasons.length > 0));
+    if (earlier) {
+      if (fresh.length === 0) {
+        this.landChangeDecisions(software.id, change, item, plan, settled);
+        this.premiseSays(
+          software.id,
+          `Your change ${change.ref ?? ""} is planned again with the same question you already answered, so premise keeps your earlier answer (what you struck stays struck) and builds.`,
+        );
+        return false;
+      }
+      if (asks) {
+        this.askChange(software, change, item, rest, reasons, { kept: settled, earlier });
+        return true;
+      }
+      this.tellChange(
+        software,
+        change,
+        item,
+        plan && { ...plan, decisions: [...settled, ...fresh] },
+      );
+      return false;
+    }
     if (asks) {
       this.askChange(software, change, item, plan, reasons);
       return true;
     }
     this.tellChange(software, change, item, plan);
     return false;
+  }
+
+  /** What the person answered about each decision at the change's last answered question. */
+  private earlierAnswers(notes: ChangeNotes): SettledDecision[] | null {
+    const ask = notes.ask === undefined ? undefined : getAsk(this.db, notes.ask);
+    if (!ask || ask.status !== "answered" || ask.extra.meta?.purpose !== "change-confirm")
+      return null;
+    const meta = ask.extra.meta as { items?: DraftItem[]; earlier?: SettledDecision[] };
+    const given = new Map(
+      (ask.answer?.kind === "items" ? ask.answer.items : []).map((a) => [a.key, a]),
+    );
+    const now = (meta.items ?? [])
+      .filter((i) => /^d\d+$/.test(i.key))
+      .map((i): SettledDecision => {
+        const a = given.get(i.key);
+        return a?.decision === "strike"
+          ? { line: i.text, decision: "strike" }
+          : a?.decision === "edit"
+            ? { line: i.text, decision: "edit", text: a.text }
+            : { line: i.text, decision: "keep" };
+      });
+    return [...(meta.earlier ?? []), ...now];
+  }
+
+  /** A decision as the person edited it: their words, without the "(replaces ...)" and "Why: ..." the question showed. */
+  private editedDecision(
+    d: ChangePlan["decisions"][number],
+    shown: string,
+  ): ChangePlan["decisions"][number] {
+    const suffix = this.decisionLine(d).slice(d.text.length);
+    const words = suffix && shown.endsWith(suffix) ? shown.slice(0, -suffix.length) : shown;
+    return { ...d, text: words.trim() || d.text };
   }
 
   /** The change's lines a person can strike: what it took from their words, and what it assumed. */
@@ -624,6 +685,7 @@ export class LineEngine implements IntakeLine {
     item: WorkItem,
     plan: ChangePlan | null,
     reasons: string[],
+    before?: { kept: ChangePlan["decisions"]; earlier: SettledDecision[] },
   ): void {
     const notes = this.changeNotes(change);
     const decisions: DraftItem[] = (plan?.decisions ?? []).map((d, i) => ({
@@ -634,7 +696,7 @@ export class LineEngine implements IntakeLine {
       ...(d.foundation && { foundation: true }),
       ...(d.replaces && { refs: [d.replaces] }),
     }));
-    const items = [...this.changeLines(software.id, notes), ...decisions];
+    const items = before ? decisions : [...this.changeLines(software.id, notes), ...decisions];
     const ref = change.ref ?? "this change";
     const offered = notes.suggestions.filter((x) => !x.added);
     const ask = createAsk(this.db, {
@@ -648,6 +710,9 @@ export class LineEngine implements IntakeLine {
           ? `premise asks first because ${reasons.map(lowerFirst).join("; ")}.`
           : "You asked premise to check every change with you before building it.",
         `Below: what premise took from your words, what it assumed (marked assumed: not checked with you), and the decisions the change makes. It will build ${this.tasksWords(plan, change)}.`,
+        before
+          ? `Settled by your earlier answer, not asked again: ${before.earlier.map((e) => `${e.decision === "strike" ? "struck" : "kept"} "${e.line}"`).join("; ")}. Only what is new is below.`
+          : "",
         "Strike any line that is wrong and say why, or edit it; what you keep is built. This is the only question about this change.",
         offered.length
           ? `premise could also add, but builds none of it unless you add it: ${offered.map((x) => x.text).join("; ")}.`
@@ -662,11 +727,12 @@ export class LineEngine implements IntakeLine {
           items,
           change: change.id,
           piece: item.id,
+          ...(before && { settled: before.kept, earlier: before.earlier }),
           ...(offered.length && { suggestions: notes.suggestions }),
         },
       },
     });
-    this.setChangeNotes(change, { ask: ask.id, asked: questionFingerprint(plan, notes) });
+    this.setChangeNotes(change, { ask: ask.id, asked: questionFingerprint(notes) });
     this.premiseSays(
       software.id,
       `Your change ${ref} is ready to build. Before it is, one question: ${reasons[0] ? lowerFirst(reasons[0]) : "you asked to check every change"}. It is under Waiting on you.`,
@@ -4390,17 +4456,19 @@ export class LineEngine implements IntakeLine {
     this.strikeChangeLines(id, items, answer, ref);
     const corrected = applyAnswers(items, answer.kind === "items" ? answer.items : []);
     const plan = this.changePlanOf(id, piece);
-    const kept = (plan?.decisions ?? []).flatMap((d, i) => {
-      const entry = corrected.keep.find((k) => k.item.key === `d${i + 1}`);
+    const settled = (ask.extra.meta?.settled as ChangePlan["decisions"] | undefined) ?? [];
+    const asked = (plan?.decisions ?? []).filter((d) =>
+      items.some((i) => /^d\d+$/.test(i.key) && i.text === this.decisionLine(d)),
+    );
+    const keptNow = asked.flatMap((d) => {
+      const entry = corrected.keep.find(
+        (k) => /^d\d+$/.test(k.item.key) && k.item.text === this.decisionLine(d),
+      );
       if (!entry) return [];
-      if (!entry.edited) return [d];
-      const suffix = this.decisionLine(d).slice(d.text.length);
-      const words =
-        suffix && entry.text.endsWith(suffix) ? entry.text.slice(0, -suffix.length) : entry.text;
-      return [{ ...d, text: words.trim() || d.text }];
+      return [entry.edited ? this.editedDecision(d, entry.text) : d];
     });
-    this.landChangeDecisions(id, change, piece, plan, kept);
-    const dropped = (plan?.decisions.length ?? 0) - kept.length;
+    this.landChangeDecisions(id, change, piece, plan, [...settled, ...keptNow]);
+    const dropped = asked.length - keptNow.length;
     return () => {
       this.setChangeNotes(change, { decided: "asked" });
       this.premiseSays(
