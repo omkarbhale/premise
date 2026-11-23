@@ -72,7 +72,7 @@ All routes are on localhost. Every request except the static page itself and the
 | `/api/events` | GET (server-sent events) | Live updates: asks, progress lines, job changes, reports, notices | – |
 | `/feedback/:token` | GET, POST | A software's feedback page; submits an item (a plain form, no scripts) | Intake |
 | `/feedback/:token/received/:receipt` | GET | Where one's own item stands, in words for the sender | Intake |
-| `/api/softwares/:id/intake/new-feedback-link`, `/api/softwares/:id/intake/read-issues`, `/api/readings/:id/decide`, `/api/readings/:id/back-to-why` | POST | Replace the feedback link; read GitHub issues now; decide a line of a short list; go back to Why after a reading | Intake |
+| `/api/softwares/:id/intake/new-feedback-link`, `/api/softwares/:id/intake/read-issues`, `/api/softwares/:id/intake/triage-again`, `/api/readings/:id/decide`, `/api/readings/:id/back-to-why` | POST | Replace the feedback link; read GitHub issues now; triage again the items that went in normally with their work still waiting; decide a line of a short list; go back to Why after a reading | Intake |
 
 Errors are returned as an HTTP status with a short message that says what to do: 401 for a missing or wrong token, 403 for a bad Host or Origin, 404 for an unknown id, 409 for an ask already closed or a name already taken, 422 for an invalid request or answer.
 

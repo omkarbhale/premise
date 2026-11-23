@@ -44,6 +44,7 @@ export function testConfig(dataFolder: string, env: NodeJS.ProcessEnv = {}): Pre
   return loadConfig({ dataFolder, env: { PREMISE_AGENTS__MODE: "scripted", ...env } });
 }
 
+import type { AgentRunner } from "../src/agents/agent-runner.js";
 import { type AgentScript, ScriptedAgentRunner } from "../src/agents/scripted-agent.js";
 import { AgentToolServer } from "../src/agents/tool-server.js";
 import { standInScript } from "../src/demo/stand-in-script.js";
@@ -68,6 +69,11 @@ export async function testApp(
     realAgents?: boolean;
     /** The GitHub CLI, normally a fake one on its PATH (test/fixtures/fake-gh). */
     github?: GitHubCli;
+    /**
+     * Another agent runner, such as the real one against a fake claude
+     * (test/fixtures/fake-claude.mjs). Its tools are served at /mcp once the app listens.
+     */
+    makeRunner?: (tools: AgentToolServer, config: PremiseConfig) => AgentRunner;
   } = {},
 ) {
   const folder = options.folder ?? tempFolder();
@@ -87,7 +93,9 @@ export async function testApp(
   const { db, schemaVersion } = openDatabase(folder);
   const ledger = new MockUsageLedger("mock-fixed", 1);
   const tools = new AgentToolServer({ db, config });
-  const runner = new ScriptedAgentRunner(options.script ?? standInScript(0));
+  // Tests that bring their own runner never read the scripted runner's calls.
+  const runner = (options.makeRunner?.(tools, config) ??
+    new ScriptedAgentRunner(options.script ?? standInScript(0))) as ScriptedAgentRunner;
   const record = new RecordKeeper({ db, config, today: () => "2026-11-22" });
   const session = createSession({
     db,
@@ -121,6 +129,7 @@ export async function testApp(
     feedback: session.feedback,
     pausing: session.pausing,
     webRoot: tempFolder(),
+    tools,
   });
   const token = issueSessionToken(db, config.server.token_bytes);
   const host = `localhost:${config.server.port}`;

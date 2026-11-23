@@ -78,6 +78,7 @@ function view(change: Partial<View> = {}): View {
     },
     feedback: { path: "/feedback/abc", created: "2026-11-21T10:00:00Z" },
     github: { repository: null, everyMinutes: 10, lastRead: null, problem: null, taken: 0 },
+    untriaged: null,
     ...change,
   };
 }
@@ -132,6 +133,28 @@ describe("the Intake tab", () => {
     ).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Read the held items now" }));
     expect((await screen.findByRole("alert")).textContent).toBe("A reading is already under way.");
+  });
+
+  it("offers in one line to triage again the items that went in untriaged", async () => {
+    const triageAgain = vi.fn(() => Promise.resolve(view()));
+    inSession(
+      <IntakeView softwareId="s1" />,
+      fakeApi({
+        intake: vi.fn(() =>
+          Promise.resolve(view({ untriaged: { again: ["I-2"], started: ["I-1"] } })),
+        ),
+        triageAgain,
+      }),
+    );
+    const user = userEvent.setup();
+    expect(
+      await screen.findByText(
+        /I-2 went in without being triaged, because the agent's answer could not be used\. Its work has not started, so it can be triaged again\. \(I-1 already started and stays as it is\.\)/,
+      ),
+    ).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Triage it again" }));
+    expect(triageAgain).toHaveBeenCalledWith("s1");
+    expect(await screen.findByText(/an agent triages them again/)).toBeTruthy();
   });
 
   it("says plainly when nothing has come in yet", async () => {

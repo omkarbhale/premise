@@ -70,7 +70,7 @@ Every tool returns `ok` (true or false), `result` (the tool's output) or `error`
 |---|---|---|
 | `NOT_ALLOWED` | The tool is not served to this agent role, or the item kind is not this role's to propose | Do not retry; ask through `ask` if a person must decide, or finish |
 | `UNKNOWN_ITEM` | An item ID that does not exist in the record | Read the record and use a real ID |
-| `MALFORMED` | Input that does not parse, or a record line that breaks the format | Fix it from the diagnostics and resubmit |
+| `MALFORMED` | Input that does not fit the tool's declared shape (each wrong field named, with an example), or a record line that breaks the format | Fix it from the diagnostics and resubmit |
 | `CONFLICT` | A proposed item disagrees with a live item and does not name it as replaced | Name the item replaced, or drop the change |
 | `TASK_CLOSED` | The job has ended or was stopped | Stop |
 | `BUDGET_EXHAUSTED` | The stage budget or the session's turn or time limit is used up | Finish with what you have and say what is missing |
@@ -78,6 +78,15 @@ Every tool returns `ok` (true or false), `result` (the tool's output) or `error`
 | `INTERNAL` | A server fault | Retry once; then finish as stuck |
 
 ### 3.4 The tools
+
+Each tool's input is declared field by field, once, in `src/agents/tool-inputs.ts`: every field's type, the required ones, enumerations, and the shape of lists and their entries, each with a one-line description. premise serves that shape as the tool's JSON Schema in `tools/list` and reads every call against the same shape before the module serving the tool sees it ([0285](../decisions/0285-each-tool-declares-its-shape-and-reads-what-real-agents-send.md)):
+
+- **Read leniently, only where it is safe:** a list, an object or a number sent as text holding JSON of that kind is read as that kind, and the answer's diagnostics say to send it properly; "yes" and "no" (and "true" and "false") are read as true and false; null means a field left out; fixed words whose module ignored case and spacing still do. Nothing else is guessed.
+- **A refusal names each wrong field:** where it is (`operations[0].from`), what arrived (its kind and a short excerpt), what to send, and a correct example of that field. A missing field also names the fields the object has that premise does not read, and says which one to move when it is plainly the one meant. Fields premise does not know are otherwise ignored.
+- **The same call refused twice the same way** in a session gets a first line saying so, with the tool's whole example call.
+- **An answer that could not be handed in is said.** When a job ends without its answer because premise refused its last call of an answer tool, the page says so with the refusal, and it is kept under Improvements for premise ([learning](learning.md)).
+
+The table below says what each tool is for; the declared shapes are the full detail.
 
 | Tool | Inputs | Outputs | Errors |
 |---|---|---|---|
@@ -94,9 +103,9 @@ Every tool returns `ok` (true or false), `result` (the tool's output) or `error`
 | `sizing_submit` | For one piece of work: its size (small, medium or large) with a reason; the stages it needs with a reason; and a split, a list of parts each with a title and words, or empty, with a reason | The answer is kept; premise adds what must never be skipped and says so in `notes`. It is used when the sizer's job ends ([0184](../decisions/0184-how-sizing-of-work-is-built.md)) | `MALFORMED` (with what to fix), `TASK_CLOSED` |
 | `review_submit` | For each proposed change: `consistent` or `conflicting` with the live item it conflicts with; for a foundation decision: `agree` or `object`, with reasons | Review id | `UNKNOWN_ITEM`, `MALFORMED` |
 | `recovery_submit` | For a `recover` job (existing software): `items`, each with kind (Y, U, R, W or D), text, a priority for W, `assumed` for a guess, and `files`, the files of the old code it is guessed to serve; `run`, how to `build`, `start` and `check` it in plain words and `premise_run`, the runner's block; `could_not_check`, what premise would need, one line each; a `summary` | Kept until the job ends; then every item goes into the record `from: recovered`, unconfirmed, with `run.md` and `recovered-trace.md` ([0189](../decisions/0189-how-taking-on-existing-software-is-built.md)). Submitting again replaces it | `MALFORMED` (with what to fix), `TASK_CLOSED` |
-| `triage_submit` | For the job's intake item: kind (bug, wish, change-of-purpose, question, opinion, duplicate, noise); `touches`, the record items touched, each with its reason; rough size; touches floor (yes or no); `changes_what` (yes or no; a bug never changes what the software must do, [0192](../decisions/0192-effort-in-proportion-to-what-was-asked.md)); route (in-normally, asked-at-once, held, merged-or-closed); a reason; for a duplicate, the item it joins (`joins`); for a question, its answer (`answer`). Submitted once; premise routes the item at once and may change the route under its rules ([0185](../decisions/0185-how-intake-in-a-thin-form-is-built.md)) | The route taken, with any notes ([intake](intake.md)) | `UNKNOWN_ITEM`, `MALFORMED`, `TASK_CLOSED` |
+| `triage_submit` | For the job's intake item: kind (bug, wish, change-of-purpose, question, opinion, duplicate, noise); `touches`, the record items touched, each with its reason; rough size; touches floor (true or false; yes or no is read too); `changes_what` (true or false; a bug never changes what the software must do, [0192](../decisions/0192-effort-in-proportion-to-what-was-asked.md)); route (in-normally, asked-at-once, held, merged-or-closed); a reason; for a duplicate, the item it joins (`joins`); for a question, its answer (`answer`). Submitted once; premise routes the item at once and may change the route under its rules ([0185](../decisions/0185-how-intake-in-a-thin-form-is-built.md)) | The route taken, with any notes ([intake](intake.md)) | `UNKNOWN_ITEM`, `MALFORMED`, `TASK_CLOSED` |
 | `lesson_submit` | For the job's correction: `mistake`, what kind of mistake it was; `destination` (software, taste, premise, none); `reason`; `line`, one short instruction to learn (not for none), cut to `learning.line_max_chars`; for premise, a `topic` so the same thing recurring is grouped. Submitted once; applied at once ([learning](learning.md), [0194](../decisions/0194-how-learning-from-corrections-is-built.md)) | The destination, and the line's label (`L-n`) | `NOT_ALLOWED` (not a learning job), `MALFORMED`, `CONFLICT` (already read), `TASK_CLOSED` |
-| `reading_submit` | For the job's reading, the short list: `wanted` (what people seem to want), `recurring` (what keeps coming up), `purpose` (whether the purpose or the users should change), `back_to_why` (yes or no) | Reading id; the list goes to the operator as an ask ([intake](intake.md)) | `MALFORMED`, `TASK_CLOSED` |
+| `reading_submit` | For the job's reading, the short list: `wanted` (what people seem to want), `recurring` (what keeps coming up), `purpose` (whether the purpose or the users should change), `back_to_why` (true or false; yes or no is read too) | Reading id; the list goes to the operator as an ask ([intake](intake.md)) | `MALFORMED`, `TASK_CLOSED` |
 | `facts_read` | Software; since when; kinds (verdicts, job outcomes, gate decisions, runs, usage figures) | Facts, each with its evidence link | none |
 | `report_submit` | Report lines, each with the evidence link of the fact it rests on | Report id | `MALFORMED` (a line with no evidence link, or a link to no recorded fact) |
 
@@ -139,7 +148,8 @@ None. Calls are recorded as `events`; their effects are stored by the modules th
 
 ## 10. Observability
 
-- Every call is an event: tool, session, result status, error code.
+- Every call is an event: tool, session, result status, error code, and for a refused call what the agent was told.
+- A job that ended without its answer because premise refused it is an `answer-refused` event and a `refused_answers` row, once per job.
 - The page can show, per job, the calls made, from the events.
 
 ## 11. Milestones

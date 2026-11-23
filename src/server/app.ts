@@ -476,6 +476,12 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
       async (request) => services.intake.readIssuesNow(request.params.id),
     );
 
+    api.post<{ Params: { id: string } }>(
+      "/api/softwares/:id/intake/triage-again",
+      { schema: { params: idParam } },
+      async (request) => services.intake.triageAgain(request.params.id),
+    );
+
     api.post<{
       Params: { id: number };
       Body: {

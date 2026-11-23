@@ -69,6 +69,17 @@ interface CorrectionRow {
   read: string | null;
 }
 
+interface RefusedAnswerRow {
+  id: number;
+  software_id: string;
+  job_id: number;
+  tool: string;
+  role: string;
+  text: string;
+  topic: string;
+  created: string;
+}
+
 interface LessonRow {
   id: number;
   correction_id: number;
@@ -441,7 +452,12 @@ export class Learning implements LessonSource {
       stage: found.stage ? stageName(found.stage) : "",
       software_lessons: lines(this.live("software", row.software_id)),
       taste_lessons: lines(this.live("taste")),
-      improvements: [...new Set(this.live("premise").map((l) => l.topic ?? ""))]
+      improvements: [
+        ...new Set([
+          ...this.live("premise").map((l) => l.topic ?? ""),
+          ...this.refusedAnswers().map((r) => r.topic),
+        ]),
+      ]
         .filter(Boolean)
         .join(", "),
       line_max_chars: String(this.config.learning.line_max_chars),
@@ -765,7 +781,8 @@ export class Learning implements LessonSource {
   /** Remove one improvement for premise (every line grouped under it). */
   deleteImprovement(topic: string): void {
     const lines = this.live("premise").filter((l) => l.topic === topic);
-    if (lines.length === 0) {
+    const refused = this.refusedAnswers(topic);
+    if (lines.length === 0 && refused.length === 0) {
       throw new ServiceError(
         "NOT_FOUND",
         "That improvement is not on the list any more. Reload the page.",
@@ -773,6 +790,7 @@ export class Learning implements LessonSource {
     }
     transaction(this.db, () => {
       for (const l of lines) this.end(l, "deleted", "Deleted by you.");
+      this.db.prepare("DELETE FROM refused_answers WHERE topic = ?").run(topic);
     });
   }
 
@@ -888,15 +906,40 @@ export class Learning implements LessonSource {
     };
   }
 
+  private refusedAnswers(topic?: string): RefusedAnswerRow[] {
+    const rows = this.db
+      .prepare("SELECT * FROM refused_answers ORDER BY id")
+      .all() as unknown as RefusedAnswerRow[];
+    return topic === undefined ? rows : rows.filter((r) => r.topic === topic);
+  }
+
+  /** A refused answer, shown as the line it adds to an improvement (decision 0285). */
+  private refusedView(row: RefusedAnswerRow): LessonView {
+    return {
+      id: -row.id,
+      label: `R-${row.id}`,
+      destination: "premise",
+      softwareId: row.software_id,
+      softwareName: this.softwareName(row.software_id),
+      text: row.text,
+      source: `a ${row.role} ended without its answer, ${row.created.slice(0, 10)}`,
+      correctionId: 0,
+      uses: 0,
+      lastUsed: null,
+      created: row.created,
+      edited: null,
+    };
+  }
+
   private improvements(): ImprovementView[] {
-    const groups = new Map<string, LessonRow[]>();
-    for (const l of this.live("premise")) {
+    const groups = new Map<string, (LessonRow | RefusedAnswerRow)[]>();
+    for (const l of [...this.live("premise"), ...this.refusedAnswers()]) {
       const key = l.topic ?? "other";
       groups.set(key, [...(groups.get(key) ?? []), l]);
     }
     return [...groups.entries()]
       .map(([topic, rows]) => {
-        const views = rows.map((r) => this.lessonView(r));
+        const views = rows.map((r) => ("job_id" in r ? this.refusedView(r) : this.lessonView(r)));
         return {
           topic,
           text: rows[rows.length - 1]!.text,

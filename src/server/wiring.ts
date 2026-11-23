@@ -315,6 +315,7 @@ export function createSession(options: {
       backToWhy: (id) => taker.backToWhy(id),
       newFeedbackLink: (id) => taker.newFeedbackLink(id),
       readIssuesNow: (id) => taker.readIssuesNow(id),
+      triageAgain: (id) => taker.triageAgain(id),
     },
     reports: reporter,
     runs: runService,

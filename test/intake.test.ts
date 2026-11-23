@@ -24,7 +24,8 @@ import {
   triager,
 } from "./fixtures/intake-harness.js";
 import { CRASHING_SERVER, makeSoftware, runBlock } from "./fixtures/fixture-software.js";
-import { tempFolder, testConfig, uniquePortRange } from "./helpers.js";
+import { standInScript } from "../src/demo/stand-in-script.js";
+import { tempFolder, testApp as wholeLineApp, testConfig, uniquePortRange } from "./helpers.js";
 
 describe("intake in a thin form", () => {
   it("fixes a bug through the line: taken in one line, triaged, sized to Build, run, and timed", async () => {
@@ -340,10 +341,64 @@ describe("intake in a thin form", () => {
     await say(app, id, "Add a dark theme");
     const refused = app.runner.calls.find((c) => c.tool === "triage_submit")!;
     expect(refused.result.ok).toBe(false);
-    expect(refused.result.diagnostics.join(" ")).toContain('Give "kind" as one of');
+    expect(refused.result.diagnostics.join(" ")).toContain('"kind" must be one of');
     const wish = await item(app, id, "I-1");
     expect(wish).toMatchObject({ routedBy: "default", route: "in-normally" });
-    expect(wish.reason).toContain("Not triaged: the triager finished without an answer");
+    // The page says why: the triager's answer was refused, and what the refusal said.
+    expect(wish.reason).toMatch(
+      /^Not triaged: the triager could not hand in its answer: premise refused its last triage_submit call \("reason" is missing/,
+    );
+    // And it is kept as something premise itself could do better.
+    const learned = await app.call("GET", "/api/learning");
+    expect(learned.body.improvements).toEqual([
+      expect.objectContaining({
+        topic: "answer-refused-triage-submit",
+        text: expect.stringContaining("An agent could not hand in triage_submit: "),
+      }),
+    ]);
+  });
+
+  it("offers to triage again an item that went in untriaged, while its work waits", async () => {
+    let jobs = 0;
+    // The whole stand-in line, whose Why waits for the operator: work taken in meanwhile waits.
+    const app = await wholeLineApp(
+      {},
+      {
+        script: {
+          rules: [
+            triager(() => {
+              jobs++;
+              // The first triage sends "touches" as text that is not a list, as a real agent did.
+              return jobs === 1
+                ? { ...routed("wish", "in-normally"), touches: "W-1 and W-2" }
+                : routed("bug", "in-normally");
+            }),
+            ...standInScript(0).rules,
+          ],
+        },
+      },
+    );
+    const { body } = await app.call("POST", "/api/softwares", { idea: "A reading list" });
+    // Taken before the line reaches Intake, its work waits its turn.
+    await app.call("POST", `/api/softwares/${body.id}/intake`, { text: "The add button is gone" });
+    await app.settle();
+    const before = await intake(app, body.id);
+    const untriaged = before.items.find((i) => i.ref === "I-1")!;
+    expect(untriaged).toMatchObject({ routedBy: "default" });
+    expect(untriaged.reason).toContain('"touches" must be a list');
+    expect(untriaged.status).toBe("waiting");
+    expect(before.untriaged).toEqual({ again: ["I-1"], started: [] });
+
+    const again = await app.call("POST", `/api/softwares/${body.id}/intake/triage-again`);
+    expect(again.status).toBe(200);
+    await app.settle();
+    const after = await item(app, body.id, "I-1");
+    expect(after).toMatchObject({ routedBy: "triager", kind: "bug" });
+    expect((await intake(app, body.id)).untriaged).toBeNull();
+    // Nothing more to triage again is said plainly.
+    const none = await app.call("POST", `/api/softwares/${body.id}/intake/triage-again`);
+    expect(none.status).toBe(422);
+    expect(none.body.error).toContain("No item is waiting to be triaged again");
   });
 
   it("takes items reported on the page, and keeps work taken in mid-line for after Intake", async () => {

@@ -535,6 +535,22 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+  {
+    version: 17,
+    name: "an agent's refused answer is kept as an improvement for premise",
+    sql: `
+      CREATE TABLE refused_answers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        software_id TEXT NOT NULL,
+        job_id INTEGER NOT NULL UNIQUE,
+        tool TEXT NOT NULL,
+        role TEXT NOT NULL,
+        text TEXT NOT NULL,
+        topic TEXT NOT NULL,
+        created TEXT NOT NULL
+      );
+    `,
+  },
 ];
 
 export const CURRENT_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

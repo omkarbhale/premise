@@ -934,6 +934,16 @@ export interface IntakeView {
     /** How many items came from GitHub issues. */
     taken: number;
   };
+  /**
+   * Items that went in untriaged because the triager's answer could not be used, and whose work
+   * has not started: they can be triaged again. Null when there are none.
+   */
+  untriaged: {
+    /** The items that can be triaged again, such as "I-2". */
+    again: string[];
+    /** Untriaged items whose work has started; they stay as they are. */
+    started: string[];
+  } | null;
 }
 
 // ---- Measures (decision 0172, docs/specs/measures.md) ------------------------------------------

@@ -80,6 +80,7 @@ export interface Api {
   backToWhy(readingId: number): Promise<IntakeView>;
   newFeedbackLink(id: string): Promise<IntakeView>;
   readIssuesNow(id: string): Promise<IntakeView>;
+  triageAgain(id: string): Promise<IntakeView>;
   run(id: string): Promise<RunView>;
   startRun(id: string): Promise<RunView>;
   stopRun(id: string): Promise<RunView>;
@@ -201,6 +202,7 @@ export function createApi(token: string): Api {
     backToWhy: (readingId) => post(`/api/readings/${readingId}/back-to-why`),
     newFeedbackLink: (id) => post(`/api/softwares/${enc(id)}/intake/new-feedback-link`),
     readIssuesNow: (id) => post(`/api/softwares/${enc(id)}/intake/read-issues`),
+    triageAgain: (id) => post(`/api/softwares/${enc(id)}/intake/triage-again`),
     run: (id) => get(`/api/softwares/${enc(id)}/run`),
     startRun: (id) => post(`/api/softwares/${enc(id)}/run/start`),
     stopRun: (id) => post(`/api/softwares/${enc(id)}/run/stop`),

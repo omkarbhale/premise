@@ -266,6 +266,7 @@ export function fakeApi(change: Partial<Api> = {}): Api {
     backToWhy: vi.fn(fail),
     newFeedbackLink: vi.fn(fail),
     readIssuesNow: vi.fn(fail),
+    triageAgain: vi.fn(fail),
     run: vi.fn(fail),
     startRun: vi.fn(fail),
     stopRun: vi.fn(fail),

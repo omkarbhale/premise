@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentOutcome } from "../agents/agent-runner.js";
 import type { ToolBinding, ToolEnvelope } from "../agents/tool-server.js";
-import { toolFail, toolOk } from "../agents/tool-server.js";
+import { refusedAnswer, refusedAnswerWords, toolFail, toolOk } from "../agents/tool-server.js";
 import {
   type BudgetGroup,
   FLOOR_KINDS,
@@ -2071,8 +2071,10 @@ export class LineEngine implements IntakeLine {
       this.applySizing(software.id, item, item.proposal, "sizer");
       return;
     }
-    const why =
-      job.status === "done"
+    const refused = job.status === "stopped" ? null : refusedAnswer(this.db, job);
+    const why = refused
+      ? `the sizer ${refusedAnswerWords(refused)}`
+      : job.status === "done"
         ? "the sizer finished without giving an answer"
         : `the sizer ${job.status === "stopped" ? "was stopped" : `did not finish (${job.result ?? "no reason was given"})`}`;
     const stages = defaultStages(item);
@@ -2417,6 +2419,14 @@ export class LineEngine implements IntakeLine {
   private nextIntakeWork(softwareId: string): WorkItem | undefined {
     const root = rootItem(this.db, softwareId);
     return childItems(this.db, root.id).find((c) => c.kind === "intake" && c.state === "ahead");
+  }
+
+  /** IntakeLine: take back an intake item's work that has not started, to triage it again. */
+  withdrawWaitingWork(workItemId: number): boolean {
+    const item = getWorkItem(this.db, workItemId);
+    if (!item || item.kind !== "intake" || item.state !== "ahead") return false;
+    setWorkItem(this.db, item.id, { state: "withdrawn", finished: now() });
+    return true;
   }
 
   /**
@@ -2890,13 +2900,15 @@ export class LineEngine implements IntakeLine {
     const open = listAsks(this.db, { softwareId: software.id, status: "open" }).some(
       (a) => a.stage === job.stage && a.extra.meta?.gateRequest === undefined,
     );
-    const reason =
-      what ??
-      (job.status === "stuck"
-        ? `ran out of its budget or got stuck: ${job.result ?? "no reason was given"}`
-        : job.status === "stopped"
-          ? "was stopped"
-          : `failed: ${job.result ?? "no reason was given"}`);
+    const refused = job.status === "stopped" ? null : refusedAnswer(this.db, job);
+    const reason = refused
+      ? `${refusedAnswerWords(refused)}${job.status === "done" ? "" : `, and then ${job.status === "stuck" ? "got stuck" : "failed"}`}`
+      : (what ??
+        (job.status === "stuck"
+          ? `ran out of its budget or got stuck: ${job.result ?? "no reason was given"}`
+          : job.status === "stopped"
+            ? "was stopped"
+            : `failed: ${job.result ?? "no reason was given"}`));
     if (open) {
       this.premiseSays(
         software.id,

@@ -15,7 +15,11 @@ const flag = (name) => {
 const prompt = flag("-p") ?? "";
 const resume = flag("--resume");
 const sessionId = resume ?? flag("--session-id") ?? "00000000-0000-4000-8000-000000000000";
-const scenario = resume ? "resume" : (/scenario:([a-z-]+)/.exec(prompt)?.[1] ?? "done");
+// A test can choose the scenario for every session with --fake-scenario, through a wrapper script
+// set as the claude command, where premise writes the prompt itself.
+const scenario = resume
+  ? "resume"
+  : (flag("--fake-scenario") ?? /scenario:([a-z-]+)/.exec(prompt)?.[1] ?? "done");
 const cwd = process.cwd();
 
 writeFileSync(
@@ -193,6 +197,78 @@ switch (scenario) {
         denied: JSON.parse(denied.result.content[0].text).error.code,
       }),
     });
+    break;
+  }
+  case "real-shapes": {
+    // premise's tools called the way real Claude Code agents called them in the first real runs
+    // (decision 0285): lists sent as quoted JSON text, yes and no for true and false, a drafted
+    // item's words under "line", a record operation without "from". Each refused call is fixed
+    // the way the refusal says, as a real agent would.
+    const mcp = JSON.parse(readFileSync(flag("--mcp-config"), "utf8")).mcpServers.premise;
+    let id = 0;
+    const call = async (method, params) => {
+      const response = await fetch(mcp.url, {
+        method: "POST",
+        headers: { ...mcp.headers, "content-type": "application/json", accept: "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: ++id, method, params }),
+      });
+      return response.json();
+    };
+    const tool = async (name, args) => {
+      const answer = await call("tools/call", { name, arguments: args });
+      return JSON.parse(answer.result.content[0].text);
+    };
+    await call("initialize", { protocolVersion: "2025-06-18", capabilities: {} });
+    const names = (await call("tools/list", {})).result.tools.map((t) => t.name);
+    const said = [];
+    if (names.includes("sizing_submit")) {
+      said.push(
+        await tool("sizing_submit", {
+          size: "Small",
+          size_reason: "A few screens for one user.",
+          stages: '["why", "what", "say-back", "plan", "build", "check", "run", "report"]',
+          stages_reason: "One user, and the idea names what it replaces.",
+          split: "[]",
+          split_reason: "One small piece.",
+        }),
+      );
+    } else if (names.includes("triage_submit")) {
+      said.push(
+        await tool("triage_submit", {
+          kind: "wish",
+          touches: "[]",
+          size: "small",
+          touches_floor: "no",
+          changes_what: "yes",
+          route: "in-normally",
+          reason: "A wish for a small change; nothing on the floor.",
+        }),
+      );
+    } else if (names.includes("draft_submit")) {
+      const lines = [
+        "- [Y-1] People keep track of the books they want to read. (from: assumed; 2026-11-23)",
+        "- [Y-2] The problem: a list on paper gets lost. (from: assumed; 2026-11-23)",
+      ];
+      said.push(
+        await tool("draft_submit", { stage: "why", items: lines.map((line) => ({ line })) }),
+      );
+      said.push(
+        await tool("record_propose", {
+          operations: [{ op: "add", kind: "Y", text: "People keep track of books to read." }],
+          reason: "The Why, as drafted.",
+        }),
+      );
+      const items = lines.map((line) => ({
+        text: line.replace(/^- \[Y-\d+\] /, "").replace(/ \(from:.*\)$/, ""),
+        from: "assumed",
+      }));
+      let answer = await tool("draft_submit", { stage: "why", items });
+      const stage = /\("([a-z-]+)"\)/.exec(answer.error?.message ?? "")?.[1];
+      if (stage) answer = await tool("draft_submit", { stage, items });
+      said.push(answer);
+      await tool("task_finish", { status: "done", note: "Drafted." });
+    }
+    result({ result: JSON.stringify(said) });
     break;
   }
   case "resume":

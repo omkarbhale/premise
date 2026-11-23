@@ -1,8 +1,10 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { PremiseConfig } from "../config/settings.js";
-import { type Database, recordEvent } from "../storage/database.js";
+import { type Database, now, recordEvent } from "../storage/database.js";
 import { VERSION } from "../version.js";
 import { type AgentRole, PREMISE_TOOLS_BY_ROLE } from "./roles.js";
+import { TOOL_INPUTS } from "./tool-inputs.js";
+import { type ObjectShape, jsonSchema, readInput } from "./tool-shapes.js";
 
 /**
  * premise's tools for agents (docs/specs/agent-tools.md), served over MCP from inside the server
@@ -49,12 +51,13 @@ export interface ToolBinding {
 interface TokenEntry {
   binding: ToolBinding;
   revoked: boolean;
+  /** Each tool's last refusal in this session, to tell an agent it sent the same call again. */
+  lastRefusal: Map<string, string>;
 }
 
 interface ToolDefinition {
   name: string;
   description: string;
-  inputSchema: Record<string, unknown>;
   /** The module that will act on it; absent when the tool is fully served here. */
   notBuilt?: string;
   /**
@@ -66,20 +69,11 @@ interface ToolDefinition {
   examples?: Partial<Record<AgentRole, Record<string, unknown>>>;
 }
 
-const obj = (properties: Record<string, unknown>, required: string[] = []) => ({
-  type: "object",
-  properties,
-  required,
-});
-const anyObject = { type: "object", additionalProperties: true };
-const textList = { type: "array", items: { type: "string" } };
-
 const TOOLS: ToolDefinition[] = [
   {
     name: "record_read",
     description:
       "Read lines of the software's record, with their file and ID. Give item IDs or file names, or nothing for the whole record.",
-    inputSchema: obj({ items: textList, include_struck: { type: "boolean" } }),
     notBuilt: "the record keeper",
     example: { items: ["what.md"] },
   },
@@ -87,10 +81,6 @@ const TOOLS: ToolDefinition[] = [
     name: "record_propose",
     description:
       "Propose a change to the record: add, replace or strike items, with one reason. premise checks it; you never write the record yourself.",
-    inputSchema: obj(
-      { operations: { type: "array", items: anyObject }, reason: { type: "string" } },
-      ["operations", "reason"],
-    ),
     notBuilt: "the record keeper",
     example: {
       operations: [
@@ -144,20 +134,6 @@ const TOOLS: ToolDefinition[] = [
   {
     name: "draft_submit",
     description: "Submit a draft of a stage as a short list for people to strike, keep or edit.",
-    inputSchema: obj(
-      {
-        stage: { type: "string" },
-        items: { type: "array", items: anyObject },
-        milestones: { type: "array", items: anyObject },
-        tasks: { type: "array", items: anyObject },
-        kind: { type: "string" },
-        how_to_run: { type: "string" },
-        outcome: { type: "string" },
-        alternative: { type: "string" },
-        reason: { type: "string" },
-      },
-      ["stage", "items"],
-    ),
     notBuilt: "the line engine",
     example: {
       stage: "what",
@@ -213,15 +189,6 @@ const TOOLS: ToolDefinition[] = [
     name: "recovery_submit",
     description:
       'Submit the record recovered from an existing software: items (each with kind Y, U, R, W or D, its text, and the files it is guessed to serve), how to build, start and check it ("run"), and what premise would need to check it ("could_not_check"). Submitting again replaces it.',
-    inputSchema: obj(
-      {
-        items: { type: "array", items: anyObject },
-        run: anyObject,
-        could_not_check: textList,
-        summary: { type: "string" },
-      },
-      ["items"],
-    ),
     notBuilt: "the line engine",
     example: {
       items: [
@@ -248,17 +215,6 @@ const TOOLS: ToolDefinition[] = [
     name: "ask",
     description:
       'Ask a person a question, under the label of the role that has the last word, in that role\'s terms. At most a short list of items. For something only a person can do (kind "needed": an account with an outside service, a payment, a signature), give "what" (one line: what is needed) and the items as the exact steps, in order; give "secret" (a key name such as MAIL_API_KEY) when the act ends in a secret the software needs: premise names the file the person writes it into and checks it is there. You never do the act yourself. The job waits for the answer; other jobs go on.',
-    inputSchema: obj(
-      {
-        role: { type: "string" },
-        kind: { type: "string", enum: ["question", "proposal", "needed"] },
-        items: textList,
-        what: { type: "string" },
-        secret: { type: "string" },
-        waits_on: { type: "string" },
-      },
-      ["role", "kind", "items"],
-    ),
     notBuilt: "the line engine",
     example: {
       role: "operator",
@@ -270,16 +226,6 @@ const TOOLS: ToolDefinition[] = [
     name: "gate_request",
     description:
       'Request an action on the floor (spending money, acting publicly, deleting data, ...). Say exactly what will happen and why, and "role": whose call it is when the record names a role other than the operator (for example the role that holds an outside account). The server, never you, performs it once approved.',
-    inputSchema: obj(
-      {
-        kind: { type: "string" },
-        role: { type: "string" },
-        action: { type: "string" },
-        why: { type: "string" },
-        items: textList,
-      },
-      ["kind", "action", "why"],
-    ),
     notBuilt: "the gate",
     example: {
       kind: "spend",
@@ -291,14 +237,6 @@ const TOOLS: ToolDefinition[] = [
     name: "proposal_submit",
     description:
       'Submit the proposal for a claimed area: "options", one or two (at most taste.options_max), each with a "title" of a few words and a "description" of what the claiming role would see, in that role\'s terms; "tasks", the numbers of the plan\'s tasks that build this area (they wait for the answer; leave out to hold every task); and an optional "note". The claiming role keeps one or says what to change; that becomes a T item.',
-    inputSchema: obj(
-      {
-        options: { type: "array", items: anyObject },
-        tasks: { type: "array", items: { type: "number" } },
-        note: { type: "string" },
-      },
-      ["options"],
-    ),
     notBuilt: "taste claims",
     example: {
       options: [
@@ -315,31 +253,18 @@ const TOOLS: ToolDefinition[] = [
   {
     name: "progress",
     description: "Tell the people watching what you are doing now, in one short line.",
-    inputSchema: obj({ text: { type: "string" } }, ["text"]),
     example: { text: "Reading the record before drafting." },
   },
   {
     name: "task_finish",
     description:
       "Say how the task ended: done, stuck (with what you tried), or waiting-for-person (with the ask id).",
-    inputSchema: obj(
-      {
-        status: { type: "string", enum: ["done", "stuck", "waiting-for-person"] },
-        note: { type: "string" },
-        ask_id: { type: "string" },
-      },
-      ["status"],
-    ),
     example: { status: "done", note: "Submitted; nothing waits on a person." },
   },
   {
     name: "scenario_write",
     description:
       "Write a check scenario: its name, the items it checks, the steps and what is expected.",
-    inputSchema: obj(
-      { name: { type: "string" }, items: textList, steps: textList, expected: { type: "string" } },
-      ["name", "items", "steps", "expected"],
-    ),
     notBuilt: "the line engine",
     example: {
       name: "Add a book",
@@ -351,14 +276,6 @@ const TOOLS: ToolDefinition[] = [
   {
     name: "verdict_submit",
     description: `Submit the check's verdicts: met, not-met or could-not-check per item, each with evidence, and judged_on: "real" (the real data, service or environment the software is for) or "made-up" (stand-ins only); with "made-up" also try_it_on: what a person should try it on. A verdict without judged_on is refused.`,
-    inputSchema: obj(
-      {
-        verdicts: { type: "array", items: anyObject },
-        findings: { type: "array", items: {} },
-        run_notes: { type: "string" },
-      },
-      ["verdicts"],
-    ),
     notBuilt: "the line engine",
     example: {
       verdicts: [
@@ -375,7 +292,6 @@ const TOOLS: ToolDefinition[] = [
     name: "review_submit",
     description:
       "Submit a review: consistent or conflicting per proposed change, or agree or object.",
-    inputSchema: obj({ reviews: { type: "array", items: anyObject } }, ["reviews"]),
     notBuilt: "the record keeper",
     example: {
       reviews: [
@@ -390,13 +306,12 @@ const TOOLS: ToolDefinition[] = [
   {
     name: "triage_submit",
     description: "Submit how one intake item is routed.",
-    inputSchema: anyObject,
     notBuilt: "intake",
     example: {
       kind: "wish",
       touches: [{ id: "W-1", reason: "It changes how a book is added." }],
       size: "small",
-      touches_floor: "no",
+      touches_floor: false,
       route: "in-normally",
       reason: "A wish for a small change to adding books; nothing on the floor.",
     },
@@ -405,16 +320,6 @@ const TOOLS: ToolDefinition[] = [
     name: "lesson_submit",
     description:
       'Submit your reading of one correction: what kind of mistake it was ("mistake"), where what it teaches goes ("destination": software, taste, premise or none), why ("reason"), the one short line to learn ("line", unless none), and for premise a short "topic" so the same thing recurring is grouped.',
-    inputSchema: obj(
-      {
-        mistake: { type: "string" },
-        destination: { type: "string", enum: ["software", "taste", "premise", "none"] },
-        reason: { type: "string" },
-        line: { type: "string" },
-        topic: { type: "string" },
-      },
-      ["mistake", "destination", "reason"],
-    ),
     notBuilt: "learning",
     example: {
       mistake: "assumed a need the operator never had",
@@ -427,30 +332,18 @@ const TOOLS: ToolDefinition[] = [
     name: "reading_submit",
     description:
       'Submit the short list from reading the held intake items: "wanted" and "recurring" (lines, each { "line", "items": ["I-3"] }), "purpose", "back_to_why" (yes or no) and, when yes, "not_wanted" (the item IDs that are the evidence).',
-    inputSchema: anyObject,
     notBuilt: "intake",
     example: {
       wanted: [{ line: "People want to sort the list by author.", items: ["I-1"] }],
       recurring: [],
       purpose: "No change: the items ask for more of what it already does.",
-      back_to_why: "no",
+      back_to_why: false,
     },
   },
   {
     name: "sizing_submit",
     description:
       'Submit how big one piece of work is, which stages of the line it needs, and whether it splits, each with its reason. "split" is a list of parts, or empty to keep the piece whole.',
-    inputSchema: obj(
-      {
-        size: { type: "string", enum: ["small", "medium", "large"] },
-        size_reason: { type: "string" },
-        stages: textList,
-        stages_reason: { type: "string" },
-        split: { type: "array", items: anyObject },
-        split_reason: { type: "string" },
-      },
-      ["size", "size_reason", "stages", "stages_reason", "split_reason"],
-    ),
     notBuilt: "the line engine",
     example: {
       size: "small",
@@ -466,14 +359,12 @@ const TOOLS: ToolDefinition[] = [
     name: "facts_read",
     description:
       "Read recorded facts about the software since a time, each with its evidence link.",
-    inputSchema: obj({ since: { type: "string" }, kinds: textList }),
     notBuilt: "the reporter",
     example: { since: "2026-11-01T00:00:00Z", kinds: ["verdicts", "runs"] },
   },
   {
     name: "report_submit",
     description: "Submit report lines, each with the evidence link of the fact it rests on.",
-    inputSchema: obj({ lines: { type: "array", items: anyObject } }, ["lines"]),
     notBuilt: "the reporter",
     example: {
       lines: [
@@ -494,6 +385,13 @@ const TOOLS_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));
  * example where its use differs, else the tool's. The same example is in the role's instructions and
  * in the tool's description, so the two cannot drift.
  */
+/** The input shape of a tool: what it declares to agents and what every call is read against. */
+export function toolInput(tool: string): ObjectShape {
+  const shape = TOOL_INPUTS[tool];
+  if (!shape) throw new Error(`premise has no input shape for the tool "${tool}".`);
+  return shape;
+}
+
 export function toolExample(tool: string, role: AgentRole): Record<string, unknown> {
   const definition = TOOLS_BY_NAME.get(tool);
   if (!definition) throw new Error(`premise has no tool "${tool}".`);
@@ -575,7 +473,7 @@ export class AgentToolServer {
   /** A new token for one session. Only its hash is kept. */
   issue(binding: ToolBinding): string {
     const token = randomBytes(32).toString("base64url");
-    this.tokens.set(hashToken(token), { binding, revoked: false });
+    this.tokens.set(hashToken(token), { binding, revoked: false, lastRefusal: new Map() });
     return token;
   }
 
@@ -643,7 +541,7 @@ export class AgentToolServer {
           tools: this.toolsFor(entry.binding.role).map((t) => ({
             name: t.name,
             description: `${t.description}\nExample: ${JSON.stringify(toolExample(t.name, entry.binding.role))}`,
-            inputSchema: t.inputSchema,
+            inputSchema: jsonSchema(toolInput(t.name)),
           })),
         });
       case "tools/call": {
@@ -674,7 +572,9 @@ export class AgentToolServer {
   /** Check a call, record it, and hand it to whoever owns it. */
   private call(entry: TokenEntry, tool: string, args: Record<string, unknown>): ToolEnvelope {
     const { binding } = entry;
-    const envelope = this.check(entry, tool) ?? this.perform(binding, tool, args);
+    const envelope = this.check(entry, tool) ?? this.readAndPerform(binding, tool, args);
+    if (!envelope.ok) this.sameRefusalAgain(entry, tool, envelope);
+    else entry.lastRefusal.delete(tool);
     recordEvent(this.options.db, {
       softwareId: binding.softwareId,
       module: "agent-tools",
@@ -685,6 +585,11 @@ export class AgentToolServer {
         role: binding.role,
         ok: envelope.ok,
         error: envelope.error?.code ?? null,
+        // What the agent was told, so premise can say why an agent ended without its answer.
+        ...(!envelope.ok && {
+          message: envelope.error?.message ?? "",
+          diagnostics: envelope.diagnostics.slice(0, 5),
+        }),
         ...(envelope.ok &&
         ((TOOLS_BY_NAME.get(tool)?.notBuilt && !this.served(tool)) || tool === "task_finish")
           ? { input: args }
@@ -692,6 +597,47 @@ export class AgentToolServer {
       },
     });
     return envelope;
+  }
+
+  /**
+   * Read the call against the tool's declared shape (decision 0285): what arrived leniently read,
+   * or a refusal that names each wrong field. Notes on what was read leniently go back with the
+   * answer, so the agent sends it properly next time.
+   */
+  private readAndPerform(
+    binding: ToolBinding,
+    tool: string,
+    args: Record<string, unknown>,
+  ): ToolEnvelope {
+    const read = readInput(toolInput(tool), args, toolExample(tool, binding.role));
+    if (read.problems.length > 0) {
+      const n = read.problems.length;
+      return fail(
+        "MALFORMED",
+        `premise cannot use this ${tool} call: ${n === 1 ? "one field is" : `${n} fields are`} wrong. Fix ${n === 1 ? "it" : "each"} as the line below says and call ${tool} again with the whole call.`,
+        read.problems.map((p) => p.message),
+      );
+    }
+    const envelope = this.perform(binding, tool, read.value);
+    return read.notes.length
+      ? { ...envelope, diagnostics: [...read.notes, ...envelope.diagnostics] }
+      : envelope;
+  }
+
+  /** The same call refused the same way twice in a session: say so, and give the whole example. */
+  private sameRefusalAgain(entry: TokenEntry, tool: string, envelope: ToolEnvelope): void {
+    if (!TOOLS_BY_NAME.has(tool) || envelope.error?.code === "TASK_CLOSED") return;
+    const signature = JSON.stringify([
+      envelope.error?.code,
+      envelope.error?.message,
+      envelope.diagnostics,
+    ]);
+    if (entry.lastRefusal.get(tool) === signature) {
+      envelope.diagnostics.unshift(
+        `This is the same refusal as your last ${tool} call: it was sent the same way again, so it was refused again. Do not send it unchanged. Copy the shape of this complete call and change only the values: ${JSON.stringify(toolExample(tool, entry.binding.role))}`,
+      );
+    }
+    entry.lastRefusal.set(tool, signature);
   }
 
   private check(entry: TokenEntry, tool: string): ToolEnvelope | null {
@@ -777,4 +723,104 @@ export class AgentToolServer {
       note: `premise recorded this call, but ${owner} is not built yet, so nothing more comes of it in this task. Carry on without waiting for it, and say in your final message what is still open.`,
     });
   }
+}
+
+/** The tools whose accepted call is a task's answer: without one, the task has nothing to show. */
+export const ANSWER_TOOLS: readonly string[] = [
+  "draft_submit",
+  "recovery_submit",
+  "proposal_submit",
+  "sizing_submit",
+  "triage_submit",
+  "reading_submit",
+  "lesson_submit",
+  "review_submit",
+  "verdict_submit",
+  "report_submit",
+];
+
+/** An answer premise refused, and the job ended without another. */
+export interface RefusedAnswer {
+  tool: string;
+  role: string;
+  message: string;
+  diagnostics: string[];
+}
+
+/**
+ * Why a job ended without its answer, when the reason is that premise refused it: an answer tool
+ * was called, its last call was refused and none was accepted. The first time it is asked for a
+ * job, it is recorded as an event (agent-tools, answer-refused), which learning keeps under
+ * Improvements for premise. Null when the agent never tried to answer, or an answer was accepted.
+ */
+export function refusedAnswer(
+  db: Database,
+  job: { id: number; softwareId: string },
+): RefusedAnswer | null {
+  const rows = db
+    .prepare(
+      "SELECT detail FROM events WHERE module = 'agent-tools' AND kind = 'tool-call' AND reference = ? ORDER BY id",
+    )
+    .all(String(job.id)) as { detail: string | null }[];
+  const calls = rows
+    .map((r) => JSON.parse(r.detail ?? "{}") as Record<string, unknown>)
+    .filter((d) => ANSWER_TOOLS.includes(String(d.tool)));
+  const last = calls.at(-1);
+  if (!last || last.ok !== false || last.error === "TASK_CLOSED" || last.error === "PAUSED")
+    return null;
+  if (calls.some((c) => c.tool === last.tool && c.ok === true)) return null;
+  const refused: RefusedAnswer = {
+    tool: String(last.tool),
+    role: String(last.role ?? "agent"),
+    message: typeof last.message === "string" ? last.message : "",
+    diagnostics: Array.isArray(last.diagnostics) ? last.diagnostics.map(String) : [],
+  };
+  const known = db
+    .prepare(
+      "SELECT 1 FROM events WHERE module = 'agent-tools' AND kind = 'answer-refused' AND reference = ?",
+    )
+    .get(String(job.id));
+  if (!known) {
+    const calledTimes = calls.filter((c) => c.tool === last.tool).length;
+    const why =
+      refused.diagnostics.find((d) => !d.startsWith("This is the same refusal")) ?? refused.message;
+    const said = why
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/[.\s]+$/, "");
+    db.prepare(
+      `INSERT OR IGNORE INTO refused_answers (software_id, job_id, tool, role, text, topic, created)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      job.softwareId,
+      job.id,
+      refused.tool,
+      refused.role,
+      `An agent could not hand in ${refused.tool}${said ? `: ${said.length > 300 ? `${said.slice(0, 299)}…` : said}` : ""}. The tool's shape, example or refusal may need to be clearer.`,
+      `answer-refused-${
+        refused.tool
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "")
+          .slice(0, 60) || "answer"
+      }`,
+      now(),
+    );
+    recordEvent(db, {
+      softwareId: job.softwareId,
+      module: "agent-tools",
+      kind: "answer-refused",
+      reference: String(job.id),
+      detail: { ...refused, calls: calledTimes },
+    });
+  }
+  return refused;
+}
+
+/** A refused answer in a few plain words, for the page: what premise refused, and why. */
+export function refusedAnswerWords(refused: RefusedAnswer, max = 300): string {
+  const why =
+    refused.diagnostics.find((d) => !d.startsWith("This is the same refusal")) ?? refused.message;
+  const cut = why.length > max ? `${why.slice(0, max - 3)}...` : why;
+  return `could not hand in its answer: premise refused its last ${refused.tool} call (${cut})`;
 }

@@ -98,6 +98,7 @@ describe("bringing in software you already have", () => {
             routes: { byRoute: {}, bySource: {}, total: 0, words: "", sources: [] },
             feedback: null,
             github: { repository: null, everyMinutes: 10, lastRead: null, problem: null, taken: 0 },
+            untriaged: null,
           }),
         ),
         software: vi.fn(() =>
