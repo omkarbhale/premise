@@ -838,13 +838,17 @@ export class LineEngine implements IntakeLine {
     const ref = change.ref ?? "the change";
     const own = new Set(notes.decisions ?? []);
     const live = this.recordLines(softwareId).filter((i) => own.has(i.id));
-    const ops: Operation[] = [];
-    for (const d of old.decisions) {
-      if (d.replaces) continue;
-      const found = live.find((i) => i.text === decisionText(d, ref));
-      if (found)
-        ops.push({ op: "strike", id: found.id, reason: `The change ${ref} was planned again.` });
-    }
+    const alone = (notes.landedFor ?? []).length === 1;
+    const texts = new Set(
+      old.decisions.filter((d) => !d.replaces).map((d) => decisionText(d, ref)),
+    );
+    const ops: Operation[] = live
+      .filter((i) => !i.marks.replaces && (alone || texts.has(i.text)))
+      .map((i) => ({
+        op: "strike" as const,
+        id: i.id,
+        reason: `The change ${ref} was planned again.`,
+      }));
     if (ops.length) this.land(softwareId, ops, `The change ${ref} was planned again.`);
     const gone = new Set(ops.map((o) => (o as { id: string }).id));
     this.setChangeNotes(change, {
