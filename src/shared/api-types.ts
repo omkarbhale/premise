@@ -706,6 +706,51 @@ export interface SetupCheck {
   fix?: string;
 }
 
+/** What is paused, what is still finishing, and when it is safe to close premise. */
+export interface PauseView {
+  paused: boolean;
+  /** Who paused: you, the "start paused" setting, or the subscription's usage limit. */
+  cause: "person" | "setting" | "usage-limit" | null;
+  /** For your pause: what you chose for sessions that were running. */
+  mode: "finish" | "stop-now" | null;
+  reason: string | null;
+  /** When a usage-limit pause ends by itself. */
+  resumeAt: string | null;
+  pausedAt: string | null;
+  /** premise is stopping (Ctrl+C or `premise stop` in its terminal): it ends once the running work has. */
+  stopping: boolean;
+  /** Work still running: sessions finishing, or the server starting a software. */
+  stillFinishing: JobView[];
+  /** Nothing is running, so closing premise loses no work. */
+  safeToClose: boolean;
+  /** Built softwares premise is running; they stop when premise stops. */
+  runningSoftwares: { softwareId: string; name: string }[];
+  /** The one sentence that says where things stand, for the banner. */
+  headline: string;
+}
+
+/** What the last start of premise picked up, in one line, and what it can offer to do again. */
+export interface StartupView {
+  line: string;
+  startedAt: string;
+  /** Jobs that were cut off when premise last stopped and were put back to be restarted. */
+  cutOff: number;
+  /** Asks waiting on a person. */
+  waitingOnYou: number;
+  paused: boolean;
+  /** Built softwares that were running and stopped with premise; each can be started again. */
+  stoppedSoftwares: { softwareId: string; name: string }[];
+}
+
+/** The last time premise noticed the computer had been asleep while it had sessions running. */
+export interface SleepView {
+  noticedAt: string;
+  asleepMinutes: number;
+  checked: number;
+  restarted: number;
+  line: string;
+}
+
 export interface Overview {
   version: string;
   dataFolder: string;
@@ -744,6 +789,12 @@ export interface Overview {
   softwareUsage: (UsageFigures & { softwareId: string })[];
   openAsks: number;
   activity: { running: number; queued: number; waiting: number; max: number; paused: boolean };
+  /** Pausing everything: always present, so the top bar can show Pause or Resume. */
+  pause?: PauseView;
+  /** What the last start picked up; null on a first start. */
+  startup?: StartupView | null;
+  /** The computer slept while sessions were running (null when it did not). */
+  sleep?: SleepView | null;
   setup: SetupCheck[];
 }
 

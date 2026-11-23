@@ -35,6 +35,8 @@ Not responsible for:
 | Finish | Agent runner, runner | Job, result: done, stuck, failed, with the reason | Job closed; line engine told | none |
 | Stop | Page server (a person, in the session) | Job | Session stopped; job `stopped` | none |
 | Pause all, resume all | Agent runner (usage limit) | Reason, expected reset time | Queue state | none |
+| Pause everything, resume | Page server (the operator; the `queue.start_paused` setting at start) | `finish` or `stop-now` | Queue state, stored | none |
+| Begin stopping, stop now | The terminal (Ctrl+C, `premise stop`) | none | Nothing new starts; running jobs end, or are stopped and put back | none |
 | Pause software, resume software | Usage-ledger watcher (budget overrun), page server (the operator, through `src/portfolio`) | Software, reason | Software state; a pause stops its running sessions and requeues their jobs | none |
 
 ## 4. Data owned
@@ -61,7 +63,7 @@ Job statuses: `queued`, `running`, `waiting` (on an ask or a gate request), `pau
 Anything that must survive a crash goes through the work queue's table ([architecture overview](../architecture/overview.md)).
 
 - At start, every job found `running` is examined:
-  - an agent job whose session ended is restarted in a fresh session, from its brief, with a note that a previous attempt was cut off; the restart counts as an attempt;
+  - an agent job whose session ended is restarted, with a note that a previous attempt was cut off; where the runtime can carry the old session on, it does, and otherwise the new session starts from the brief. The restart counts as an attempt ([0290](../decisions/0290-pausing-and-resuming-the-whole-of-premise.md) 11);
   - a `run` job is repeated from the start; starting from a clean copy makes this safe.
 - `waiting` jobs stay waiting; their asks and gate requests are still open in the session.
 
@@ -87,6 +89,16 @@ Anything that must survive a crash goes through the work queue's table ([archite
 - The operator answers: raise the budget (the software is active again), let it finish the current change (only jobs of that piece of work start), or leave it paused ([0200](../decisions/0200-how-cost-and-the-spending-limit-are-built.md)).
 - The paused state survives a restart. If usage-ledger cannot be read, nothing is paused for want of an answer; the turn and time limits ([0088](../decisions/0088-turn-and-time-limits.md)) still stop runaway sessions and are not cost tracking.
 
+### 5.7 Pausing everything, stopping cleanly, and the computer sleeping
+
+Decision [0290](../decisions/0290-pausing-and-resuming-the-whole-of-premise.md).
+
+- **Pause everything.** The queue's stored state holds `paused`, a cause (`person`, `setting` for `queue.start_paused`, or `usage-limit`), for the person's pause the choice for running sessions (`finish` or `stop-now`), and when it was paused. While paused nothing starts, in any software, agent jobs and `run` jobs alike; asks stay answerable and an answer puts its job back in the queue. `finish` leaves running sessions to end; `stop-now` stops them and puts their jobs back with a note that their unfinished work is redone. Only a `usage-limit` pause has a reset time and ends by itself; a usage limit reached during another pause leaves that pause as it was. Resume clears any of them.
+- **At start.** A stored pause stays (premise starts paused and says so). With `queue.start_paused` set and no pause stored, premise pauses with cause `setting`. Otherwise it resumes as before. The start says in one line what it picked up (the jobs cut off and put back, asks waiting on a person, the pause, built softwares that stopped with premise).
+- **Stopping.** A clean stop (Ctrl+C once, `premise stop`) sets an in-memory flag: nothing new starts, running jobs are left to end, and premise closes when none is running. The flag is not stored. Stopping now (a second Ctrl+C, a termination signal, `premise stop --now`) stops every running session and puts its job back, with a note, before closing; the jobs cut off are written down so the next start can name them.
+- **Status.** The queue reports what is paused, which jobs are still running (agent sessions and `run` jobs) and whether closing now loses nothing (none running).
+- **After the computer sleeps.** When the clock has jumped by more than `queue.suspend_gap_seconds` beyond a tick, premise asks each running session whether it is alive. A session that says no is ended, even if it never reports, and its job goes back to the queue and starts again, carried on where the runtime can. A runtime that cannot say is taken as alive.
+
 ### 5.6 Working copies
 
 - When a job ends, its working copy is removed, unless its branch holds unmerged work that is still wanted (a build waiting for its check), or `data.keep_finished_working_copies` is set ([storage](storage.md)).
@@ -98,6 +110,8 @@ Anything that must survive a crash goes through the work queue's table ([archite
 |---|---|---|
 | `queue.max_agent_sessions` | 2 | Agent sessions running at once ([0074](../decisions/0074-two-agent-sessions-at-once.md), [0132](../decisions/0132-sensible-things-are-configurable.md)) |
 | `queue.same_failure_limit` | 3 | Same failures before a task stops |
+| `queue.start_paused` | false | Always start paused ([0290](../decisions/0290-pausing-and-resuming-the-whole-of-premise.md)) |
+| `queue.suspend_gap_seconds` | 90 | A clock jump beyond a tick that counts as the computer having slept ([0290](../decisions/0290-pausing-and-resuming-the-whole-of-premise.md)) |
 | `queue.usage_pause_fallback_minutes` | 60 | How long to wait before trying again when the reset time is not known |
 | `queue.fair_wait_minutes` | 30 | How long a software with startable work waits behind more important ones before it gets the next free slot ([0197](../decisions/0197-how-several-softwares-at-once-is-built.md)) |
 

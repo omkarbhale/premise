@@ -5,6 +5,7 @@ import type {
   AskView,
   BudgetView,
   Overview,
+  PauseView,
   SoftwareDetail,
   OwnFigures,
   SoftwareUsageView,
@@ -39,6 +40,23 @@ export function overview(change: Partial<Overview> = {}): Overview {
     openAsks: 0,
     activity: { running: 0, queued: 0, waiting: 0, max: 2, paused: false },
     setup: [],
+    ...change,
+  };
+}
+
+export function pauseView(change: Partial<PauseView> = {}): PauseView {
+  return {
+    paused: false,
+    cause: null,
+    mode: null,
+    reason: null,
+    resumeAt: null,
+    pausedAt: null,
+    stopping: false,
+    stillFinishing: [],
+    safeToClose: true,
+    runningSoftwares: [],
+    headline: "Everything is running.",
     ...change,
   };
 }
@@ -251,6 +269,8 @@ export function fakeApi(change: Partial<Api> = {}): Api {
     run: vi.fn(fail),
     startRun: vi.fn(fail),
     stopRun: vi.fn(fail),
+    pauseEverything: vi.fn(fail),
+    resumeEverything: vi.fn(fail),
     sendBack: vi.fn(fail),
     setSize: vi.fn(fail),
     setItemSize: vi.fn(fail),

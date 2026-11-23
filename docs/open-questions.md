@@ -48,6 +48,8 @@ The owner asked the assistant to choose an answer to every question that was ope
 | When a check has passed, and what lands unverified | "Passed" only when every must item is met; some unverified: it lands, marked not fully verified; nothing verified: premise asks once (land unverified, tell the checker what it needs, or stop), or lands as `line.when_nothing_verified` says | [0220](decisions/0220-approvals-and-verdicts-tell-the-truth.md) |
 | If bubblewrap or socat is missing | The setup check names what is missing and how to install it; premise refuses to start real agents without them | [0142](decisions/0142-setup-check-names-bubblewrap-and-socat.md) |
 | The other Premise project, and the name | The name stays premise | [0143](decisions/0143-the-name-stays-premise.md) |
+| How the owner pauses premise, closes it and comes back | "Pause everything" and "Resume" in the top bar (let running work finish by default, or stop it now); a pause survives a restart; Ctrl+C once stops cleanly after the running work and says what it waits for, twice stops now; `premise stop` does the same from another terminal; one line says what the start picked up | [0290](decisions/0290-pausing-and-resuming-the-whole-of-premise.md) |
+| Whether the link stays the same across restarts | No by default, for safety; `server.keep_link` keeps it, with the risk stated in the setting | [0290](decisions/0290-pausing-and-resuming-the-whole-of-premise.md) |
 | Being reached from other machines | Stays off by default; no setting opens it | [0144](decisions/0144-reach-from-other-machines-stays-off.md) |
 | Using an API key | No API key is used | [0145](decisions/0145-no-api-key.md) |
 

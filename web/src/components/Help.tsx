@@ -134,6 +134,41 @@ export function Help() {
         </ul>
       </section>
       <section className="card">
+        <h2>Stopping and coming back</h2>
+        <ul>
+          <li>
+            <strong>Pause everything</strong> (top of the page) starts nothing new in any software.
+            Choose <em>let what is running finish</em> (the default) or <em>stop it now</em>; then
+            the banner says what is still finishing and when it is safe to close premise. You can
+            still answer questions while paused. <strong>Resume</strong> starts work again.
+          </li>
+          <li>
+            To stop premise, press Ctrl+C in its terminal once: it lets the running work finish,
+            then stops. Press it again to stop at once; the cut-off work is simply redone next time.
+            From another terminal, run <code>npm run stop</code> (or{" "}
+            <code>npm run stop -- --now</code>).
+          </li>
+          <li>
+            If you paused everything before stopping, premise starts paused and says so; press
+            Resume. Otherwise it carries on from where it stopped. A setting,{" "}
+            <code>queue.start_paused</code>, makes it always start paused.
+          </li>
+          <li>
+            A software premise was running stops when premise stops; the page offers to start it
+            again.
+          </li>
+          <li>
+            If the computer sleeps while agents work, premise checks them when it wakes and restarts
+            any that died, and says so.
+          </li>
+          <li>
+            premise makes a new link each time it starts. Copy it from the terminal, or run{" "}
+            <code>npm run new-link</code>. If you work alone on your own machine you can keep the
+            same link with <code>server.keep_link</code>; the Settings page explains the risk.
+          </li>
+        </ul>
+      </section>
+      <section className="card">
         <h2>The link</h2>
         <p>
           The link premise printed holds a private token: anyone with it on this machine can use

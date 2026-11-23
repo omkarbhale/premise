@@ -53,6 +53,12 @@ export class QueueActivity implements ActivityService {
     };
   }
 
+  /** Jobs as the page shows them. */
+  jobViews(jobs: Job[]): JobView[] {
+    const names = this.names();
+    return jobs.map((j) => this.jobView(j, names));
+  }
+
   async view(): Promise<ActivityView> {
     const names = this.names();
     const toView = (jobs: Job[]) => jobs.map((j) => this.jobView(j, names));

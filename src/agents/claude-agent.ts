@@ -134,6 +134,14 @@ class ClaudeSession implements AgentSession {
     this.endChild();
   }
 
+  /** The child process is still there; one that is gone without having reported has died. */
+  alive(): boolean {
+    if (!this.spawned) return true;
+    const child = this.child;
+    return !!child && child.exitCode === null && child.signalCode === null;
+  }
+  private spawned = false;
+
   /** Ask the child to end, then end it forcibly after the grace time. Its whole group goes. */
   private endChild(): void {
     const child = this.child;
@@ -289,6 +297,7 @@ class ClaudeSession implements AgentSession {
         detached: true,
       });
       this.child = child;
+      this.spawned = true;
       const turns = new Set<string>();
       let result: Extract<StreamEvent, { kind: "result" }> | null = null;
       let stderr = "";

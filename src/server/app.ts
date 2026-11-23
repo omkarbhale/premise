@@ -27,6 +27,7 @@ import { registerRecordRoutes } from "../record/routes.js";
 import type { RecordKeeper } from "../record/record-keeper.js";
 import { type Database, recordEvent } from "../storage/database.js";
 import type { UsageLedger } from "../usage-ledger/usage-ledger.js";
+import type { Pausing } from "./pausing.js";
 import { VERSION } from "../version.js";
 import { EventHub } from "./events.js";
 import { registerFeedbackRoutes } from "../intake/feedback-routes.js";
@@ -66,6 +67,8 @@ export interface AppDeps {
   usage?: Usage;
   /** The feedback page (src/intake); left out when not given. */
   feedback?: FeedbackService;
+  /** What the last start and the last sleep found, for the page's one-line notices. */
+  pausing?: Pausing;
 }
 
 const NOT_BUILT_PAGE = `<!doctype html><html lang="en"><meta charset="utf-8"><title>premise</title>
@@ -137,6 +140,7 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
   const app = Fastify({ logger: false, bodyLimit: 256 * 1024 });
   const events = deps.events ?? new EventHub(deps.db);
   const { services } = deps;
+  const pausing = deps.pausing;
   const agents: AgentsStatus = deps.agents ?? {
     ready: () => true,
     unavailable: () => null,
@@ -288,6 +292,9 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
           }),
         ),
         openAsks: softwares.reduce((n, s) => n + s.openAsks, 0),
+        pause: await services.pausing?.view(),
+        startup: pausing?.startupView() ?? null,
+        sleep: pausing?.sleepView() ?? null,
         activity: {
           running: activity.running.length,
           queued: activity.queued.length,
@@ -792,6 +799,25 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
     });
 
     api.get("/api/activity", async () => services.activity.view());
+
+    // Pausing and resuming the whole of premise (decision 0290).
+    if (services.pausing) {
+      const pausingService = services.pausing;
+      api.get("/api/pause", async () => pausingService.view());
+      api.post<{ Body: { mode?: "finish" | "stop-now" } }>(
+        "/api/pause",
+        {
+          schema: {
+            body: {
+              type: "object",
+              properties: { mode: { type: "string", enum: ["finish", "stop-now"] } },
+            },
+          },
+        },
+        async (request) => pausingService.pause(request.body?.mode ?? "finish"),
+      );
+      api.post("/api/resume", async () => pausingService.resume());
+    }
 
     api.post<{ Params: { id: number } }>(
       "/api/jobs/:id/stop",

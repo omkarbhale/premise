@@ -3,6 +3,7 @@ import { type Api, type AskView, createApi, sessionToken } from "./api";
 import { Activity } from "./components/Activity";
 import { AgentsBanner } from "./components/AgentsBanner";
 import { MockedBadge, Problem } from "./components/Badges";
+import { PauseBanner, PauseControl, SleepNotice, StartupNotice } from "./components/Pausing";
 import { Help } from "./components/Help";
 import { Needed } from "./components/Needed";
 import { Settings } from "./components/Settings";
@@ -303,6 +304,7 @@ function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) 
             )}
           </span>
           <ConnectionState connection={connection} />
+          {o.pause && <PauseControl pause={o.pause} />}
         </div>
         <nav aria-label="premise">
           {shownNav.map((item) => (
@@ -339,11 +341,17 @@ function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) 
         </div>
       )}
       <AgentsBanner overview={o} />
-      {o.activity.paused && (
-        <div className="banner warn" role="status">
-          All agent work is paused. See Activity for why and when it starts again.
-        </div>
+      {o.pause ? (
+        <PauseBanner pause={o.pause} />
+      ) : (
+        o.activity.paused && (
+          <div className="banner warn" role="status">
+            All agent work is paused. See Activity for why and when it starts again.
+          </div>
+        )
       )}
+      <StartupNotice overview={o} />
+      <SleepNotice overview={o} />
 
       <main className="page" id="main" tabIndex={-1}>
         {view.name === "software" &&
@@ -490,7 +498,7 @@ function ConnectionState({ connection }: { connection: Connection }) {
     <span className="conn conn-off small" role="status">
       {connection === "connecting"
         ? "Connecting…"
-        : "Reconnecting… if this lasts, check premise is still running."}
+        : "Reconnecting… if this lasts, premise has stopped: start it again and open the new link it prints."}
     </span>
   );
 }
