@@ -1026,9 +1026,7 @@ export type CorrectionKind =
   | "send-back"
   | "decline-gate"
   | "undo-split"
-  | "bug-after-met"
-  /** An agent ended without its answer because premise refused it (decision 0285). */
-  | "answer-refused";
+  | "bug-after-met";
 
 /** Where what a correction teaches goes. Exactly one. */
 export type LearningDestination = "software" | "taste" | "premise" | "none";

@@ -90,8 +90,9 @@ All tables live in `premise.db`. Times are UTC. "Software" is a row in `software
 | `reports` | Report written | software, trigger (change reached running, asked, line ended), lines with evidence links, created |
 | `page_presence` | Stretch of time a page was in front of someone (schema 10) | started, last seen, ended; written by the page's beats, never as events ([measures](measures.md)) |
 | `asks_shown` | Question first shown on a page (schema 10) | ask, when ([measures](measures.md)) |
-| `corrections` | Correction a person made to premise's work (schema 10) | software, kind (strike, edit, reject-draft, send-back, decline-gate, undo-split, bug-after-met, and from schema 17 answer-refused), the event it came from, what happened, what the person said, items touched, status (reading, read), the kind of mistake, destination (software, taste, premise, none), why, the proposed line, topic, who decided (agent, rule, operator), the reading job ([learning](learning.md)) |
+| `corrections` | Correction a person made to premise's work (schema 10) | software, kind (strike, edit, reject-draft, send-back, decline-gate, undo-split, bug-after-met), the event it came from, what happened, what the person said, items touched, status (reading, read), the kind of mistake, destination (software, taste, premise, none), why, the proposed line, topic, who decided (agent, rule, operator), the reading job ([learning](learning.md)) |
 | `lessons` | Line learned from one correction (schema 10) | correction, software, destination (software, taste, premise), topic, text, state (live, deleted, dropped), times used and when last, created, edited, ended and why ([learning](learning.md)) |
+| `refused_answers` | Answer premise refused, once per job (schema 17) | software, job, tool, role, text, topic, created ([learning](learning.md)) |
 | `learning_cursor` | One row: the last event learning looked at (schema 10) | last event |
 | `events` | Anything that happened | time, software, module, kind, reference; append-only; feeds the page's event stream and every report |
 | `settings` | Configuration value changed from its default | key, value, changed |
@@ -154,7 +155,7 @@ Every job, ask, gate request and verdict also writes an `events` row, so that a 
 - Schema 9 added each software's effort and whether an intake item changes what the software must do ([0191](../decisions/0191-scope-check-effort-and-milestones.md), [0192](../decisions/0192-effort-in-proportion-to-what-was-asked.md)).
 - Schema 10 added the measures and learning tables: `page_presence`, `asks_shown`, `corrections`, `lessons` and `learning_cursor` ([0193](../decisions/0193-how-the-measures-are-built.md), [0194](../decisions/0194-how-learning-from-corrections-is-built.md)).
 - Milestone 3: `claims` (schema 11).
-- Schema 17 lets `corrections.kind` be `answer-refused`, an agent's answer premise refused ([0285](../decisions/0285-each-tool-declares-its-shape-and-reads-what-real-agents-send.md)); SQLite cannot change a check in place, so `corrections` and `lessons` are copied into new tables, nothing lost.
+- Schema 17 adds one table, `refused_answers`: an agent's answer premise refused, once per job (software, job, tool, role, text, topic, created), kept under Improvements for premise ([0285](../decisions/0285-each-tool-declares-its-shape-and-reads-what-real-agents-send.md)). It is additive; `corrections` and `lessons` are untouched.
 - Truthful approvals: `act`, `card` and `unavailable` on `gate_requests` and `act` on `approvals` (schema 15, [0220](../decisions/0220-approvals-and-verdicts-tell-the-truth.md)).
 - Milestone 4, the rest (built, schema 13): `feedback_links`, `intake_comments`, and every intake source.
 - Milestone 6: `recovered-trace.md` in the software's repository.

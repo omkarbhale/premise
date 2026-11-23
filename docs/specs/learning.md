@@ -18,13 +18,14 @@ A correction is something a person does that says premise got something wrong:
 - sending work back to an earlier stage;
 - undoing a split;
 - a bug coming in against something premise's check said worked (a checker miss, from the [measures](measures.md));
-- an agent that ended without its answer because premise refused it (an `answer-refused` event from the [agent tools](agent-tools.md), [0285](../decisions/0285-each-tool-declares-its-shape-and-reads-what-real-agents-send.md)).
 
 premise notices each one from what it already records, within a second or so. Nothing else is needed from the person.
 
 ## 2. Where each correction goes
 
-Each correction goes to exactly one place, with what kind of mistake it was and why it goes there. The triager agent reads it; premise's fixed rules decide when agents are off or say nothing, and always for an undone split, a checker miss and a refused answer. A refused answer always goes to premise itself, grouped by tool (`answer-refused-<tool>`): how a tool is declared, explained and checked is premise's own.
+Each correction goes to exactly one place, with what kind of mistake it was and why it goes there. The triager agent reads it; premise's fixed rules decide when agents are off or say nothing, and always for an undone split and a checker miss.
+
+An agent that ended without its answer because premise refused it is not a correction. The [agent tools](agent-tools.md) keep it in its own table (`refused_answers`, [0285](../decisions/0285-each-tool-declares-its-shape-and-reads-what-real-agents-send.md)), and it is listed under Improvements for premise, grouped by tool (`answer-refused-<tool>`), with the software's name, how often it was seen and when last. Deleting the improvement and the exported text file cover it too.
 
 | Place | What it can change | What it cannot change |
 | --- | --- | --- |

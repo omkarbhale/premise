@@ -46,6 +46,39 @@ describe("storage", () => {
     second.db.close();
   });
 
+  it("migrates a schema-16 database without touching its corrections and lessons", () => {
+    const folder = tempFolder();
+    const old = openDatabase(folder, MIGRATIONS.filter((m) => m.version <= 16));
+    old.db.pragma("foreign_keys = OFF");
+    old.db
+      .prepare("INSERT INTO softwares (id, name, created) VALUES ('s1', 'Notes', '2026-01-01')")
+      .run();
+    old.db
+      .prepare(
+        `INSERT INTO corrections (id, software_id, kind, source, what, status, created)
+         VALUES (7, 's1', 'strike', 'ask:1:a', 'You struck it', 'read', '2026-01-02')`,
+      )
+      .run();
+    old.db
+      .prepare(
+        `INSERT INTO lessons (id, correction_id, software_id, destination, topic, text, state, created)
+         VALUES (3, 7, 's1', 'premise', 't', 'A line', 'live', '2026-01-03')`,
+      )
+      .run();
+    old.db.close();
+
+    const now = openDatabase(folder);
+    expect(now.schemaVersion).toBe(17);
+    expect(
+      now.db.prepare("SELECT id, kind, what FROM corrections").all(),
+    ).toEqual([{ id: 7, kind: "strike", what: "You struck it" }]);
+    expect(
+      now.db.prepare("SELECT id, correction_id, text FROM lessons").all(),
+    ).toEqual([{ id: 3, correction_id: 7, text: "A line" }]);
+    expect(now.db.prepare("SELECT COUNT(*) AS n FROM refused_answers").get()).toEqual({ n: 0 });
+    now.db.close();
+  });
+
   it("refuses a database written by a newer premise", () => {
     const folder = tempFolder();
     const next = [...MIGRATIONS, { version: 99, name: "future", sql: "SELECT 1" }];

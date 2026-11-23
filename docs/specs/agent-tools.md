@@ -149,7 +149,7 @@ None. Calls are recorded as `events`; their effects are stored by the modules th
 ## 10. Observability
 
 - Every call is an event: tool, session, result status, error code, and for a refused call what the agent was told.
-- A job that ended without its answer because premise refused it is an `answer-refused` event, once per job.
+- A job that ended without its answer because premise refused it is an `answer-refused` event and a `refused_answers` row, once per job.
 - The page can show, per job, the calls made, from the events.
 
 ## 11. Milestones

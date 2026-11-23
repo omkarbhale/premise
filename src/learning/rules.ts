@@ -35,7 +35,6 @@ export const TASTE_CORRECTION = "You corrected the proposal for";
 export const RULE_ONLY: readonly CorrectionKind[] = [
   "undo-split",
   "bug-after-met",
-  "answer-refused",
 ];
 
 export function cut(text: string, max: number): string {
@@ -143,15 +142,6 @@ export function ruleReading(facts: CorrectionFacts): Reading {
         reason: "A bug in something premise's check said was met is a miss by premise's own check.",
         line: `The check said ${facts.subject ?? "an item"} was met, but a bug came back against it.`,
         topic: "checker-miss",
-      };
-    case "answer-refused":
-      return {
-        mistake: "an agent could not hand in its answer in a shape premise accepts",
-        destination: "premise",
-        reason:
-          "How a tool is declared, explained and checked is premise's own, so an answer it kept refusing is something premise itself should improve.",
-        line: `An agent could not hand in ${facts.subject ?? "its answer"}${because(facts.said)}. The tool's shape, example or refusal may need to be clearer.`,
-        topic: `answer-refused-${topicOf(facts.subject ?? "answer")}`,
       };
   }
 }
