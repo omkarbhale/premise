@@ -3,7 +3,6 @@ import { ownFiguresWords } from "../shared/own-figures.js";
 import { stageName } from "../shared/stages.js";
 import { roleWords } from "../shared/roles.js";
 import type { Facts } from "./facts.js";
-import { tryItOn } from "./made-up.js";
 
 function plural(n: number, word: string): string {
   return `${n} ${word}${n === 1 ? "" : "s"}`;
@@ -281,7 +280,7 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
       });
     } else if (verdict.madeUp !== undefined) {
       failed.push({
-        text: `Checked on made-up data only: ${sentence(item.text)} Try it on ${tryItOn(verdict.madeUp)} yourself; the check could not. ${sentence(verdict.evidence)}`,
+        text: `Checked on made-up data only: ${sentence(item.text)} Try it on ${verdict.madeUp} yourself; the check could not. ${sentence(verdict.evidence)}`,
         evidence: `check of ${item.id}`,
       });
     }
@@ -444,6 +443,9 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
     (i) => at(i)?.verdict === "met" && at(i)?.madeUp !== undefined,
   ).length;
   const met = mustCheck.filter((i) => at(i)?.verdict === "met").length - madeUp;
+  const notStated = mustCheck.filter(
+    (i) => at(i)?.verdict === "met" && at(i)?.notStated === true,
+  ).length;
   const notMet = mustCheck.filter((i) => at(i)?.verdict === "not-met").length;
   const unchecked = mustCheck.length - met - madeUp - notMet;
   const things = (n: number) => `${n} ${n === 1 ? "thing" : "things"}`;
@@ -484,7 +486,7 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
                 : `Not verified: premise could not check this, so it does not know whether it works.${laterWords}${runningBlock ? " Try it yourself: how is just below." : ""}`;
   const counts =
     latest && mustCheck.length > 0
-      ? `Of the ${asks}: ${met} met, ${madeUp > 0 ? `${madeUp} met on made-up data only, ` : ""}${notMet} not met, ${unchecked} not checked.${later.length > 0 ? ` ${later.length} more for a later milestone, not built yet.` : ""}`
+      ? `Of the ${asks}: ${met} met, ${madeUp > 0 ? `${madeUp} met on made-up data only, ` : ""}${notMet} not met, ${unchecked} not checked.${notStated > 0 ? ` ${notStated} of the met ${notStated === 1 ? "was" : "were"} judged before premise asked whether real data was used: not stated whether real data was used.` : ""}${later.length > 0 ? ` ${later.length} more for a later milestone, not built yet.` : ""}`
       : null;
   const scripted =
     latest && facts.verdicts.some((v) => v.scripted)

@@ -19,10 +19,11 @@ function judge(metFirst: boolean): ScriptBehaviour {
     call("verdict_submit", {
       verdicts: itemsOf(request).map((item, n) =>
         metFirst && n === 0
-          ? { item, verdict: "met", evidence: "Saw: words: 4" }
+          ? { item, verdict: "met", evidence: "Saw: words: 4", judged_on: "real" }
           : {
               item,
               verdict: "could-not-check",
+              judged_on: "real",
               evidence: "It needs a sample file only a person can give.",
             },
       ),

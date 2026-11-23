@@ -337,13 +337,19 @@ describe("the checker's scenarios", () => {
         when: { task: "check", purpose: "check" },
         behave: async (request, call) => {
           record(call, "verdict_submit", {
-            verdicts: [{ item: "W-1", verdict: "met", evidence: "" }],
+            verdicts: [{ item: "W-1", verdict: "met", evidence: "", judged_on: "real" }],
           });
           record(call, "verdict_submit", {
-            verdicts: [{ item: "W-99", verdict: "met", evidence: "x" }],
+            verdicts: [{ item: "W-99", verdict: "met", evidence: "x", judged_on: "real" }],
           });
           record(call, "verdict_submit", {
-            verdicts: [{ item: "W-1", verdict: "fine", evidence: "x" }],
+            verdicts: [{ item: "W-1", verdict: "fine", evidence: "x", judged_on: "real" }],
+          });
+          record(call, "verdict_submit", {
+            verdicts: [{ item: "W-1", verdict: "met", evidence: "x" }],
+          });
+          record(call, "verdict_submit", {
+            verdicts: [{ item: "W-1", verdict: "met", evidence: "x", judged_on: "made-up" }],
           });
           const judge = demoScript(COUNT_DEMO).rules.find(
             (r) => r.when?.purpose === "check",
@@ -381,7 +387,7 @@ describe("the checker's scenarios", () => {
       { tool: "verdict_submit", code: "NOT_ALLOWED" },
       { tool: "scenario_write", code: "NOT_ALLOWED" },
     ]);
-    expect(tried.slice(2, 5).every((t) => t.code === "MALFORMED")).toBe(true);
+    expect(tried.slice(2, 7).every((t) => t.code === "MALFORMED")).toBe(true);
     expect(result.stage).toBe("intake");
   }, 60_000);
 });

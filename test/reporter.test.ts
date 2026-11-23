@@ -56,13 +56,19 @@ const FILES = {
   "premise/run.md": runBlock(["kind: web", "start: node server.js"]),
 };
 
-function verdict(softwareId: string, item: string, v: string, evidence: string) {
+function verdict(
+  softwareId: string,
+  item: string,
+  v: string,
+  evidence: string,
+  judged: Record<string, string> = { judgedOn: "real" },
+) {
   recordEvent(db, {
     softwareId,
     module: "checker",
     kind: "verdict",
     reference: item,
-    detail: { verdict: v, evidence },
+    detail: { verdict: v, evidence, ...judged },
   });
 }
 
@@ -72,7 +78,7 @@ function verdictAt(softwareId: string, item: string, v: string, commit: string) 
     module: "checker",
     kind: "verdict",
     reference: item,
-    detail: { verdict: v, evidence: "Seen.", commit },
+    detail: { verdict: v, evidence: "Seen.", commit, judgedOn: "real" },
   });
 }
 
@@ -393,40 +399,30 @@ describe("the headline tells the truth (decision 0280)", () => {
     expect(short.headline).toContain("It is not running either.");
   });
 
-  it("moves a met verdict on made-up data under failed or not checked, with what to try it on", async () => {
+  it("moves a met verdict judged on made-up data under failed or not checked, with what to try it on", async () => {
     const s = makeSoftware(db, config, "Greeter", FILES);
     allMet(s.id);
-    verdict(
-      s.id,
-      "W-1",
-      "met",
-      "Only checked against fixture status line input; real Claude Code status line data was not available here.",
-    );
+    verdict(s.id, "W-1", "met", "Printed the greeting from a fixture.", {
+      judgedOn: "made-up",
+      tryItOn: "real Claude Code status line data",
+    });
     ran(s, "finished");
     const { short } = await viewWith(s.id);
     expect(short.headline).toMatch(
       /^Partly verified: 2 of 3 things you asked for were checked and work; 1 only on made-up data\./,
     );
-    const failed = section(short, "Failed or not checked").join("\n");
-    expect(failed).toContain(
+    expect(section(short, "Failed or not checked").join("\n")).toContain(
       "Checked on made-up data only: People can open the page and read a greeting. Try it on real Claude Code status line data yourself",
     );
     expect(short.counts).toContain("1 met on made-up data only");
   });
 
-  it("takes what the checker said was not available, and says so when every item rests on made-up data", async () => {
+  it("says every item rests on made-up data when each was judged so", async () => {
     const s = makeSoftware(db, config, "Greeter", FILES);
     for (const item of ["W-1", "W-2", "W-3"]) {
-      recordEvent(db, {
-        softwareId: s.id,
-        module: "checker",
-        kind: "verdict",
-        reference: item,
-        detail: {
-          verdict: "met",
-          evidence: "Printed the expected figures.",
-          notAvailable: "the real log files",
-        },
+      verdict(s.id, item, "met", "Printed the expected figures.", {
+        judgedOn: "made-up",
+        tryItOn: "the real log files",
       });
     }
     ran(s, "finished");
@@ -437,6 +433,31 @@ describe("the headline tells the truth (decision 0280)", () => {
     expect(section(short, "Failed or not checked").join("\n")).toContain(
       "Try it on the real log files yourself",
     );
+  });
+
+  it("does not read the evidence's words: a met judged on real data stays met", async () => {
+    const s = makeSoftware(db, config, "Greeter", FILES);
+    allMet(s.id);
+    verdict(
+      s.id,
+      "W-1",
+      "met",
+      "The live metrics dashboard was not available, so I read the logs directly.",
+    );
+    ran(s, "finished");
+    const { short } = await viewWith(s.id);
+    expect(short.headline).toMatch(/^Works: all 3 things you asked for/);
+    expect(short.counts).not.toContain("not stated");
+  });
+
+  it("counts a verdict recorded before the field as met, and says it was not stated", async () => {
+    const s = makeSoftware(db, config, "Greeter", FILES);
+    allMet(s.id);
+    verdict(s.id, "W-1", "met", "Seen.", {});
+    ran(s, "finished");
+    const { short } = await viewWith(s.id);
+    expect(short.headline).toMatch(/^Works: all 3 things you asked for/);
+    expect(short.counts).toContain("not stated whether real data was used");
   });
 
   it("names items the person chose for a later milestone as not built yet, not as could not be checked", async () => {

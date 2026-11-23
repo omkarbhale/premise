@@ -197,7 +197,7 @@ const TOOLS: ToolDefinition[] = [
   {
     name: "verdict_submit",
     description:
-      "Submit the check's verdicts: met, not-met or could-not-check per item, each with evidence, and not_available naming the real data, service or environment you did not have when you judged it on made-up data only.",
+      "Submit the check's verdicts: met, not-met or could-not-check per item, each with evidence, and judged_on: "real" (the real data, service or environment the software is for) or "made-up" (stand-ins only); with "made-up" also try_it_on: what a person should try it on. A verdict without judged_on is refused.",
     inputSchema: obj(
       {
         verdicts: { type: "array", items: anyObject },

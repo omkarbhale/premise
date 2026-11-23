@@ -8,7 +8,6 @@ import { readTrailer } from "../record/trace.js";
 import type { Runner } from "../runner/runner.js";
 import { intakeCounts } from "../intake/counts.js";
 import { ownFiguresWords } from "../shared/own-figures.js";
-import { madeUpData } from "./made-up.js";
 import type {
   IntakeRouteCounts,
   ReportCostLine,
@@ -47,6 +46,8 @@ export interface VerdictFact {
    * checker did not have ("" when it did not say). Absent when the verdict rests on the real thing.
    */
   madeUp?: string;
+  /** A verdict recorded before the checker had to say whether real data was used. */
+  notStated?: boolean;
   /**
    * True when the latest commit has the same code as the commit judged: only merges or changes to
    * the record came after it, so the verdict still holds for the latest version.
@@ -224,7 +225,7 @@ export function readVerdicts(db: Database, softwareId: string): VerdictFact[] {
   const latest = new Map<string, VerdictFact>();
   for (const row of rows) {
     if (!row.reference || !row.detail) continue;
-    let detail: { verdict?: string; evidence?: string; commit?: string; notAvailable?: string };
+    let detail: { verdict?: string; evidence?: string; commit?: string; judgedOn?: string; tryItOn?: string };
     try {
       detail = JSON.parse(row.detail) as typeof detail;
     } catch {
@@ -236,8 +237,9 @@ export function readVerdicts(db: Database, softwareId: string): VerdictFact[] {
       detail.verdict !== "could-not-check"
     )
       continue;
-    const madeUp =
-      detail.verdict === "met" ? madeUpData(detail.evidence ?? "", detail.notAvailable) : null;
+    const met = detail.verdict === "met";
+    const madeUp = met && detail.judgedOn === "made-up" ? (detail.tryItOn ?? "real data") : null;
+    const notStated = met && detail.judgedOn !== "made-up" && detail.judgedOn !== "real";
     latest.set(row.reference, {
       item: row.reference,
       verdict: detail.verdict,
@@ -246,6 +248,7 @@ export function readVerdicts(db: Database, softwareId: string): VerdictFact[] {
       time: row.time,
       ...(row.runtime === "scripted" && { scripted: true }),
       ...(madeUp !== null && { madeUp }),
+      ...(notStated && { notStated }),
     });
   }
   return [...latest.values()];

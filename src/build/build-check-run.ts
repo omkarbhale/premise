@@ -28,7 +28,6 @@ import { type Ask, createAsk, listAsks } from "../storage/asks.js";
 import { addChatMessage } from "../storage/chat.js";
 import { type Database, now, recordEvent } from "../storage/database.js";
 import { RecordWriter } from "../line/record-writer.js";
-import { madeUpData } from "../reporter/made-up.js";
 import { answerWords } from "../line/answers.js";
 import { activeWorkItem } from "../line/work-items.js";
 import { type Taste, roleWords } from "../taste/taste.js";
@@ -1193,7 +1192,7 @@ export class BuildCheckRun implements LaterStages {
     );
     // A "met" on made-up data only is said with it, so the caveat is not lost (decision 0280).
     const madeUp = [...verdicts.values()].filter(
-      (v) => v.verdict === "met" && madeUpData(v.evidence, v.notAvailable) !== null,
+      (v) => v.verdict === "met" && v.judgedOn === "made-up",
     ).length;
     const tally = `${counts.met} met${madeUp > 0 ? ` (${madeUp} of them only on made-up data)` : ""}, ${counts["not-met"]} not met, ${counts["could-not-check"]} could not check`;
     if (failing.length === 0 && blocking.length === 0) {
@@ -1809,7 +1808,8 @@ export class BuildCheckRun implements LaterStages {
       item: string;
       verdict: VerdictValue;
       evidence: string;
-      notAvailable: string | null;
+      judgedOn: "real" | "made-up" | null;
+      tryItOn: string | null;
     }[] = [];
     (args.verdicts as unknown[]).forEach((raw, n) => {
       const v = (raw ?? {}) as Record<string, unknown>;
@@ -1822,10 +1822,8 @@ export class BuildCheckRun implements LaterStages {
               .replace(/[\s_]+/g, "-")
           : "";
       const evidence = typeof v.evidence === "string" ? v.evidence.trim() : "";
-      const notAvailable =
-        typeof v.not_available === "string" && v.not_available.trim()
-          ? v.not_available.trim()
-          : null;
+      const judgedOn = v.judged_on === "real" || v.judged_on === "made-up" ? v.judged_on : null;
+      const tryItOn = typeof v.try_it_on === "string" && v.try_it_on.trim() ? v.try_it_on.trim() : null;
       const where = `Verdict ${n + 1}${item ? ` (${item})` : ""}`;
       if (!known.has(item)) problems.push(`${where}: name a record item, such as W-1.`);
       if (!["met", "not-met", "could-not-check"].includes(verdict)) {
@@ -1835,12 +1833,21 @@ export class BuildCheckRun implements LaterStages {
         problems.push(
           `${where}: give the evidence (output, a response, a log line, or the file saved in ${EVIDENCE_FOLDER}/).`,
         );
-      clean.push({ item, verdict: verdict as VerdictValue, evidence, notAvailable });
+      if (judgedOn === null) {
+        problems.push(
+          `${where}: say what it was judged on. Add "judged_on": "real" (the real data, service or environment the software is for) or "made-up" (stand-ins only); with "made-up" also add "try_it_on": what a person should try it on. Example: { "item": "W-1", "verdict": "met", "evidence": "...", "judged_on": "made-up", "try_it_on": "a real Claude Code status line" }.`,
+        );
+      } else if (judgedOn === "made-up" && !tryItOn) {
+        problems.push(
+          `${where}: judged on made-up data, so add "try_it_on": what a person should try it on, such as "a real Claude Code status line".`,
+        );
+      }
+      clean.push({ item, verdict: verdict as VerdictValue, evidence, judgedOn, tryItOn });
     });
     if (problems.length)
       return toolFail("MALFORMED", "The verdicts cannot be taken as they are.", problems);
     for (const v of clean) {
-      this.recordVerdict(job.softwareId, job, v.item, v.verdict, v.evidence, v.notAvailable);
+      this.recordVerdict(job.softwareId, job, v.item, v.verdict, v.evidence, v.judgedOn, v.tryItOn);
     }
     const findings = Array.isArray(args.findings) ? args.findings : [];
     for (const f of findings) {
@@ -1889,7 +1896,8 @@ export class BuildCheckRun implements LaterStages {
     item: string,
     verdict: VerdictValue,
     evidence: string,
-    notAvailable: string | null = null,
+    judgedOn: "real" | "made-up" | null = null,
+    tryItOn: string | null = null,
   ): void {
     recordEvent(this.db, {
       softwareId,
@@ -1899,7 +1907,8 @@ export class BuildCheckRun implements LaterStages {
       detail: {
         verdict,
         evidence,
-        ...(notAvailable && { notAvailable }),
+        ...(judgedOn && { judgedOn }),
+        ...(judgedOn === "made-up" && tryItOn && { tryItOn }),
         commit: job.payload.commit ?? null,
         job: job.id,
         round: job.payload.round ?? null,
@@ -1910,7 +1919,7 @@ export class BuildCheckRun implements LaterStages {
 
   private verdictsOf(
     jobId: number,
-  ): Map<string, { verdict: VerdictValue; evidence: string; notAvailable?: string }> {
+  ): Map<string, { verdict: VerdictValue; evidence: string; judgedOn?: "real" | "made-up" }> {
     const rows = this.db
       .prepare(
         "SELECT reference, detail FROM events WHERE module = 'checker' AND kind = 'verdict' AND json_extract(detail, '$.job') = ? ORDER BY id",
@@ -1918,18 +1927,18 @@ export class BuildCheckRun implements LaterStages {
       .all(jobId) as { reference: string; detail: string }[];
     const found = new Map<
       string,
-      { verdict: VerdictValue; evidence: string; notAvailable?: string }
+      { verdict: VerdictValue; evidence: string; judgedOn?: "real" | "made-up" }
     >();
     for (const row of rows) {
       const detail = JSON.parse(row.detail) as {
         verdict: VerdictValue;
         evidence: string;
-        notAvailable?: string;
+        judgedOn?: "real" | "made-up";
       };
       found.set(row.reference, {
         verdict: detail.verdict,
         evidence: detail.evidence,
-        ...(detail.notAvailable && { notAvailable: detail.notAvailable }),
+        ...(detail.judgedOn && { judgedOn: detail.judgedOn }),
       });
     }
     return found;

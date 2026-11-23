@@ -287,7 +287,7 @@ export const scriptedJudge: ScriptBehaviour = async (request, call) => {
     );
   }
   call("verdict_submit", {
-    verdicts,
+    verdicts: verdicts.map((v) => ({ ...v, judged_on: "real" })),
     ...(runProblem && { findings: [{ text: runProblem, blocking: true }] }),
   });
 };
