@@ -6,7 +6,7 @@ import {
   PRIORITIES,
   type Priority,
 } from "../record/format.js";
-import type { AskItem, ItemAnswer } from "../shared/api-types.js";
+import type { AskItem, EarlierAnswer, ItemAnswer } from "../shared/api-types.js";
 import { SIZE_CLASSES, type SizeClass } from "../shared/stages.js";
 
 /**
@@ -40,6 +40,8 @@ export interface DraftItem {
   source?: string;
   /** For a finding: whether the page was read, only a summary was, or it was not read. */
   checked?: "read" | "summary" | "not-read";
+  /** The person's answer to it at the change's earlier question. */
+  earlier?: EarlierAnswer;
 }
 
 export class DraftError extends Error {
@@ -248,6 +250,7 @@ export function toAskItem(item: DraftItem): AskItem {
     ...(item.wait !== undefined && { wait: item.wait }),
     ...(item.refs && { refs: item.refs }),
     ...(item.follows && { follows: { label: item.follows, text: "" } }),
+    ...(item.earlier && { earlier: item.earlier }),
   };
 }
 

@@ -66,10 +66,12 @@ Intake goes in normally; only what needs holding is held ([0062](../decisions/00
 
 | Route | Which items | What happens |
 |---|---|---|
-| In normally (the default) | Bugs and wishes that fit the record | A change on the line. A bug, something the record already requires that does not work, is built, checked, run and reported straight away. A wish that changes what the software must do reopens What with one plain confirm ("This changes what it must do; confirm to change it"), then is planned and built; other new work is planned and built without reopening What ([0192](../decisions/0192-effort-in-proportion-to-what-was-asked.md)). A say-back only for a change of purpose ([0020](../decisions/0020-when-to-say-back.md)) |
+| In normally (the default) | Bugs and wishes that fit the record | A change on the line. A bug, something the record already requires that does not work, is built, checked, run and reported straight away. A wish that changes what the software must do reopens What, which is taken in without a question; other new work skips What ([0192](../decisions/0192-effort-in-proportion-to-what-was-asked.md)). Either is planned as a change, never as the software's whole plan again, and asks at most one question before it is built, only when it matters; otherwise premise says what it took and assumed and builds ([0273](../decisions/0273-a-change-is-planned-and-built-as-a-change.md), [0274](../decisions/0274-a-change-asks-at-most-one-question.md)). A say-back only for a change of purpose ([0020](../decisions/0020-when-to-say-back.md)) |
 | Asked at once | An item that touches purpose, a claimed area, or the floor | Asked in the session, under the role whose call it is |
 | Held | Only the items that need holding (5.4) | Kept for a reading |
 | Merged or closed | Duplicates, and noise | Duplicates join their item; noise is closed with its reason. Both are counted in reports |
+
+A triager that ends without a usable answer is asked once more, with the exact shape of the answer; only then does the item go in normally by premise's default, and the item and the Intake tab say plainly it was not triaged ([0277](../decisions/0277-an-agent-without-its-answer-is-asked-once-more.md)).
 
 A question asking for more detail ("more on W-7") is always in normally: the triager answers it from the record and the evidence, and nothing is built or asked ([0185](../decisions/0185-how-intake-in-a-thin-form-is-built.md)).
 

@@ -218,6 +218,31 @@ const plan: ScriptBehaviour = (_request, call) => {
   });
 };
 
+/**
+ * The scripted plan for a change from intake (decision 0273): no milestones and no decisions, one
+ * task serving the items the change adds or touches.
+ */
+export const planChange: ScriptBehaviour = (request, call) => {
+  const ref = typeof request.context?.change === "string" ? request.context.change : "the change";
+  let items = Array.isArray(request.context?.items)
+    ? request.context.items.filter((x): x is string => typeof x === "string")
+    : [];
+  if (items.length === 0) {
+    const read = call("record_read", { items: ["what.md"] });
+    const first = ((read.result as { lines?: { id: string }[] } | undefined)?.lines ?? []).find(
+      (l) => l.id.startsWith("W-"),
+    );
+    items = first ? [first.id] : [];
+  }
+  call("draft_submit", {
+    stage: "plan",
+    items: [],
+    tasks: [
+      { title: `${ref}: the change, as asked`, items, check: "It does what the change asks." },
+    ],
+  });
+};
+
 const review: ScriptBehaviour = (request, call) => {
   const decisions = Array.isArray(request.context?.decisions) ? request.context.decisions : [];
   call("review_submit", {
@@ -463,6 +488,7 @@ export function standInScript(stepSeconds: number): AgentScript {
       rule("draft", { when: { stage: "say-back" }, behave: sayBack }),
       rule("research", { behave: research }),
       rule("plan", { when: { purpose: "draft" }, behave: plan }),
+      rule("plan", { when: { purpose: "change" }, behave: planChange }),
       rule("review", { behave: review }),
       rule("size", { behave: size }),
       rule("recover", { behave: recover }),

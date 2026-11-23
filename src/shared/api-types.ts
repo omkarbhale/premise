@@ -289,6 +289,27 @@ export interface SoftwareDetail extends SoftwareSummary {
   existing?: ExistingView;
   /** Areas claimed for taste, open ones first (decision 0102). */
   claims: ClaimView[];
+  /** The change from intake being worked on now, when it is one (decisions 0273, 0274). */
+  change?: ChangeView;
+  /** When premise asks about a change before building it, for this software (decision 0274). */
+  changeQuestions: "every-change" | "when-it-matters" | "never";
+}
+
+/**
+ * A change from intake, as one compact card (decision 0274): the person's words, what premise took
+ * from them, what it assumed (not checked), and what it is doing now.
+ */
+export interface ChangeView {
+  ref: string;
+  title: string;
+  words: string;
+  understood: string[];
+  assumed: string[];
+  /** What premise is doing with it now, in one line. */
+  doing: string;
+  /** The open question or notice for it, if any. */
+  askId: number | null;
+  suggestions: { key: string; text: string; added?: string }[];
 }
 
 /** An area of a software a role claimed for its taste: premise shows a proposal before building it. */
@@ -354,6 +375,8 @@ export interface CheckView {
 /** Build, Check and Run for the milestone being worked on (docs/specs/page.md). */
 export interface BuildView {
   milestone: { id: string; text: string } | null;
+  /** Set when the work is a change from intake rather than a milestone (decision 0273). */
+  change?: { ref: string; title: string };
   /** The check round, from 1; a failed check starts the next round. */
   round: number;
   roundsAllowed: number;
@@ -418,6 +441,13 @@ export interface ScopeCut {
   sameCost?: string;
 }
 
+/** What the person answered about the same line at this change's earlier question, shown selected. */
+export interface EarlierAnswer {
+  decision: "strike" | "edit";
+  text?: string;
+  reason?: string;
+}
+
 export interface AskItem {
   /** Stable within the ask: the answer names items by this. */
   key: string;
@@ -447,6 +477,8 @@ export interface AskItem {
   tier?: ScopeTier;
   /** A lesson from an earlier correction this item follows, so the person sees they were heard. */
   follows?: { label: string; text: string };
+  /** The person's answer to this line at the change's earlier question, if any. */
+  earlier?: EarlierAnswer;
 }
 
 export interface AskView {
@@ -462,6 +494,13 @@ export interface AskView {
   items: AskItem[];
   /** For a question: premise's best attempt, which the person can take as the answer. */
   bestAttempt?: string;
+  /**
+   * A change's notice (decision 0274): premise is building already and waits on nobody; a struck
+   * line becomes a follow-up change.
+   */
+  notice?: boolean;
+  /** premise's own suggestions for a change, built only when added, one click each. */
+  suggestions?: { key: string; text: string; added?: string }[];
   /** For a question: answers to pick from, besides writing one's own. */
   choices?: string[];
   /** For the scope check: the three choices with their rough cost, and the one effort picks. */

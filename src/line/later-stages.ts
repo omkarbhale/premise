@@ -28,11 +28,29 @@ export type LaterOutcome =
   /** Nothing to do yet: more jobs of the stage are running, or a person is asked. */
   | { kind: "wait" };
 
-/** A later stage being entered for one milestone. */
+/**
+ * A change that came in through intake (decision 0273): only its own tasks are built, and the check
+ * judges the items it touches plus every must already met. The software's milestones are not
+ * planned, asked or built again.
+ */
+export interface ChangeWork {
+  /** The intake item, such as "I-1". */
+  ref: string;
+  /** The change in a few words, as the page names it. */
+  title: string;
+  /** The change's own tasks, in order. */
+  tasks: { title: string; items: string[]; check?: string }[];
+  /** Record items the change adds, changes or touches. */
+  touched: string[];
+}
+
+/** A later stage being entered for one milestone, or for one change. */
 export interface LaterEntry {
   softwareId: string;
   stage: LaterStageId;
   milestone: MilestoneRef | null;
+  /** Set when the piece is a change from intake, not a milestone of the software. */
+  change?: ChangeWork | null;
   /** The stage run the jobs belong to (stage_runs.id). */
   run: number;
   /** Why the stage is entered, in a few words ("check not passed", "plan confirmed"). */

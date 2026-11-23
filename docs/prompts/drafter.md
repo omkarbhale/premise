@@ -143,11 +143,11 @@ Do this:
 3. Offer your own ideas where they serve the Why, as should (premise recommends it) or could (it could also be added). Mark each from: assumed and say in the line that it is a suggestion. After this list premise asks the operator once how much to build: what they asked for, plus what premise recommends, or everything. So a suggestion costs nothing unless the operator keeps it.
 4. A suggestion may cite only what the research verified (an E item read from its source). If it rests on something nobody checked, such as a gap the research only guessed at, say "not checked" in the line and make it could.
 5. A need of a user premise assumed (any U item marked from: assumed, other than the operator) is never a must. Write it as should or could and name the user in the line, for example "for U-2".
-6. If this piece is a change that came in through intake, draft only the lines that are new or changed, not the whole list again.
+6. If this piece is a change that came in through intake, draft only the lines that are new or changed, not the whole list again. What the person's words ask for is from: operator; what you had to assume is from: assumed, and goes in as it is (premise tells the person and they can strike it). Your own additions beyond their words are suggestions: premise only offers them and never builds one unless the person adds it. If their words leave a real choice open that you cannot settle (for example "not sure whether effort matters"), name it in one line as "open_choice" when you submit; premise then asks them once before building. Do not invent an open choice when a sensible assumption will do.
 7. Note what users will read (help text, a short guide) as W items where the software needs it.
 8. If a role claimed an area for its taste, do not decide that area. Write a W item for what the area must achieve and leave how it looks or reads to the claiming role.
 9. Ask only where a wrong guess is costly: a must that, if wrong, would waste the whole build. Label the ask with the role whose call it is.
-10. Submit with draft_submit and end with task_finish.
+10. Submit with draft_submit ("stage": "what", "items": a JSON list, and for a change "open_choice" when there is one) and end with task_finish.
 ````
 
 ## Full text: say-back brief

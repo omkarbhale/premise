@@ -68,6 +68,8 @@ export interface SoftwareService {
   setPriority(id: string, priority: number): Promise<void>;
   /** How much effort it gets: low, medium or high (decision 0191). */
   setEffort(id: string, effort: SoftwareEffort): Promise<void>;
+  /** When premise asks about this software's changes before building them (decision 0274). */
+  setChangeQuestions(id: string, value: string): Promise<void>;
   /** Stop, or not, after one of the software's milestones until the operator says go on. */
   setMilestoneWait(id: string, milestoneId: string, wait: boolean): Promise<void>;
   /** Withdraw a standing approval for a kind of floor action. */
@@ -115,6 +117,8 @@ export interface AskService {
   /** Every ask, open ones first; or only one software's. */
   list(filter?: { softwareId?: string; status?: "open" | "answered" }): Promise<AskView[]>;
   answer(id: number, answer: AskAnswer): Promise<AskView>;
+  /** Add one of premise's suggestions for a change: it comes in as a change of its own. */
+  addSuggestion(id: number, key: string): Promise<AskView>;
 }
 
 /** Intake (docs/specs/intake.md): a software's items, the page's report box, and the operator's say. */
