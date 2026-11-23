@@ -782,8 +782,12 @@ export function refusedAnswer(
     .get(String(job.id));
   if (!known) {
     const calledTimes = calls.filter((c) => c.tool === last.tool).length;
-    const why = refused.diagnostics.find((d) => !d.startsWith("This is the same refusal")) ?? refused.message;
-    const said = why.replace(/\s+/g, " ").trim().replace(/[.\s]+$/, "");
+    const why =
+      refused.diagnostics.find((d) => !d.startsWith("This is the same refusal")) ?? refused.message;
+    const said = why
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/[.\s]+$/, "");
     db.prepare(
       `INSERT OR IGNORE INTO refused_answers (software_id, job_id, tool, role, text, topic, created)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -793,7 +797,13 @@ export function refusedAnswer(
       refused.tool,
       refused.role,
       `An agent could not hand in ${refused.tool}${said ? `: ${said.length > 300 ? `${said.slice(0, 299)}…` : said}` : ""}. The tool's shape, example or refusal may need to be clearer.`,
-      `answer-refused-${refused.tool.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "answer"}`,
+      `answer-refused-${
+        refused.tool
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "")
+          .slice(0, 60) || "answer"
+      }`,
       now(),
     );
     recordEvent(db, {

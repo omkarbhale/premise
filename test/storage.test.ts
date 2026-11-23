@@ -48,7 +48,10 @@ describe("storage", () => {
 
   it("migrates a schema-16 database without touching its corrections and lessons", () => {
     const folder = tempFolder();
-    const old = openDatabase(folder, MIGRATIONS.filter((m) => m.version <= 16));
+    const old = openDatabase(
+      folder,
+      MIGRATIONS.filter((m) => m.version <= 16),
+    );
     old.db
       .prepare("INSERT INTO softwares (id, name, created) VALUES ('s1', 'Notes', '2026-01-01')")
       .run();
@@ -68,12 +71,12 @@ describe("storage", () => {
 
     const now = openDatabase(folder);
     expect(now.schemaVersion).toBe(17);
-    expect(
-      now.db.prepare("SELECT id, kind, what FROM corrections").all(),
-    ).toEqual([{ id: 7, kind: "strike", what: "You struck it" }]);
-    expect(
-      now.db.prepare("SELECT id, correction_id, text FROM lessons").all(),
-    ).toEqual([{ id: 3, correction_id: 7, text: "A line" }]);
+    expect(now.db.prepare("SELECT id, kind, what FROM corrections").all()).toEqual([
+      { id: 7, kind: "strike", what: "You struck it" },
+    ]);
+    expect(now.db.prepare("SELECT id, correction_id, text FROM lessons").all()).toEqual([
+      { id: 3, correction_id: 7, text: "A line" },
+    ]);
     expect(now.db.prepare("SELECT COUNT(*) AS n FROM refused_answers").get()).toEqual({ n: 0 });
     now.db.close();
   });

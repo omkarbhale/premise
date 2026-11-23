@@ -32,10 +32,7 @@ export interface CorrectionFacts {
 export const TASTE_CORRECTION = "You corrected the proposal for";
 
 /** Kinds no agent needs to read: what they teach is plain from the facts. */
-export const RULE_ONLY: readonly CorrectionKind[] = [
-  "undo-split",
-  "bug-after-met",
-];
+export const RULE_ONLY: readonly CorrectionKind[] = ["undo-split", "bug-after-met"];
 
 export function cut(text: string, max: number): string {
   const one = text.replace(/\s+/g, " ").trim();

@@ -939,9 +939,7 @@ export class Learning implements LessonSource {
     }
     return [...groups.entries()]
       .map(([topic, rows]) => {
-        const views = rows.map((r) =>
-          "job_id" in r ? this.refusedView(r) : this.lessonView(r),
-        );
+        const views = rows.map((r) => ("job_id" in r ? this.refusedView(r) : this.lessonView(r)));
         return {
           topic,
           text: rows[rows.length - 1]!.text,
