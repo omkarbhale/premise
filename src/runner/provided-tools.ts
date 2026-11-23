@@ -5,7 +5,7 @@ import type { Database } from "../storage/database.js";
 
 /**
  * Programs the person provided for a software, listed once and used by both the runner and the
- * agents (decision 0310). Two sources:
+ * agents (decision 0311). Two sources:
  *
  * - `runner.extra_tool_paths` in the settings: exact program files or folders, for every software;
  * - the path premise found when the person answered a "needed" tool question with "I installed

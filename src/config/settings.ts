@@ -848,7 +848,7 @@ export const SETTINGS: readonly Setting[] = [
     ),
     meaning:
       "The host name premise looks up inside its sandbox before a build step that uses the network. If it cannot be found there, the start stops at once and says so, instead of every build step failing after the time limit. Leave it empty to skip the check.",
-    record: "0310",
+    record: "0311",
   },
   {
     key: "runner.max_running_softwares",
@@ -910,7 +910,7 @@ export const SETTINGS: readonly Setting[] = [
     check: summarised(textList, "a list of absolute paths of program files or folders"),
     meaning:
       "Programs you installed for premise's software to use, such as Godot in your home folder: exact program files or folders. Running software and its build steps may read them (never the rest of your home folder) and find them on their PATH, and agents find them on theirs. A program you tell premise you installed is remembered for that software without being listed here.",
-    record: "0310",
+    record: "0311",
   },
   {
     key: "reports.max_lines",

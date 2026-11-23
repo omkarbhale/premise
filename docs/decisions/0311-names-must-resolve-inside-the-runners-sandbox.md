@@ -1,4 +1,4 @@
-# 0310. Names must resolve inside the runner's sandbox, and provided programs are visible
+# 0311. Names must resolve inside the runner's sandbox, and provided programs are visible
 
 - Status: Accepted; points 4 and 7 are chosen for the owner, open to the owner's correction
 - Scope: Making premise

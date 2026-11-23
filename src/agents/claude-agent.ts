@@ -72,7 +72,7 @@ export interface ClaudeAgentRunnerOptions {
    * restarting premise.
    */
   extraHosts?: (softwareId: string) => string[];
-  /** Programs the person provided for one software; put on the session's PATH (decision 0310). */
+  /** Programs the person provided for one software; put on the session's PATH (decision 0311). */
   extraToolPaths?: (softwareId: string) => string[];
 }
 

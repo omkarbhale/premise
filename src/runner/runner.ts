@@ -570,7 +570,7 @@ export class Runner {
     return [...base, ...this.providedTools(softwareId)];
   }
 
-  /** Programs the person provided for this software, bound read only (decision 0310). */
+  /** Programs the person provided for this software, bound read only (decision 0311). */
   private providedTools(softwareId?: string): string[] {
     if (softwareId === undefined) return [];
     return providedToolPaths(this.deps.db, this.deps.config, softwareId);
