@@ -837,6 +837,20 @@ export const SETTINGS: readonly Setting[] = [
     record: "0280",
   },
   {
+    key: "runner.name_check_host",
+    default: "registry.npmjs.org",
+    check: summarised(
+      (value) =>
+        typeof value === "string" && /^([A-Za-z0-9.-]{1,253})?$/.test(value)
+          ? null
+          : `must be a host name such as registry.npmjs.org, or empty; it is ${JSON.stringify(value)}`,
+      "a host name, or empty",
+    ),
+    meaning:
+      "The host name premise looks up inside its sandbox before a build step that uses the network. If it cannot be found there, the start stops at once and says so, instead of every build step failing after the time limit. Leave it empty to skip the check.",
+    record: "0310",
+  },
+  {
     key: "runner.max_running_softwares",
     default: 5,
     check: summarised(wholeNumber(1, 50), "1 to 50"),
@@ -1074,6 +1088,7 @@ export interface PremiseConfig {
     start_timeout_seconds: number;
     build_timeout_seconds: number;
     build_network: boolean;
+    name_check_host: string;
     max_running_softwares: number;
     min_free_memory_mb: number;
     sample_timeout_seconds: number;

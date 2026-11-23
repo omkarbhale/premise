@@ -225,7 +225,7 @@ export interface DemoResult {
   usage: SoftwareUsageView;
 }
 
-function bubblewrapWorks(): boolean {
+export function bubblewrapWorks(): boolean {
   try {
     execFileSync("bwrap", ["--ro-bind", "/", "/", "true"], { stdio: "ignore", timeout: 5000 });
     return true;

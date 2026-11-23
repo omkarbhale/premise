@@ -17,7 +17,7 @@ import { Git } from "../git/git.js";
 import type { Job } from "../queue/work-queue.js";
 import type { RunState, RunView } from "../shared/api-types.js";
 import { type Database, now, recordEvent } from "../storage/database.js";
-import { confine } from "./confinement.js";
+import { confine, finalLinkTarget } from "./confinement.js";
 import { secretsFile } from "./secrets.js";
 import { type RunInstructions, parseRunInstructions } from "./run-instructions.js";
 
@@ -40,7 +40,7 @@ export function nodePrefix(execPath = process.execPath, home = homedir()): strin
 
 export class RunnerError extends Error {
   constructor(
-    readonly code: "RUN_FAILED" | "NOTHING_BUILT",
+    readonly code: "RUN_FAILED" | "NOTHING_BUILT" | "MACHINE_FAULT",
     message: string,
   ) {
     super(message);
@@ -631,6 +631,9 @@ export class Runner {
     const limit = config.runner.build_timeout_seconds;
     const deadline = Date.now() + limit * 1000;
     live.phase = "building";
+    if (live.instructions.build.length > 0 && config.runner.build_network) {
+      await this.checkNamesResolve(live);
+    }
     for (const step of live.instructions.build) {
       if (live.stopping || this.closed) return;
       this.takeOutput(live, `$ ${step}\n`);
@@ -679,6 +682,44 @@ export class Runner {
         );
       }
     }
+  }
+
+  /**
+   * Before the build steps, once: a host name must resolve inside the sandbox. If not, the start
+   * stops at once with the cause, as a machine fault: it is not the builder's to fix and is not
+   * sent back to Build. Skipped without the sandbox, without a host to try, or where the sandbox
+   * has no `getent` to ask with.
+   */
+  private async checkNamesResolve(live: Live): Promise<void> {
+    const { config } = this.deps;
+    const host = config.runner.name_check_host;
+    if (config.runner.confinement !== "bubblewrap" || host === "") return;
+    const code = await new Promise<number | null>((resolve) => {
+      const child = this.spawnConfined(live, `getent hosts ${host}`, true);
+      live.child = child;
+      const timer = setTimeout(() => {
+        this.killTree(live, "SIGKILL");
+        resolve(null);
+      }, 15_000);
+      child.once("error", () => {
+        clearTimeout(timer);
+        resolve(127);
+      });
+      child.once("exit", (exit) => {
+        clearTimeout(timer);
+        resolve(exit);
+      });
+    });
+    live.child = null;
+    if (live.stopping || this.closed || code === 0 || code === 127 || code === null) return;
+    const target = finalLinkTarget("/etc/resolv.conf");
+    const cause = target
+      ? `/etc/resolv.conf points to ${target}, which is not visible`
+      : `the host name ${host} did not resolve`;
+    throw new RunnerError(
+      "MACHINE_FAULT",
+      `Names cannot be looked up inside premise's sandbox on this machine: ${cause}. This is a fault of the machine, not of the software, so premise stopped before the build steps instead of letting each one fail. Check that this machine can look up names (try \`getent hosts ${host}\`), or set runner.build_network to false if the build needs no network.`,
+    );
   }
 
   // ---- Command-line software ----------------------------------------------------------------
