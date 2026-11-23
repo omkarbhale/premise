@@ -319,6 +319,62 @@ describe("the other views", () => {
     expect(sendBack).toHaveBeenCalledWith("s1", "why");
   });
 
+  it("shows the work built at the same time, what each touches and why one waits, and sets how many", async () => {
+    const user = userEvent.setup();
+    const setPiecesInFlight = vi.fn(() => Promise.resolve(software()));
+    inSession(
+      <Line
+        software={software({
+          stage: "intake",
+          inFlight: [
+            {
+              itemId: 4,
+              name: "I-1 (the shield breaks)",
+              state: "building",
+              stage: "check",
+              touches: ["src/combat/"],
+              foundation: false,
+              reason: "Nothing else of this software is being built, so it starts now.",
+              waitsFor: [],
+              since: "2026-11-24T10:00:00Z",
+            },
+            {
+              itemId: 5,
+              name: "I-2 (the armour is too heavy)",
+              state: "waiting",
+              stage: null,
+              touches: ["src/combat/armour.ts"],
+              foundation: false,
+              reason: "Waits for I-1 (the shield breaks): both change src/combat/.",
+              waitsFor: ["I-1 (the shield breaks)"],
+              since: "2026-11-24T10:01:00Z",
+            },
+          ],
+        })}
+      />,
+      fakeApi({ setPiecesInFlight }),
+    );
+    const card = screen.getByRole("region", { name: "Built at the same time" });
+    expect(within(card).getByText("Being checked")).toBeTruthy();
+    expect(within(card).getByText("Waiting")).toBeTruthy();
+    expect(within(card).getByText("Touches: src/combat/armour.ts")).toBeTruthy();
+    expect(
+      within(card).getByText("Waits for I-1 (the shield breaks): both change src/combat/."),
+    ).toBeTruthy();
+    await user.selectOptions(
+      screen.getByRole("combobox", {
+        name: /How many pieces of work premise may build at once/,
+      }),
+      "1",
+    );
+    expect(setPiecesInFlight).toHaveBeenCalledWith("s1", 1);
+  });
+
+  it("shows no such card when nothing is built alongside", () => {
+    inSession(<Line software={software()} />, fakeApi());
+    expect(screen.queryByRole("region", { name: "Built at the same time" })).toBeNull();
+  });
+
   it("shows what is being built and checked, with each verdict's evidence and what waits on you", async () => {
     const user = userEvent.setup();
     const stages = software().stages.map((st, i) => ({

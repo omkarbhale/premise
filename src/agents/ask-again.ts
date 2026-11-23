@@ -13,7 +13,7 @@ export const ANSWER_SHAPES: Record<string, string> = {
   triage_submit:
     'triage_submit with: "kind" (bug, wish, change-of-purpose, question, opinion, duplicate or noise), "touches" (a JSON list, not text: [{"id": "W-2", "reason": "why"}], or []), "size" (small, medium or large), "touches_floor" ("yes" or "no"), "changes_what" ("yes" or "no"), "route" (in-normally, asked-at-once, held or merged-or-closed), "reason" (one line); "joins" ("I-3") for a duplicate; "answer" for a question.',
   sizing_submit:
-    'sizing_submit with: "size" (small, medium or large), "size_reason", "stages" (a JSON list of stage names, not text), "stages_reason", "split" (a JSON list of {"title", "words"}, or [] to keep it whole), "split_reason".',
+    'sizing_submit with: "size" (small, medium or large), "size_reason", "stages" (a JSON list of stage names, not text), "stages_reason", "split" (a JSON list of {"title", "words", "touches"}, or [] to keep it whole), "split_reason", "touches" (a JSON list of the folders, files, modules or record item IDs it changes) and "changes_foundation" (true or false).',
   draft_submit:
     'draft_submit with: "stage" (the stage named in your brief) and "items" (a JSON list, not text, of {"text": "...", "from": "operator" or "assumed"}), plus what your brief asks for that stage.',
   plan_submit:

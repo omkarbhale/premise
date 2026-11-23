@@ -529,7 +529,7 @@ export const SETTINGS: readonly Setting[] = [
     default: true,
     check: summarised(yesNo, "true or false"),
     meaning:
-      "Whether the sizer may split a piece of work into parts that go through the line one after another. Only parts that are completely separate, or a part that is very long, are split. false keeps every piece whole.",
+      "Whether the sizer may split a piece of work into parts that each go through the line on their own (built at the same time where they do not overlap, see line.pieces_in_flight). Only parts that are completely separate, or a part that is very long, are split. false keeps every piece whole.",
     record: "0170",
   },
   {
@@ -598,6 +598,14 @@ export const SETTINGS: readonly Setting[] = [
     meaning:
       "The most tasks the planner may give one change. A change is planned as a change, never as the software's whole plan again; a larger change is split by the sizer into steps of the change.",
     record: "0273",
+  },
+  {
+    key: "line.pieces_in_flight",
+    default: 2,
+    check: summarised(wholeNumber(1, 10), "1 to 10"),
+    meaning:
+      "How many pieces of work on one software may be built at the same time, each on its own branch, when what they touch does not overlap. Every piece still goes through its own check and lands in turn; a piece that lands after another is checked again on the new version first. 1 builds one piece after another. Each software can choose its own number on its Line tab. queue.max_agent_sessions still limits the agents running in total.",
+    record: "0313",
   },
   {
     key: "line.estimate_minutes_per_session",
@@ -1061,6 +1069,7 @@ export interface PremiseConfig {
     wait_after_asked: boolean;
     change_questions: "every-change" | "when-it-matters" | "never" | null;
     change_max_tasks: number;
+    pieces_in_flight: number;
     estimate_minutes_per_session: number;
     estimate_items_per_build: number;
     budgets: Record<BudgetGroup, Record<"small" | "medium" | "large", StageBudget>>;

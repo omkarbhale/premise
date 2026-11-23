@@ -14,6 +14,7 @@ import { WorkItems } from "./WorkItems";
 import { BuildPanel } from "./BuildPanel";
 import { Claims } from "./Claims";
 import { RunPanel } from "./RunPanel";
+import { InFlight, PiecesInFlightSetting } from "./InFlight";
 
 /** The three phases with their steps, where the software is, and the controls that move it. */
 export function Line({ software }: { software: SoftwareDetail }) {
@@ -54,6 +55,7 @@ export function Line({ software }: { software: SoftwareDetail }) {
         </strong>
       </p>
       {software.change && <ChangeCard change={software.change} />}
+      <InFlight software={software} />
       <ol className="phases">
         {PHASES.map((phase, n) => {
           const steps = software.stages.filter((st) =>
@@ -280,6 +282,12 @@ export function Line({ software }: { software: SoftwareDetail }) {
           strike any line while it builds.
         </p>
       </section>
+
+      <PiecesInFlightSetting
+        software={software}
+        busy={busy}
+        onChange={(value) => void act(() => api.setPiecesInFlight(software.id, value))}
+      />
 
       <section className="card">
         <h2>Priority</h2>

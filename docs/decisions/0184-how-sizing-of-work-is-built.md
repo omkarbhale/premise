@@ -1,6 +1,6 @@
 # 0184. How sizing of work is built: a sizer per piece, parts one after another, a check of the whole
 
-- Status: Accepted
+- Status: Partly superseded by [0313](0313-several-pieces-of-one-software-at-once.md): point 6, pieces built one at a time
 - Scope: Making premise
 - Date: 2026-11-21
 - Decided by: The builders, while building sizing of work. Points 13 and 14 are chosen for the owner, open to correction. The owner did not make these choices.

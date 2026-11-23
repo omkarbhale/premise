@@ -7,6 +7,7 @@ import {
   type StageId,
   stageName,
 } from "../shared/stages.js";
+import { cleanTouches } from "./parallel.js";
 import type { SizingProposal, SplitPart, WorkItem } from "./work-items.js";
 
 /**
@@ -263,9 +264,25 @@ export function readSizing(
         problems.push(`Part ${i + 1}'s title is over ${MAX_TITLE} characters.`);
       if (words.length > MAX_WORDS)
         problems.push(`Part ${i + 1}'s words are over ${MAX_WORDS} characters.`);
-      split.push({ title: title.slice(0, MAX_TITLE), words: words.slice(0, MAX_WORDS) });
+      const touches = Array.isArray(p.touches) ? cleanTouches(p.touches) : [];
+      split.push({
+        title: title.slice(0, MAX_TITLE),
+        words: words.slice(0, MAX_WORDS),
+        ...(touches.length > 0 && { touches }),
+      });
     });
   }
+  // What it touches is optional: without it, premise builds the piece one after another (0313).
+  if (args.touches !== undefined && args.touches !== null && !Array.isArray(args.touches)) {
+    problems.push(
+      'Give "touches" as a list of the folders, files, modules or record item IDs it changes, or an empty list when you cannot tell.',
+    );
+  }
+  const touches = Array.isArray(args.touches) ? cleanTouches(args.touches) : [];
+  const foundation =
+    args.changes_foundation === true ||
+    (typeof args.changes_foundation === "string" &&
+      /^(yes|true)$/i.test(args.changes_foundation.trim()));
   if (problems.length > 0) return { problems };
   const settled = settleStages(piece, wanted);
   return {
@@ -276,6 +293,8 @@ export function readSizing(
       stagesReason,
       split,
       splitReason,
+      touches,
+      foundation,
       notes: settled.notes,
     },
   };

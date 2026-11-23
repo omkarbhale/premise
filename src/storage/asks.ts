@@ -1,3 +1,4 @@
+import { currentLane } from "../shared/lane-context.js";
 import type { AskAnswer, AskItem, AskKind } from "../shared/api-types.js";
 import { type Database, now, recordEvent } from "./database.js";
 
@@ -101,6 +102,12 @@ export interface NewAsk {
 }
 
 export function createAsk(db: Database, input: NewAsk): Ask {
+  // An ask made for a piece of work in flight names it, so its answer moves that piece (0313).
+  const lane = currentLane(input.softwareId);
+  const extra =
+    lane && input.extra?.meta?.lane === undefined
+      ? { ...input.extra, meta: { ...input.extra?.meta, lane: lane.item } }
+      : (input.extra ?? {});
   const result = db
     .prepare(
       `INSERT INTO asks (software_id, role, kind, stage, title, instruction, items, extra, waiting_job, blocking, asked)
@@ -114,7 +121,7 @@ export function createAsk(db: Database, input: NewAsk): Ask {
       input.title,
       input.instruction,
       JSON.stringify(input.items ?? []),
-      JSON.stringify(input.extra ?? {}),
+      JSON.stringify(extra),
       input.waitingJob ?? null,
       (input.blocking ?? (input.waitingJob != null || input.kind !== "approval")) ? 1 : 0,
       now(),

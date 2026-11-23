@@ -1,3 +1,4 @@
+import { currentLane } from "../shared/lane-context.js";
 import { STAGE_IDS, type StageId } from "../shared/stages.js";
 import { type Database, now, recordEvent } from "../storage/database.js";
 
@@ -7,8 +8,9 @@ import { type Database, now, recordEvent } from "../storage/database.js";
  * sizer splits gets one child item per part. Each item goes through only the stages its sizing
  * picked, at its own size.
  *
- * One item of a software is worked on at a time (the line's active item); the software's row
- * mirrors the active item's stage, which the work queue and the page read.
+ * One item of a software is in front (the line's active item); the software's row mirrors its
+ * stage, which the work queue and the page read. Pieces that reached Build may go on beside it, each
+ * in its own lane (decision 0313); inside a lane, that piece is the active item.
  */
 
 export type WorkItemKind = "software" | "milestone" | "module" | "intake";
@@ -42,12 +44,20 @@ export interface Sizing {
   size: { by: SizedBy; reason: string };
   stages: { by: SizedBy; reason: string };
   split: { decision: "split" | "whole"; by: SizedBy; reason: string };
+  /**
+   * The parts of the software it will touch, and whether it changes a foundation decision, so
+   * premise can decide whether it may be built beside other work (decision 0313). Absent in older
+   * sizings, and empty when the sizer did not say: then it goes one after another.
+   */
+  touches?: { parts: string[]; foundation: boolean; by: SizedBy };
 }
 
 /** A part the sizer split a piece into. */
 export interface SplitPart {
   title: string;
   words: string;
+  /** The parts of the software this part touches, when the sizer said (decision 0313). */
+  touches?: string[];
 }
 
 /** What the sizer submitted, kept until its job ends and the line applies it. */
@@ -58,6 +68,10 @@ export interface SizingProposal {
   stagesReason: string;
   split: SplitPart[];
   splitReason: string;
+  /** The parts of the software it touches; empty when the sizer did not say (decision 0313). */
+  touches?: string[];
+  /** It changes a foundation decision, or what the software is for. */
+  foundation?: boolean;
   /** Notes premise added while checking it, such as a stage it had to add. */
   notes: string[];
 }
@@ -251,6 +265,9 @@ export function rootItem(db: Database, softwareId: string): WorkItem {
  * (decision 0270).
  */
 export function activeWorkItem(db: Database, softwareId: string): WorkItem {
+  const lane = currentLane(softwareId);
+  const own = lane ? getWorkItem(db, lane.item) : undefined;
+  if (own && own.softwareId === softwareId) return own;
   const root = rootItem(db, softwareId);
   const id = itemState<{ item?: number }>(db, root.id).item;
   const item = id === undefined ? undefined : getWorkItem(db, id);

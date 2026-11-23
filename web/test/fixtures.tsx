@@ -97,6 +97,8 @@ export function software(change: Partial<SoftwareDetail> = {}): SoftwareDetail {
     created: "2026-11-21T10:00:00Z",
     idea: "A reading list",
     build: null,
+    inFlight: [],
+    piecesInFlight: { value: 2, chosen: false, default: 2 },
     stages: STAGES.map((s, i) => ({
       ...s,
       position: i < 3 ? "done" : i === 3 ? "current" : "ahead",
@@ -281,6 +283,7 @@ export function fakeApi(change: Partial<Api> = {}): Api {
     setPriority: vi.fn(fail),
     setEffort: vi.fn(fail),
     setChangeQuestions: vi.fn(fail),
+    setPiecesInFlight: vi.fn(fail),
     pause: vi.fn(fail),
     resume: vi.fn(fail),
     archive: vi.fn(fail),

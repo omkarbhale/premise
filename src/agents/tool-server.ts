@@ -357,7 +357,7 @@ const TOOLS: ToolDefinition[] = [
   {
     name: "sizing_submit",
     description:
-      'Submit how big one piece of work is, which stages of the line it needs, and whether it splits, each with its reason. "split" is a list of parts, or empty to keep the piece whole.',
+      'Submit how big one piece of work is, which stages of the line it needs, and whether it splits, each with its reason. "split" is a list of parts, or empty to keep the piece whole. "touches" names the parts of the software it will change (folders, files, modules, record item IDs), and "changes_foundation" says whether it changes a foundation decision; premise builds two pieces at once only when what they touch does not overlap.',
     notBuilt: "the line engine",
     example: {
       size: "small",
@@ -367,6 +367,8 @@ const TOOLS: ToolDefinition[] = [
         "Who and What exists add nothing: one user, and the idea names what it replaces.",
       split: [],
       split_reason: "One small piece; splitting it would only add steps.",
+      touches: ["src/books/", "W-2"],
+      changes_foundation: false,
     },
   },
   {

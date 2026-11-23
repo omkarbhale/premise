@@ -2,7 +2,7 @@ import type { AgentRunner } from "../agents/agent-runner.js";
 import { ScriptedAgentRunner } from "../agents/scripted-agent.js";
 import { BuildCheckRun } from "../build/build-check-run.js";
 import type { LaterStages } from "../line/later-stages.js";
-import type { AgentToolServer } from "../agents/tool-server.js";
+import type { AgentToolServer, ToolBinding, ToolHandler } from "../agents/tool-server.js";
 import type { PremiseConfig } from "../config/settings.js";
 import { Gate } from "../gate/gate.js";
 import type { GitHubCli } from "../git/github.js";
@@ -219,24 +219,32 @@ export function createSession(options: {
   const engine = line;
   taker.useLine(engine);
   if (tools) {
+    // Each tool call is served in the lane of the piece its job serves (decision 0313).
+    const handlers: Record<string, ToolHandler> = {
+      draft_submit: (b, a) => engine.draftSubmit(b, a),
+      record_read: (b, a) => engine.recordRead(b, a),
+      record_propose: (b, a) => engine.recordPropose(b, a),
+      ask: (b, a) => engine.askPerson(b, a),
+      gate_request: (b, a) => engine.gateRequest(b, a),
+      review_submit: (b, a) => engine.reviewSubmit(b, a),
+      sizing_submit: (b, a) => engine.sizingSubmit(b, a),
+      proposal_submit: (b, a) => engine.proposalSubmit(b, a),
+      recovery_submit: (b, a) => engine.recoverySubmit(b, a),
+      triage_submit: (b, a) => taker.triageSubmit(b, a),
+      lesson_submit: (b, a) => learner.lessonSubmit(b, a),
+      reading_submit: (b, a) => taker.readingSubmit(b, a),
+      scenario_write: (b, a) => build.scenarioWrite(b, a),
+      verdict_submit: (b, a) => build.verdictSubmit(b, a),
+    };
     tools.setHandlers({
-      tools: {
-        draft_submit: (b, a) => engine.draftSubmit(b, a),
-        record_read: (b, a) => engine.recordRead(b, a),
-        record_propose: (b, a) => engine.recordPropose(b, a),
-        ask: (b, a) => engine.askPerson(b, a),
-        gate_request: (b, a) => engine.gateRequest(b, a),
-        review_submit: (b, a) => engine.reviewSubmit(b, a),
-        sizing_submit: (b, a) => engine.sizingSubmit(b, a),
-        proposal_submit: (b, a) => engine.proposalSubmit(b, a),
-        recovery_submit: (b, a) => engine.recoverySubmit(b, a),
-        triage_submit: (b, a) => taker.triageSubmit(b, a),
-        lesson_submit: (b, a) => learner.lessonSubmit(b, a),
-        reading_submit: (b, a) => taker.readingSubmit(b, a),
-        scenario_write: (b, a) => build.scenarioWrite(b, a),
-        verdict_submit: (b, a) => build.verdictSubmit(b, a),
-      },
-      onFinish: (b, account) => engine.taskFinished(b, account),
+      tools: Object.fromEntries(
+        Object.entries(handlers).map(([name, handle]) => [
+          name,
+          (b: ToolBinding, a: Record<string, unknown>) =>
+            engine.inJobLane(b.jobId, () => handle(b, a)),
+        ]),
+      ),
+      onFinish: (b, account) => engine.inJobLane(b.jobId, () => engine.taskFinished(b, account)),
     });
     if (runner instanceof ScriptedAgentRunner) runner.useTools(tools);
   }
@@ -287,6 +295,7 @@ export function createSession(options: {
       setPriority: (id, priority) => engine.setPriority(id, priority),
       setEffort: (id, effort) => engine.setEffort(id, effort),
       setChangeQuestions: (id, value) => engine.setChangeQuestions(id, value),
+      setPiecesInFlight: (id, value) => engine.setPiecesInFlight(id, value),
       setMilestoneWait: (id, milestone, wait) => engine.setMilestoneWait(id, milestone, wait),
       withdrawApproval: (id) => engine.withdrawApproval(id),
       claim: (id, input) => engine.claimArea(id, input),

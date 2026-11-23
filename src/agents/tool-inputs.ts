@@ -463,6 +463,10 @@ export const TOOL_INPUTS: Record<string, ObjectShape> = {
                 title: text("A few words."),
                 words: text("What the part is."),
                 description: text('Another name for "words".'),
+                touches: list(
+                  text("A folder, file, module or record item ID."),
+                  "The parts of the software this part touches.",
+                ),
               },
               ["title"],
             ),
@@ -472,6 +476,13 @@ export const TOOL_INPUTS: Record<string, ObjectShape> = {
         "The parts, or an empty list to keep the piece whole.",
       ),
       split_reason: text("Why it is split, or why it stays whole."),
+      touches: list(
+        text('A folder, file, module or record item ID, such as "src/combat/" or "W-4".'),
+        "The parts of the software it will change; an empty list when you cannot tell.",
+      ),
+      changes_foundation: yesNo(
+        "Whether it changes a foundation decision, or what the software is for.",
+      ),
     },
     ["size", "size_reason", "stages", "stages_reason", "split_reason"],
   ),

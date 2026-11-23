@@ -55,6 +55,13 @@ export interface LaterEntry {
   run: number;
   /** Why the stage is entered, in a few words ("check not passed", "plan confirmed"). */
   why: string;
+  /**
+   * Run for a part built in flight (decision 0313): land it into the software, do not start it.
+   * Its piece starts once every part has landed and the whole is checked.
+   */
+  landOnly?: boolean;
+  /** Run for a piece whose parts each landed in flight: nothing more to land, only start it. */
+  startOnly?: boolean;
 }
 
 export interface LaterStages {
@@ -81,6 +88,8 @@ export interface LaterStages {
   view?(softwareId: string): BuildView | null;
   /** The software was sent back before these stages: forget the work in progress. */
   reset?(softwareId: string): void;
+  /** A piece in flight was stopped: forget its own work in progress (decision 0313). */
+  forgetPiece?(softwareId: string, itemId: number): void;
   /**
    * A claim on an area was released: work that waited on its proposal goes on. Null when nothing
    * of these stages waited on it.

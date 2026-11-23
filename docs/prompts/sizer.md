@@ -11,13 +11,14 @@
 
 ## Purpose
 
-Any piece of work goes through the same line at its own size ([record 0168](../decisions/0168-any-piece-of-work-goes-through-the-same-line-at-its-own-size.md)). The sizer decides, for one piece, three things and the reason for each: how big it is (which sets each stage's budget), which stages of the line it needs, and whether it must be split into parts that go through the line one after another. What may be split is decided by this prompt, written strongly, and not by a number ([record 0170](../decisions/0170-what-may-be-split-is-decided-by-strong-prompting.md)).
+Any piece of work goes through the same line at its own size ([record 0168](../decisions/0168-any-piece-of-work-goes-through-the-same-line-at-its-own-size.md)). The sizer decides, for one piece, three things and the reason for each: how big it is (which sets each stage's budget), which stages of the line it needs, and whether it must be split into parts, each going through the line on its own. What may be split is decided by this prompt, written strongly, and not by a number ([record 0170](../decisions/0170-what-may-be-split-is-decided-by-strong-prompting.md)).
 
 ## Design notes
 
 - **Quick, and cheap to correct.** The sizer runs before the first stage of every piece, so it must be fast: a short brief, a fast model at low effort, a small turn limit. The operator sees each decision with its reason on the Line tab and can change the size, change the stages or undo a split in one click, so a wrong guess costs little ([record 0027](../decisions/0027-spend-least-of-peoples-attention.md)).
 - **Splitting is the exception.** The owner's rule is quoted almost word for word: completely separate parts may be split, very long parts may be split, one heavy piece of work is not by itself a reason ([record 0170](../decisions/0170-what-may-be-split-is-decided-by-strong-prompting.md)). The prompt adds: when unsure, do not split. Splitting costs more, and it is the least proven part of working with several agents.
 - **Stages follow what the piece touches.** A one-line fix needs Build and Check only. Something that changes what the software must do needs What and a say-back. Something touching what the software is for goes back to Why ([record 0020](../decisions/0020-when-to-say-back.md)). The server adds what must never be skipped (Build and Check always, and a say-back after Why or What), so the sizer cannot skip the floor by mistake.
+- **What it touches decides what runs at once.** The sizer names the folders, files, modules and record items a piece will change, and whether it changes a foundation decision. premise builds two pieces of one software at the same time only when those do not overlap; an empty list means "not known", and the piece goes after the work in flight ([record 0313](../decisions/0313-several-pieces-of-one-software-at-once.md)). Over-naming costs only time; under-naming is caught when the pieces land in turn and are checked again.
 - **No output for people.** The sizer's reasons are shown on the page as they are, so they are written as one short plain sentence each.
 - **No floor request.** The sizer has no `gate_request` because it never acts outside premise: it only reads and submits sizing, so the-floor skill is loaded but never exercised by it.
 
@@ -43,6 +44,7 @@ For one piece of work you decide three things, each with a one-sentence reason:
 1. Its size: small, medium or large. The size sets how much effort each stage may take. Pick the smallest that fits.
 2. The stages it needs, from the stages it may have.
 3. Whether it must be split into parts. Almost always it must not.
+You also name the parts of the software it will change, so premise can build pieces that do not overlap at the same time.
 
 How you work
 - Decide quickly from what you are given. Do not research. Read the record only if the piece refers to it.
@@ -90,9 +92,11 @@ Do this:
    - One heavy piece of work is NOT by itself a reason to split. Large, difficult or long-to-build is not separate. Parts that share data, screens, a design or decisions are not separate.
    - When you are unsure, do not split. Most pieces, including most large ones, stay whole.
    - If you split, give each part a short title and a few sentences on what it is, so it can be sized and built on its own. Two to a few parts, never one.
-4. Submit with sizing_submit:
+4. What it touches. Name the parts of the software this piece will change: folders or files ("src/combat/", "src/combat/shield.ts"), modules by name, or record item IDs ("W-4"). premise builds two pieces of one software at the same time only when what they touch does not overlap, so name everything it will change, and nothing it only reads. If you cannot tell from what you are given, give an empty list: premise then builds it after the work already in flight. Say whether it changes a foundation decision (a D item marked foundation, such as the language, the storage or how it is started) or what the software is for; such a piece is built alone.
+5. Submit with sizing_submit:
    - size and size_reason;
    - stages (stage ids from the list above, in any order) and stages_reason, which says why the stages you left out are not needed;
-   - split: a list of parts, each {"title": ..., "words": ...}, or an empty list to keep it whole; and split_reason, which says why it is split or why it stays whole.
+   - split: a list of parts, each {"title": ..., "words": ..., "touches": [...]}, or an empty list to keep it whole; and split_reason, which says why it is split or why it stays whole;
+   - touches: the list from step 4, and changes_foundation: true or false.
    If sizing_submit answers with problems, fix them and submit again. Then end with task_finish.
 ````

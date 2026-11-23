@@ -43,7 +43,8 @@ import { addChatMessage } from "../storage/chat.js";
 import { type Database, now, recordEvent } from "../storage/database.js";
 import { RecordWriter, droppedLine } from "../line/record-writer.js";
 import { answerWords } from "../line/answers.js";
-import { activeWorkItem } from "../line/work-items.js";
+import { activeWorkItem, getWorkItem } from "../line/work-items.js";
+import { currentLane, inLane } from "../shared/lane-context.js";
 import { ASSUMED_DECISION } from "../line/draft-items.js";
 import { type Taste, roleWords } from "../taste/taste.js";
 
@@ -134,6 +135,15 @@ interface BuildState {
   startSendBacks?: number;
   /** The change from intake being built, instead of a milestone (decision 0273). */
   change?: ChangeWork | null;
+  /**
+   * Work landed while this was built (decision 0313): the new version was brought in, and the
+   * result is checked again before it lands. Absent in older notes.
+   */
+  recheck?: boolean;
+  /** Bringing the new version in conflicted: the files, and the version it conflicted with. */
+  conflict?: { files: string[]; main: string; pending: boolean } | null;
+  /** Times a conflict went back to the builder. */
+  conflictRounds?: number;
 }
 
 /** One claimed area's proposal, as Build waits on it. */
@@ -197,7 +207,13 @@ const START_PROBLEM = [
   "Leave it not running",
 ] as const;
 
+const CONFLICT_STOPPED = [
+  "Have the builder try again",
+  "Build it again on the new version",
+] as const;
+
 const PURPOSES = [
+  "build-conflict",
   "build-task-stopped",
   "build-check-stopped",
   "build-check-problem",
@@ -249,19 +265,51 @@ export class BuildCheckRun implements LaterStages {
 
   // ---- State ----------------------------------------------------------------------------------
 
+  /**
+   * Where the notes of the work in progress are kept: per software, and per piece of work built in
+   * flight beside the piece in front (decision 0313).
+   */
+  private key(softwareId: string): string {
+    const lane = currentLane(softwareId);
+    return lane ? `${KEY(softwareId)}:piece:${lane.item}` : KEY(softwareId);
+  }
+
   private load(softwareId: string): BuildState | null {
-    const row = this.db.prepare("SELECT value FROM settings WHERE key = ?").get(KEY(softwareId)) as
+    return this.loadKey(this.key(softwareId));
+  }
+
+  private loadKey(key: string): BuildState | null {
+    const row = this.db.prepare("SELECT value FROM settings WHERE key = ?").get(key) as
       { value: string } | undefined;
     return row ? (JSON.parse(row.value) as BuildState) : null;
   }
 
   private save(softwareId: string, state: BuildState): void {
+    this.saveKey(this.key(softwareId), state);
+  }
+
+  private saveKey(key: string, state: BuildState): void {
     this.db
       .prepare(
         `INSERT INTO settings (key, value, changed) VALUES (?, ?, ?)
          ON CONFLICT(key) DO UPDATE SET value = excluded.value, changed = excluded.changed`,
       )
-      .run(KEY(softwareId), JSON.stringify(state), now());
+      .run(key, JSON.stringify(state), now());
+  }
+
+  forgetPiece(softwareId: string, itemId: number): void {
+    this.db.prepare("DELETE FROM settings WHERE key = ?").run(`${KEY(softwareId)}:piece:${itemId}`);
+  }
+
+  /**
+   * What landed is the software's, whichever piece landed it: the notes of the piece in front
+   * know it too, so starting, reports and the page see the latest landed version (decision 0313).
+   */
+  private noteLanded(softwareId: string, landed: NonNullable<BuildState["landed"]>): void {
+    if (!currentLane(softwareId)) return;
+    const front = this.loadKey(KEY(softwareId)) ?? this.fresh(0, null);
+    front.landed = landed;
+    this.saveKey(KEY(softwareId), front);
   }
 
   reset(softwareId: string): void {
@@ -461,7 +509,13 @@ export class BuildCheckRun implements LaterStages {
   }
 
   private say(softwareId: string, text: string): void {
-    addChatMessage(this.db, { softwareId, author: "premise", text });
+    // Said for a piece built in flight: name it, so the conversation stays readable (0313).
+    const lane = currentLane(softwareId);
+    const item = lane ? getWorkItem(this.db, lane.item) : undefined;
+    const who = item
+      ? `${item.kind === "intake" ? (item.ref ?? "A change") : `Part "${item.title ?? ""}"`}: `
+      : "";
+    addChatMessage(this.db, { softwareId, author: "premise", text: `${who}${text}` });
   }
 
   // ---- The plan and the record ---------------------------------------------------------------
@@ -669,7 +723,8 @@ export class BuildCheckRun implements LaterStages {
         state.milestone === (milestone?.id ?? null) &&
         (state.change?.ref ?? null) === (change?.ref ?? null);
       if (!fixRound) {
-        const before = state;
+        // A piece in flight starts from what the software knows: what landed, the checker's notes.
+        const before = state ?? (currentLane(softwareId) ? this.loadKey(KEY(softwareId)) : null);
         state = this.fresh(entry.run, milestone);
         state.change = change;
         state.landed = before?.landed ?? null;
@@ -703,6 +758,16 @@ export class BuildCheckRun implements LaterStages {
       this.startCheck(softwareId, state);
       return null;
     }
+    if (stage === "run" && entry.startOnly) {
+      // Each part landed on its own already (decision 0313): only start what landed.
+      this.enqueue(softwareId, state, {
+        softwareId,
+        kind: "run",
+        stage: "run",
+        payload: { startOnly: true },
+      });
+      return null;
+    }
     if (stage === "run") {
       if (!state.head) {
         this.nothingBuilt(softwareId, state);
@@ -712,7 +777,11 @@ export class BuildCheckRun implements LaterStages {
         softwareId,
         kind: "run",
         stage: "run",
-        payload: { commit: state.head.commit, branch: state.head.branch },
+        payload: {
+          commit: state.head.commit,
+          branch: state.head.branch,
+          ...(entry.landOnly && { landOnly: true }),
+        },
       });
       return null;
     }
@@ -1575,6 +1644,16 @@ export class BuildCheckRun implements LaterStages {
   }
 
   private runEnded(job: Job, state: BuildState): LaterOutcome {
+    if (job.status === "done" && state.conflict?.pending) {
+      return this.conflicted(job.softwareId, state);
+    }
+    if (job.status === "done" && state.recheck) {
+      // Work landed meanwhile and was brought in: checked again before it lands (0313).
+      state.recheck = false;
+      this.save(job.softwareId, state);
+      this.startCheck(job.softwareId, state);
+      return { kind: "wait" };
+    }
     if (job.status === "done") {
       if (!state.startFailure) return { kind: "next" };
       return this.wouldNotStart(job.softwareId, state);
@@ -1593,6 +1672,60 @@ export class BuildCheckRun implements LaterStages {
       },
     });
     return { kind: "wait" };
+  }
+
+  /**
+   * Work that landed while this was built changed the same lines (decision 0313). The first time,
+   * it goes back to its builder with the conflict as evidence; after that premise asks the person.
+   */
+  private conflicted(id: string, state: BuildState): LaterOutcome {
+    const conflict = state.conflict!;
+    state.conflict = { ...conflict, pending: false };
+    const rounds = state.conflictRounds ?? 0;
+    const files = conflict.files.join(", ") || "files git did not name";
+    if (rounds < 1) {
+      state.conflictRounds = rounds + 1;
+      this.fixRound(state, this.conflictEvidence(conflict), []);
+      this.save(id, state);
+      this.say(
+        id,
+        `Other work landed while this was built, and both changed the same lines in ${files}. It goes back to its builder once, to bring the new version in and keep both changes; then it is checked again.`,
+      );
+      return { kind: "back-to-build", evidence: "it conflicts with work that landed" };
+    }
+    this.save(id, state);
+    this.say(
+      id,
+      `It still conflicts with work that landed meanwhile, in ${files}. What to do is under Waiting on you.`,
+    );
+    createAsk(this.db, {
+      softwareId: id,
+      role: "operator",
+      kind: "question",
+      stage: "run",
+      title: "Two pieces of work changed the same lines",
+      instruction: [
+        `While this was built, other work landed and changed the same lines in ${files}. Its builder already tried once to bring the new version in and keep both changes, and it still conflicts.`,
+        `"${CONFLICT_STOPPED[0]}" gives the builder another round with the conflict. "${CONFLICT_STOPPED[1]}" has it built again from scratch on the version that runs now: slower, but it starts from what the other work did.`,
+        "You can also write what the builder should keep from each side.",
+      ].join("\n"),
+      extra: {
+        choices: [...CONFLICT_STOPPED],
+        meta: { purpose: "build-conflict" satisfies Purpose },
+      },
+    });
+    return { kind: "wait" };
+  }
+
+  private lastConflictEvidence(state: BuildState): string {
+    return this.conflictEvidence(state.conflict ?? { files: [], main: "the latest" });
+  }
+
+  private conflictEvidence(conflict: { files: string[]; main: string }): string {
+    return [
+      `While you built this, other work landed on the software's ${this.config.record.default_branch} branch (now commit ${conflict.main}), and both changed the same lines in: ${conflict.files.join(", ") || "files git did not name"}.`,
+      `In your working copy, merge it in: git merge origin/${this.config.record.default_branch}. Resolve each conflict so that both changes still work: keep what the other work added, and what this task adds. Then commit the merge with the trace line, and make sure the software still builds and starts as premise/run.md says.`,
+    ].join("\n");
   }
 
   /**
@@ -1742,6 +1875,24 @@ export class BuildCheckRun implements LaterStages {
     }
     if (!(PURPOSES as readonly string[]).includes(purpose ?? "")) return null;
     switch (purpose as Purpose) {
+      case "build-conflict": {
+        if (text === CONFLICT_STOPPED[1]) {
+          this.sendBackToBuild(
+            id,
+            state,
+            "Other work landed while this was built and changed the same lines. Build this change again from the version that runs now, keeping what the other work did.",
+          );
+          state.conflictRounds = 0;
+          this.save(id, state);
+          this.say(id, "Built again from scratch, on the version that runs now.");
+          return { kind: "back-to-build", evidence: "built again on the new version" };
+        }
+        const words = text && text !== CONFLICT_STOPPED[0] ? `\nFrom the operator: ${text}` : "";
+        this.fixRound(state, this.lastConflictEvidence(state) + words, []);
+        this.save(id, state);
+        this.say(id, "Back to its builder, with the conflict.");
+        return { kind: "back-to-build", evidence: "it conflicts with work that landed" };
+      }
       case "build-task-stopped":
         if (text === TASK_STOPPED[1]) {
           state.leftStopped = true;
@@ -1889,7 +2040,26 @@ export class BuildCheckRun implements LaterStages {
 
   // ---- Landing and running (the server's part of Run) ----------------------------------------
 
-  async runServerJob(job: Job): Promise<AgentOutcome> {
+  /** Landings of one software, one after another (decision 0313). */
+  private readonly landing = new Map<string, Promise<unknown>>();
+
+  /**
+   * The server's part of Run. Pieces built in flight land in turn: one landing of a software
+   * waits for the one before it to finish, starting included (decision 0313).
+   */
+  runServerJob(job: Job): Promise<AgentOutcome> {
+    const before = this.landing.get(job.softwareId) ?? Promise.resolve();
+    const lane = currentLane(job.softwareId);
+    const turn = before.then(() => inLane(lane, () => this.landAndStart(job)));
+    const settled = turn.catch(() => undefined);
+    this.landing.set(job.softwareId, settled);
+    void settled.then(() => {
+      if (this.landing.get(job.softwareId) === settled) this.landing.delete(job.softwareId);
+    });
+    return turn;
+  }
+
+  private async landAndStart(job: Job): Promise<AgentOutcome> {
     const id = job.softwareId;
     if (job.payload.startOnly === true) {
       const landed = this.load(id)?.landed?.commit ?? null;
@@ -1912,6 +2082,53 @@ export class BuildCheckRun implements LaterStages {
       };
     }
     const { keeper } = this.deps;
+    // Work that landed while this was built is brought in first, and the result checked again
+    // before it lands; a conflict goes back to the builder (decision 0313).
+    let brought: ReturnType<RecordKeeper["bringMainInto"]>;
+    try {
+      brought = keeper.bringMainInto(id, branch);
+    } catch (error) {
+      const message = (error as Error).message;
+      return {
+        kind: "failed",
+        summary: `premise could not bring in the work that landed meanwhile: ${message}`,
+        failureSignature: `land:${message.slice(0, 80)}`,
+      };
+    }
+    if (!("current" in brought)) {
+      const state = this.load(id);
+      if (!state) {
+        return {
+          kind: "failed",
+          summary: "Nothing is being built to land.",
+          failureSignature: "land-nothing",
+        };
+      }
+      if ("conflicts" in brought) {
+        const main = short(keeper.git.headCommit(keeper.repositoryPath(id)));
+        state.conflict = { files: brought.conflicts, main, pending: true };
+        this.save(id, state);
+        recordEvent(this.db, {
+          softwareId: id,
+          module: "build",
+          kind: "land-conflict",
+          reference: commit,
+          detail: { files: brought.conflicts, main },
+        });
+        return {
+          kind: "done",
+          summary: `Not landed: work that landed meanwhile changed the same lines, in ${brought.conflicts.join(", ")}.`,
+        };
+      }
+      state.head = { commit: brought.commit, branch };
+      state.recheck = true;
+      this.save(id, state);
+      this.say(
+        id,
+        `Other work landed while this was built (it changed ${brought.changed.slice(0, 5).join(", ")}${brought.changed.length > 5 ? " and more" : ""}). premise brought it in as commit ${short(brought.commit)}; it is checked again, only what it touches plus everything already met, before it lands.`,
+      );
+      return { kind: "done", summary: "Brought the new version in; checked again before landing." };
+    }
     let merged: string;
     try {
       merged = keeper.mergeBranch(id, branch);
@@ -1973,11 +2190,15 @@ export class BuildCheckRun implements LaterStages {
       state.landed = { commit: head, when: now(), milestone: state.milestone };
       state.proposals = [];
       this.save(id, state);
+      this.noteLanded(id, state.landed);
     }
     this.say(
       id,
       `Landed: the checked commit ${short(commit)} is merged as ${short(head)}. ${notes.join(" ")}`.trim(),
     );
+    // A part built in flight only lands; its piece starts once every part landed (0313).
+    if (job.payload.landOnly === true)
+      return { kind: "done", summary: `Landed as ${short(head)}.` };
     if (!this.deps.runner) return { kind: "done", summary: `Landed as ${short(head)}.` };
     return this.startLanded(id, head);
   }
