@@ -540,92 +540,121 @@ describe("a change planned again and an edited decision", () => {
 
   const STREAM = { text: "Read the file as a stream", reason: "Counted while reading." };
   const CHUNKS = { text: "Read the file in chunks", reason: "Counted while reading." };
+  const REPLACING = { text: "Read the file in blocks", reason: "Bigger files.", replaces: "D-2" };
   const INDEX = { text: "Keep an index of paragraphs", reason: "Needed to count them." };
   const table: {
     name: string;
-    second: Record<string, unknown>[];
+    second: (record: { id: string; line: string }[]) => Record<string, unknown>[];
     strikeSecond?: string;
     editFirst?: string;
+    first?: Record<string, unknown>[];
     live: string[];
     gone: string[];
   }[] = [
-    { name: "nothing changed", second: [STREAM], live: [STREAM.text], gone: [] },
-    { name: "one decision changed", second: [CHUNKS], live: [CHUNKS.text], gone: [STREAM.text] },
+    { name: "nothing changed", second: () => [STREAM], live: [STREAM.text], gone: [] },
+    {
+      name: "one decision changed",
+      second: () => [CHUNKS],
+      live: [CHUNKS.text],
+      gone: [STREAM.text],
+    },
     {
       name: "one decision struck by the person",
-      second: [STREAM],
+      second: () => [STREAM],
       strikeSecond: STREAM.text,
       live: [],
       gone: [STREAM.text],
     },
     {
       name: "one decision added",
-      second: [STREAM, INDEX],
+      second: () => [STREAM, INDEX],
       live: [STREAM.text, INDEX.text],
       gone: [],
     },
     {
       name: "a decision the person edited the first time",
-      second: [CHUNKS],
+      second: () => [CHUNKS],
       editFirst: "Read the file by lines",
       live: [CHUNKS.text],
       gone: [STREAM.text, "Read the file by lines"],
+    },
+    {
+      name: "a replacing decision kept",
+      first: [REPLACING],
+      second: (record) => [
+        {
+          ...REPLACING,
+          replaces: record.find((l) => l.line.includes("Restored: was D-2"))!.id,
+        },
+      ],
+      live: [REPLACING.text],
+      gone: ["It reads the whole file at once"],
+    },
+    {
+      name: "a replacing decision dropped",
+      first: [REPLACING],
+      second: () => [],
+      live: ["Restored: was D-2"],
+      gone: [REPLACING.text],
     },
   ];
 
   it.each(table)(
     "re-planned with $name, the record holds each decision once",
-    async ({ second, strikeSecond, editFirst, live, gone }) => {
+    async ({ first: firstPlan, second, strikeSecond, editFirst, live, gone }) => {
       let plans = 0;
       let lines: { id: string; text: string }[] = [];
       let built: string[] = [];
-      await run({ decisions: () => (plans++ === 0 ? [STREAM] : second) }, async (context) => {
-        const { session, softwareId, runner, db } = context;
-        await session.services.softwares.setChangeQuestions(softwareId, "every-change");
-        await sendWish(context);
-        const first = await untilQuestion(context);
-        await session.services.asks.answer(
-          first.id,
-          keepAll(first, editFirst ? { key: "d1", text: editFirst } : undefined),
-        );
-        for (let i = 0; i < 100; i++) {
-          const change = listWorkItems(db, softwareId).find(
-            (w) => w.kind === "intake" && w.state === "active",
+      await run(
+        { decisions: (record) => (plans++ === 0 ? (firstPlan ?? [STREAM]) : second(record)) },
+        async (context) => {
+          const { session, softwareId, runner, db } = context;
+          await session.services.softwares.setChangeQuestions(softwareId, "every-change");
+          await sendWish(context);
+          const first = await untilQuestion(context);
+          await session.services.asks.answer(
+            first.id,
+            keepAll(first, editFirst ? { key: "d1", text: editFirst } : undefined),
           );
-          if (change && change.currentStage === "build") break;
-          session.queue.tick();
-          await session.queue.idle();
-          await session.line.idle();
-          await new Promise((r) => setTimeout(r, 5));
-        }
-        await session.line.sendBack(softwareId, "plan");
-        const again = await untilQuestion(context, first.id);
-        const before = runner.requests.length;
-        await session.services.asks.answer(again.id, {
-          kind: "items",
-          items: again.items.map((i) =>
-            strikeSecond !== undefined && i.text.startsWith(strikeSecond)
-              ? { key: i.key, decision: "strike" as const, reason: "Not as a stream." }
-              : { key: i.key, decision: "keep" as const },
-          ),
-        });
-        await context.drive();
-        const record = (await session.services.records.view(softwareId)) as {
-          files: { items: { id: string; text: string; status?: string }[] }[];
-        };
-        lines = record.files.flatMap((f) => f.items).filter((i) => i.status !== "struck");
-        built = runner.requests
-          .slice(before)
-          .filter((r) => r.taskKind === "build")
-          .flatMap((r) => taskOf(r).items);
-      });
+          for (let i = 0; i < 100; i++) {
+            const change = listWorkItems(db, softwareId).find(
+              (w) => w.kind === "intake" && w.state === "active",
+            );
+            if (change && change.currentStage === "build") break;
+            session.queue.tick();
+            await session.queue.idle();
+            await session.line.idle();
+            await new Promise((r) => setTimeout(r, 5));
+          }
+          await session.line.sendBack(softwareId, "plan");
+          const again = await untilQuestion(context, first.id);
+          const before = runner.requests.length;
+          await session.services.asks.answer(again.id, {
+            kind: "items",
+            items: again.items.map((i) =>
+              strikeSecond !== undefined && i.text.startsWith(strikeSecond)
+                ? { key: i.key, decision: "strike" as const, reason: "Not as a stream." }
+                : { key: i.key, decision: "keep" as const },
+            ),
+          });
+          await context.drive();
+          const record = (await session.services.records.view(softwareId)) as {
+            files: { items: { id: string; text: string; status?: string }[] }[];
+          };
+          lines = record.files.flatMap((f) => f.items).filter((i) => i.status !== "struck");
+          built = runner.requests
+            .slice(before)
+            .filter((r) => r.taskKind === "build")
+            .flatMap((r) => taskOf(r).items);
+        },
+      );
       for (const text of live) {
-        const own = lines.filter((l) => l.text.startsWith(text));
+        const own = lines.filter((l) => l.text.includes(text));
         expect(own).toHaveLength(1);
       }
       expect(built.length).toBeGreaterThan(0);
       for (const text of gone) {
-        expect(lines.filter((l) => l.text.startsWith(text))).toHaveLength(0);
+        expect(lines.filter((l) => l.text.includes(text))).toHaveLength(0);
       }
     },
     250_000,

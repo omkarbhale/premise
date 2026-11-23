@@ -817,20 +817,40 @@ export class LineEngine implements IntakeLine {
     const landed = notes.landed?.[item.id];
     if (!landed) return;
     const ref = change.ref ?? "the change";
-    const live = new Set(this.recordLines(softwareId).map((i) => i.id));
-    const ops: Operation[] = landed
-      .filter((id) => live.has(id))
-      .map((id) => ({
-        op: "strike" as const,
-        id,
-        reason: `The change ${ref} was planned again.`,
-      }));
-    if (ops.length) this.land(softwareId, ops, `The change ${ref} was planned again.`);
+    const lines = this.recordLines(softwareId, { includeStruck: true });
+    const byId = new Map(lines.map((i) => [i.id, i]));
+    const ops: Operation[] = [];
+    for (const id of landed) {
+      const mine = byId.get(id);
+      if (!mine || mine.struck) continue;
+      ops.push({ op: "strike", id, reason: `The change ${ref} was planned again.` });
+      const original = mine.marks.replaces ? byId.get(mine.marks.replaces) : undefined;
+      if (!original) continue;
+      ops.push({
+        op: "add",
+        kind: "D",
+        text: `Restored: was ${original.id}, replaced by ${id}, which was withdrawn. ${original.text.replace(/^Restored: [^.]*\.\s*/, "")}`,
+        from: "assumed",
+        ...(original.marks.foundation && { foundation: true }),
+      });
+    }
+    const assigned = ops.length
+      ? this.land(softwareId, ops, `The change ${ref} was planned again.`)
+      : [];
+    const restored = ops.flatMap((o, i) =>
+      o.op === "add" && assigned[i] ? [assigned[i] as string] : [],
+    );
     const { [item.id]: _gone, ...rest } = notes.landed!;
     this.setChangeNotes(change, {
       decisions: (notes.decisions ?? []).filter((id) => !landed.includes(id)),
       landed: rest,
     });
+    if (restored.length) {
+      this.premiseSays(
+        softwareId,
+        `Planning ${ref} again withdrew a decision it had replaced, so I put the earlier decision back as ${restored.join(", ")}.`,
+      );
+    }
   }
 
   /** The change, for the planner's brief: its words, what it adds or touches, and the plan so far. */
