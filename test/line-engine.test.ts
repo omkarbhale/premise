@@ -663,9 +663,17 @@ describe("chat and stage problems", () => {
               arguments: {
                 stage: "why",
                 items: [
-                  { text: "Keeping a list matters.", from: "operator", quote: "I keep my reading list" },
+                  {
+                    text: "Keeping a list matters.",
+                    from: "operator",
+                    quote: "I keep my reading list",
+                  },
                   { text: "Reading is a habit worth supporting.", from: "operator" },
-                  { text: "A friend should see it.", from: "operator", quote: "share it with a friend" },
+                  {
+                    text: "A friend should see it.",
+                    from: "operator",
+                    quote: "share it with a friend",
+                  },
                 ],
               },
             },

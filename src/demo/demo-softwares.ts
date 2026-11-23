@@ -321,7 +321,11 @@ export const READING_LIST_DEMO: DemoSoftware = {
   title: "a small web app",
   idea: "A small web page where I keep the books I want to read. I type a title, add it, and see the whole list on the same page, so I stop losing book recommendations in chat messages.",
   why: [
-    { text: "Book recommendations get lost in chat messages.", from: "operator", quote: "stop losing book recommendations in chat messages" },
+    {
+      text: "Book recommendations get lost in chat messages.",
+      from: "operator",
+      quote: "stop losing book recommendations in chat messages",
+    },
     { text: "A list kept in one place is looked at more often.", from: "assumed" },
     { text: "Size: small. One page and short stages.", from: "assumed", kind: "size" },
   ],

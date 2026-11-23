@@ -355,14 +355,12 @@ export function checkOperatorQuotes<T extends Pick<DraftItem, "from" | "quote">>
   let downgraded = 0;
   const checked = items.map((item) => {
     if (item.from !== operatorRole) {
-      const { quote: _unchecked, ...rest } = item;
-      return rest as T;
+      return { ...item, quote: undefined };
     }
     const quote = item.quote ? squash(item.quote) : "";
     if (quote && said.some((source) => quoteHolds(quote, source))) return item;
     downgraded++;
-    const { quote: _dropped, ...rest } = item;
-    return { ...rest, from: "assumed" } as T;
+    return { ...item, quote: undefined, from: "assumed" };
   });
   return { items: checked, downgraded };
 }

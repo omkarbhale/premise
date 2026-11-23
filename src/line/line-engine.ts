@@ -4292,7 +4292,11 @@ export class LineEngine implements IntakeLine {
         if (!a) return [];
         if (a.kind === "items")
           return a.items.flatMap((i) =>
-            i.decision === "edit" ? [i.text] : i.decision === "strike" && i.reason ? [i.reason] : [],
+            i.decision === "edit"
+              ? [i.text]
+              : i.decision === "strike" && i.reason
+                ? [i.reason]
+                : [],
           );
         if (a.kind === "text") return [a.text, ...(a.reason ? [a.reason] : [])];
         return [];
