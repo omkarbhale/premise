@@ -152,6 +152,7 @@ export function ownFigures(change: Partial<OwnFigures> = {}): OwnFigures {
     outputTokens: 2000,
     cacheTokens: 3000,
     turns: 9,
+    unreported: { cost: 0, tokens: 0, turns: 0 },
     ...change,
   };
 }

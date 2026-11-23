@@ -115,6 +115,21 @@ describe("premise's own count of what sessions used", () => {
     expect(ownFiguresWords(ownFiguresOf([]))).toBe("No sessions yet.");
   });
 
+  it("never shows a figure a result left out as zero", () => {
+    const bare = { turns: null, costUsd: null, inputTokens: null, outputTokens: null, cacheReadTokens: null, cacheWriteTokens: null };
+    const none = ownFiguresOf([{ runtime: "claude", figures: bare }]);
+    expect(ownFiguresWords(none)).toBe(
+      "cost not reported, tokens not reported, turns not reported (from 1 session).",
+    );
+    const some = ownFiguresOf([
+      { runtime: "claude", figures: FIGURES },
+      { runtime: "claude", figures: { ...bare, turns: 1 } },
+    ]);
+    expect(ownFiguresWords(some)).toBe(
+      "$0.50 at list prices, 7.4k tokens, 7 turns; cost not reported by 1 session, tokens not reported by 1 session (from 2 sessions).",
+    );
+  });
+
   it("says how old a reading is in plain words", () => {
     const at = new Date("2026-11-23T12:00:00Z");
     expect(ageWords("2026-11-23T11:59:30Z", at)).toBe("just now");

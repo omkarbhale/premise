@@ -84,6 +84,7 @@ export function ownFiguresOf(sessions: OwnSession[]): OwnFigures {
     outputTokens: 0,
     cacheTokens: 0,
     turns: 0,
+    unreported: { cost: 0, tokens: 0, turns: 0 },
   };
   let scripted = 0;
   for (const s of sessions) {
@@ -94,11 +95,22 @@ export function ownFiguresOf(sessions: OwnSession[]): OwnFigures {
       continue;
     }
     out.counted += 1;
-    out.costUsd += f.costUsd ?? 0;
-    out.inputTokens += f.inputTokens ?? 0;
-    out.outputTokens += f.outputTokens ?? 0;
-    out.cacheTokens += (f.cacheReadTokens ?? 0) + (f.cacheWriteTokens ?? 0);
-    out.turns += f.turns ?? 0;
+    if (f.costUsd === null) out.unreported.cost += 1;
+    else out.costUsd += f.costUsd;
+    if (
+      f.inputTokens === null &&
+      f.outputTokens === null &&
+      f.cacheReadTokens === null &&
+      f.cacheWriteTokens === null
+    ) {
+      out.unreported.tokens += 1;
+    } else {
+      out.inputTokens += f.inputTokens ?? 0;
+      out.outputTokens += f.outputTokens ?? 0;
+      out.cacheTokens += (f.cacheReadTokens ?? 0) + (f.cacheWriteTokens ?? 0);
+    }
+    if (f.turns === null) out.unreported.turns += 1;
+    else out.turns += f.turns;
   }
   if (out.missing > 0) {
     out.missingWhy =

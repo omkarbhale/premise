@@ -178,6 +178,8 @@ export interface OwnFigures {
   /** Tokens read from or written to the cache. */
   cacheTokens: number;
   turns: number;
+  /** Counted sessions whose result left out each figure; those are not in the sums above. */
+  unreported: { cost: number; tokens: number; turns: number };
 }
 
 /** What premise itself recorded about the same sessions: real, never marked as mocked. */

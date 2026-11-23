@@ -19,9 +19,22 @@ const sessions = (n: number): string => `${n} session${n === 1 ? "" : "s"}`;
 export function ownFiguresWords(f: OwnFigures): string {
   const parts: string[] = [];
   if (f.counted > 0) {
-    parts.push(
-      `$${f.costUsd.toFixed(2)} at list prices, ${tokens(f.inputTokens + f.outputTokens + f.cacheTokens)} tokens, ${f.turns} turn${f.turns === 1 ? "" : "s"} (from ${sessions(f.counted)})`,
-    );
+    const u = f.unreported;
+    const gap = (n: number, what: string): string =>
+      n === 0 ? "" : n >= f.counted ? `${what} not reported` : `${what} not reported by ${sessions(n)}`;
+    const shown = [
+      u.cost >= f.counted ? "" : `$${f.costUsd.toFixed(2)} at list prices`,
+      u.tokens >= f.counted
+        ? ""
+        : `${tokens(f.inputTokens + f.outputTokens + f.cacheTokens)} tokens`,
+      u.turns >= f.counted ? "" : `${f.turns} turn${f.turns === 1 ? "" : "s"}`,
+    ]
+      .filter(Boolean)
+      .join(", ");
+    const gaps = [gap(u.cost, "cost"), gap(u.tokens, "tokens"), gap(u.turns, "turns")]
+      .filter(Boolean)
+      .join(", ");
+    parts.push(`${[shown, gaps].filter(Boolean).join("; ")} (from ${sessions(f.counted)})`);
   }
   if (f.missing > 0) {
     parts.push(
