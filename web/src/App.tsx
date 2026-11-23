@@ -201,6 +201,7 @@ function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) 
       report: setProblem,
       refresh,
       go: openSoftware,
+      show: (name: "usage" | "settings") => setView({ name }),
       ...(known && {
         softwares: known.softwares,
         defaults: known.defaults,
@@ -209,7 +210,7 @@ function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) 
       }),
       explained,
     }),
-    [api, version, onNotCurrent, refresh, openSoftware, known, explained],
+    [api, version, onNotCurrent, refresh, openSoftware, setView, known, explained],
   );
   const asks = useLoad(() => api.asks({ status: "open" }), [], version, onNotCurrent);
   const openAsks = asks.state === "ready" ? asks.data : [];
@@ -385,6 +386,30 @@ function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) 
                         <span className={`small ${s.openAsks > 0 ? "needs-you" : "muted"}`}>
                           {s.openAsks > 0 && s.id === selected?.id ? "Your turn." : s.status}
                         </span>
+                        {s.glance && (s.glance.now || s.glance.next || s.glance.queue > 0) && (
+                          <span className="pick-glance small">
+                            {s.glance.now && (
+                              <span className="pick-now">
+                                <span aria-hidden="true">● </span>
+                                <span className="sr-only">Now: </span>
+                                {s.glance.now}
+                              </span>
+                            )}
+                            {s.glance.next && (
+                              <span className="pick-next muted">Next: {s.glance.next}</span>
+                            )}
+                            {s.glance.queue > 0 && (
+                              <span className="pick-queue muted">
+                                {s.glance.queue === 1
+                                  ? "1 change queued"
+                                  : `${s.glance.queue} changes queued`}
+                                {s.glance.total && s.glance.total !== "not enough history yet"
+                                  ? `, ${s.glance.total} (rough estimate)`
+                                  : ""}
+                              </span>
+                            )}
+                          </span>
+                        )}
                         {(s.openAsks > 0 || s.state === "waiting-milestone" || s.paused) && (
                           <span className="pick-badges">
                             {(s.openAsks > 0 || s.state === "waiting-milestone") && (

@@ -194,6 +194,16 @@ import { dependencyProblems, planProblems, waitAfterFirst } from "./plan-checks.
 import { type Footprint, type InFlight, decideFlight } from "./parallel.js";
 import { type Lane, currentLane, inLane, outsideLanes } from "../shared/lane-context.js";
 import { StandInWholeCheck, type WholeCheck } from "./whole-check.js";
+import { LineQueue, type NoticeAnswer, type QueuedChange } from "./line-queue.js";
+import { splitWaitMarker } from "./milestone-wait.js";
+import { buildTimeline, glanceOf } from "./timeline.js";
+import type {
+  BuildView,
+  QueuePriority,
+  TimelineOverlap,
+  TimelineView,
+} from "../shared/api-types.js";
+import { listIntakeItems, setIntakeItem } from "../intake/items.js";
 import {
   type SizedBy,
   type Sizing,
@@ -424,9 +434,22 @@ export class LineEngine implements IntakeLine {
   private readonly wholeCheck: WholeCheck;
   private readonly deferred = new Set<Promise<void>>();
   private afterCommit: (() => void)[] = [];
+  /** The queue of changes: its order, the person's moves, groups and the long-queue notice. */
+  readonly lineQueue: LineQueue;
+  /** Each software's timeline, with the newest event it was built after. */
+  private readonly timelines = new Map<string, { event: number; view: TimelineView }>();
 
   constructor(private readonly options: LineEngineOptions) {
     this.db = options.db;
+    this.lineQueue = new LineQueue({
+      db: options.db,
+      config: () => this.config,
+      say: (softwareId, text) => {
+        this.premiseSays(softwareId, text);
+      },
+      hold: (workItemId, reason) => options.intake.holdWork?.(workItemId, reason) ?? false,
+      landedItems: (softwareId) => this.landedItems(softwareId),
+    });
     this.writer = new RecordWriter(options.keeper);
     this.wholeCheck = options.wholeCheck ?? new StandInWholeCheck();
     options.gate.onDecided((request) => this.gateDecided(request));
@@ -1079,7 +1102,7 @@ export class LineEngine implements IntakeLine {
     return "Working.";
   }
 
-  private summary(software: Software): SoftwareSummary {
+  private summary(software: Software, timeline?: TimelineView): SoftwareSummary {
     // A change's notice waits on nobody (decision 0274): it is not counted as waiting on you.
     const openAsks = listAsks(this.db, { softwareId: software.id, status: "open" }).filter(
       (a) => a.extra.meta?.notice !== true,
@@ -1098,7 +1121,263 @@ export class LineEngine implements IntakeLine {
       openAsks,
       created: software.created,
       ...(this.isTakingOn(software.id) && { takingOn: true }),
+      glance: glanceOf(timeline ?? this.timeline(software.id)),
     };
+  }
+
+  // ---- The timeline and the queue of changes (decisions 0320, 0321) ---------------------------
+
+  /** The software's work top to bottom: done, running now, and everything queued after it. */
+  timeline(softwareId: string, known: { build?: BuildView | null } = {}): TimelineView {
+    // Built again only once something was recorded since: the page refreshes on events, and
+    // reading the record and the build from disk on every status line would slow the line.
+    const latest = (
+      this.db.prepare("SELECT MAX(id) AS id FROM events").get() as { id: number | null }
+    ).id;
+    const cached = this.timelines.get(softwareId);
+    if (cached && cached.event === latest && latest !== null) return cached.view;
+    const view = this.buildTimelineView(softwareId, known);
+    this.timelines.set(softwareId, { event: latest ?? 0, view });
+    return view;
+  }
+
+  private buildTimelineView(softwareId: string, known: { build?: BuildView | null }): TimelineView {
+    const software = this.require(softwareId);
+    const history = this.lineQueue.history();
+    const notice = this.lineQueue.notice(softwareId);
+    const long = notice ? this.lineQueue.longQueue(softwareId, history) : null;
+    // The record is read only when something is proposed together, which is rare.
+    let records: RecordItem[] | null = null;
+    const about = (shared: string[]): string => {
+      if (records === null) {
+        try {
+          records = this.recordLines(softwareId);
+        } catch {
+          records = [];
+        }
+      }
+      const text = shared.map((id) => records!.find((r) => r.id === id)?.text).find(Boolean);
+      if (!text) return "the same parts";
+      const words = text.replace(/[.\s]+$/, "");
+      return words.length > 70 ? `${words.slice(0, 67).trimEnd()}…` : words;
+    };
+    const active = this.active(softwareId);
+    const queued = this.lineQueue.queued(softwareId);
+    const progress = this.db.prepare(
+      "SELECT detail FROM events WHERE module = 'agent' AND kind = 'progress' AND reference = ? ORDER BY id DESC LIMIT 1",
+    );
+    return buildTimeline({
+      software,
+      items: listWorkItems(this.db, softwareId),
+      active,
+      children: (item) => this.notes(item).children,
+      queueNotes: (item) => this.lineQueue.queueNotes(item),
+      queued,
+      changeAsk: (item) => this.changeNotes(item).ask,
+      build: !["build", "check", "run", "report"].includes(active.currentStage)
+        ? null
+        : known.build !== undefined
+          ? known.build
+          : (this.options.later.view?.(softwareId) ?? null),
+      jobs: this.queue
+        .list()
+        .filter(
+          (j) =>
+            j.softwareId === softwareId &&
+            ["queued", "running", "waiting", "paused"].includes(j.status),
+        ),
+      progress: (jobId) => {
+        const row = progress.get(String(jobId)) as { detail: string | null } | undefined;
+        try {
+          const text = row?.detail ? (JSON.parse(row.detail) as { text?: unknown }).text : null;
+          return typeof text === "string" ? text : null;
+        } catch {
+          return null;
+        }
+      },
+      jobWords: (job) => jobWords(job),
+      asks: listAsks(this.db, { softwareId, status: "open" }),
+      intake: listIntakeItems(this.db, { softwareId }),
+      milestones: this.milestones(softwareId),
+      history,
+      groups: this.lineQueue
+        .groups(softwareId)
+        .map((g) => ({ pieces: g.pieces, about: about(g.shared) })),
+      notice:
+        notice && long
+          ? {
+              items: long.items,
+              total: long.total,
+              holdCount: long.holdCount,
+              words: this.lineQueue.noticeWords(
+                software.name,
+                long.items,
+                long.total,
+                long.holdCount,
+              ),
+            }
+          : null,
+      overlaps: this.overlaps(softwareId, about, queued),
+      paused: software.pausedAt !== null,
+      agentsReady: this.options.agentsReady?.() !== false,
+      now: new Date(),
+    });
+  }
+
+  /**
+   * Queued milestones and queued changes that touch the same parts: premise proposes building the
+   * change as part of the milestone (decision 0321). The milestone's parts are the record items its
+   * planned tasks serve.
+   */
+  private overlaps(
+    softwareId: string,
+    about: (shared: string[]) => string,
+    queued: QueuedChange[],
+  ): TimelineOverlap[] {
+    if (queued.every((q) => q.touches.length === 0)) return [];
+    const plan = this.readPlan(softwareId);
+    if (!plan) return [];
+    const milestones = this.milestones(softwareId);
+    const root = rootItem(this.db, softwareId);
+    const ahead = childItems(this.db, root.id).filter(
+      (c) => c.kind === "milestone" && c.state === "ahead",
+    );
+    const apart = this.lineQueue.overlapsApart(softwareId);
+    const candidates = queued.filter((q) => q.origin !== "purpose");
+    const found: TimelineOverlap[] = [];
+    for (const milestone of ahead) {
+      const k = milestones.findIndex((m) => m.id === milestone.ref) + 1;
+      if (k < 1) continue;
+      const serves = new Set(plan.tasks.filter((t) => t.milestone === k).flatMap((t) => t.items));
+      for (const q of candidates) {
+        const shared = q.touches.filter((t) => serves.has(t));
+        if (shared.length === 0) continue;
+        if (apart.some(([m, w]) => m === milestone.id && w === q.workItemId)) continue;
+        found.push({
+          milestoneItemId: milestone.id,
+          milestoneTitle: `Milestone ${k}: ${splitWaitMarker(milestones[k - 1]!.text).text.replace(/[.\s]+$/, "")}`,
+          workItemId: q.workItemId,
+          ref: q.item.ref ?? "",
+          about: about(shared),
+        });
+      }
+    }
+    return found;
+  }
+
+  /**
+   * The person builds a queued change as part of a queued milestone, or keeps them apart. Merged,
+   * the change becomes one more task of the milestone, serving what it touches; its intake items
+   * follow the milestone from then on.
+   */
+  async decideOverlap(
+    softwareId: string,
+    milestoneItemId: number,
+    workItemId: number,
+    merge: boolean,
+  ): Promise<void> {
+    this.require(softwareId);
+    const overlap = this.timeline(softwareId).overlaps.find(
+      (o) => o.milestoneItemId === milestoneItemId && o.workItemId === workItemId,
+    );
+    if (!overlap) {
+      throw new ServiceError(
+        "INVALID",
+        "That milestone and change are not proposed together any more: one may have started. Reload the page.",
+      );
+    }
+    if (!merge) {
+      this.lineQueue.keepOverlapApart(softwareId, milestoneItemId, workItemId);
+      return;
+    }
+    transaction(this.db, () => {
+      const plan = this.readPlan(softwareId)!;
+      const milestone = getWorkItem(this.db, milestoneItemId)!;
+      const change = getWorkItem(this.db, workItemId)!;
+      const k = this.milestones(softwareId).findIndex((m) => m.id === milestone.ref) + 1;
+      const intake = listIntakeItems(this.db, { softwareId }).filter(
+        (i) => i.workItemId === change.id,
+      );
+      const touches = [...new Set(intake.flatMap((i) => i.touches.map((t) => t.id)))];
+      const title = this.changeTitle(change);
+      plan.tasks.push({
+        title: `${change.ref ?? "A change"}: ${title}`,
+        items: touches,
+        check: `What ${change.ref ?? "the change"} asked for works: ${title}`,
+        milestone: k,
+      });
+      this.writePlan(softwareId, plan);
+      setWorkItem(this.db, change.id, { state: "withdrawn", finished: now() });
+      for (const i of intake) setIntakeItem(this.db, i.id, { workItemId: milestone.id });
+      setWorkItem(this.db, milestone.id, {
+        words: `${milestone.words ?? ""}\n\nBuilt with it, from ${change.ref ?? "a change"}:\n${change.words ?? title}`,
+      });
+      this.premiseSays(
+        softwareId,
+        `${change.ref ?? "The change"} is now built as part of ${overlap.milestoneTitle.toLowerCase()}: one more task there, as they both change ${overlap.about}.`,
+      );
+      recordEvent(this.db, {
+        softwareId,
+        module: "line",
+        kind: "queue-changed",
+        reference: "overlap-merged",
+        detail: { milestoneItemId, workItemId },
+      });
+    });
+  }
+
+  /** The person puts a queued change before or after the milestones not started yet. */
+  async setQueuedPlacement(workItemId: number, before: boolean): Promise<void> {
+    this.lineQueue.setPlacement(workItemId, before);
+  }
+
+  /** Record items the tasks of reached milestones serve: what has landed (decision 0321). */
+  private landedItems(softwareId: string): Set<string> {
+    const plan = this.readPlan(softwareId);
+    const reached = this.reachedMilestones(softwareId);
+    const numbers = this.milestones(softwareId)
+      .map((m, i) => (reached.has(m.id) ? i + 1 : 0))
+      .filter((n) => n > 0);
+    return new Set(
+      (plan?.tasks ?? [])
+        .filter((t) => t.milestone !== undefined && numbers.includes(t.milestone))
+        .flatMap((t) => t.items),
+    );
+  }
+
+  /** The person moves a queued change up or down. */
+  async moveQueued(workItemId: number, direction: "up" | "down"): Promise<void> {
+    this.lineQueue.move(workItemId, direction);
+  }
+
+  /** The person sets how important a queued change is. */
+  async setQueuedPriority(workItemId: number, priority: QueuePriority): Promise<void> {
+    this.lineQueue.setPriority(workItemId, priority);
+  }
+
+  /** The person makes the proposed changes one, or keeps them apart. */
+  async decideGroup(softwareId: string, ids: number[], together: boolean): Promise<void> {
+    this.require(softwareId);
+    if (!together) {
+      this.lineQueue.keepApart(softwareId, ids);
+      return;
+    }
+    const group = this.timeline(softwareId).groups.find(
+      (g) => g.workItemIds.length === ids.length && g.workItemIds.every((id) => ids.includes(id)),
+    );
+    this.lineQueue.acceptGroup(softwareId, ids, group?.about ?? "the same parts");
+  }
+
+  /** The person splits a change made of several back into its own changes. */
+  async splitQueued(workItemId: number): Promise<void> {
+    this.lineQueue.split(workItemId);
+  }
+
+  /** The person answers the long-queue notice. */
+  async answerQueueNotice(softwareId: string, answer: NoticeAnswer): Promise<void> {
+    this.require(softwareId);
+    this.lineQueue.answerNotice(softwareId, answer);
+    this.queue.tick();
   }
 
   async softwareList(): Promise<SoftwareSummary[]> {
@@ -1107,7 +1386,10 @@ export class LineEngine implements IntakeLine {
 
   private milestones(softwareId: string): { id: string; text: string; wait: boolean }[] {
     try {
-      return this.options.keeper.effortPlan(softwareId).milestones;
+      // The wait is the flag alone; a marker left in older text is not shown (decision 0321).
+      return this.options.keeper
+        .effortPlan(softwareId)
+        .milestones.map((m) => ({ ...m, text: splitWaitMarker(m.text).text }));
     } catch {
       return [];
     }
@@ -1140,8 +1422,10 @@ export class LineEngine implements IntakeLine {
             { used_minutes: number } | undefined
         )?.used_minutes ?? 0)
       : 0;
+    const build = this.options.later.view?.(id) ?? null;
+    const timeline = this.timeline(id, { build });
     return {
-      ...this.summary(software),
+      ...this.summary(software, timeline),
       idea: software.idea,
       stages,
       usage: {
@@ -1163,12 +1447,13 @@ export class LineEngine implements IntakeLine {
         chosen: state.piecesInFlight !== undefined,
         default: this.config.line.pieces_in_flight,
       },
-      build: this.options.later.view?.(id) ?? null,
+      build,
       ...(this.existingView(id) && { existing: this.existingView(id)! }),
       claims: this.claimViews(id),
       ...(this.changeView(software) && { change: this.changeView(software)! }),
       changeQuestions: this.changeQuestionsOf(software),
       working: this.workingOn(id),
+      timeline,
     };
   }
 
@@ -2900,6 +3185,15 @@ export class LineEngine implements IntakeLine {
       if (open?.status === "open" && open.extra.meta?.purpose === "change-notice" && !offered) {
         closeAsk(this.db, open.id, "withdrawn", null, `${item.ref ?? "The change"} is done.`);
       }
+      // Between milestones: more feedback on what landed, else the next milestone (decision 0321).
+      const ownNext = childItems(this.db, parent.id).find(
+        (c) => c.state === "ahead" && c.kind !== "intake",
+      );
+      if (ownNext && parent.parentId === null && this.notes(parent).children === "plan") {
+        const feedback = this.lineQueue.nextBeforeMilestones(softwareId);
+        this.beginItem(softwareId, feedback ?? ownNext, `${item.ref ?? "an intake item"} finished`);
+        return;
+      }
       // Intake work is the software's own, one item after another; then the line rests at Intake.
       const queued = this.nextIntakeWork(softwareId);
       if (queued) {
@@ -2914,10 +3208,22 @@ export class LineEngine implements IntakeLine {
       );
       return;
     }
-    // Intake work waits until the software's own round reaches Intake.
+    // A new wish waits until the software's own round reaches Intake; feedback on what has landed
+    // goes before the milestones not started yet, unless the person moved it (decision 0321).
     const next = childItems(this.db, parent.id).find(
       (c) => c.state === "ahead" && c.kind !== "intake",
     );
+    if (next && parent.parentId === null && this.notes(parent).children === "plan") {
+      const feedback = this.lineQueue.nextBeforeMilestones(softwareId);
+      if (feedback) {
+        this.premiseSays(
+          softwareId,
+          `${capital(this.label(item))} is done. Before ${this.label(next)}: ${feedback.ref ?? "a change"}, feedback on what has already landed. The timeline shows the order; you can move it.`,
+        );
+        this.beginItem(softwareId, feedback, `${this.label(item)} finished`);
+        return;
+      }
+    }
     if (next) {
       this.beginItem(softwareId, next, `${this.label(item)} finished`);
       return;
@@ -3584,8 +3890,8 @@ export class LineEngine implements IntakeLine {
 
   /** The next intake item's work waiting for the line, if any. */
   private nextIntakeWork(softwareId: string): WorkItem | undefined {
-    const root = rootItem(this.db, softwareId);
-    return childItems(this.db, root.id).find((c) => c.kind === "intake" && c.state === "ahead");
+    // The queue's order: priority, the person's moves, small first, then arrival (decision 0321).
+    return this.lineQueue.next(softwareId);
   }
 
   /** IntakeLine: take back an intake item's work that has not started, to triage it again. */
@@ -3643,6 +3949,7 @@ export class LineEngine implements IntakeLine {
       root.currentStage === "intake" &&
       this.nextIntakeWork(softwareId)?.id === item.id;
     if (resting) this.beginItem(softwareId, item, `${work.ref} taken in`);
+    else this.lineQueue.afterTaken(softwareId);
     return getWorkItem(this.db, item.id)!;
   }
 
@@ -6256,13 +6563,18 @@ export class LineEngine implements IntakeLine {
       const listed = Array.isArray(args.milestones)
         ? readDraftItems(args.milestones, { defaultKind: "M", allowed: ["M"] })
         : [];
-      const milestones = [...fromItems, ...listed].map((m, i) => ({
-        ...m,
-        // Planners number them ("1. Runs"); the record gives each its own ID (M-1).
-        text: m.text.replace(/^\s*\d+[.):]\s+/, ""),
-        kind: "M" as const,
-        key: `m${i + 1}`,
-      }));
+      const milestones = [...fromItems, ...listed].map((m, i) => {
+        // Planners number them ("1. Runs"); the record gives each its own ID (M-1). A wait written
+        // into the text ("(wait)") becomes the milestone's wait flag (decision 0321).
+        const split = splitWaitMarker(m.text.replace(/^\s*\d+[.):]\s+/, ""));
+        return {
+          ...m,
+          text: split.text,
+          ...(split.marked && { wait: true }),
+          kind: "M" as const,
+          key: `m${i + 1}`,
+        };
+      });
       const ds = decisions.filter((d) => d.kind === "D");
       const problems = this.dryRun(
         id,

@@ -14,6 +14,7 @@ import { RecordView } from "./RecordView";
 import { ReportView } from "./ReportView";
 import { SoftwareActions } from "./SoftwareActions";
 import { WorkingOn } from "./WorkingOn";
+import { Timeline } from "./Timeline";
 
 export type SoftwareTab = "conversation" | "line" | "record" | "report" | "intake" | "learned";
 
@@ -121,6 +122,21 @@ export function SoftwareView({
         {s.existing && <ExistingPanel softwareId={s.id} existing={s.existing} />}
         {s.state === "paused-budget" && <PausedForBudget softwareId={s.id} />}
       </header>
+
+      {s.timeline && (
+        <Timeline
+          timeline={s.timeline}
+          onAnswer={(askId) => {
+            onTab("conversation");
+            // The conversation draws first; then bring the question into view.
+            window.setTimeout(() => {
+              const card = document.getElementById(`ask-${askId}`);
+              card?.scrollIntoView?.({ block: "start" });
+              card?.focus?.();
+            }, 80);
+          }}
+        />
+      )}
 
       <div className="tabs" role="tablist" aria-label={`${s.name} views`}>
         {tabs.map((t, i) => (

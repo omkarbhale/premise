@@ -107,7 +107,7 @@ Do this:
 7. For a change from intake, use its own brief (the change plan brief below), not this one. For any other change, keep it to the tasks the change needs. If the change touches purpose or would be costly to undo, say so in one line; the line engine sends it to the say-back.
 8. For each claimed area, add a prototype task before the task that builds it. If the area is not something a screenshot can show (an API's naming, wording), say so instead; you will be asked for a short list.
 9. List anything needed from a role (needed) or from the gate (approval) with ask or gate_request.
-10. Submit with draft_submit, stage "plan": "items" (the D items, each { "text", "foundation": true or false }, and for a conditional one also "condition", "must": ["W-2"], and "who" when a person can meet it), "milestones" (each { "text" }), "tasks" (each { "title", "items": the record IDs it serves, "check": what the checker should see, "milestone": its milestone's number, from 1 }), "kind" and "how_to_run". End with task_finish.
+10. Submit with draft_submit, stage "plan": "items" (the D items, each { "text", "foundation": true or false }, and for a conditional one also "condition", "must": ["W-2"], and "who" when a person can meet it), "milestones" (each { "text" }; never write whether premise stops after it into the text: premise asks the operator that, and the stop is a separate mark), "tasks" (each { "title", "items": the record IDs it serves, "check": what the checker should see, "milestone": its milestone's number, from 1 }), "kind" and "how_to_run". End with task_finish.
 ````
 
 ## Full text: change plan brief

@@ -38,7 +38,6 @@ import {
   intakeItemByExternalRef,
   intakeItemByNumber,
   intakeItemByReceipt,
-  intakeItemOfWork,
   listIntakeItems,
   listReadings,
   minutesToRunning,
@@ -794,11 +793,42 @@ export class Intake implements IntakeHooks {
 
   /** IntakeHooks: the work an item became moved on the line. */
   workItemMoved(work: WorkItem, where: string): void {
-    if (work.kind !== "intake") return;
-    const item = intakeItemOfWork(this.db, work.id);
-    if (!item) return;
-    this.followWork(work, where, item);
-    this.tellSender(item.id);
+    // Several items can be one change, or built as part of a milestone (decision 0321): each item
+    // whose work this is, is followed.
+    const items = listIntakeItems(this.db, { softwareId: work.softwareId })
+      .filter((i) => i.workItemId === work.id)
+      .sort((a, b) => a.id - b.id);
+    for (const item of items) {
+      this.followWork(work, where, item);
+      this.tellSender(item.id);
+    }
+  }
+
+  /**
+   * IntakeHooks: hold the items of a change that is still waiting its turn (the person chose to,
+   * when the queue grew long). They are read together later, like other held items.
+   */
+  holdWork(workItemId: number, reason: string): boolean {
+    const items = listIntakeItems(this.db).filter((i) => i.workItemId === workItemId);
+    if (items.length === 0 || !this.line?.withdrawWaitingWork(workItemId)) return false;
+    for (const item of items) {
+      setIntakeItem(this.db, item.id, {
+        status: "held",
+        route: "held",
+        routedBy: "operator",
+        heldAt: now(),
+        workItemId: null,
+        reason,
+        finished: null,
+      });
+      this.say(
+        item.softwareId,
+        item,
+        "held, because you chose to when the queue grew long. Held items are read together later; take it in again on the Intake tab.",
+      );
+    }
+    this.maybeRead(items[0]!.softwareId);
+    return true;
   }
 
   private followWork(work: WorkItem, where: string, item: IntakeItem): void {

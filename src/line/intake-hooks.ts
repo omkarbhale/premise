@@ -17,6 +17,11 @@ export interface IntakeHooks {
   answered(ask: Ask, answer: AskAnswer): (() => void) | null;
   /** A work item entered a stage, or ended ("done", "dropped", "withdrawn"). */
   workItemMoved(item: WorkItem, where: string): void;
+  /**
+   * Hold the items of a change still waiting its turn, to be read later with other held items
+   * (decision 0321). False when its work has started.
+   */
+  holdWork?(workItemId: number, reason: string): boolean;
 }
 
 /** What intake needs from the line: put an item's work on it. */

@@ -29,6 +29,8 @@ export interface SoftwareSummary {
   archived?: boolean;
   /** Whether it can be archived now, and if not, why not in plain words. */
   archivable?: { ok: boolean; why: string };
+  /** The timeline in one glance: what runs now, what is next, and how long the queue is. */
+  glance?: TimelineGlance;
 }
 
 /** One software's line in the summary across softwares. */
@@ -301,6 +303,8 @@ export interface SoftwareDetail extends SoftwareSummary {
   changeQuestions: "every-change" | "when-it-matters" | "never";
   /** What is being worked on now, and where the person's recent answers went (decision 0310). */
   working?: WorkingView;
+  /** The work of this software top to bottom: done, running now, and queued (decision 0320). */
+  timeline: TimelineView;
 }
 
 /** One job working for a software, in plain words (decision 0310). */
@@ -335,6 +339,163 @@ export interface AnswerFateView {
 export interface WorkingView {
   jobs: WorkingJobView[];
   answers: AnswerFateView[];
+}
+
+// ---- The timeline of the line (decisions 0320, 0321) -------------------------------------------
+
+/** done, running, to do, waiting on a person, or stopped. */
+export type TimelineMark = "done" | "running" | "todo" | "waiting" | "stopped";
+
+/** One step of a piece of work, or one task of a step, with its mark. */
+export interface TimelineStep {
+  text: string;
+  mark: TimelineMark;
+  /** A line more, such as what a check found. */
+  detail?: string;
+  /** The tasks of a build step or a fix round. */
+  tasks?: TimelineStep[];
+}
+
+/** A question waiting on a person at this point of the timeline. */
+export interface TimelineAsk {
+  id: number;
+  title: string;
+  /** A change's notice: it waits on nobody, premise builds meanwhile. */
+  notice: boolean;
+}
+
+/** Who is working on a piece now. */
+export interface TimelineWorker {
+  /** In plain words: "builder", "checker, checking the parts work together". */
+  role: string;
+  /** running, or queued until an agent is free. */
+  status: "running" | "queued" | "waiting";
+  since: string | null;
+  /** The agent's latest progress line. */
+  progress: string | null;
+}
+
+/** A rough estimate from premise's own measured history; never a promise. */
+export interface TimelineEstimate {
+  /** Whether there was enough history to estimate at all. */
+  enough: boolean;
+  minutes: number | null;
+  sessions: number | null;
+  /** In plain words: "about 40 minutes, 3 agent sessions" or "not enough history yet". */
+  words: string;
+}
+
+/** How important a queued piece is, as the person set it. */
+export type QueuePriority = "first" | "normal" | "later";
+
+/** One piece of work on the timeline. */
+export interface TimelineEntry {
+  /** Stable while the page is open. */
+  key: string;
+  /**
+   * understand: the software's own Why to Plan; build: the software built without milestones;
+   * milestone; part: a part of a split piece; fix: a fix the check of the whole asked for;
+   * change: an intake item's change; intake: an item taken in that is not on the line yet.
+   */
+  kind: "understand" | "build" | "milestone" | "part" | "fix" | "change" | "intake";
+  title: string;
+  /** M-2, I-4: shown only under details. */
+  ref: string | null;
+  state: "done" | "running" | "waiting-on-you" | "queued" | "being-read" | "dropped";
+  /** For running work: the step it is on, in plain words ("Build, task 3 of 7: bots peek corners"). */
+  step: string | null;
+  who: TimelineWorker[];
+  /** Its steps, with done, running and to-do marks. */
+  steps: TimelineStep[];
+  /** For queued work: why it waits. */
+  why: string | null;
+  /** For queued work: what will start it. */
+  startsWhen: string | null;
+  /** Questions waiting on a person here. */
+  asks: TimelineAsk[];
+  /** For finished work: how it ended, in one line. */
+  outcome: string | null;
+  /** For queued changes: the place in line, from 1. */
+  place: number | null;
+  /** For queued and running changes: rough wait before it starts, and its own work. */
+  estimate: { wait: TimelineEstimate; work: TimelineEstimate } | null;
+  /** For a queued change the person can move or set the priority of. */
+  queue: {
+    workItemId: number;
+    priority: QueuePriority;
+    canMoveUp: boolean;
+    canMoveDown: boolean;
+    /** The intake items it does together, when several were made one change. */
+    together: string[];
+    canSplit: boolean;
+    /**
+     * Whether it goes before the milestones not started yet, and why: feedback on what landed,
+     * something new, or the person's word. Null when no milestone is left to go before.
+     */
+    placement: { before: boolean; by: "feedback" | "new" | "person" } | null;
+  } | null;
+  /** For a milestone: its id and whether premise stops after it; the person can change it. */
+  milestone: { id: string; wait: boolean } | null;
+  /** When it was finished, for done work. */
+  finished: string | null;
+}
+
+/** Queued changes premise proposes to do as one, because they touch the same parts. */
+export interface TimelineGroup {
+  /** The work items, in queue order; the answer names them. */
+  workItemIds: number[];
+  refs: string[];
+  /** What they have in common, in plain words ("the HUD"). */
+  about: string;
+}
+
+/** A queued milestone and a queued change that touch the same parts (decision 0321). */
+export interface TimelineOverlap {
+  milestoneItemId: number;
+  milestoneTitle: string;
+  workItemId: number;
+  ref: string;
+  /** What they both change, in plain words. */
+  about: string;
+}
+
+/** The long-queue notice, said once, with what the person can do about it (decision 0321). */
+export interface QueueNoticeView {
+  items: number;
+  total: TimelineEstimate;
+  /** How many of the lowest-value pieces holding would set aside. */
+  holdCount: number;
+  /** What premise said, in plain words. */
+  words: string;
+}
+
+export interface TimelineView {
+  softwareId: string;
+  /** One sentence: what runs now and what comes next. */
+  headline: string;
+  /** Finished work, oldest first; the page shows it collapsed. */
+  done: TimelineEntry[];
+  /** Running now; more than one when pieces run side by side. */
+  now: TimelineEntry[];
+  /** Everything after it, in order. */
+  next: TimelineEntry[];
+  groups: TimelineGroup[];
+  /** Milestones and changes premise proposes building as one piece. */
+  overlaps: TimelineOverlap[];
+  notice: QueueNoticeView | null;
+  /** The queue of changes: how many, and the rough total. */
+  queue: { length: number; total: TimelineEstimate };
+}
+
+/** The timeline in one glance, for the software list and Activity. */
+export interface TimelineGlance {
+  /** What runs now with its step, or null when nothing runs. */
+  now: string | null;
+  /** What comes next, or null. */
+  next: string | null;
+  queue: number;
+  /** The queue's rough total, or null when there is no queue. */
+  total: string | null;
 }
 
 /**
@@ -818,6 +979,8 @@ export interface ActivityView {
   waiting: JobView[];
   queued: JobView[];
   recent: JobView[];
+  /** One line per software with work: what runs now with its step, and what is next up. */
+  lines?: (TimelineGlance & { softwareId: string; name: string })[];
 }
 
 export interface SettingView {

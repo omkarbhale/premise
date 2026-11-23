@@ -1,6 +1,6 @@
 # 0185. How intake in a thin form is built: triage per item, work on the same line, status in plain words
 
-- Status: Partly superseded by [0313](0313-several-pieces-of-one-software-at-once.md): point 9, intake work one item at a time
+- Status: Partly superseded by [0313](0313-several-pieces-of-one-software-at-once.md): point 9, intake work one item at a time; and by [0321](0321-the-queue-of-changes-says-where-each-stands.md): the order of intake work
 - Scope: Making premise
 - Date: 2026-11-21
 - Decided by: The builders, while building intake in a thin form. Points 14 to 16 are chosen for the owner, open to correction. The owner did not make these choices.

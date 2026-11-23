@@ -14,6 +14,7 @@ import type {
   SoftwareDetail,
   SoftwareSummary,
   SummaryView,
+  QueuePriority,
 } from "../shared/api-types.js";
 import type { SizeClass, SoftwareEffort, StageId } from "../shared/stages.js";
 
@@ -86,6 +87,17 @@ export interface SoftwareService {
   /** Archive a finished or abandoned software: kept, hidden, restorable; never deleted. */
   archive(id: string): Promise<void>;
   restore(id: string): Promise<void>;
+  /** Make the changes premise proposed together one change, or keep them apart (decision 0321). */
+  decideGroup(id: string, workItemIds: number[], together: boolean): Promise<void>;
+  /** Answer the long-queue notice. */
+  answerQueueNotice(id: string, answer: "hold" | "budget" | "agents" | "leave"): Promise<void>;
+  /** Build a queued change as part of a queued milestone, or keep them apart. */
+  decideOverlap(
+    id: string,
+    milestoneItemId: number,
+    workItemId: number,
+    merge: boolean,
+  ): Promise<void>;
 }
 
 /** The short summary across every software (decision 0197). */
@@ -100,6 +112,14 @@ export interface WorkItemService {
   setSize(itemId: number, size: SizeClass): Promise<void>;
   setStages(itemId: number, stages: StageId[]): Promise<void>;
   undoSplit(itemId: number): Promise<void>;
+  /** Move a queued change one place up or down (decision 0321). */
+  move(itemId: number, direction: "up" | "down"): Promise<void>;
+  /** Set how important a queued change is. */
+  setPriority(itemId: number, priority: QueuePriority): Promise<void>;
+  /** Split a change made of several back into its own changes. */
+  splitChange(itemId: number): Promise<void>;
+  /** Put a queued change before or after the milestones not started yet. */
+  setPlacement(itemId: number, before: boolean): Promise<void>;
   /** The software the piece belongs to. */
   softwareOf(itemId: number): Promise<string>;
 }

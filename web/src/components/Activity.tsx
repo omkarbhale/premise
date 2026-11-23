@@ -8,7 +8,7 @@ import { Problem } from "./Badges";
 
 /** What agents are doing now, what waits, and what is queued (the work queue). */
 export function Activity() {
-  const { api, version, notCurrent, refresh } = useSession();
+  const { api, version, notCurrent, refresh, go } = useSession();
   const activity = useLoad(() => api.activity(), [], version, notCurrent);
   const [problem, setProblem] = useState<string | null>(null);
 
@@ -67,6 +67,39 @@ export function Activity() {
         </p>
       )}
       {problem && <Problem>{problem}</Problem>}
+      {a.lines && a.lines.length > 0 && (
+        <section className="card" aria-labelledby="activity-lines">
+          <h2 id="activity-lines">Each software now</h2>
+          <ul className="activity-lines">
+            {a.lines.map((l) => (
+              <li key={l.softwareId}>
+                <button type="button" className="link" onClick={() => go?.(l.softwareId)}>
+                  {l.name}
+                </button>
+                <div className="small">
+                  {l.now ? (
+                    <>
+                      <span aria-hidden="true">● </span>
+                      {l.now}
+                    </>
+                  ) : (
+                    <span className="muted">Nothing running.</span>
+                  )}
+                </div>
+                {l.next && <div className="small muted">Next up: {l.next}</div>}
+                {l.queue > 0 && (
+                  <div className="small muted">
+                    {l.queue === 1 ? "1 change queued" : `${l.queue} changes queued`}
+                    {l.total && l.total !== "not enough history yet"
+                      ? `, ${l.total} (rough estimate)`
+                      : ""}
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {groups.map((g) => (
         <section key={g.title} className="card" aria-label={g.title}>
           <h2>

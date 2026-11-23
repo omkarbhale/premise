@@ -14,6 +14,8 @@ export interface Session {
   refresh: () => void;
   /** Open a software (and one of its tabs) on the page. */
   go?: (softwareId: string, tab?: SoftwareTab) => void;
+  /** Open one of the pages under More. */
+  show?: (view: "usage" | "settings") => void;
   /** Every software, for cards that name where one stands now. */
   softwares?: SoftwareSummary[];
   /** What a new software starts with (effort, priority, stopping after milestones). */

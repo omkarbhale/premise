@@ -258,6 +258,12 @@ export async function runDemo(
      * For tests: more to do once the software is built, before the session closes, such as
      * sending it a change. `drive` answers asks as the operator until the line rests again.
      */
+    /** For tests: called once the software is started, before anything is answered. */
+    started?: (context: {
+      session: ReturnType<typeof createSession>;
+      softwareId: string;
+      db: ReturnType<typeof openDatabase>["db"];
+    }) => void;
     after?: (context: {
       session: ReturnType<typeof createSession>;
       softwareId: string;
@@ -309,6 +315,7 @@ export async function runDemo(
     log(`Demo: ${demo.title}. The idea: ${demo.idea}`);
     const started = await session.services.softwares.start({ idea: demo.idea });
     const id = started.id;
+    options.started?.({ session, softwareId: id, db });
     if (options.smallBudgetUsd !== undefined) {
       await session.usage.setBudget(id, { kind: "amount", usd: options.smallBudgetUsd });
     }

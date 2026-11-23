@@ -9,6 +9,9 @@ import type {
   SoftwareDetail,
   OwnFigures,
   SoftwareUsageView,
+  TimelineEntry,
+  TimelineEstimate,
+  TimelineView,
   UsageOverview,
   UsageRowView,
   WorkItemView,
@@ -118,6 +121,58 @@ export function software(change: Partial<SoftwareDetail> = {}): SoftwareDetail {
     budget: { turns: 15, minutes: 10, usedMinutes: 1.5 },
     work: [workItem()],
     wholeCheckStandIn: true,
+    timeline: timeline(),
+    ...change,
+  };
+}
+
+/** An estimate premise has no history for. */
+export const NO_HISTORY: TimelineEstimate = {
+  enough: false,
+  minutes: null,
+  sessions: null,
+  words: "not enough history yet",
+};
+
+/** One entry of the timeline; by default the software's understanding, running. */
+export function timelineEntry(change: Partial<TimelineEntry> = {}): TimelineEntry {
+  return {
+    key: "understand",
+    kind: "understand",
+    title: "Understanding what you want",
+    ref: null,
+    state: "running",
+    step: "What: drafting what it must do",
+    who: [],
+    steps: [],
+    why: null,
+    startsWhen: null,
+    asks: [],
+    outcome: null,
+    place: null,
+    estimate: null,
+    queue: null,
+    milestone: null,
+    finished: null,
+    ...change,
+  };
+}
+
+/** A timeline: by default the software is being understood and nothing is queued. */
+export function timeline(change: Partial<TimelineView> = {}): TimelineView {
+  return {
+    softwareId: "s1",
+    headline: "Now: Understanding what you want, what: drafting what it must do.",
+    done: [],
+    now: [timelineEntry()],
+    next: [],
+    groups: [],
+    overlaps: [],
+    notice: null,
+    queue: {
+      length: 0,
+      total: { enough: true, minutes: 0, sessions: 0, words: "nothing before it" },
+    },
     ...change,
   };
 }
@@ -280,6 +335,13 @@ export function fakeApi(change: Partial<Api> = {}): Api {
     setItemSize: vi.fn(fail),
     setItemStages: vi.fn(fail),
     undoSplit: vi.fn(fail),
+    moveQueued: vi.fn(fail),
+    setQueuedPriority: vi.fn(fail),
+    splitChange: vi.fn(fail),
+    setPlacement: vi.fn(fail),
+    decideOverlap: vi.fn(fail),
+    decideGroup: vi.fn(fail),
+    answerQueueNotice: vi.fn(fail),
     setPriority: vi.fn(fail),
     setEffort: vi.fn(fail),
     setChangeQuestions: vi.fn(fail),

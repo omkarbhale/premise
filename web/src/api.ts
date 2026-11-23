@@ -21,6 +21,7 @@ import type {
   RunView,
   SettingsView,
   ClaimView,
+  QueuePriority,
   SoftwareDetail,
   SoftwareSummary,
   SummaryView,
@@ -89,6 +90,22 @@ export interface Api {
   setItemSize(itemId: number, size: SizeClass): Promise<SoftwareDetail>;
   setItemStages(itemId: number, stages: StageId[]): Promise<SoftwareDetail>;
   undoSplit(itemId: number): Promise<SoftwareDetail>;
+  /** The queue of changes (decision 0321). */
+  moveQueued(itemId: number, direction: "up" | "down"): Promise<SoftwareDetail>;
+  setQueuedPriority(itemId: number, priority: QueuePriority): Promise<SoftwareDetail>;
+  splitChange(itemId: number): Promise<SoftwareDetail>;
+  setPlacement(itemId: number, before: boolean): Promise<SoftwareDetail>;
+  decideOverlap(
+    id: string,
+    milestoneItemId: number,
+    workItemId: number,
+    merge: boolean,
+  ): Promise<SoftwareDetail>;
+  decideGroup(id: string, workItemIds: number[], together: boolean): Promise<SoftwareDetail>;
+  answerQueueNotice(
+    id: string,
+    answer: "hold" | "budget" | "agents" | "leave",
+  ): Promise<SoftwareDetail>;
   setPriority(id: string, priority: number): Promise<SoftwareDetail>;
   setEffort(id: string, effort: SoftwareEffort): Promise<SoftwareDetail>;
   setChangeQuestions(id: string, value: SoftwareDetail["changeQuestions"]): Promise<SoftwareDetail>;
@@ -214,6 +231,16 @@ export function createApi(token: string): Api {
     setItemSize: (itemId, size) => post(`/api/work-items/${itemId}/size`, { size }),
     setItemStages: (itemId, stages) => post(`/api/work-items/${itemId}/stages`, { stages }),
     undoSplit: (itemId) => post(`/api/work-items/${itemId}/undo-split`),
+    moveQueued: (itemId, direction) => post(`/api/work-items/${itemId}/move`, { direction }),
+    setQueuedPriority: (itemId, priority) =>
+      post(`/api/work-items/${itemId}/queue-priority`, { priority }),
+    splitChange: (itemId) => post(`/api/work-items/${itemId}/split-change`),
+    setPlacement: (itemId, before) => post(`/api/work-items/${itemId}/placement`, { before }),
+    decideOverlap: (id, milestoneItemId, workItemId, merge) =>
+      post(`/api/softwares/${enc(id)}/overlaps`, { milestoneItemId, workItemId, merge }),
+    decideGroup: (id, workItemIds, together) =>
+      post(`/api/softwares/${enc(id)}/groups`, { workItemIds, together }),
+    answerQueueNotice: (id, answer) => post(`/api/softwares/${enc(id)}/queue-notice`, { answer }),
     setPriority: (id, priority) => post(`/api/softwares/${enc(id)}/priority`, { priority }),
     setEffort: (id, effort) => post(`/api/softwares/${enc(id)}/effort`, { effort }),
     setChangeQuestions: (id, value) =>
