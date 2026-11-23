@@ -1,3 +1,4 @@
+import { withProvidedTools } from "../runner/provided-tools.js";
 import { type ChildProcess, execFile, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { createWriteStream, mkdirSync, rmSync, writeFileSync } from "node:fs";
@@ -71,6 +72,8 @@ export interface ClaudeAgentRunnerOptions {
    * restarting premise.
    */
   extraHosts?: (softwareId: string) => string[];
+  /** Programs the person provided for one software; put on the session's PATH (decision 0311). */
+  extraToolPaths?: (softwareId: string) => string[];
 }
 
 /** The message that carries a cut-off session on. */
@@ -284,6 +287,16 @@ class ClaudeSession implements AgentSession {
     }
   }
 
+  private environmentFor(softwareId: string): NodeJS.ProcessEnv {
+    const env = sessionEnvironment(
+      this.options.env ?? process.env,
+      this.options.config.agents.claude_config_folder,
+    );
+    const provided = this.options.extraToolPaths?.(softwareId) ?? [];
+    if (provided.length > 0) env.PATH = withProvidedTools(env.PATH, provided);
+    return env;
+  }
+
   private watch(
     args: string[],
     cwd: string,
@@ -298,10 +311,7 @@ class ClaudeSession implements AgentSession {
     return new Promise((resolve, reject) => {
       const child = spawn(config.agents.claude.command, args, {
         cwd,
-        env: sessionEnvironment(
-          this.options.env ?? process.env,
-          config.agents.claude_config_folder,
-        ),
+        env: this.environmentFor(request.softwareId),
         stdio: ["ignore", "pipe", "pipe"],
         detached: true,
       });

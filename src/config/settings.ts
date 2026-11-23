@@ -837,6 +837,20 @@ export const SETTINGS: readonly Setting[] = [
     record: "0280",
   },
   {
+    key: "runner.name_check_host",
+    default: "registry.npmjs.org",
+    check: summarised(
+      (value) =>
+        typeof value === "string" && /^([A-Za-z0-9.-]{1,253})?$/.test(value)
+          ? null
+          : `must be a host name such as registry.npmjs.org, or empty; it is ${JSON.stringify(value)}`,
+      "a host name, or empty",
+    ),
+    meaning:
+      "The host name premise looks up inside its sandbox before a build step that uses the network. If it cannot be found there, the start stops at once and says so, instead of every build step failing after the time limit. Leave it empty to skip the check.",
+    record: "0311",
+  },
+  {
     key: "runner.max_running_softwares",
     default: 5,
     check: summarised(wholeNumber(1, 50), "1 to 50"),
@@ -889,6 +903,14 @@ export const SETTINGS: readonly Setting[] = [
     meaning:
       "Extra folders running software may read but not change, such as where Python is installed when that is under your home folder. The Node.js premise runs on is normally included; when it is installed in your home folder or above it, add its folder here yourself.",
     record: "0163",
+  },
+  {
+    key: "runner.extra_tool_paths",
+    default: [],
+    check: summarised(textList, "a list of absolute paths of program files or folders"),
+    meaning:
+      "Programs you installed for premise's software to use, such as Godot in your home folder: exact program files or folders. Running software and its build steps may read them (never the rest of your home folder) and find them on their PATH, and agents find them on theirs. A program you tell premise you installed is remembered for that software without being listed here.",
+    record: "0311",
   },
   {
     key: "reports.max_lines",
@@ -1074,6 +1096,7 @@ export interface PremiseConfig {
     start_timeout_seconds: number;
     build_timeout_seconds: number;
     build_network: boolean;
+    name_check_host: string;
     max_running_softwares: number;
     min_free_memory_mb: number;
     sample_timeout_seconds: number;
@@ -1081,6 +1104,7 @@ export interface PremiseConfig {
     output_lines: number;
     confinement: RunnerConfinement;
     read_only_paths: string[];
+    extra_tool_paths: string[];
     default_visibility: Visibility;
   };
   reports: { max_lines: number };

@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 import type { AgentRequest } from "../src/agents/agent-runner.js";
 import type { AgentScript, ScriptBehaviour } from "../src/agents/scripted-agent.js";
 import { COUNT_DEMO } from "../src/demo/demo-softwares.js";
-import { type OperatorAnswer, demoOperator, demoScript, runDemo } from "../src/demo/demos.js";
+import {
+  type OperatorAnswer,
+  bubblewrapWorks,
+  demoOperator,
+  demoScript,
+  runDemo,
+} from "../src/demo/demos.js";
 import { commitAll, scriptedJudge, taskOf, writeFiles } from "../src/demo/scripted-work.js";
 import type { AskView } from "../src/shared/api-types.js";
 import { tempFolder, uniquePortRange } from "./helpers.js";
@@ -172,4 +178,66 @@ describe("the Run step builds first (decision 0280)", () => {
     expect(failed.lines[0]!.text).toContain("gyp ERR! no compiler found");
     expect(said).toContain("leave it not running");
   }, 120_000);
+
+  it("tells a sample that ran out of time as a timing problem, naming the setting, and does not send it back to Build (decision 0310)", async () => {
+    fixBriefs.length = 0;
+    const slow = runMd([]).replace("sample: node dist/count.mjs sample.txt", "sample: sleep 20");
+    const build = builder((request) => {
+      if (request.context?.purpose === "fix") fixBriefs.push(request.brief);
+      return slow;
+    });
+    const { range } = await uniquePortRange(20);
+    const result = await runDemo("cli", {
+      dataFolder: tempFolder(),
+      confinement: "none",
+      portRange: range,
+      env: { PREMISE_RUNNER__SAMPLE_TIMEOUT_SECONDS: "1" },
+      script: script(build, judgeIgnoringRunMd),
+      operator: operatorWith({
+        "Built and checked, but it would not start": "Leave it not running",
+      }),
+    });
+    const said = result.said.join("\n");
+    expect(said).toContain("its sample ran out of time, which is a timing problem");
+    expect(said).not.toContain("It goes back to Build by itself");
+    expect(fixBriefs.filter((b) => b.includes("would not start"))).toEqual([]);
+    expect(result.run.plain).toContain("runner.sample_timeout_seconds");
+    expect(result.run.state).toBe("failed");
+  }, 120_000);
+
+  it.skipIf(!bubblewrapWorks())(
+    "does not send a fault of the machine back to Build: it asks the person at once (decision 0310)",
+    async () => {
+      fixBriefs.length = 0;
+      const build = builder((request) => {
+        if (request.context?.purpose === "fix") fixBriefs.push(request.brief);
+        return WITH_BUILD;
+      });
+      const result = await runDemoOnBrokenNames(script(build, judgeIgnoringRunMd));
+      const said = result.said.join("\n");
+      expect(said).toContain("cannot look up names inside premise's sandbox");
+      expect(said).not.toContain("It goes back to Build by itself");
+      expect(fixBriefs.filter((b) => b.includes("would not start"))).toEqual([]);
+      const ask = result.answered.find(
+        (a) => a.title === "Built and checked, but it would not start",
+      );
+      expect(ask?.answer).toBe("Leave it not running");
+      expect(result.run.state).toBe("failed");
+    },
+    120_000,
+  );
 });
+
+async function runDemoOnBrokenNames(agentScript: AgentScript) {
+  const { range } = await uniquePortRange(20);
+  return runDemo("cli", {
+    dataFolder: tempFolder(),
+    confinement: "bubblewrap",
+    portRange: range,
+    env: { PREMISE_RUNNER__NAME_CHECK_HOST: '"nothing.invalid"' },
+    script: agentScript,
+    operator: operatorWith({
+      "Built and checked, but it would not start": "Leave it not running",
+    }),
+  });
+}
