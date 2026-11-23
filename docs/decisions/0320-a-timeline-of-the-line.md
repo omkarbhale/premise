@@ -21,7 +21,7 @@ The Line tab showed the eleven stages and the pieces of work, but not as an orde
 7. **Several running pieces are a list**, so pieces running side by side within one software show as several running entries once the line runs them.
 8. **A glance everywhere else**: the software list shows each software's now and next and its queue; Activity gets one line per software with what runs (and its step) and what is next up.
 9. **Plain words**: ids such as M-2 are only under "Details"; intake references stay in titles, as the person uses them in the conversation.
-10. **Tested at each state**: component tests for each kind of entry; a test on the real line with scripted agents that reads the timeline through the plan, build tasks, a check, a fix round, intake queued and a milestone stop; and a second browser test, beside the first-run one of [0156](0156-page-tests-with-testing-library-and-one-browser-test.md), that walks the same on the page and saves screenshots at laptop and phone width (`timeline-*.png`). `start()` takes a script written in code for that, for tests only.
+10. **Tested at each state**: component tests for each kind of entry; a test on the real line with scripted agents that reads the timeline through the plan, build tasks, a check, a fix round, intake queued and a milestone stop; and a second part of the one browser test file of [0156](0156-page-tests-with-testing-library-and-one-browser-test.md) (run after the first-run walk, not beside it), that walks the same on the page and saves screenshots at laptop and phone width (`timeline-*.png`). `start()` takes a script written in code for that, for tests only.
 
 ## Reason
 
