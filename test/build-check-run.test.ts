@@ -371,23 +371,12 @@ describe("the checker's scenarios", () => {
       },
     );
     const result = await run({ script });
-    expect(tried).toEqual(
-      [
-        { tool: "verdict_submit", code: "NOT_ALLOWED" },
-        { tool: "scenario_write", code: "NOT_ALLOWED" },
-        { tool: "verdict_submit", code: "MALFORMED" },
-        { tool: "verdict_submit", code: "MALFORMED" },
-        { tool: "verdict_submit", code: "MALFORMED" },
-        { tool: "verdict_submit", code: "MALFORMED" },
-        { tool: "verdict_submit", code: "MALFORMED" },
-        { tool: "verdict_submit", code: "MALFORMED" },
-      ].slice(0, tried.length),
-    );
     expect(tried.slice(0, 2)).toEqual([
       { tool: "verdict_submit", code: "NOT_ALLOWED" },
       { tool: "scenario_write", code: "NOT_ALLOWED" },
     ]);
-    expect(tried.slice(2, 7).every((t) => t.code === "MALFORMED")).toBe(true);
+    expect(tried.length).toBeGreaterThanOrEqual(7);
+    expect(tried.slice(2).every((t) => t.tool === "verdict_submit" && t.code === "MALFORMED")).toBe(true);
     expect(result.stage).toBe("intake");
   }, 60_000);
 });
