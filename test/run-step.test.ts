@@ -179,6 +179,32 @@ describe("the Run step builds first (decision 0280)", () => {
     expect(said).toContain("leave it not running");
   }, 120_000);
 
+  it("tells a sample that ran out of time as a timing problem, naming the setting, and does not send it back to Build (decision 0310)", async () => {
+    fixBriefs.length = 0;
+    const slow = runMd([]).replace("sample: node dist/count.mjs sample.txt", "sample: sleep 20");
+    const build = builder((request) => {
+      if (request.context?.purpose === "fix") fixBriefs.push(request.brief);
+      return slow;
+    });
+    const { range } = await uniquePortRange(20);
+    const result = await runDemo("cli", {
+      dataFolder: tempFolder(),
+      confinement: "none",
+      portRange: range,
+      env: { PREMISE_RUNNER__SAMPLE_TIMEOUT_SECONDS: "1" },
+      script: script(build, judgeIgnoringRunMd),
+      operator: operatorWith({
+        "Built and checked, but it would not start": "Leave it not running",
+      }),
+    });
+    const said = result.said.join("\n");
+    expect(said).toContain("its sample ran out of time, which is a timing problem");
+    expect(said).not.toContain("It goes back to Build by itself");
+    expect(fixBriefs.filter((b) => b.includes("would not start"))).toEqual([]);
+    expect(result.run.plain).toContain("runner.sample_timeout_seconds");
+    expect(result.run.state).toBe("failed");
+  }, 120_000);
+
   it.skipIf(!bubblewrapWorks())(
     "does not send a fault of the machine back to Build: it asks the person at once (decision 0310)",
     async () => {

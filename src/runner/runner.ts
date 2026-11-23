@@ -18,6 +18,7 @@ import type { Job } from "../queue/work-queue.js";
 import type { RunState, RunView } from "../shared/api-types.js";
 import { type Database, now, recordEvent } from "../storage/database.js";
 import { confine, finalLinkTarget } from "./confinement.js";
+import { providedToolPaths, toolFolders } from "./provided-tools.js";
 import { secretsFile } from "./secrets.js";
 import { type RunInstructions, parseRunInstructions } from "./run-instructions.js";
 
@@ -40,7 +41,7 @@ export function nodePrefix(execPath = process.execPath, home = homedir()): strin
 
 export class RunnerError extends Error {
   constructor(
-    readonly code: "RUN_FAILED" | "NOTHING_BUILT" | "MACHINE_FAULT",
+    readonly code: "RUN_FAILED" | "NOTHING_BUILT" | "MACHINE_FAULT" | "TIMING",
     message: string,
   ) {
     super(message);
@@ -562,15 +563,23 @@ export class Runner {
    * Folders running software may read: the setting's, plus the Node.js premise itself runs on, so
    * software written for Node.js starts even when Node.js is installed under the home folder.
    */
-  private readOnlyPaths(): string[] {
+  private readOnlyPaths(softwareId?: string): string[] {
     const own = nodePrefix();
     const listed = this.deps.config.runner.read_only_paths;
-    return own === null || listed.includes(own) ? listed : [...listed, own];
+    const base = own === null || listed.includes(own) ? listed : [...listed, own];
+    return [...base, ...this.providedTools(softwareId)];
+  }
+
+  /** Programs the person provided for this software, bound read only (decision 0310). */
+  private providedTools(softwareId?: string): string[] {
+    if (softwareId === undefined) return [];
+    return providedToolPaths(this.deps.db, this.deps.config, softwareId);
   }
 
   private environment(live: Live): NodeJS.ProcessEnv {
     const readOnly = this.readOnlyPaths();
     const path = [
+      ...toolFolders(this.providedTools(live.softwareId)),
       ...readOnly.map((p) => join(p, "bin")),
       "/usr/local/bin",
       "/usr/bin",
@@ -594,7 +603,7 @@ export class Runner {
       copy: live.copy,
       shellCommand,
       network,
-      readOnlyPaths: this.readOnlyPaths(),
+      readOnlyPaths: this.readOnlyPaths(live.softwareId),
     });
     const child = spawn(command.file, command.args, {
       cwd: live.copy,
@@ -741,8 +750,8 @@ export class Runner {
         this.killTree(live);
         reject(
           new RunnerError(
-            "RUN_FAILED",
-            `The sample run of "${sample}" took more than ${limit} seconds, so premise stopped it. Its output so far:\n${out.trim() || "(none)"}`,
+            "TIMING",
+            `This is a timing problem, not a fault in the software: the sample run of "${sample}" was still going after ${limit} seconds (runner.sample_timeout_seconds), so premise stopped it. Its output so far:\n${out.trim() || "(none)"}\nA sample is a short demonstration that finishes in seconds, not the test suite. Choose a shorter sample in run.md, or raise runner.sample_timeout_seconds in the settings if it really needs longer.`,
           ),
         );
       }, limit * 1000);

@@ -905,6 +905,14 @@ export const SETTINGS: readonly Setting[] = [
     record: "0163",
   },
   {
+    key: "runner.extra_tool_paths",
+    default: [],
+    check: summarised(textList, "a list of absolute paths of program files or folders"),
+    meaning:
+      "Programs you installed for premise's software to use, such as Godot in your home folder: exact program files or folders. Running software and its build steps may read them (never the rest of your home folder) and find them on their PATH, and agents find them on theirs. A program you tell premise you installed is remembered for that software without being listed here.",
+    record: "0310",
+  },
+  {
     key: "reports.max_lines",
     default: 15,
     check: summarised(wholeNumber(3, 200), "3 to 200"),
@@ -1096,6 +1104,7 @@ export interface PremiseConfig {
     output_lines: number;
     confinement: RunnerConfinement;
     read_only_paths: string[];
+    extra_tool_paths: string[];
     default_visibility: Visibility;
   };
   reports: { max_lines: number };

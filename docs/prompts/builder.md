@@ -107,7 +107,7 @@ Do this:
    kind: command
    build: a step needed before it runs, such as npm run build
    command: what a person types, such as tool <file>
-   sample: a command premise runs once to show it working, such as tool sample.txt
+   sample: a command premise runs once to show it working, such as tool sample.txt. It is a short demonstration that finishes in seconds (premise stops it after runner.sample_timeout_seconds), never the test suite: tests belong in a "build:" line or in the checker's work.
    ```
 
    ```premise-run

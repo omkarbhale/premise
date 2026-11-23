@@ -129,7 +129,7 @@ interface BuildState {
    * The landed commit would not start (decision 0280): what the start said. Cleared once a start
    * succeeds. Absent in older notes.
    */
-  startFailure?: { commit: string; message: string; machine?: boolean } | null;
+  startFailure?: { commit: string; message: string; machine?: boolean; timing?: boolean } | null;
   /** Times this milestone was sent back to Build by itself because it would not start. */
   startSendBacks?: number;
   /** The change from intake being built, instead of a milestone (decision 0273). */
@@ -1605,8 +1605,8 @@ export class BuildCheckRun implements LaterStages {
     const output = failure.message;
     const allowed = this.config.line.start_send_backs;
     const sent = state.startSendBacks ?? 0;
-    // A fault of the machine is not the builder's to fix: it is never sent back to Build.
-    if (!failure.machine && sent < allowed) {
+    // A fault of the machine, or a sample that only ran out of time, is not a fault in the software: it is never sent back to Build.
+    if (!failure.machine && !failure.timing && sent < allowed) {
       state.startSendBacks = sent + 1;
       this.sendBackToBuild(id, state, this.startEvidence(failure));
       this.say(
@@ -1618,7 +1618,7 @@ export class BuildCheckRun implements LaterStages {
     this.save(id, state);
     this.say(
       id,
-      `Built and checked, but it would not start${failure.machine ? ": this machine cannot look up names inside premise's sandbox, which the builder cannot fix" : sent === 0 ? "" : `, even after going back to Build ${sent === 1 ? "once" : `${sent} times`}`}. What to do is under Waiting on you.`,
+      `Built and checked, but it would not start${failure.machine ? ": this machine cannot look up names inside premise's sandbox, which the builder cannot fix" : failure.timing ? ": its sample ran out of time, which is a timing problem and not a fault in the software" : sent === 0 ? "" : `, even after going back to Build ${sent === 1 ? "once" : `${sent} times`}`}. What to do is under Waiting on you.`,
     );
     createAsk(this.db, {
       softwareId: id,
@@ -1631,7 +1631,9 @@ export class BuildCheckRun implements LaterStages {
         output,
         failure.machine
           ? 'This is a fault of the machine, not of the software, so it was not sent back to Build. Once the machine can look up names, choose "Try starting it again".'
-          : "",
+          : failure.timing
+            ? 'This is a timing problem, not a fault in the software, so it was not sent back to Build. "Send it back to Build" still has the builder choose a shorter sample; or raise runner.sample_timeout_seconds in the settings and choose "Try starting it again".'
+            : "",
         sent > 0
           ? `It already went back to Build ${sent === 1 ? "once" : `${sent} times`} with this output, and still does not start.`
           : "",
@@ -2005,9 +2007,15 @@ export class BuildCheckRun implements LaterStages {
     } catch (error) {
       const message = (error as Error).message;
       const machine = error instanceof RunnerError && error.code === "MACHINE_FAULT";
+      const timing = error instanceof RunnerError && error.code === "TIMING";
       const state = this.load(id);
       if (state) {
-        state.startFailure = machine ? { commit, message, machine } : { commit, message };
+        state.startFailure = {
+          commit,
+          message,
+          ...(machine && { machine }),
+          ...(timing && { timing }),
+        };
         this.save(id, state);
       }
       return {
