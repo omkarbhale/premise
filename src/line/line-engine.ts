@@ -41,6 +41,7 @@ import {
 import type {
   ApprovalView,
   ClaimView,
+  EarlierAnswer,
   AskAnswer,
   AskView,
   ChangeView,
@@ -132,8 +133,6 @@ import type {
   MilestoneRef,
 } from "./later-stages.js";
 import {
-  questionFingerprint,
-  type SettledDecision,
   type ChangeNotes,
   type ChangePlan,
   type ChangeQuestions,
@@ -567,51 +566,17 @@ export class LineEngine implements IntakeLine {
     if (!change) return false;
     const notes = this.changeNotes(change);
     const plan = this.changePlanOf(software.id, item);
-    if (notes.decided === "told" || change.origin === "bug") {
+    if (notes.decided || change.origin === "bug") {
       // Asked or told once already (or a bug, never asked): a later step's decisions go in as made.
       this.landChangeDecisions(software.id, change, item, plan, plan?.decisions ?? []);
       return false;
     }
-    const earlier =
-      notes.decided === "asked" && notes.asked === questionFingerprint(notes)
-        ? this.earlierAnswers(notes)
-        : null;
-    const settled: ChangePlan["decisions"] = [];
-    const fresh: ChangePlan["decisions"] = [];
-    for (const d of plan?.decisions ?? []) {
-      const said = earlier?.find((e) => e.line === this.decisionLine(d));
-      if (!said) fresh.push(d);
-      else if (said.decision === "keep") settled.push(d);
-      else if (said.decision === "edit") settled.push(this.editedDecision(d, said.text ?? ""));
-    }
-    const rest = plan && earlier ? { ...plan, decisions: fresh } : plan;
     const mode = this.changeQuestionsOf(software);
-    const reasons = reasonsToAsk(rest, notes, this.recordLines(software.id));
+    const reasons = reasonsToAsk(plan, notes, this.recordLines(software.id));
     // A change of purpose was said back already: that was its one question.
     const asks =
       change.origin !== "purpose" &&
       (mode === "every-change" || (mode === "when-it-matters" && reasons.length > 0));
-    if (earlier) {
-      if (fresh.length === 0) {
-        this.landChangeDecisions(software.id, change, item, plan, settled);
-        this.premiseSays(
-          software.id,
-          `Your change ${change.ref ?? ""} is planned again with the same question you already answered, so premise keeps your earlier answer (what you struck stays struck) and builds.`,
-        );
-        return false;
-      }
-      if (asks) {
-        this.askChange(software, change, item, rest, reasons, { kept: settled, earlier });
-        return true;
-      }
-      this.tellChange(
-        software,
-        change,
-        item,
-        plan && { ...plan, decisions: [...settled, ...fresh] },
-      );
-      return false;
-    }
     if (asks) {
       this.askChange(software, change, item, plan, reasons);
       return true;
@@ -620,26 +585,26 @@ export class LineEngine implements IntakeLine {
     return false;
   }
 
-  /** What the person answered about each decision at the change's last answered question. */
-  private earlierAnswers(notes: ChangeNotes): SettledDecision[] | null {
+  /** What the person answered about each decision at this change's last answered question, by the line shown. */
+  private earlierAnswers(notes: ChangeNotes): Map<string, EarlierAnswer> {
+    const out = new Map<string, EarlierAnswer>();
     const ask = notes.ask === undefined ? undefined : getAsk(this.db, notes.ask);
     if (!ask || ask.status !== "answered" || ask.extra.meta?.purpose !== "change-confirm")
-      return null;
-    const meta = ask.extra.meta as { items?: DraftItem[]; earlier?: SettledDecision[] };
+      return out;
+    const meta = ask.extra.meta as { items?: DraftItem[] };
     const given = new Map(
       (ask.answer?.kind === "items" ? ask.answer.items : []).map((a) => [a.key, a]),
     );
-    const now = (meta.items ?? [])
-      .filter((i) => /^d\d+$/.test(i.key))
-      .map((i): SettledDecision => {
-        const a = given.get(i.key);
-        return a?.decision === "strike"
-          ? { line: i.text, decision: "strike" }
-          : a?.decision === "edit"
-            ? { line: i.text, decision: "edit", text: a.text }
-            : { line: i.text, decision: "keep" };
-      });
-    return [...(meta.earlier ?? []), ...now];
+    for (const i of meta.items ?? []) {
+      if (!/^d\d+$/.test(i.key)) continue;
+      const a = given.get(i.key);
+      if (a?.decision === "strike") {
+        out.set(i.text, { decision: "strike", ...(a.reason && { reason: a.reason }) });
+      } else if (a?.decision === "edit") {
+        out.set(i.text, { decision: "edit", text: a.text });
+      }
+    }
+    return out;
   }
 
   /** A decision as the person edited it: their words, without the "(replaces ...)" and "Why: ..." the question showed. */
@@ -685,18 +650,19 @@ export class LineEngine implements IntakeLine {
     item: WorkItem,
     plan: ChangePlan | null,
     reasons: string[],
-    before?: { kept: ChangePlan["decisions"]; earlier: SettledDecision[] },
   ): void {
     const notes = this.changeNotes(change);
+    const earlier = this.earlierAnswers(notes);
     const decisions: DraftItem[] = (plan?.decisions ?? []).map((d, i) => ({
       key: `d${i + 1}`,
       text: this.decisionLine(d),
       kind: "D",
       from: "assumed",
+      ...(earlier.has(this.decisionLine(d)) && { earlier: earlier.get(this.decisionLine(d)) }),
       ...(d.foundation && { foundation: true }),
       ...(d.replaces && { refs: [d.replaces] }),
     }));
-    const items = before ? decisions : [...this.changeLines(software.id, notes), ...decisions];
+    const items = [...this.changeLines(software.id, notes), ...decisions];
     const ref = change.ref ?? "this change";
     const offered = notes.suggestions.filter((x) => !x.added);
     const ask = createAsk(this.db, {
@@ -710,8 +676,8 @@ export class LineEngine implements IntakeLine {
           ? `premise asks first because ${reasons.map(lowerFirst).join("; ")}.`
           : "You asked premise to check every change with you before building it.",
         `Below: what premise took from your words, what it assumed (marked assumed: not checked with you), and the decisions the change makes. It will build ${this.tasksWords(plan, change)}.`,
-        before
-          ? `Settled by your earlier answer, not asked again: ${before.earlier.map((e) => `${e.decision === "strike" ? "struck" : "kept"} "${e.line}"`).join("; ")}. Only what is new is below.`
+        earlier.size
+          ? "Where you answered a decision before, your earlier answer is selected: confirm it or change it."
           : "",
         "Strike any line that is wrong and say why, or edit it; what you keep is built. This is the only question about this change.",
         offered.length
@@ -727,12 +693,11 @@ export class LineEngine implements IntakeLine {
           items,
           change: change.id,
           piece: item.id,
-          ...(before && { settled: before.kept, earlier: before.earlier }),
           ...(offered.length && { suggestions: notes.suggestions }),
         },
       },
     });
-    this.setChangeNotes(change, { ask: ask.id, asked: questionFingerprint(notes) });
+    this.setChangeNotes(change, { ask: ask.id });
     this.premiseSays(
       software.id,
       `Your change ${ref} is ready to build. Before it is, one question: ${reasons[0] ? lowerFirst(reasons[0]) : "you asked to check every change"}. It is under Waiting on you.`,
@@ -2886,6 +2851,7 @@ export class LineEngine implements IntakeLine {
           const notes = this.changeNotes(change);
           this.setChangeNotes(change, {
             landedFor: (notes.landedFor ?? []).filter((x) => x !== item.id),
+            decided: undefined,
           });
         }
       }
@@ -4456,7 +4422,6 @@ export class LineEngine implements IntakeLine {
     this.strikeChangeLines(id, items, answer, ref);
     const corrected = applyAnswers(items, answer.kind === "items" ? answer.items : []);
     const plan = this.changePlanOf(id, piece);
-    const settled = (ask.extra.meta?.settled as ChangePlan["decisions"] | undefined) ?? [];
     const asked = (plan?.decisions ?? []).filter((d) =>
       items.some((i) => /^d\d+$/.test(i.key) && i.text === this.decisionLine(d)),
     );
@@ -4467,7 +4432,7 @@ export class LineEngine implements IntakeLine {
       if (!entry) return [];
       return [entry.edited ? this.editedDecision(d, entry.text) : d];
     });
-    this.landChangeDecisions(id, change, piece, plan, [...settled, ...keptNow]);
+    this.landChangeDecisions(id, change, piece, plan, keptNow);
     const dropped = asked.length - keptNow.length;
     return () => {
       this.setChangeNotes(change, { decided: "asked" });

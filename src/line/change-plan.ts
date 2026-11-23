@@ -56,8 +56,6 @@ export interface ChangeNotes {
   decided?: "asked" | "told";
   /** The ask that asked, or the notice that told. */
   ask?: number;
-  /** What the question put to the person (see questionFingerprint), kept to not ask the same again. */
-  asked?: string;
 }
 
 /** When premise asks about a change before building it (decision 0274). */
@@ -90,18 +88,6 @@ export function decisionText(d: ChangeDecision, ref: string): string {
     .replace(/[.\s]+$/, "")
     .replace(/[()]/g, "");
   return `${what}. Reason: ${reason}. Rejected: ${rejected}.`;
-}
-
-/** What a question about a change would put to the person besides its decisions: assumptions and the open choice. */
-export function questionFingerprint(notes: Pick<ChangeNotes, "openChoice" | "assumed">): string {
-  return JSON.stringify([[...notes.assumed].sort(), notes.openChoice ?? ""]);
-}
-
-/** What the person answered about one decision at a change question: the line shown, and their answer. */
-export interface SettledDecision {
-  line: string;
-  decision: "keep" | "strike" | "edit";
-  text?: string;
 }
 
 /** Why a change needs the person before it is built; empty when it does not. */

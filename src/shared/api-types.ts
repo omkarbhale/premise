@@ -441,6 +441,13 @@ export interface ScopeCut {
   sameCost?: string;
 }
 
+/** What the person answered about the same line at this change's earlier question, shown selected. */
+export interface EarlierAnswer {
+  decision: "strike" | "edit";
+  text?: string;
+  reason?: string;
+}
+
 export interface AskItem {
   /** Stable within the ask: the answer names items by this. */
   key: string;
@@ -470,6 +477,8 @@ export interface AskItem {
   tier?: ScopeTier;
   /** A lesson from an earlier correction this item follows, so the person sees they were heard. */
   follows?: { label: string; text: string };
+  /** The person's answer to this line at the change's earlier question, if any. */
+  earlier?: EarlierAnswer;
 }
 
 export interface AskView {

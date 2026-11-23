@@ -200,30 +200,27 @@ interface AnswerProps {
   onSend: (answer: AskAnswer) => void;
 }
 
+/** A line starts kept, or as the person answered it at this change's earlier question. */
+function startState(item: AskItem): ItemState {
+  const e = item.earlier;
+  return {
+    decision: e?.decision ?? "keep",
+    text: e?.decision === "edit" && e.text ? e.text : item.text,
+    reason: e?.decision === "strike" ? (e.reason ?? "") : "",
+    ...(item.wait !== undefined && { wait: item.wait }),
+  };
+}
+
 function ItemsAnswer({ ask, busy, onSend }: AnswerProps) {
   const sayBack = ask.kind === "say-back";
   const recovered = ask.items.some((i) => i.mark === "recovered");
   const [items, setItems] = useState<Record<string, ItemState>>(() =>
     Object.fromEntries(
-      ask.items.map((i) => [
-        i.key,
-        {
-          decision: "keep",
-          text: i.text,
-          reason: "",
-          ...(i.wait !== undefined && { wait: i.wait }),
-        },
-      ]),
+      ask.items.map((i) => [i.key, startState(i)]),
     ),
   );
   // Items added in chat while the card is open start as kept.
-  const state = (item: AskItem): ItemState =>
-    items[item.key] ?? {
-      decision: "keep",
-      text: item.text,
-      reason: "",
-      ...(item.wait !== undefined && { wait: item.wait }),
-    };
+  const state = (item: AskItem): ItemState => items[item.key] ?? startState(item);
   const set = (key: string, change: Partial<ItemState>, item: AskItem) =>
     setItems((all) => ({ ...all, [key]: { ...state(item), ...all[key], ...change } }));
 
@@ -290,6 +287,7 @@ function ItemsAnswer({ ask, busy, onSend }: AnswerProps) {
             </span>
           )}
           {item.quote && <span className="small muted">you said: “{item.quote}”</span>}
+          {item.earlier && <span className="mark">your earlier answer</span>}
           {item.follows && (
             <span className="follows small">
               Follows what you taught premise ({item.follows.label}): {item.follows.text}
