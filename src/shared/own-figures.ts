@@ -21,7 +21,11 @@ export function ownFiguresWords(f: OwnFigures): string {
   if (f.counted > 0) {
     const u = f.unreported;
     const gap = (n: number, what: string): string =>
-      n === 0 ? "" : n >= f.counted ? `${what} not reported` : `${what} not reported by ${sessions(n)}`;
+      n === 0
+        ? ""
+        : n >= f.counted
+          ? `${what} not reported`
+          : `${what} not reported by ${sessions(n)}`;
     const shown = [
       u.cost >= f.counted ? "" : `$${f.costUsd.toFixed(2)} at list prices`,
       u.tokens >= f.counted

@@ -116,7 +116,14 @@ describe("premise's own count of what sessions used", () => {
   });
 
   it("never shows a figure a result left out as zero", () => {
-    const bare = { turns: null, costUsd: null, inputTokens: null, outputTokens: null, cacheReadTokens: null, cacheWriteTokens: null };
+    const bare = {
+      turns: null,
+      costUsd: null,
+      inputTokens: null,
+      outputTokens: null,
+      cacheReadTokens: null,
+      cacheWriteTokens: null,
+    };
     const none = ownFiguresOf([{ runtime: "claude", figures: bare }]);
     expect(ownFiguresWords(none)).toBe(
       "cost not reported, tokens not reported, turns not reported (from 1 session).",
