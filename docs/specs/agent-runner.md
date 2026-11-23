@@ -83,6 +83,7 @@ Every agent runs confined: Claude Code's sandbox for shell commands, plus permis
 - Each session has a turn limit and a time limit. A stuck agent otherwise loops through the subscription's limits ([0088](../decisions/0088-turn-and-time-limits.md)).
 - Claude Code has no turn limit of its own in headless mode, so the runner counts the session's model turns from its events. At either limit, the session is stopped and the job finishes `stuck`, with which limit it hit.
 - Stopping asks the session's whole process group to end, and ends it forcibly after `agents.claude.stop_grace_seconds`.
+- A session can say whether it is still alive. After the computer has slept the work queue asks; a session that answers no is ended and its job restarted. A runtime that cannot tell is taken as alive ([0290](../decisions/0290-pausing-and-resuming-the-whole-of-premise.md), [work queue](work-queue.md)).
 - During a stage with a budget, the stage budget also applies ([line engine](line-engine.md)).
 
 ### 5.4 Models

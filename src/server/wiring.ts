@@ -21,12 +21,13 @@ import { Reporter } from "../reporter/reporter.js";
 import { Runner } from "../runner/runner.js";
 import { RunnerService } from "../runner/service.js";
 import { getSoftware } from "../storage/softwares.js";
-import type { Database } from "../storage/database.js";
+import { type Database, recordEvent } from "../storage/database.js";
 import type { UsageLedger } from "../usage-ledger/usage-ledger.js";
 import { RecordWriter } from "../line/record-writer.js";
 import { RecordError } from "../record/record-keeper.js";
 import { Taste } from "../taste/taste.js";
 import { QueueActivity } from "./activity.js";
+import { Pausing } from "./pausing.js";
 import { ServiceError } from "./services.js";
 import { docsFolder } from "./package-root.js";
 import type { FeedbackService, SessionServices } from "./services.js";
@@ -68,6 +69,8 @@ export interface Session {
   summary: Summary;
   /** Cost and the spending limit, on usage-ledger's figures (src/usage). */
   usage: Usage;
+  /** Pausing and resuming the whole of premise, and what the last start and sleep found. */
+  pausing: Pausing;
 }
 
 /**
@@ -106,6 +109,7 @@ export function createSession(options: {
     runner,
     budgets: usage,
     serverJobs: (job) => line!.runServerJob(job),
+    onPauseChange: () => recordEvent(db, { module: "queue", kind: "pause-state-changed" }),
     onChange: (job) => {
       intake?.jobChanged(job);
       line?.jobChanged(job);
@@ -243,6 +247,12 @@ export function createSession(options: {
   const softwareList = async (options: { archived?: boolean } = {}) =>
     portfolio.decorate(await engine.softwareList(), options);
   const activity = new QueueActivity(db, queue, () => config.queue.max_agent_sessions);
+  const pausing = new Pausing({
+    db,
+    queue,
+    jobViews: (jobs) => activity.jobViews(jobs),
+    runningSoftwares: () => runs.runningSoftwares(),
+  });
   const runService = new RunnerService(runs, (id) => getSoftware(db, id) !== undefined);
   const summary = new Summary({
     db,
@@ -309,6 +319,7 @@ export function createSession(options: {
     reports: reporter,
     runs: runService,
     activity,
+    pausing,
     summary: {
       view: () => summary.view(),
       markSeen: async (upTo) => summary.markSeen(upTo),
@@ -335,5 +346,6 @@ export function createSession(options: {
     portfolio,
     summary,
     usage,
+    pausing,
   };
 }

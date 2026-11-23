@@ -201,6 +201,15 @@ export class ScriptedAgentRunner implements AgentRunner {
 
   private dataFolder: string | undefined;
   private keepFinished = false;
+  private readonly dead = new Set<number>();
+
+  /**
+   * For tests of the laptop-sleep check: the job's session is now dead without having said so (as
+   * a real one can be after the computer slept). It stops reporting, and `alive()` says false.
+   */
+  dieSilently(jobId: number): void {
+    this.dead.add(jobId);
+  }
 
   start(request: AgentRequest, onProgress: (progress: AgentProgress) => void): AgentSession {
     this.requests.push(request);
@@ -240,6 +249,7 @@ export class ScriptedAgentRunner implements AgentRunner {
     return {
       sessionId: `scripted-${request.jobId}-${request.attempt}`,
       runtime: this.runtime,
+      alive: () => !this.dead.has(request.jobId),
       outcome: Promise.race([finished, stopped]),
       stop: () => {
         ended = true;

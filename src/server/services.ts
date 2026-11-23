@@ -1,5 +1,6 @@
 import type {
   ActivityView,
+  PauseView,
   AskAnswer,
   AskView,
   ChatMessage,
@@ -175,7 +176,17 @@ export interface ActivityService {
   stopJob(id: number): Promise<void>;
 }
 
+/** Pausing and resuming the whole of premise (decision 0290). */
+export interface PauseService {
+  view(): Promise<PauseView>;
+  /** Pause everything: let what is running finish, or stop it now (its jobs are redone later). */
+  pause(mode: "finish" | "stop-now"): Promise<PauseView>;
+  resume(): Promise<PauseView>;
+}
+
 export interface SessionServices {
+  /** Absent in tests that build services by hand. */
+  pausing?: PauseService;
   softwares: SoftwareService;
   /** Role labels in use besides the operator; empty when only the operator is asked anything. */
   roles(): string[];

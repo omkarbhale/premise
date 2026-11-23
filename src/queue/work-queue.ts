@@ -106,10 +106,37 @@ export interface EnqueueInput {
   payload?: Record<string, unknown>;
 }
 
+/** Who paused all agent work: the person, the "start paused" setting, or the usage limit. */
+export type PauseCause = "person" | "setting" | "usage-limit";
+
+/** How a person's pause treats sessions that are running: let them finish, or stop them now. */
+export type PauseMode = "finish" | "stop-now";
+
 export interface QueueState {
   paused: boolean;
   reason: string | null;
   resumeAt: string | null;
+  /** Who paused; null when not paused. Stored states from before this existed read as the usage limit when they had a resume time, else the person. */
+  cause?: PauseCause | null;
+  /** For a person's pause: what was chosen for sessions that were running. */
+  mode?: PauseMode | null;
+  pausedAt?: string | null;
+}
+
+/** What the page and the terminal say about stopping and pausing, in one place. */
+export interface PauseStatus {
+  paused: boolean;
+  cause: PauseCause | null;
+  mode: PauseMode | null;
+  reason: string | null;
+  resumeAt: string | null;
+  pausedAt: string | null;
+  /** premise is stopping (Ctrl+C or `premise stop`): nothing new starts and it ends when the running work has. */
+  stopping: boolean;
+  /** Jobs still running (agent sessions, and the server's own jobs, such as starting a software). */
+  stillRunning: Job[];
+  /** True when nothing is running, so closing premise now loses no work. */
+  safeToClose: boolean;
 }
 
 /** Server-side jobs (kind "run") are done by the server, not an agent, and take no slot. */
@@ -122,6 +149,8 @@ export interface WorkQueueOptions {
   serverJobs?: ServerJobHandler;
   /** Called after any job changes state; the page server streams it. */
   onChange?: (job: Job) => void;
+  /** Called after the pause state or the stopping state changes; the page server streams it. */
+  onPauseChange?: () => void;
   /** For tests: the current time. */
   clock?: () => Date;
   /**
@@ -138,8 +167,15 @@ export class WorkQueue {
   private readonly db: Database;
   private readonly running = new Map<number, AgentSession | null>();
   private readonly settled = new Map<number, Promise<void>>();
-  /** Jobs whose sessions were stopped because all work paused; they go back to the queue. */
-  private readonly stoppedForPause = new Set<number>();
+  /**
+   * Jobs whose sessions were stopped because all work paused, premise stopped or the computer slept;
+   * they go back to the queue, with the note to give the next attempt (or none).
+   */
+  private readonly stoppedForPause = new Map<number, string | null>();
+  /** For a running job, ends its wait on the session (a session that died without saying so). */
+  private readonly abandon = new Map<number, () => void>();
+  /** premise is stopping: nothing new starts. Not stored, so a clean stop is not a pause. */
+  private stopping = false;
   private readonly clock: () => Date;
   private resumeTimer: NodeJS.Timeout | null = null;
   private closed = false;
@@ -192,9 +228,25 @@ export class WorkQueue {
   state(): QueueState {
     const row = this.db.prepare("SELECT value FROM settings WHERE key = ?").get(QUEUE_STATE_KEY) as
       { value: string } | undefined;
-    return row
+    const stored = row
       ? (JSON.parse(row.value) as QueueState)
       : { paused: false, reason: null, resumeAt: null };
+    if (!stored.paused) {
+      return {
+        paused: false,
+        reason: null,
+        resumeAt: null,
+        cause: null,
+        mode: null,
+        pausedAt: null,
+      };
+    }
+    return {
+      ...stored,
+      cause: stored.cause ?? (stored.resumeAt ? "usage-limit" : "person"),
+      mode: stored.mode ?? null,
+      pausedAt: stored.pausedAt ?? null,
+    };
   }
 
   private setState(state: QueueState): void {
@@ -209,6 +261,11 @@ export class WorkQueue {
   /** How many agent sessions are running now. */
   runningAgentSessions(): number {
     return [...this.running.values()].filter((s) => s !== null).length;
+  }
+
+  /** Every job running now, agent sessions and the server's own jobs. */
+  runningJobs(): Job[] {
+    return [...this.running.keys()].map((id) => this.get(id)).filter((j): j is Job => !!j);
   }
 
   /**
@@ -343,9 +400,14 @@ export class WorkQueue {
   /** Start every job that can start now. Returns the ids started. */
   tick(): number[] {
     if (this.closed) return [];
+    if (this.stopping) return [];
     const state = this.state();
     if (state.paused) {
-      if (state.resumeAt && this.clock().getTime() >= Date.parse(state.resumeAt)) {
+      if (
+        state.cause === "usage-limit" &&
+        state.resumeAt &&
+        this.clock().getTime() >= Date.parse(state.resumeAt)
+      ) {
         this.resumeAll();
       } else {
         this.armResumeTimer(state);
@@ -396,7 +458,7 @@ export class WorkQueue {
     for (const [id, session] of this.running) {
       if (!session) continue;
       if (this.get(id)?.softwareId !== softwareId) continue;
-      this.stoppedForPause.add(id);
+      this.stoppedForPause.set(id, null);
       session.stop();
       stopped++;
     }
@@ -497,7 +559,12 @@ export class WorkQueue {
           )
           .run(id, job.id);
       });
-      outcome = session.outcome;
+      outcome = Promise.race([
+        session.outcome,
+        new Promise<AgentOutcome>((resolve) =>
+          this.abandon.set(job.id, () => resolve({ kind: "stopped" })),
+        ),
+      ]);
     }
     this.notify(job.id);
 
@@ -510,6 +577,7 @@ export class WorkQueue {
       .then((result) => {
         this.running.delete(job.id);
         this.settled.delete(job.id);
+        this.abandon.delete(job.id);
         this.finish(job.id, result);
         this.tick();
       });
@@ -531,7 +599,9 @@ export class WorkQueue {
     if (!last || !last.runtime_session_id || last.runtime !== this.options.runner.runtime) {
       return undefined;
     }
-    return ["usage-limit", "stopped", "premise-stopped"].includes(last.end_reason ?? "")
+    return ["usage-limit", "stopped", "premise-stopped", "suspended"].includes(
+      last.end_reason ?? "",
+    )
       ? last.runtime_session_id
       : undefined;
   }
@@ -562,7 +632,10 @@ export class WorkQueue {
     this.clearResumeTimer();
     for (const [id, session] of this.running) {
       if (session) {
-        this.stoppedForPause.add(id);
+        this.stoppedForPause.set(
+          id,
+          "An earlier attempt was cut off when premise stopped, so its unfinished work is redone.",
+        );
         session.stop();
       }
     }
@@ -594,8 +667,10 @@ export class WorkQueue {
           this.closeJob(job, "stuck", outcome.summary);
           break;
         case "stopped":
-          if (this.stoppedForPause.delete(id)) {
-            this.requeue(job, null);
+          if (this.stoppedForPause.has(id)) {
+            const note = this.stoppedForPause.get(id) ?? null;
+            this.stoppedForPause.delete(id);
+            this.requeue(job, note);
           } else {
             this.closeJob(job, "stopped", "Stopped by a person.");
           }
@@ -688,17 +763,35 @@ export class WorkQueue {
   }
 
   private pauseAllInside(reason: string, resetAt: string | null): void {
+    const existing = this.state();
+    if (existing.paused && existing.cause !== "usage-limit") {
+      // The person (or the setting) paused everything already: a usage limit never turns that into
+      // a pause that ends by itself. The job goes back to the queue, and the pause stays theirs.
+      recordEvent(this.db, {
+        module: "queue",
+        kind: "usage-limit-during-pause",
+        detail: { reason },
+      });
+      return;
+    }
     const fallback = this.options.config.queue.usage_pause_fallback_minutes;
     const nowMs = this.clock().getTime();
     const given = resetAt === null ? Number.NaN : Date.parse(resetAt);
     const resumeAt = given > nowMs ? resetAt! : new Date(nowMs + fallback * 60_000).toISOString();
-    const state = { paused: true, reason, resumeAt };
+    const state: QueueState = {
+      paused: true,
+      reason,
+      resumeAt,
+      cause: "usage-limit",
+      mode: null,
+      pausedAt: this.clock().toISOString(),
+    };
     this.setState(state);
     this.armResumeTimer(state);
     recordEvent(this.db, { module: "queue", kind: "queue-paused", detail: { reason, resumeAt } });
     for (const [id, session] of this.running) {
       if (session) {
-        this.stoppedForPause.add(id);
+        this.stoppedForPause.set(id, null);
         session.stop();
       }
     }
@@ -709,10 +802,156 @@ export class WorkQueue {
     this.pauseAllInside(reason, resetAt);
   }
 
+  /**
+   * "Pause everything", from a person (or the "start paused" setting). Nothing new starts, in any
+   * software, until resume. "finish" lets running sessions end by themselves; "stop-now" stops them,
+   * and their jobs go back to the queue to be redone later. The pause is stored, so it survives a
+   * restart. Pausing again changes the mode (finish to stop-now stops the sessions still running).
+   */
+  pauseEverything(mode: PauseMode, cause: "person" | "setting" = "person"): QueueState {
+    const before = this.state();
+    this.clearResumeTimer();
+    const reason =
+      cause === "setting"
+        ? "premise is set to start paused (the queue.start_paused setting)."
+        : "You paused everything.";
+    const state: QueueState = {
+      paused: true,
+      reason,
+      resumeAt: null,
+      cause,
+      mode: cause === "setting" ? null : mode,
+      pausedAt:
+        before.paused && before.cause !== "usage-limit"
+          ? (before.pausedAt ?? this.clock().toISOString())
+          : this.clock().toISOString(),
+    };
+    this.setState(state);
+    recordEvent(this.db, {
+      module: "queue",
+      kind: "queue-paused",
+      detail: { reason, mode, cause },
+    });
+    if (mode === "stop-now" && cause === "person") this.stopRunningSessions();
+    this.notifyChanged();
+    return state;
+  }
+
+  /** Stop every running agent session now and put its job back; their unfinished work is redone later. */
+  private stopRunningSessions(): number {
+    let stopped = 0;
+    for (const [id, session] of this.running) {
+      if (!session) continue;
+      this.stoppedForPause.set(
+        id,
+        "An earlier attempt was stopped when everything was paused, so its unfinished work is redone.",
+      );
+      session.stop();
+      stopped++;
+    }
+    return stopped;
+  }
+
+  /** Start the work again after a pause, whoever paused (resuming over a usage limit may pause again at once). */
+  resumeEverything(): QueueState {
+    this.resumeAll();
+    this.notifyChanged();
+    this.tick();
+    return this.state();
+  }
+
   resumeAll(): void {
     this.clearResumeTimer();
-    this.setState({ paused: false, reason: null, resumeAt: null });
+    this.setState({
+      paused: false,
+      reason: null,
+      resumeAt: null,
+      cause: null,
+      mode: null,
+      pausedAt: null,
+    });
     recordEvent(this.db, { module: "queue", kind: "queue-resumed" });
+  }
+
+  /**
+   * When premise starts: honour the stored pause (it stays), and the "start paused" setting (which
+   * pauses when nothing did). Returns what the start found.
+   */
+  applyStartPolicy(startPaused: boolean): QueueState {
+    const state = this.state();
+    if (!state.paused && startPaused) return this.pauseEverything("finish", "setting");
+    return state;
+  }
+
+  /** premise is stopping: nothing new starts; the running work is left to end. Not stored. */
+  beginStopping(): void {
+    this.stopping = true;
+    this.clearResumeTimer();
+    this.notifyChanged();
+  }
+
+  isStopping(): boolean {
+    return this.stopping;
+  }
+
+  /** Stop every running agent session now (the second Ctrl+C, or `premise stop --now`). */
+  stopRunningNow(): number {
+    return this.stopRunningSessions();
+  }
+
+  /** What is paused, what is still finishing, and whether it is safe to close. */
+  pauseStatus(): PauseStatus {
+    const state = this.state();
+    const stillRunning = this.runningJobs();
+    return {
+      paused: state.paused,
+      cause: state.cause ?? null,
+      mode: state.mode ?? null,
+      reason: state.reason,
+      resumeAt: state.resumeAt,
+      pausedAt: state.pausedAt ?? null,
+      stopping: this.stopping,
+      stillRunning,
+      safeToClose: stillRunning.length === 0,
+    };
+  }
+
+  /**
+   * The computer was asleep for gapMs. Sessions that were running are looked at: one that is no
+   * longer alive is ended and its job goes back to the queue, to carry on where the runtime can.
+   * Returns the jobs restarted and how many sessions were checked.
+   */
+  checkAfterSuspend(gapMs: number): { checked: number; restarted: Job[] } {
+    const restarted: Job[] = [];
+    let checked = 0;
+    for (const [id, session] of this.running) {
+      if (!session) continue;
+      checked++;
+      if (session.alive?.() !== false) continue;
+      this.stoppedForPause.set(
+        id,
+        "An earlier attempt died while the computer was asleep, so it is started again.",
+      );
+      session.stop();
+      // A dead session may never report: end it here, so the job does not look busy for ever.
+      this.abandon.get(id)?.();
+      const job = this.get(id);
+      if (job) restarted.push(job);
+    }
+    recordEvent(this.db, {
+      module: "queue",
+      kind: "suspend-noticed",
+      detail: {
+        gapSeconds: Math.round(gapMs / 1000),
+        checked,
+        restarted: restarted.map((j) => j.id),
+      },
+    });
+    return { checked, restarted };
+  }
+
+  private notifyChanged(): void {
+    this.options.onPauseChange?.();
   }
 
   private notify(id: number): void {

@@ -111,6 +111,11 @@ export interface AgentSession {
   outcome: Promise<AgentOutcome>;
   /** Ask the session to stop; its outcome then resolves as stopped. */
   stop(): void;
+  /**
+   * Whether the session is still there. premise asks after the computer has slept; a session that
+   * answers false is ended and its job restarted. A runtime that cannot tell omits it (taken as alive).
+   */
+  alive?(): boolean;
 }
 
 export interface AgentRunner {
