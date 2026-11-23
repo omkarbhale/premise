@@ -153,7 +153,10 @@ function checkWords(check: BuildView["checks"][number]): { mark: TimelineMark; d
       return { mark: "done", detail: found ? `not passed: ${clean(found)}` : "not passed" };
     }
     case "waiting-for-tool":
-      return { mark: "waiting", detail: "waiting: it could not use the software for a reason outside it" };
+      return {
+        mark: "waiting",
+        detail: "waiting: it could not use the software for a reason outside it",
+      };
     default:
       return { mark: "stopped", detail: "stopped" };
   }
