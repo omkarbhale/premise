@@ -23,6 +23,8 @@ export interface DraftItem {
   kind: ItemKind | "size";
   /** "assumed", or the role it came from. */
   from: string;
+  /** For an item from the operator: their exact words it rests on, checked against what they said. */
+  quote?: string;
   /** True when premise offers it as its own idea. */
   suggestion?: boolean;
   priority?: Priority;
@@ -86,6 +88,7 @@ export function readDraftItems(
     allowed: readonly ItemKind[];
     allowSize?: boolean;
     max?: number;
+    quotes?: boolean;
   },
 ): DraftItem[] {
   if (!Array.isArray(raw) || raw.length === 0) {
@@ -165,11 +168,13 @@ export function readDraftItems(
     const source =
       str(value.source) ?? (typeof value.sources === "string" ? str(value.sources) : undefined);
     const shortLine = str(value.short);
+    const quote = options.quotes ? str(value.quote) : undefined;
     items.push({
       key: `k${i + 1}`,
       text,
       kind,
       from,
+      ...(quote && { quote: oneLine(quote).slice(0, 500) }),
       ...(checked && { checked }),
       ...(source && { source: source.slice(0, 300) }),
       ...(shortLine && { short: oneLine(shortLine) }),
@@ -239,6 +244,7 @@ export function toAskItem(item: DraftItem): AskItem {
     text: displayText(item),
     mark,
     ...(mark === "from-role" && { from: item.from }),
+    ...(mark === "from-role" && item.quote && { quote: item.quote }),
     ...(item.wait !== undefined && { wait: item.wait }),
     ...(item.refs && { refs: item.refs }),
     ...(item.follows && { follows: { label: item.follows, text: "" } }),
@@ -305,4 +311,56 @@ export function addOperation(
     ...(item.kind === "D" && item.foundation && { foundation: true }),
     ...(item.kind === "M" && (entry.wait ?? item.wait) && { wait: true }),
   };
+}
+
+/**
+ * An item's words, compared loosely: case, spacing, a "Suggestion:" lead and closing punctuation
+ * do not make two items different. Used so the same item is never landed twice.
+ */
+export function sameWords(text: string): string {
+  return text
+    .replace(/^\s*suggestion\s*:\s*/i, "")
+    .replace(/[()[\]]/g, "")
+    .replace(/\s+/g, " ")
+    .replace(/[.!\s]+$/, "")
+    .trim()
+    .toLowerCase();
+}
+
+/** Case and spacing do not make a quote different from its source. */
+function squash(text: string): string {
+  return text.replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+/** Words of at least three, or the whole of a source shorter than that, found word for word. */
+function quoteHolds(quote: string, source: string): boolean {
+  if (!source.includes(quote)) return false;
+  return quote.split(" ").length >= 3 || source === quote;
+}
+
+/**
+ * Provenance (decision 0276): "from: operator" only for words the operator said, shown by a quote.
+ * A drafted item that claims to be the operator's keeps that mark only when it carries a `quote`
+ * of at least three words (or a whole source shorter than that) that appears word for word in one of
+ * the sources (what the operator wrote, said or answered).
+ * Otherwise it becomes "assumed", so the operator sees it as premise's assumption and can strike it.
+ * Returns the items and how many were marked down.
+ */
+export function checkOperatorQuotes<T extends Pick<DraftItem, "from" | "quote">>(
+  items: readonly T[],
+  sources: readonly string[],
+  operatorRole = "operator",
+): { items: T[]; downgraded: number } {
+  const said = sources.map(squash);
+  let downgraded = 0;
+  const checked = items.map((item) => {
+    if (item.from !== operatorRole) {
+      return { ...item, quote: undefined };
+    }
+    const quote = item.quote ? squash(item.quote) : "";
+    if (quote && said.some((source) => quoteHolds(quote, source))) return item;
+    downgraded++;
+    return { ...item, quote: undefined, from: "assumed" };
+  });
+  return { items: checked, downgraded };
 }

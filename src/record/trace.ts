@@ -5,8 +5,8 @@ import { parseRecord } from "./parse.js";
 const TRACE_ID = /^[YUREWTDMI]-[1-9]\d*$/;
 
 /**
- * The IDs a commit message names in its trace trailer, or a reason it has none.
- * The trailer is a line `Premise-Trace: W-7, D-3` in the last paragraph of the message.
+ * The IDs a commit message names in its trace line, or what is wrong with it.
+ * The trace line is a line `Premise-Trace: W-7, D-3` in the last paragraph of the message.
  */
 export function readTrailer(
   message: string,
@@ -15,10 +15,16 @@ export function readTrailer(
   const paragraphs = message.trim().split(/\n\s*\n/);
   const last = paragraphs.length > 1 ? paragraphs[paragraphs.length - 1]! : "";
   const wanted = trailerName.toLowerCase();
-  const line = last.split("\n").find((l) => l.toLowerCase().startsWith(`${wanted}:`));
+  const isTrace = (l: string) => l.toLowerCase().startsWith(`${wanted}:`);
+  const line = last.split("\n").find(isTrace);
   if (line === undefined) {
+    if (message.split("\n").some(isTrace)) {
+      return {
+        problem: `the line "${trailerName}: ..." is there, but it is not in the last paragraph of the commit message. Move it to the end, after a blank line and after any other line, for example "${trailerName}: W-7, D-3"`,
+      };
+    }
     return {
-      problem: `it has no ${trailerName} trailer. Every commit names the record items it serves, for example "${trailerName}: W-7, D-3", in the last paragraph of its message`,
+      problem: `its message has no "${trailerName}:" line. Every commit names the record items it serves in a line such as "${trailerName}: W-7, D-3", at the end of the commit message after a blank line`,
     };
   }
   const ids = line
@@ -26,11 +32,15 @@ export function readTrailer(
     .split(",")
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
-  if (ids.length === 0) return { problem: `its ${trailerName} trailer names no item` };
+  if (ids.length === 0) {
+    return {
+      problem: `its "${trailerName}:" line names no item. Put the item IDs after the colon, for example "${trailerName}: W-7, D-3"`,
+    };
+  }
   const wrong = ids.find((id) => !TRACE_ID.test(id));
   if (wrong !== undefined) {
     return {
-      problem: `its ${trailerName} trailer has "${wrong}", which is not an item ID such as W-7`,
+      problem: `its "${trailerName}:" line has "${wrong}", which is not an item ID such as W-7. List item IDs separated by commas, for example "${trailerName}: W-7, D-3"`,
     };
   }
   return { ids };
@@ -75,7 +85,7 @@ export function checkTrailers(
     const missing = trailer.ids.filter((id) => !id.startsWith("I-") && !known.has(id));
     if (missing.length > 0) {
       fail(
-        `its ${options.trailer} trailer names ${missing.join(", ")}, which ${missing.length === 1 ? "is" : "are"} not in the record at that commit`,
+        `its "${options.trailer}:" line names ${missing.join(", ")}, which ${missing.length === 1 ? "is" : "are"} not in the record at that commit. Name only items that exist in the record`,
       );
     }
   }

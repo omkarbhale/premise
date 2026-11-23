@@ -27,7 +27,7 @@ import type {
 import { type Ask, createAsk, listAsks } from "../storage/asks.js";
 import { addChatMessage } from "../storage/chat.js";
 import { type Database, now, recordEvent } from "../storage/database.js";
-import { RecordWriter } from "../line/record-writer.js";
+import { RecordWriter, droppedLine } from "../line/record-writer.js";
 import { answerWords } from "../line/answers.js";
 import { activeWorkItem } from "../line/work-items.js";
 import { type Taste, roleWords } from "../taste/taste.js";
@@ -1638,13 +1638,16 @@ export class BuildCheckRun implements LaterStages {
     }
     const state = this.load(id);
     const notes: string[] = [];
-    for (const change of state?.proposals ?? []) {
-      const landed = this.writer.landProposed(id, change);
-      if (!landed.ok) {
-        notes.push(
-          `A record change the builder proposed did not go in: ${landed.diagnostics.map((d) => d.message).join(" ")}`,
-        );
-      }
+    const proposals = this.writer.landAllProposed(id, state?.proposals ?? []);
+    const dropped = droppedLine(proposals.dropped, "a builder");
+    if (dropped) {
+      recordEvent(this.db, {
+        softwareId: id,
+        module: "build",
+        kind: "record-changes-dropped",
+        detail: { dropped: proposals.dropped },
+      });
+      notes.push(dropped);
     }
     const repo = keeper.repositoryPath(id);
     const head = keeper.git.headCommit(repo) ?? merged;

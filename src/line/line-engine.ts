@@ -113,14 +113,16 @@ import {
   DraftError,
   addOperation,
   applyAnswers,
+  checkOperatorQuotes,
   readDraftItems,
+  sameWords,
   sizeFrom,
   toAskItem,
   toFindingItem,
 } from "./draft-items.js";
 import type { IntakeHooks, IntakeLine } from "./intake-hooks.js";
 import type { LaterOutcome, LaterStageId, LaterStages, MilestoneRef } from "./later-stages.js";
-import { RecordWriter } from "./record-writer.js";
+import { RecordWriter, droppedLine } from "./record-writer.js";
 import {
   allowedStages,
   defaultStages,
@@ -3741,18 +3743,33 @@ export class LineEngine implements IntakeLine {
       );
     }
     // Agents' own proposals for this round go in first, then the plan's decisions and milestones.
-    for (const changeId of this.state(id).proposed ?? []) {
-      const landed = this.writer.landProposed(id, changeId);
-      if (!landed.ok) {
-        this.premiseSays(
-          id,
-          `One change an agent proposed did not go into the record: ${landed.diagnostics.map((d) => d.message).join(" ")}`,
-        );
-      }
+    const proposals = this.writer.landAllProposed(id, this.state(id).proposed ?? []);
+    const dropped = droppedLine(proposals.dropped, "an agent");
+    if (dropped) {
+      recordEvent(this.db, {
+        softwareId: id,
+        module: "line",
+        kind: "record-changes-dropped",
+        detail: { dropped: proposals.dropped },
+      });
+      this.premiseSays(id, dropped);
     }
+    // One path for each decision (decision 0276): a plan decision whose words an item already in
+    // the record carries (an agent proposed it this round, or it was there before) is not added again.
+    const carried = new Set(
+      this.recordLines(id)
+        .filter((i) => i.kind === "D")
+        .map((i) => sameWords(i.text)),
+    );
     const decisions = plan.decisions
       .map((item) => addOperation({ item, text: item.text, edited: false }))
-      .filter((op): op is NonNullable<typeof op> => op !== null);
+      .filter((op): op is NonNullable<typeof op> => op !== null)
+      .filter((op) => {
+        const words = sameWords(op.text);
+        if (carried.has(words)) return false;
+        carried.add(words);
+        return true;
+      });
     const milestones = corrected.keep
       .map((entry) => addOperation({ ...entry, item: { ...entry.item, kind: "M" } }))
       .filter((op): op is NonNullable<typeof op> => op !== null);
@@ -4259,6 +4276,35 @@ export class LineEngine implements IntakeLine {
     }
   }
 
+  /**
+   * Everything the operator has said about a software in their own words, one source each: the
+   * first description, the words of the piece of work, their chat messages, and what they answered
+   * or edited on a page. What a drafted item may quote to count as theirs.
+   */
+  private operatorSources(software: Software): string[] {
+    const piece = this.active(software.id);
+    const chat = listChatMessages(this.db, software.id)
+      .filter((m) => m.author === "person")
+      .map((m) => m.text);
+    const answered = listAsks(this.db, { softwareId: software.id, status: "answered" }).flatMap(
+      (ask) => {
+        const a = ask.answer;
+        if (!a) return [];
+        if (a.kind === "items")
+          return a.items.flatMap((i) =>
+            i.decision === "edit"
+              ? [i.text]
+              : i.decision === "strike" && i.reason
+                ? [i.reason]
+                : [],
+          );
+        if (a.kind === "text") return [a.text, ...(a.reason ? [a.reason] : [])];
+        return [];
+      },
+    );
+    return [software.idea, piece.words ?? "", ...chat, ...answered].filter((t) => t.trim());
+  }
+
   private dryRun(softwareId: string, operations: Operation[]): string[] {
     if (operations.length === 0) return [];
     const result = applyOperations(this.options.keeper.readFiles(softwareId), operations, {
@@ -4453,12 +4499,17 @@ export class LineEngine implements IntakeLine {
     }
 
     const kinds = STAGE_KINDS[stage];
-    const items = readDraftItems(args.items, {
-      defaultKind: kinds.kind,
-      allowed: kinds.allowed,
-      allowSize: stage === "why",
-      ...(stage === "why" && { max: this.config.line.why_items_max + 1 }),
-    });
+    const { items, downgraded } = checkOperatorQuotes(
+      readDraftItems(args.items, {
+        defaultKind: kinds.kind,
+        allowed: kinds.allowed,
+        allowSize: stage === "why",
+        quotes: true,
+        ...(stage === "why" && { max: this.config.line.why_items_max + 1 }),
+      }),
+      this.operatorSources(software),
+      OPERATOR,
+    );
     const problems = this.dryRun(
       id,
       items
@@ -4489,7 +4540,11 @@ export class LineEngine implements IntakeLine {
     return toolOk({
       draft_id: ask.id,
       status: "shown",
-      note: "The operator strikes, keeps or edits each item.",
+      note: `The operator strikes, keeps or edits each item.${
+        downgraded
+          ? ` ${downgraded} item${downgraded === 1 ? "" : "s"} marked from: operator had no quote of at least three words (or a whole source shorter than that) that appears word for word in what the operator said, answered or edited, so ${downgraded === 1 ? "it was" : "they were"} marked assumed. To mark an item from the operator, give "quote": their exact words, copied from their description, a chat message, an answer or an edited item.`
+          : ""
+      }`,
     });
   }
 
@@ -4528,7 +4583,10 @@ export class LineEngine implements IntakeLine {
     const job = this.jobOf(binding);
     if (!("id" in job)) return job;
     if (!Array.isArray(args.operations) || typeof args.reason !== "string") {
-      return toolFail("MALFORMED", 'Give "operations" (a list) and one "reason".');
+      return toolFail(
+        "MALFORMED",
+        `Give "operations" (a list) and one "reason" (one line for the whole change)${Array.isArray(args.operations) ? "; the reason is missing" : '; "operations" is missing or not a list'}. For example: { "operations": [{ "op": "add", "kind": "D", "text": "Keep tasks in one JSON file. Reason: one user, no server. Rejected: SQLite, more than needed.", "from": "assumed" }], "reason": "How tasks are stored." }`,
+      );
     }
     const result = this.options.keeper.propose(
       job.softwareId,
@@ -4545,7 +4603,7 @@ export class LineEngine implements IntakeLine {
         code === "UNKNOWN_ITEM" || code === "CONFLICT" || code === "NOT_ALLOWED"
           ? code
           : "MALFORMED",
-        "The record keeper refused the change.",
+        "The record keeper refused the change, so nothing of it was recorded. Fix what each line below says, then call record_propose again with the whole change.",
         result.diagnostics.map((d) => d.message),
       );
     }

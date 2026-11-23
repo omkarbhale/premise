@@ -76,7 +76,7 @@ The record is Markdown, one item per list line, each with a stable ID ([0082](..
 
 1. Parse every file of the record, with the change applied, in memory.
 2. Reject the change if any line is malformed, any ID is duplicated, or any `replaces:` or reference names an ID that does not exist. The diagnostics name the line and what is wrong.
-3. Reject an operation outside the proposer's agent role: a builder may only add `D` items ([agent tools](agent-tools.md)).
+3. Reject an operation outside the proposer's agent role: a builder may only add `D` items ([agent tools](agent-tools.md)). The shape of each operation is checked first, so a missing or misnamed field is named as such, with a complete example of the operation; an agent's item that the record already carries in the same words is refused, naming that item ([0276](../decisions/0276-the-record-keeper-lands-each-decision-once.md)).
 4. Give every new item the next free ID in its file. IDs are never reused.
 5. Send the change to the reviewer, an agent that compares it with the whole record ([0014](../decisions/0014-guard-against-further-big-mistakes.md), [0113](../decisions/0113-agent-roles.md)). Status `reviewing`.
 
@@ -92,11 +92,13 @@ The record is Markdown, one item per list line, each with a stable ID ([0082](..
 - An accepted change is written into `premise/` in the working copy of the job it belongs to, in the same commit as the code it goes with, so the record cannot fall behind ([0080](../decisions/0080-record-in-the-softwares-repository.md)).
 - A change with no code (a stage's draft once its exit holds, a decision from the planner) is committed on its own, with its own trailer.
 - The commit carries `Premise-Trace:` naming the items it adds or replaces, plus `I-n` when the change came from intake.
+- A change remembers what the files it changes looked like when it was checked, and only those. When it is written and one of them has moved (another change landed first), the same operations are applied again to the record as it stands, once; only if they no longer fit is the change rejected, saying why. What a round's proposals left out is said once, in one line ([0276](../decisions/0276-the-record-keeper-lands-each-decision-once.md)).
+- A record commit's subject names its items and their first words: "Record: add D-4 Keep tasks in one file…, strike W-2".
 
 ### 5.4 Trailers
 
 - Every commit premise makes carries a trailer naming what it serves: `Premise-Trace: W-7, D-3`, plus `I-12` when the work came from intake ([0083](../decisions/0083-trace-trailer-on-every-commit.md)).
-- Before every push, the server asks the record keeper to check every commit being pushed. A commit without the trailer, or with an ID that does not exist in the record at that commit, fails the push. The job goes back to the builder with the reason.
+- Before every push, the server asks the record keeper to check every commit being pushed. A commit without the trailer, or with an ID that does not exist in the record at that commit, fails the push. The job goes back to the builder with the reason, which says in plain words whether the line is missing, is not in the last paragraph, names no item or names an item that does not exist. In a builder's working copy a commit hook puts the line last and drops co-author lines, so these refusals are the second line of defence ([0275](../decisions/0275-the-commit-hook-puts-the-trace-line-last.md)).
 - From any line of code, `git blame` leads to a commit and its items; from any item, to every commit that names it. That tells a wrong record apart from a drifted build ([0013](../decisions/0013-mismatch-of-intent-is-the-mistake-that-matters.md)).
 
 ### 5.4a Repositories

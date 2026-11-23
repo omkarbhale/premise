@@ -91,6 +91,45 @@ async function toMilestones(app: App, id: string) {
 }
 
 describe("the line engine, Why to Plan", () => {
+  it("records each of the plan's decisions once, even when the planner also proposed it", async () => {
+    const base = standInScript(0);
+    const planRule = base.rules.find((r) => r.when?.task === "plan" && r.when.purpose === "draft")!;
+    const script: AgentScript = {
+      rules: base.rules.map((rule) =>
+        rule === planRule
+          ? {
+              ...rule,
+              behave: async (request, call) => {
+                const proposed = call("record_propose", {
+                  operations: [
+                    {
+                      op: "add",
+                      kind: "D",
+                      foundation: true,
+                      text: "It runs as a small program on this machine. Reason: one user, nothing to host. Rejected: a hosted service, which costs money and needs a lock.",
+                      from: "assumed",
+                    },
+                  ],
+                  reason: "The first foundation decision.",
+                });
+                expect(proposed.ok, JSON.stringify(proposed)).toBe(true);
+                await planRule.behave!(request, call);
+              },
+            }
+          : rule,
+      ),
+    };
+    const app = await testApp({}, { script });
+    const id = await start(app);
+    await toSayBack(app, id);
+    await keepAll(app, await toMilestones(app, id));
+    const decisions = await record(app, id, "decisions.md");
+    const texts = decisions.map((d) => d.text);
+    expect(texts).toHaveLength(3);
+    expect(new Set(texts).size).toBe(3);
+    expect(texts[0]).toMatch(/^It runs as a small program on this machine\./);
+  });
+
   it("makes the local second copy only once the plan confirmation has committed", async () => {
     const app = await testApp({ PREMISE_LINE__REMOTE: "local" });
     const id = await start(app);
@@ -611,6 +650,47 @@ describe("chat and stage problems", () => {
     await say(app, problem, "Try again with twice the budget");
     expect(app.runner.requests.at(-1)).toMatchObject({ maxTurns: 30, maxMinutes: 20 });
     expect((await lineAsk(app, id)).title).toBe("Why build it: is this right?");
+  });
+
+  it("marks a drafted line as the operator's only when it quotes what they said, and tells the drafter what to supply", async () => {
+    const script: AgentScript = {
+      rules: [
+        {
+          when: { task: "draft", stage: "why" },
+          calls: [
+            {
+              tool: "draft_submit",
+              arguments: {
+                stage: "why",
+                items: [
+                  {
+                    text: "Keeping a list matters.",
+                    from: "operator",
+                    quote: "I keep my reading list",
+                  },
+                  { text: "Reading is a habit worth supporting.", from: "operator" },
+                  {
+                    text: "A friend should see it.",
+                    from: "operator",
+                    quote: "share it with a friend",
+                  },
+                ],
+              },
+            },
+          ],
+          end: { outcome: "done" },
+        },
+        ...standInScript(0).rules,
+      ],
+    };
+    const app = await testApp({}, { script });
+    const id = await start(app);
+    const why = await lineAsk(app, id);
+    expect(why.items.map((i) => i.mark)).toEqual(["from-role", "assumed", "assumed"]);
+    expect(why.items[0]!.quote).toBe("I keep my reading list");
+    const reply = app.runner.calls.find((c) => c.tool === "draft_submit")!.result;
+    expect(JSON.stringify(reply)).toContain("quote");
+    expect(id).toBeTruthy();
   });
 
   it("refuses a draft that does not fit the record, and tells the agent why", async () => {

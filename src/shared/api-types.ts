@@ -435,6 +435,8 @@ export interface AskItem {
   source?: string;
   /** For a finding: everything the researcher wrote, shown on request. */
   detail?: string;
+  /** For an item from the person: their exact words it rests on, shown under it. */
+  quote?: string;
   /** For a milestone: whether premise stops after it until the operator says go on. */
   wait?: boolean;
   /** Record items the item stands for (a say-back item), or sources (What exists). */

@@ -234,6 +234,7 @@ function ItemsAnswer({ ask, busy, onSend }: AnswerProps) {
               <ClaimAreaLink softwareId={ask.softwareId} />
             </span>
           )}
+          {item.quote && <span className="small muted">you said: “{item.quote}”</span>}
           {item.follows && (
             <span className="follows small">
               Follows what you taught premise ({item.follows.label}): {item.follows.text}
@@ -393,6 +394,7 @@ function QuestionAnswer({ ask, busy, onSend }: AnswerProps) {
           {ask.items.map((i) => (
             <li key={i.key}>
               {i.text} <span className={`mark mark-${i.mark}`}>{markLabel(i)}</span>
+              {i.quote && <span className="small muted"> you said: “{i.quote}”</span>}
             </li>
           ))}
         </ul>

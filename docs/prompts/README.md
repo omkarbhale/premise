@@ -69,7 +69,8 @@ The agent runner assembles each session's instructions; nobody writes them by ha
 
 1. The role's system prompt, from the role's file.
 2. Every skill the role lists, in full, in the order of the [skills catalog](../skills/README.md), appended after the system prompt. No skill is loaded on demand ([record 0114](../decisions/0114-prompts-and-skills-as-files.md)).
-3. The task brief for the job, with its placeholders filled by the server from the work queue, the record, and premise's database.
+3. A generated section, "How to call premise's tools": for each premise tool the role has, one line `Example call: <tool> <arguments as JSON>`, a complete call premise accepts. The examples live with the tools in `src/agents/tool-server.ts`, which also adds each one to the tool's description, and a test calls every example as written through premise's real handlers, so the prompts and the tools cannot drift.
+4. The task brief for the job, with its placeholders filled by the server from the work queue, the record, and premise's database.
 
 Placeholders are written `{{name}}`. A placeholder with no value is filled with "none". Lists are filled one item per line, in the record's own line format where the items are record items.
 

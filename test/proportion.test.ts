@@ -238,6 +238,34 @@ describe("the trace line in the builder's working copy", () => {
     expect(git("log", "-1", "--format=%B")).toBe("Add b\n\nPremise-Trace: W-1");
   });
 
+  function commitWith(message: string): string {
+    const repo = tempFolder();
+    const git = (...args: string[]) =>
+      execFileSync("git", args, { cwd: repo, encoding: "utf8" }).trim();
+    git("init", "--quiet");
+    git("config", "user.name", "test");
+    git("config", "user.email", "test@example.invalid");
+    installTraceHook(repo, "Premise-Trace: W-1, D-2");
+    writeFileSync(join(repo, "a.txt"), "a");
+    git("add", "a.txt");
+    git("commit", "--quiet", "-m", message);
+    return git("log", "-1", "--format=%B");
+  }
+
+  it("moves a trace line that a co-author line follows to the end, and drops the co-author", () => {
+    expect(
+      commitWith("Add a\n\nPremise-Trace: W-1\n\nCo-Authored-By: Bot <bot@example.invalid>"),
+    ).toBe("Add a\n\nPremise-Trace: W-1");
+  });
+
+  it("drops co-author lines in any case, and keeps other lines", () => {
+    expect(
+      commitWith(
+        "Add a\n\nSigned-off-by: A <a@example.invalid>\nco-authored-by: B <b@example.invalid>\nCO-AUTHORED-BY: C <c@example.invalid>",
+      ),
+    ).toBe("Add a\n\nSigned-off-by: A <a@example.invalid>\nPremise-Trace: W-1, D-2");
+  });
+
   it("installs nothing for a line that is not a plain trailer", () => {
     const repo = tempFolder();
     mkdirSync(join(repo, ".git"), { recursive: true });

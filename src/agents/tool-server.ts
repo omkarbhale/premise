@@ -57,6 +57,13 @@ interface ToolDefinition {
   inputSchema: Record<string, unknown>;
   /** The module that will act on it; absent when the tool is fully served here. */
   notBuilt?: string;
+  /**
+   * The arguments of one complete call that premise accepts, shown to agents in their instructions
+   * and in tools/list (test/tool-examples.test.ts calls each one through the real handlers).
+   */
+  example: Record<string, unknown>;
+  /** A role whose use of the tool differs gets its own example. */
+  examples?: Partial<Record<AgentRole, Record<string, unknown>>>;
 }
 
 const obj = (properties: Record<string, unknown>, required: string[] = []) => ({
@@ -74,6 +81,7 @@ const TOOLS: ToolDefinition[] = [
       "Read lines of the software's record, with their file and ID. Give item IDs or file names, or nothing for the whole record.",
     inputSchema: obj({ items: textList, include_struck: { type: "boolean" } }),
     notBuilt: "the record keeper",
+    example: { items: ["what.md"] },
   },
   {
     name: "record_propose",
@@ -84,6 +92,54 @@ const TOOLS: ToolDefinition[] = [
       ["operations", "reason"],
     ),
     notBuilt: "the record keeper",
+    example: {
+      operations: [
+        {
+          op: "add",
+          kind: "W",
+          text: "People can export their list as a CSV file.",
+          from: "assumed",
+          priority: "should",
+        },
+      ],
+      reason: "The Why says the list is shared; a file is the plainest way to share it.",
+    },
+    examples: {
+      researcher: {
+        operations: [
+          {
+            op: "add",
+            kind: "E",
+            text: "A spreadsheet already keeps a reading list, but it cannot remind anyone. Source: not checked.",
+            from: "assumed",
+          },
+        ],
+        reason: "What already does part of the job.",
+      },
+      planner: {
+        operations: [
+          {
+            op: "replace",
+            id: "W-1",
+            text: "People can add a book to the list by its title alone.",
+            from: "assumed",
+            reason: "The brief asks for the title alone; the author is optional.",
+          },
+        ],
+        reason: "The brief asks to change W-1.",
+      },
+      builder: {
+        operations: [
+          {
+            op: "add",
+            kind: "D",
+            text: "Dates are stored as ISO 8601 text. Reason: they sort as text and read plainly. Rejected: Unix timestamps, unreadable in the file.",
+            from: "assumed",
+          },
+        ],
+        reason: "A choice made while building that later work depends on.",
+      },
+    },
   },
   {
     name: "draft_submit",
@@ -103,6 +159,55 @@ const TOOLS: ToolDefinition[] = [
       ["stage", "items"],
     ),
     notBuilt: "the line engine",
+    example: {
+      stage: "what",
+      items: [
+        {
+          text: "People can add a book to the list by its title.",
+          priority: "must",
+          from: "operator",
+          quote: "where I keep my reading list",
+        },
+        {
+          text: "Suggestion: people can mark a book as read.",
+          priority: "should",
+          from: "assumed",
+        },
+      ],
+    },
+    examples: {
+      researcher: {
+        stage: "exists",
+        items: [
+          {
+            text: "A spreadsheet already keeps a reading list, but it cannot remind anyone. Source: not checked.",
+            from: "assumed",
+          },
+        ],
+        outcome: "Build it",
+        reason: "Nothing found does the reminding the Why asks for.",
+      },
+      planner: {
+        stage: "plan",
+        items: [
+          {
+            text: "It keeps the list in one JSON file. Reason: one user, nothing to host. Rejected: a database server, more than needed.",
+            foundation: true,
+          },
+        ],
+        milestones: [{ text: "The smallest version that runs: add a book and see the list." }],
+        tasks: [
+          {
+            title: "Add a book and list the books, with run.md",
+            items: ["W-1"],
+            check: "A book added by its title appears in the list.",
+            milestone: 1,
+          },
+        ],
+        kind: "a small web page on this machine",
+        how_to_run: "Start it with node server.js and open http://localhost:3000.",
+      },
+    },
   },
   {
     name: "recovery_submit",
@@ -118,6 +223,26 @@ const TOOLS: ToolDefinition[] = [
       ["items"],
     ),
     notBuilt: "the line engine",
+    example: {
+      items: [
+        { kind: "Y", text: "It shows how long a draft is, for writers.", files: ["README.md"] },
+        { kind: "U", text: "Writers checking a draft's length." },
+        {
+          kind: "W",
+          priority: "must",
+          text: "It counts the words in a text file.",
+          files: ["wc.js"],
+        },
+        {
+          kind: "D",
+          text: "It is one Node.js script. Reason: nothing to install. Rejected: not known from the code.",
+          files: ["wc.js"],
+        },
+      ],
+      run: { build: "Nothing to build.", start: "node wc.js <file>", check: "npm test" },
+      could_not_check: ["Whether it handles very large files: none is in the repository."],
+      summary: "A word counter for text files.",
+    },
   },
   {
     name: "ask",
@@ -135,6 +260,11 @@ const TOOLS: ToolDefinition[] = [
       ["role", "kind", "items"],
     ),
     notBuilt: "the line engine",
+    example: {
+      role: "operator",
+      kind: "question",
+      items: ["Should the list be shared with others, or kept on this machine only?"],
+    },
   },
   {
     name: "gate_request",
@@ -151,6 +281,11 @@ const TOOLS: ToolDefinition[] = [
       ["kind", "action", "why"],
     ),
     notBuilt: "the gate",
+    example: {
+      kind: "spend",
+      action: "Buy the domain readinglist.example for 12 USD a year.",
+      why: "The record asks for the list at its own web address.",
+    },
   },
   {
     name: "proposal_submit",
@@ -165,11 +300,23 @@ const TOOLS: ToolDefinition[] = [
       ["options"],
     ),
     notBuilt: "taste claims",
+    example: {
+      options: [
+        {
+          title: "Plain list",
+          description: "White background, the books in one column, the box on top.",
+        },
+        { title: "Cards", description: "Each book as a card in a grid, the box at the bottom." },
+      ],
+      tasks: [1],
+      note: "premise would pick Plain list: it is the quickest to read.",
+    },
   },
   {
     name: "progress",
     description: "Tell the people watching what you are doing now, in one short line.",
     inputSchema: obj({ text: { type: "string" } }, ["text"]),
+    example: { text: "Reading the record before drafting." },
   },
   {
     name: "task_finish",
@@ -183,6 +330,7 @@ const TOOLS: ToolDefinition[] = [
       },
       ["status"],
     ),
+    example: { status: "done", note: "Submitted; nothing waits on a person." },
   },
   {
     name: "scenario_write",
@@ -193,6 +341,12 @@ const TOOLS: ToolDefinition[] = [
       ["name", "items", "steps", "expected"],
     ),
     notBuilt: "the line engine",
+    example: {
+      name: "Add a book",
+      items: ["W-1"],
+      steps: ["Open the page.", "Type a title in the box and press Add."],
+      expected: "The book appears in the list.",
+    },
   },
   {
     name: "verdict_submit",
@@ -206,6 +360,16 @@ const TOOLS: ToolDefinition[] = [
       ["verdicts"],
     ),
     notBuilt: "the line engine",
+    example: {
+      verdicts: [
+        {
+          item: "W-1",
+          verdict: "met",
+          evidence: "After adding a book titled Dune, the page lists Dune (evidence/add-book.txt).",
+          judged_on: "real",
+        },
+      ],
+    },
   },
   {
     name: "review_submit",
@@ -213,12 +377,29 @@ const TOOLS: ToolDefinition[] = [
       "Submit a review: consistent or conflicting per proposed change, or agree or object.",
     inputSchema: obj({ reviews: { type: "array", items: anyObject } }, ["reviews"]),
     notBuilt: "the record keeper",
+    example: {
+      reviews: [
+        {
+          decision: "It keeps the list in one JSON file.",
+          verdict: "agree",
+          reasons: "One user and a short list; moving to a database later is cheap.",
+        },
+      ],
+    },
   },
   {
     name: "triage_submit",
     description: "Submit how one intake item is routed.",
     inputSchema: anyObject,
     notBuilt: "intake",
+    example: {
+      kind: "wish",
+      touches: [{ id: "W-1", reason: "It changes how a book is added." }],
+      size: "small",
+      touches_floor: "no",
+      route: "in-normally",
+      reason: "A wish for a small change to adding books; nothing on the floor.",
+    },
   },
   {
     name: "lesson_submit",
@@ -235,6 +416,12 @@ const TOOLS: ToolDefinition[] = [
       ["mistake", "destination", "reason"],
     ),
     notBuilt: "learning",
+    example: {
+      mistake: "assumed a need the operator never had",
+      destination: "software",
+      reason: "It is about this software's users only.",
+      line: "Do not assume the list is shared; the operator keeps it alone.",
+    },
   },
   {
     name: "reading_submit",
@@ -242,6 +429,12 @@ const TOOLS: ToolDefinition[] = [
       'Submit the short list from reading the held intake items: "wanted" and "recurring" (lines, each { "line", "items": ["I-3"] }), "purpose", "back_to_why" (yes or no) and, when yes, "not_wanted" (the item IDs that are the evidence).',
     inputSchema: anyObject,
     notBuilt: "intake",
+    example: {
+      wanted: [{ line: "People want to sort the list by author.", items: ["I-1"] }],
+      recurring: [],
+      purpose: "No change: the items ask for more of what it already does.",
+      back_to_why: "no",
+    },
   },
   {
     name: "sizing_submit",
@@ -259,6 +452,15 @@ const TOOLS: ToolDefinition[] = [
       ["size", "size_reason", "stages", "stages_reason", "split_reason"],
     ),
     notBuilt: "the line engine",
+    example: {
+      size: "small",
+      size_reason: "A few screens for one user.",
+      stages: ["why", "what", "say-back", "plan", "build", "check", "run", "report"],
+      stages_reason:
+        "Who and What exists add nothing: one user, and the idea names what it replaces.",
+      split: [],
+      split_reason: "One small piece; splitting it would only add steps.",
+    },
   },
   {
     name: "facts_read",
@@ -266,16 +468,37 @@ const TOOLS: ToolDefinition[] = [
       "Read recorded facts about the software since a time, each with its evidence link.",
     inputSchema: obj({ since: { type: "string" }, kinds: textList }),
     notBuilt: "the reporter",
+    example: { since: "2026-11-01T00:00:00Z", kinds: ["verdicts", "runs"] },
   },
   {
     name: "report_submit",
     description: "Submit report lines, each with the evidence link of the fact it rests on.",
     inputSchema: obj({ lines: { type: "array", items: anyObject } }, ["lines"]),
     notBuilt: "the reporter",
+    example: {
+      lines: [
+        {
+          section: "Running",
+          text: "Adding a book works: the checker added one and saw it listed.",
+          evidence: "verdict W-1, job 12",
+        },
+      ],
+    },
   },
 ];
 
 const TOOLS_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));
+
+/**
+ * The arguments of one complete call of a tool that premise accepts from this role: the role's own
+ * example where its use differs, else the tool's. The same example is in the role's instructions and
+ * in the tool's description, so the two cannot drift.
+ */
+export function toolExample(tool: string, role: AgentRole): Record<string, unknown> {
+  const definition = TOOLS_BY_NAME.get(tool);
+  if (!definition) throw new Error(`premise has no tool "${tool}".`);
+  return definition.examples?.[role] ?? definition.example;
+}
 
 function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
@@ -419,7 +642,7 @@ export class AgentToolServer {
         return reply({
           tools: this.toolsFor(entry.binding.role).map((t) => ({
             name: t.name,
-            description: t.description,
+            description: `${t.description}\nExample: ${JSON.stringify(toolExample(t.name, entry.binding.role))}`,
             inputSchema: t.inputSchema,
           })),
         });

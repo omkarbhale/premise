@@ -12,7 +12,7 @@ import {
   type Proposer,
   applyOperations,
 } from "./change.js";
-import { type Diagnostic, formatDiagnostics } from "./diagnostics.js";
+import { type Diagnostic, formatDiagnostic, formatDiagnostics } from "./diagnostics.js";
 import { type ItemKind, RECORD_FILES, type RecordItem } from "./format.js";
 import { parseRecord } from "./parse.js";
 import {
@@ -101,6 +101,7 @@ function hash(content: string | undefined): string {
 interface ChangeRow {
   id: number;
   software_id: string;
+  proposed_by: string | null;
   reason: string;
   operations: string;
   status: ChangeStatus;
@@ -342,8 +343,10 @@ export class RecordKeeper {
       };
     }
     const change = result.change;
+    // Only the files the change touches are checked when it is written (decision 0276): a builder's
+    // decision must not be refused because the same job also edited run.md.
     const base: Record<string, string> = {};
-    for (const spec of RECORD_FILES) base[spec.file] = hash(files.get(spec.file));
+    for (const file of change.changedFiles) base[file] = hash(files.get(file));
     const row = insert.run(
       softwareId,
       options.proposedBy ?? null,
@@ -352,7 +355,7 @@ export class RecordKeeper {
       "reviewing",
       "[]",
       JSON.stringify(base),
-      JSON.stringify(Object.fromEntries(change.files)),
+      JSON.stringify(changedOnly(change)),
       JSON.stringify(change.assigned),
       JSON.stringify(change.touched),
       JSON.stringify(change.sayBackFor),
@@ -410,22 +413,33 @@ export class RecordKeeper {
     return this.resultOf(row.id);
   }
 
+  /** A proposed change as it was proposed: its operations, reason and where it stands. */
+  change(changeId: number): { operations: Operation[]; reason: string; status: ChangeStatus } {
+    const row = this.db.prepare("SELECT * FROM record_changes WHERE id = ?").get(changeId) as
+      ChangeRow | undefined;
+    if (!row) throw new RecordError("UNKNOWN_ITEM", `There is no record change ${changeId}.`);
+    return {
+      operations: JSON.parse(row.operations) as Operation[],
+      reason: row.reason,
+      status: row.status,
+    };
+  }
+
   // ---- Writing ------------------------------------------------------------------------------
 
-  /** Write an accepted change into the working copy's record folder and commit it, with its trailer (spec 5.3). */
+  /**
+   * Write an accepted change into the working copy's record folder and commit it, with its trailer
+   * (spec 5.3). Only the files the change touches are compared with what it was checked against.
+   * When one of them moved (another change landed in between), the change is applied again to the
+   * record as it stands now, once, and written if it still fits (decision 0276). Only when it no
+   * longer fits is it refused, saying why.
+   */
   write(changeId: number, options: WriteOptions): string {
-    const row = this.requireChange(changeId, "accepted");
-    const base = JSON.parse(row.base_hashes) as Record<string, string>;
+    let row = this.requireChange(changeId, "accepted");
     const current = this.readWorkingCopyFiles(options.workingCopy);
-    const moved = RECORD_FILES.filter(
-      (spec) => hash(current.get(spec.file)) !== base[spec.file],
-    ).map((s) => s.file);
-    if (moved.length > 0) {
-      throw new RecordError(
-        "MALFORMED",
-        `${moved.join(", ")} changed since this change was checked, so it was not written. Propose it again against the current record.`,
-      );
-    }
+    const base = JSON.parse(row.base_hashes) as Record<string, string>;
+    const moved = Object.keys(base).filter((file) => hash(current.get(file)) !== base[file]);
+    if (moved.length > 0) row = this.reapply(row, current, moved);
     const files = JSON.parse(row.new_files) as Record<string, string>;
     const touched = JSON.parse(row.touched) as string[];
     mkdirSync(join(options.workingCopy, this.folder), { recursive: true });
@@ -434,7 +448,11 @@ export class RecordKeeper {
     }
     const ids = [...new Set([...touched, ...(options.serves ?? []), ...(options.intake ?? [])])];
     const subject =
-      options.subject ?? `Record: ${summary(JSON.parse(row.operations) as Operation[])}`;
+      options.subject ??
+      `Record: ${commitSummary(
+        JSON.parse(row.operations) as Operation[],
+        JSON.parse(row.assigned) as (string | undefined)[],
+      )}`;
     if (!options.withCode) this.git.run(options.workingCopy, ["add", "--", this.folder]);
     const sha = this.git.commit(options.workingCopy, {
       subject,
@@ -444,6 +462,63 @@ export class RecordKeeper {
     });
     this.setStatus(row, "committed", { commit: sha });
     return sha;
+  }
+
+  /**
+   * Apply an accepted change again to the record as it stands, because a file it touches changed
+   * since it was checked. The same operations are applied; new items get the next free IDs. When
+   * they no longer fit, the change is rejected and the error says why, in the record keeper's words.
+   */
+  private reapply(row: ChangeRow, current: Map<string, string>, moved: string[]): ChangeRow {
+    const operations = JSON.parse(row.operations) as Operation[];
+    // The proposer's role is kept with the change as "builder, job 12"; applied again under the
+    // same role, an agent's item the record now already says is still not added twice.
+    const role = /^(drafter|researcher|reviewer|planner|builder|checker)\b/.exec(
+      row.proposed_by ?? "",
+    )?.[1] as Proposer["agentRole"];
+    const again = applyOperations(current, operations, {
+      today: this.today(),
+      proposer: role ? { agentRole: role } : {},
+    });
+    if (!again.ok) {
+      const diagnostics: Diagnostic[] = [
+        {
+          code: "CONFLICT",
+          message: `${moved.join(" and ")} changed after this change was checked, and it no longer fits the record as it stands:`,
+        },
+        ...again.diagnostics,
+      ];
+      this.setStatus(row, "rejected", { diagnostics });
+      throw new RecordError(
+        "CONFLICT",
+        diagnostics.map((d, i) => (i === 0 ? d.message : formatDiagnostic(d))).join(" "),
+        diagnostics,
+      );
+    }
+    const base: Record<string, string> = {};
+    for (const file of again.change.changedFiles) base[file] = hash(current.get(file));
+    this.db
+      .prepare(
+        `UPDATE record_changes SET base_hashes = ?, new_files = ?, assigned = ?, touched = ?,
+           say_back_for = ?, updated = ? WHERE id = ?`,
+      )
+      .run(
+        JSON.stringify(base),
+        JSON.stringify(changedOnly(again.change)),
+        JSON.stringify(again.change.assigned),
+        JSON.stringify(again.change.touched),
+        JSON.stringify(again.change.sayBackFor),
+        now(),
+        row.id,
+      );
+    recordEvent(this.db, {
+      softwareId: row.software_id,
+      module: "record-keeper",
+      kind: "change-reapplied",
+      reference: String(row.id),
+      detail: { moved, assigned: again.change.assigned },
+    });
+    return this.requireChange(row.id, "accepted");
   }
 
   /**
@@ -684,10 +759,50 @@ export class RecordKeeper {
   }
 }
 
-function summary(operations: readonly Operation[]): string {
-  return operations
-    .map((o) => (o.op === "add" ? `add ${o.kind} item` : `${o.op} ${o.id}`))
-    .join(", ");
+/** The files a change writes: only those whose content it changes. */
+function changedOnly(change: AppliedChange): Record<string, string> {
+  return Object.fromEntries(change.changedFiles.map((file) => [file, change.files.get(file)!]));
+}
+
+const SUBJECT_MAX = 72;
+
+/** A few first words of an item's text, for a commit subject. */
+function firstWords(text: string, count = 5): string {
+  const words = text.trim().split(/\s+/);
+  return words.length > count ? `${words.slice(0, count).join(" ")}…` : words.join(" ");
+}
+
+/**
+ * The commit subject of a record change, naming its items: "add D-4 Keep tasks in a file…,
+ * strike W-2". When that is too long, the rest is counted rather than cut mid-word.
+ */
+export function commitSummary(
+  operations: readonly Operation[],
+  assigned: readonly (string | undefined)[] = [],
+): string {
+  const parts = operations.map((o, i) => {
+    const id = assigned[i];
+    switch (o.op) {
+      case "add":
+        return `add ${id ?? `a ${o.kind} item`} ${firstWords(o.text)}`;
+      case "replace":
+        return `replace ${o.id}${id ? ` with ${id}` : ""} ${firstWords(o.text)}`;
+      default:
+        return `${o.op} ${o.id}`;
+    }
+  });
+  let subject = parts[0] ?? "no change";
+  let shown = 1;
+  while (shown < parts.length && `${subject}, ${parts[shown]}`.length <= SUBJECT_MAX - 20) {
+    subject = `${subject}, ${parts[shown]}`;
+    shown++;
+  }
+  if (shown < parts.length) {
+    const rest = parts.length - shown;
+    const ids = assigned.slice(shown).filter((x): x is string => Boolean(x));
+    subject += ` and ${rest} more${ids.length ? ` (${ids.join(", ")})` : ""}`;
+  }
+  return subject;
 }
 
 export type { AppliedChange, TrailerFailure };

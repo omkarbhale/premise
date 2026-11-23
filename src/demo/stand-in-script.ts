@@ -36,6 +36,11 @@ function idea(request: AgentRequest): string {
 type Call = Parameters<ScriptBehaviour>[1];
 
 /** Submit a draft, leaving out what people struck before (as a real drafter would). */
+/** The first words of a text, as written, to quote as the operator's own. */
+function firstWords(text: string, max = 100): string {
+  return text.replace(/\s+/g, " ").trim().slice(0, max).trim();
+}
+
 function submit(call: Call, stage: string, items: ({ text: string } & Record<string, unknown>)[]) {
   const read = call("record_read", { include_struck: true });
   const struck = ((read.result as { lines?: { line: string }[] } | undefined)?.lines ?? [])
@@ -70,7 +75,11 @@ const propose: ScriptBehaviour = (request, call) => {
 /** The scripted drafter: fixed templates filled with the operator's own words. No AI writes them. */
 const draftWhy: ScriptBehaviour = (request, call) => {
   submit(call, "why", [
-    { text: `In your words: ${shortIdea(idea(request))}`, from: "operator" },
+    {
+      text: `In your words: ${shortIdea(idea(request))}`,
+      from: "operator",
+      quote: firstWords(idea(request)),
+    },
     { text: "Doing this by hand today takes time, or gets skipped.", from: "assumed" },
     { text: "It is worth building only if it saves more effort than it costs.", from: "assumed" },
     {
@@ -106,6 +115,7 @@ const draftWhat: ScriptBehaviour = (request, call) => {
         priority: "must",
         text: `It does what this asks: ${shortIdea(piece.replace(/^I-\d+:\s*/, ""), 100)}`,
         from: "operator",
+        quote: firstWords(piece.replace(/^I-\d+:\s*/, "")),
       },
     ]);
     return;
@@ -115,6 +125,7 @@ const draftWhat: ScriptBehaviour = (request, call) => {
       priority: "must",
       text: `It does what you described: ${shortIdea(idea(request), 100)}`,
       from: "operator",
+      quote: firstWords(idea(request)),
     },
     {
       priority: "must",
