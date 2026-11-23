@@ -64,10 +64,23 @@ describe("provenance: from operator only with a quote the operator said", () => 
     expect(downgraded).toBe(3);
   });
 
+  it("drops a quote from an item that is not the operator's, and from a list not checked for quotes", () => {
+    const { items } = checkOperatorQuotes(
+      [{ text: "A.", from: "researcher", quote: "where I keep my reading list" }],
+      sources,
+    );
+    expect(items[0]!.quote).toBeUndefined();
+    const [read] = readDraftItems(
+      [{ text: "A.", from: "operator", quote: "where I keep my reading list" }],
+      { defaultKind: "W", allowed: ["W"] },
+    );
+    expect(toAskItem(read!).quote).toBeUndefined();
+  });
+
   it("shows the quote under the item", () => {
     const [item] = readDraftItems(
       [{ text: "Keep a list.", from: "operator", quote: "I keep my reading list" }],
-      { defaultKind: "W", allowed: ["W"] },
+      { defaultKind: "W", allowed: ["W"], quotes: true },
     );
     expect(toAskItem(item!).quote).toContain("I keep my reading list");
   });

@@ -88,6 +88,7 @@ export function readDraftItems(
     allowed: readonly ItemKind[];
     allowSize?: boolean;
     max?: number;
+    quotes?: boolean;
   },
 ): DraftItem[] {
   if (!Array.isArray(raw) || raw.length === 0) {
@@ -167,7 +168,7 @@ export function readDraftItems(
     const source =
       str(value.source) ?? (typeof value.sources === "string" ? str(value.sources) : undefined);
     const shortLine = str(value.short);
-    const quote = str(value.quote);
+    const quote = options.quotes ? str(value.quote) : undefined;
     items.push({
       key: `k${i + 1}`,
       text,
@@ -353,7 +354,10 @@ export function checkOperatorQuotes<T extends Pick<DraftItem, "from" | "quote">>
   const said = sources.map(squash);
   let downgraded = 0;
   const checked = items.map((item) => {
-    if (item.from !== operatorRole) return item;
+    if (item.from !== operatorRole) {
+      const { quote: _unchecked, ...rest } = item;
+      return rest as T;
+    }
     const quote = item.quote ? squash(item.quote) : "";
     if (quote && said.some((source) => quoteHolds(quote, source))) return item;
     downgraded++;

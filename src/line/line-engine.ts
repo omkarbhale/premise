@@ -4500,6 +4500,7 @@ export class LineEngine implements IntakeLine {
         defaultKind: kinds.kind,
         allowed: kinds.allowed,
         allowSize: stage === "why",
+        quotes: true,
         ...(stage === "why" && { max: this.config.line.why_items_max + 1 }),
       }),
       this.operatorSources(software),
