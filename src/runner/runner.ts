@@ -279,7 +279,7 @@ export class Runner {
 
   private canBuildRun(softwareId: string): boolean {
     const repo = this.deps.repositories.repositoryPath(softwareId);
-    return existsSync(join(repo, ".git")) && this.git.headCommit(repo) !== undefined;
+    return existsSync(join(repo, ".git")) && this.git.hasCommit(repo);
   }
 
   // ---- Starting and stopping ----------------------------------------------------------------

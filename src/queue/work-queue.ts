@@ -226,6 +226,17 @@ export class WorkQueue {
     return (rows as unknown as JobRow[]).map(fromRow);
   }
 
+  /** One software's jobs in the given states, oldest first: read without loading every job. */
+  listFor(softwareId: string, statuses: JobStatus[]): Job[] {
+    if (statuses.length === 0) return [];
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM jobs WHERE software_id = ? AND status IN (${statuses.map(() => "?").join(", ")}) ORDER BY id`,
+      )
+      .all(softwareId, ...statuses);
+    return (rows as unknown as JobRow[]).map(fromRow);
+  }
+
   state(): QueueState {
     const row = this.db.prepare("SELECT value FROM settings WHERE key = ?").get(QUEUE_STATE_KEY) as
       { value: string } | undefined;

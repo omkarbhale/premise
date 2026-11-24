@@ -578,6 +578,15 @@ export const MIGRATIONS: readonly Migration[] = [
       CREATE INDEX usage_readings_unfed ON usage_readings(fed_at, read_at);
     `,
   },
+  {
+    version: 19,
+    name: "indexes so the page's reads of the event log stay fast as it grows",
+    sql: `
+      CREATE INDEX IF NOT EXISTS events_module_kind ON events(module, kind, reference);
+      CREATE INDEX IF NOT EXISTS events_software ON events(software_id, module, kind);
+      CREATE INDEX IF NOT EXISTS jobs_software ON jobs(software_id, status);
+    `,
+  },
 ];
 
 export const CURRENT_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

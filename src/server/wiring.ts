@@ -251,8 +251,18 @@ export function createSession(options: {
     runner.useWorkingCopies(config.data.folder, config.data.keep_finished_working_copies);
   }
   const portfolio = new Portfolio({ db, queue, stopRunning: (id) => runs.stop(id) });
+  // The overview asks for the list, the archived list and the activity's lines at the same time:
+  // they share one reading of every software instead of making three (decision 0340).
+  let reading: ReturnType<typeof engine.softwareList> | null = null;
+  const summaries = () => {
+    if (!reading) {
+      reading = engine.softwareList();
+      setImmediate(() => (reading = null));
+    }
+    return reading;
+  };
   const softwareList = async (options: { archived?: boolean } = {}) =>
-    portfolio.decorate(await engine.softwareList(), options);
+    portfolio.decorate(await summaries(), options);
   const activity = new QueueActivity(
     db,
     queue,

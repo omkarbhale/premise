@@ -266,6 +266,7 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
         page: {
           notifications: deps.config.page.notifications,
           presenceSeconds: deps.config.measures.presence_seconds,
+          liveUpdateMs: deps.config.page.live_update_ms,
         },
         usage: {
           mode: deps.ledger.mode,

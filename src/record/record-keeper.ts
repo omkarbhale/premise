@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { PremiseConfig } from "../config/settings.js";
-import { type CommitInfo, Git, GitError } from "../git/git.js";
+import { type CommitInfo, Git, GitError, headToken } from "../git/git.js";
 import { type Database, now, recordEvent, transaction } from "../storage/database.js";
 import { getSoftware, setSoftwareRepository } from "../storage/softwares.js";
 import {
@@ -125,6 +125,12 @@ export class RecordKeeper {
   private readonly db: Database;
   private readonly config: PremiseConfig;
   private readonly today: () => string;
+  /**
+   * The record's files as last read from each repository's HEAD, kept until HEAD moves. The page
+   * asks for record words many times a second; reading them through git each time held up every
+   * request (decision 0340).
+   */
+  private readonly headFiles = new Map<string, { token: string; files: Map<string, string> }>();
 
   constructor(deps: RecordKeeperDeps) {
     this.db = deps.db;
@@ -611,6 +617,17 @@ export class RecordKeeper {
   /** The record's files as stored on a commit of the software's repository (default: the latest). */
   readFiles(softwareId: string, revision = "HEAD"): Map<string, string> {
     const repo = this.repositoryPath(softwareId);
+    if (revision !== "HEAD") return this.readFilesThroughGit(repo, revision);
+    const token = headToken(repo);
+    const kept = this.headFiles.get(repo);
+    if (token !== undefined && kept?.token === token) return new Map(kept.files);
+    const files = this.readFilesThroughGit(repo, revision);
+    if (token !== undefined && files.size > 0) this.headFiles.set(repo, { token, files });
+    else this.headFiles.delete(repo);
+    return new Map(files);
+  }
+
+  private readFilesThroughGit(repo: string, revision: string): Map<string, string> {
     const files = new Map<string, string>();
     if (!existsSync(join(repo, ".git")) || !this.git.headCommit(repo)) return files;
     try {

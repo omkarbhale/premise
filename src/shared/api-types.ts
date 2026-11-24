@@ -1089,6 +1089,8 @@ export interface Overview {
     notifications: "offer" | "off";
     /** How often an open page says it is still in front of someone (measures.presence_seconds). */
     presenceSeconds?: number;
+    /** At most how often live events reload the page, in milliseconds (page.live_update_ms). */
+    liveUpdateMs?: number;
   };
   /** Where usage figures come from, and why they cannot be read right now (null when they can). */
   usage: { mode: string; source: FigureSource; problem: string | null };
