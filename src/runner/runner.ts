@@ -702,14 +702,56 @@ export class Runner {
    * stops at once with the cause, as a machine fault: it is not the builder's to fix and is not
    * sent back to Build. Skipped without the sandbox, without a host to try, or where the sandbox
    * has no `getent` to ask with.
+   *
+   * `getent` says 2 when the name was not found. Any other failure means the sandbox itself did
+   * not start (bubblewrap says why on its error output), which is said as that, not as a name
+   * problem. A `/etc/resolv.conf` link is blamed only after checking, inside the same sandbox,
+   * that the file it points to cannot be read there.
    */
   private async checkNamesResolve(live: Live): Promise<void> {
     const { config } = this.deps;
     const host = config.runner.name_check_host;
     if (config.runner.confinement !== "bubblewrap" || host === "") return;
+    const lookup = await this.runConfinedCheck(live, `getent hosts ${host}`);
+    if (live.stopping || this.closed) return;
+    const { code, output } = lookup;
+    if (code === 0 || code === 127 || code === null) return;
+    if (code !== 2) {
+      const said = output.trim() || `it ended with exit code ${code} and said nothing`;
+      throw new RunnerError(
+        "MACHINE_FAULT",
+        `premise could not start its sandbox on this machine to build this software: ${said}. This is not a fault of the software, so premise stopped before the build steps. Usually a folder or program premise was told to show inside the sandbox is the cause: check the paths in the settings runner.read_only_paths and runner.extra_tool_paths, and any program you told premise you installed for this software, then start it again.`,
+      );
+    }
+    const target = finalLinkTarget("/etc/resolv.conf");
+    let cause = `the host name ${host} was not found there`;
+    if (target !== null) {
+      const read = await this.runConfinedCheck(live, "test -r /etc/resolv.conf");
+      if (live.stopping || this.closed) return;
+      if (read.code !== 0) {
+        cause = `/etc/resolv.conf points to ${target}, which premise's sandbox cannot read`;
+      }
+    }
+    throw new RunnerError(
+      "MACHINE_FAULT",
+      `Names cannot be looked up inside premise's sandbox on this machine: ${cause}. This is a fault of the machine, not of the software, so premise stopped before the build steps instead of letting each one fail. Check that this machine can look up names (try \`getent hosts ${host}\`), or set runner.build_network to false if the build needs no network.`,
+    );
+  }
+
+  /** One short command in the build's sandbox, with its output kept: its exit code, or null after 15 s. */
+  private async runConfinedCheck(
+    live: Live,
+    shellCommand: string,
+  ): Promise<{ code: number | null; output: string }> {
+    let output = "";
     const code = await new Promise<number | null>((resolve) => {
-      const child = this.spawnConfined(live, `getent hosts ${host}`, true);
+      const child = this.spawnConfined(live, shellCommand, true);
       live.child = child;
+      const keep = (chunk: Buffer) => {
+        if (output.length < 2000) output += chunk.toString("utf8");
+      };
+      child.stdout?.on("data", keep);
+      child.stderr?.on("data", keep);
       const timer = setTimeout(() => {
         this.killTree(live, "SIGKILL");
         resolve(null);
@@ -724,15 +766,7 @@ export class Runner {
       });
     });
     live.child = null;
-    if (live.stopping || this.closed || code === 0 || code === 127 || code === null) return;
-    const target = finalLinkTarget("/etc/resolv.conf");
-    const cause = target
-      ? `/etc/resolv.conf points to ${target}, which is not visible`
-      : `the host name ${host} did not resolve`;
-    throw new RunnerError(
-      "MACHINE_FAULT",
-      `Names cannot be looked up inside premise's sandbox on this machine: ${cause}. This is a fault of the machine, not of the software, so premise stopped before the build steps instead of letting each one fail. Check that this machine can look up names (try \`getent hosts ${host}\`), or set runner.build_network to false if the build needs no network.`,
-    );
+    return { code, output };
   }
 
   // ---- Command-line software ----------------------------------------------------------------

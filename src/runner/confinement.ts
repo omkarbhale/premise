@@ -1,5 +1,6 @@
 import { existsSync, lstatSync, readdirSync, readlinkSync, realpathSync } from "node:fs";
-import { join, sep } from "node:path";
+import { homedir } from "node:os";
+import { dirname, join, sep } from "node:path";
 import type { RunnerConfinement } from "../config/settings.js";
 
 /**
@@ -107,6 +108,53 @@ export function finalLinkTarget(path: string): string | null {
   }
 }
 
+/**
+ * The bubblewrap arguments that make each read-only path visible, given the folders already bound.
+ * A path inside a bound folder is visible already and is not bound again: binding over it fails
+ * when it is a link whose target the sandbox does not have (bubblewrap then cannot create the
+ * mount point and nothing runs). For a link, its real target is bound instead, with the folder
+ * that holds it when the target is a program (a program such as a browser needs the files beside
+ * it), never the home folder or a whole mount; and the link itself is recreated when it is not
+ * inside a bound folder.
+ */
+export function readOnlyBinds(paths: string[], alreadyBound: string[]): string[] {
+  const args: string[] = [];
+  const bound = [...alreadyBound];
+  const visible = (path: string) => bound.some((folder) => inside(path, folder));
+  for (const path of paths) {
+    let info;
+    try {
+      info = lstatSync(path);
+    } catch {
+      continue;
+    }
+    if (!info.isSymbolicLink()) {
+      if (visible(path)) continue;
+      args.push("--ro-bind", path, path);
+      bound.push(path);
+      continue;
+    }
+    let real: string;
+    try {
+      real = realpathSync(path);
+    } catch {
+      continue; // a link that points nowhere names nothing to show
+    }
+    let target = real;
+    if (!lstatSync(real).isDirectory()) {
+      const folder = dirname(real);
+      const home = homedir();
+      if (!tooBroad(folder) && folder !== home && !inside(home, folder)) target = folder;
+    }
+    if (!visible(target)) {
+      args.push("--ro-bind", target, target);
+      bound.push(target);
+    }
+    if (!visible(path)) args.push("--symlink", real, path);
+  }
+  return args;
+}
+
 export function confine(input: ConfineInput): ConfinedCommand {
   if (input.mode === "none") {
     return { file: "sh", args: ["-c", input.shellCommand], confined: false };
@@ -131,9 +179,7 @@ export function confine(input: ConfineInput): ConfinedCommand {
   for (const target of linkTargetsOutside(input.networkPaths ?? NETWORK_PATHS, bound)) {
     args.push("--ro-bind", target, target);
   }
-  for (const path of input.readOnlyPaths) {
-    if (existsSync(path)) args.push("--ro-bind", path, path);
-  }
+  args.push(...readOnlyBinds(input.readOnlyPaths, SYSTEM_FOLDERS));
   args.push("--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp");
   args.push("--bind", input.copy, input.copy, "--chdir", input.copy);
   args.push("sh", "-c", input.shellCommand);
