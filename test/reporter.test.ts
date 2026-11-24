@@ -8,7 +8,7 @@ import { Runner } from "../src/runner/runner.js";
 import type { ReportView } from "../src/shared/api-types.js";
 import { createAsk } from "../src/storage/asks.js";
 import { type Database, openDatabase, recordEvent } from "../src/storage/database.js";
-import { MockUsageLedger } from "../src/usage-ledger/mock-usage-ledger.js";
+import { DemoUsageLedger } from "../src/usage-ledger/demo-usage-ledger.js";
 import { WEB_SERVER, makeSoftware, runBlock } from "./fixtures/fixture-software.js";
 import { tempFolder, testConfig, uniquePortRange } from "./helpers.js";
 import { dirname } from "node:path";
@@ -40,7 +40,7 @@ beforeEach(async () => {
   const keeper = new RecordKeeper({ db, config, today: () => "2026-11-22" });
   runner = new Runner({ db, config, repositories: keeper });
   reporter = new Reporter(
-    { db, config, records: keeper, runner, ledger: new MockUsageLedger("mock-fixed", 1) },
+    { db, config, records: keeper, runner, ledger: new DemoUsageLedger("demo-fixed", 1) },
     config,
   );
 });
@@ -102,7 +102,8 @@ describe("a report from recorded facts", () => {
     expect(failed.some((t) => t.includes("People can open the page"))).toBe(false);
     expect(section(view, "Decided").join("\n")).toContain("must: People can open the page");
     expect(view.limits.join(" ")).toContain("same kind of AI");
-    expect(view.cost.mocked).toBe(true);
+    expect(view.cost.demo).toBe(true);
+    expect(view.cost.text).toContain("made-up demo figures");
   });
 
   it("puts a check that could not run under failed or not checked", async () => {
@@ -174,7 +175,7 @@ describe("a report from recorded facts", () => {
         config,
         records: new RecordKeeper({ db, config }),
         runner,
-        ledger: new MockUsageLedger("mock-fixed", 1),
+        ledger: new DemoUsageLedger("demo-fixed", 1),
       },
       s.id,
     );
@@ -225,7 +226,7 @@ describe("a report from recorded facts", () => {
         config,
         records: new RecordKeeper({ db, config }),
         runner,
-        ledger: new MockUsageLedger("mock-fixed", 1),
+        ledger: new DemoUsageLedger("demo-fixed", 1),
       },
       s.id,
     );
@@ -243,7 +244,7 @@ describe("a report from recorded facts", () => {
         config,
         records: new RecordKeeper({ db, config }),
         runner,
-        ledger: new MockUsageLedger("mock-fixed", 1),
+        ledger: new DemoUsageLedger("demo-fixed", 1),
       },
       s.id,
     );
@@ -317,7 +318,7 @@ describe("writing reports", () => {
         config,
         records: new RecordKeeper({ db, config }),
         runner,
-        ledger: new MockUsageLedger("mock-fixed", 1),
+        ledger: new DemoUsageLedger("demo-fixed", 1),
       },
       s.id,
     );
@@ -352,7 +353,7 @@ describe("the headline tells the truth (decision 0280)", () => {
         config,
         records: new RecordKeeper({ db, config }),
         runner,
-        ledger: new MockUsageLedger("mock-fixed", 1),
+        ledger: new DemoUsageLedger("demo-fixed", 1),
         plannedLater: () => later,
       },
       id,

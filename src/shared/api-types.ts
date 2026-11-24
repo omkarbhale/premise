@@ -144,29 +144,34 @@ export interface WorkItemView {
   canUndoSplit: boolean;
 }
 
-export interface UsageFigures {
-  mocked: boolean;
-  sessions: number;
-  inputTokens: number;
-  outputTokens: number;
-  costUsd: number;
-  weeklyShare: number;
-}
+/** Where usage figures come from: the usage-ledger command, or a scripted demo's made-up ones. */
+export type FigureSource = "ledger" | "demo";
 
-/** What usage-ledger says a group of sessions used. Always carries the mock's mark. */
+/**
+ * What usage-ledger says a group of sessions used (decision 0330). A figure is null when it is not
+ * known, never zero; why and weeklyWhy say why in plain words. Demo figures say so in source.
+ */
 export interface UsageCost {
-  mocked: boolean;
-  inputTokens: number;
-  outputTokens: number;
-  costUsd: number;
-  /** The cost as a share of a week's usage; it can pass 1. */
-  weeklyShare: number;
+  source: FigureSource;
+  sessions: number;
+  /** Sessions with a cost figure; the sums cover only those. */
+  priced: number;
+  /** At list prices, in US dollars. */
+  costUsd: number | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  cacheTokens: number | null;
+  /** Share of the week's usage, from 0 up; null when not known (always, below a software). */
+  weeklyShare: number | null;
+  /** Why some sessions have no cost; null when all have one. */
+  why: string | null;
+  /** Why the share of the week is not known, or how rough it is. */
+  weeklyWhy: string | null;
 }
 
 /**
- * premise's own count of what real sessions used, taken from each session's own result: real,
- * never marked as mocked (decision 0270). A session without figures is counted as missing and
- * never as zero.
+ * premise's own count of what real sessions used, taken from each session's own result
+ * (decision 0270). A session without figures is counted as missing and never as zero.
  */
 export interface OwnFigures {
   /** Sessions whose own result gave figures. */
@@ -186,7 +191,7 @@ export interface OwnFigures {
   unreported: { cost: number; tokens: number; turns: number };
 }
 
-/** What premise itself recorded about the same sessions: real, never marked as mocked. */
+/** What premise itself recorded about the same sessions: real. */
 export interface UsageMeasured {
   sessions: number;
   minutes: number;
@@ -208,10 +213,11 @@ export interface OverrunView {
   time: string;
   /** One plain paragraph: what happened and what happens now. */
   message: string;
-  spentByStage: { label: string; sessions: number; costUsd: number }[];
-  spentByChange: { label: string; sessions: number; costUsd: number }[];
-  spentUsd: number;
-  mocked: boolean;
+  spentByStage: { label: string; sessions: number; costUsd: number | null }[];
+  spentByChange: { label: string; sessions: number; costUsd: number | null }[];
+  spentUsd: number | null;
+  /** The pause came from made-up figures: a scripted demo's, or the mock used before usage-ledger. */
+  madeUp: boolean;
   answer: BudgetAnswer | null;
   /** The change it is allowed to finish, after the operator chose that. */
   finishing: string | null;
@@ -226,10 +232,15 @@ export interface BudgetView {
   /** The budget in plain words, or that there is none. */
   words: string;
   state: SoftwareState;
-  /** What was used this week, and whether it has reached the budget. */
-  spentUsd: number;
-  spentShare: number;
-  mocked: boolean;
+  /** What was used this week; null when not known. */
+  spentUsd: number | null;
+  spentShare: number | null;
+  source: FigureSource;
+  /** Whether usage-ledger checked the budget; when not, why, and work is never paused for it. */
+  checked: boolean;
+  /** Checked, but some use could not be counted; checkWhy says what. Never a pause by itself. */
+  incomplete: boolean;
+  checkWhy: string | null;
   /** Set while the software's queue is paused for a budget overrun. */
   overrun: OverrunView | null;
 }
@@ -243,7 +254,7 @@ export interface SoftwareUsageView {
   byChange: UsageRowView[];
   byItem: UsageRowView[];
   budget: BudgetView;
-  /** Set when usage-ledger could not be read; the page says so instead of showing zeros. */
+  /** Set when usage-ledger could not be read; the page says so and what to do. */
   problem: string | null;
 }
 
@@ -258,11 +269,17 @@ export interface OwnWindowView {
 }
 
 export interface UsageOverview {
+  /** "real", "demo-fixed" or "demo-random". */
   mode: string;
-  mocked: boolean;
+  source: FigureSource;
+  /** Why usage-ledger cannot be read right now, with what to do; null when it can. */
+  problem: string | null;
+  /** The usage-ledger command premise runs (usage_ledger.command). */
+  command: string;
   /** premise's own reading of the weekly window; null before any real session reported one. */
   ownWindow: OwnWindowView | null;
-  weekly: { mocked: boolean; utilization: number; windowStart: string; resetsAt: string };
+  /** The demo's made-up week, shown only with demo figures. */
+  demoWeekly: { utilization: number; windowStart: string; resetsAt: string } | null;
   softwares: SoftwareUsageView[];
 }
 
@@ -278,7 +295,6 @@ export type OverrunAnswerInput =
 export interface SoftwareDetail extends SoftwareSummary {
   idea: string;
   stages: StageView[];
-  usage: UsageFigures;
   milestones: MilestoneView[];
   approvals: ApprovalView[];
   /** This stage's effort budget and what is used, when the stage has one. */
@@ -880,11 +896,12 @@ export interface MilestoneView {
 export interface ReportCostLine {
   group: "stage" | "change" | "item";
   label: string;
-  /** premise's own figures, such as "3 agent sessions, 4 minutes"; not mocked. */
+  /** premise's own figures, such as "3 agent sessions, 4 minutes". */
   measured: string;
-  /** usage-ledger's figure, such as "about $1.20 at list prices"; carries the mock's mark. */
+  /** usage-ledger's figure, such as "about $1.20 at list prices", or why it is not known. */
   cost: string;
-  mocked: boolean;
+  /** Made-up figures of a scripted demo. */
+  demo: boolean;
 }
 
 export interface ReportView {
@@ -908,8 +925,9 @@ export interface ReportView {
   /** Said when scripted agents made the checks: they cannot judge software. */
   scripted?: string;
   cost: {
-    mocked: boolean;
-    /** premise's own count from the sessions' results: real, shown before the mocked text. */
+    /** Made-up figures of a scripted demo. */
+    demo: boolean;
+    /** premise's own count from the sessions' results, shown before usage-ledger's. */
     own?: string;
     text: string;
     /** Per stage and per piece of work: premise's own counts beside usage-ledger's figures. */
@@ -1072,11 +1090,8 @@ export interface Overview {
     /** How often an open page says it is still in front of someone (measures.presence_seconds). */
     presenceSeconds?: number;
   };
-  usage: {
-    mode: string;
-    mocked: boolean;
-    weekly: { mocked: boolean; utilization: number; windowStart: string; resetsAt: string };
-  };
+  /** Where usage figures come from, and why they cannot be read right now (null when they can). */
+  usage: { mode: string; source: FigureSource; problem: string | null };
   softwares: SoftwareSummary[];
   /** What a new software starts with, so the page can name it in plain words. */
   defaults: { effort: SoftwareEffort; priority: number; milestoneWaits: boolean };
@@ -1087,8 +1102,6 @@ export interface Overview {
   roles: string[];
   /** How many softwares are archived: kept, and hidden from the list above. */
   archivedSoftwares?: number;
-  /** Each software's usage, from usage-ledger (mocked until it exists). */
-  softwareUsage: (UsageFigures & { softwareId: string })[];
   openAsks: number;
   activity: { running: number; queued: number; waiting: number; max: number; paused: boolean };
   /** Pausing everything: always present, so the top bar can show Pause or Resume. */
@@ -1258,7 +1271,7 @@ export type MeasureKey =
   | "checker-misses"
   | "sessions";
 
-/** One measure, worked out from recorded events only. Never mocked: these are real. */
+/** One measure, worked out from recorded events only. These are real. */
 export interface MeasureFigure {
   key: MeasureKey;
   /** Short name, such as "Your attention". */

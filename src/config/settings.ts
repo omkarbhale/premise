@@ -34,7 +34,19 @@ export type Effort = (typeof EFFORTS)[number];
 export const AGENT_MODES = ["scripted", "claude"] as const;
 export type AgentMode = (typeof AGENT_MODES)[number];
 
-export const USAGE_LEDGER_MODES = ["mock-fixed", "mock-random", "real"] as const;
+/**
+ * Where usage figures come from (decision 0330). "auto": the usage-ledger command for real agents,
+ * demo figures for scripted ones. "mock-fixed" and "mock-random" are the old names of the two demo
+ * modes, still accepted.
+ */
+export const USAGE_LEDGER_MODES = [
+  "auto",
+  "real",
+  "demo-fixed",
+  "demo-random",
+  "mock-fixed",
+  "mock-random",
+] as const;
 export type UsageLedgerMode = (typeof USAGE_LEDGER_MODES)[number];
 
 export const PAGE_NOTIFICATIONS = ["offer", "off"] as const;
@@ -143,14 +155,6 @@ const loopbackOnly = summarised(
       : `must be an address on this machine (${LOOPBACK_HOSTS.join(", ")}); it is ${JSON.stringify(value)}. Reaching premise from other machines is off (decision 0144)`,
   `one of ${LOOPBACK_HOSTS.join(", ")}`,
 );
-
-const realLedgerNotBuilt = summarised((value) => {
-  const wrong = oneOf(USAGE_LEDGER_MODES)(value);
-  if (wrong) return wrong;
-  return value === "real"
-    ? `is "real", but premise cannot talk to a real usage-ledger yet. Use "mock-fixed" or "mock-random" (decision 0133)`
-    : null;
-}, `"mock-fixed", "mock-random" or "real" (not built yet)`);
 
 /** "4700-4799": the first and last port, the first not above the last, both usable. */
 export function parsePortRange(value: unknown): { first: number; last: number } | null {
@@ -407,33 +411,81 @@ export const SETTINGS: readonly Setting[] = [
   },
   {
     key: "usage_ledger.mode",
-    default: "mock-fixed",
-    check: realLedgerNotBuilt,
+    default: "auto",
+    check: summarised(oneOf(USAGE_LEDGER_MODES), '"auto", "real", "demo-fixed" or "demo-random"'),
     meaning:
-      'Where usage figures come from. "mock-fixed": the same made-up figures every time. "mock-random": made-up figures from a seed. Mocked figures are labelled on the page.',
-    record: "0133",
+      'Where usage and cost figures come from. "auto": from the usage-ledger command when agents are real, and made-up demo figures when agents are scripted (they use nothing). "real": always the usage-ledger command. "demo-fixed" and "demo-random": the demo figures for scripted agents; real agents still use usage-ledger. Demo figures are labelled as such on the page.',
+    record: "0330",
+  },
+  {
+    key: "usage_ledger.command",
+    default: "usage-ledger",
+    check: summarised(text, "a program name or path"),
+    meaning:
+      'The usage-ledger program premise runs to label each session and read what it cost. "usage-ledger" means the one found on your PATH; give the full path to its cli.js (or its link) if it is somewhere else. premise runs it directly, never through a shell.',
+    record: "0330",
+  },
+  {
+    key: "usage_ledger.database",
+    default: null,
+    check: summarised(orNone(text), "a file path, or null"),
+    meaning:
+      "The database file usage-ledger keeps its labels and weekly readings in (its USAGE_LEDGER_DB). null means usage-ledger's own default.",
+    record: "0330",
+  },
+  {
+    key: "usage_ledger.timeout_seconds",
+    default: 60,
+    check: summarised(wholeNumber(5, 600), "5 to 600"),
+    meaning:
+      "How long one usage-ledger command may take before premise gives up on it and tries again later. Reading a session scans Claude Code's logs, which takes a few seconds.",
+    record: "0330",
+  },
+  {
+    key: "usage_ledger.read_after_seconds",
+    default: 15,
+    check: summarised(wholeNumber(0, 3600), "0 to 3600"),
+    meaning:
+      "How long after a session ends premise waits before asking usage-ledger what it used, so Claude Code has finished writing its log.",
+    record: "0330",
+  },
+  {
+    key: "usage_ledger.recheck_minutes",
+    default: 10,
+    check: summarised(wholeNumber(1, 1440), "1 to 1440"),
+    meaning:
+      "How often premise asks usage-ledger again about this week's sessions whose share of the week is not known yet, and tries again after usage-ledger could not be run.",
+    record: "0330",
+  },
+  {
+    key: "usage_ledger.catch_up_days",
+    default: 30,
+    check: summarised(orNone(wholeNumber(0, 3650)), "0 to 3650, or null"),
+    meaning:
+      "When premise starts, it labels and reads past sessions from up to this many days ago that usage-ledger has not seen yet, so their cost and tokens show too (if Claude Code still has their logs). 0 reads none; null reads all.",
+    record: "0330",
   },
   {
     key: "usage_ledger.seed",
     default: null,
     check: summarised(orNone(wholeNumber(0, 2 ** 31 - 1)), "a whole number, or null"),
-    meaning: 'Seed for "mock-random". null means a new seed each time premise starts.',
+    meaning: 'Seed for "demo-random". null means a new seed each time premise starts.',
     record: "0133",
   },
   {
-    key: "usage_ledger.mock_weekly_allowance_usd",
+    key: "usage_ledger.demo_weekly_allowance_usd",
     default: 100,
     check: summarised(positiveNumber(1, 1_000_000), "1 to 1000000"),
     meaning:
-      "In the mock only: what a whole week's usage is worth in dollars. A budget set as a share of the week's usage is a share of this. The figures stay marked as mocked.",
+      "Demo figures only: what a whole week's usage is worth in dollars. A budget set as a share of the week's usage is a share of this. (Its old name, usage_ledger.mock_weekly_allowance_usd, still works.)",
     record: "0200",
   },
   {
-    key: "usage_ledger.mock_cost_scale",
+    key: "usage_ledger.demo_cost_scale",
     default: 1,
     check: summarised(positiveNumber(0.001, 100_000), "0.001 to 100000"),
     meaning:
-      "In the mock only: makes every agent session cost this many times more (or less) than the mock would say. A large number reaches a budget overrun quickly, to see what premise does then.",
+      "Demo figures only: makes every agent session cost this many times more (or less). A large number reaches a budget overrun quickly, to see what premise does then. (Its old name, usage_ledger.mock_cost_scale, still works.)",
     record: "0200",
   },
   {
@@ -1064,9 +1116,15 @@ export interface PremiseConfig {
   tools: { progress_max_chars: number; ask_max_items: number; page_part_chars: number };
   usage_ledger: {
     mode: UsageLedgerMode;
+    command: string;
+    database: string | null;
+    timeout_seconds: number;
+    read_after_seconds: number;
+    recheck_minutes: number;
+    catch_up_days: number | null;
     seed: number | null;
-    mock_weekly_allowance_usd: number;
-    mock_cost_scale: number;
+    demo_weekly_allowance_usd: number;
+    demo_cost_scale: number;
   };
   softwares: {
     default_priority: number;

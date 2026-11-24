@@ -131,7 +131,7 @@ export interface Api {
   resumeEverything(): Promise<PauseView>;
   stopJob(id: number): Promise<ActivityView>;
   settings(): Promise<SettingsView>;
-  /** Usage per software, with budgets: figures from usage-ledger (mocked until it exists). */
+  /** Usage per software, with budgets: figures from usage-ledger (demo figures for scripted agents). */
   usage(): Promise<UsageOverview>;
   softwareUsage(id: string): Promise<SoftwareUsageView>;
   setBudget(id: string, budget: BudgetInput): Promise<BudgetView>;

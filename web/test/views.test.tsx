@@ -627,11 +627,11 @@ describe("the other views", () => {
     expect(screen.getByText("Nothing yet. Written when the Who stage is confirmed.")).toBeTruthy();
   });
 
-  it("labels usage as mocked", async () => {
+  it("labels the figures of scripted agents as demo figures", async () => {
     inSession(<Usage overview={overview({ softwares: [software()] })} />);
     await screen.findByText(/All of it/);
-    expect(screen.getAllByText("Mocked").length).toBeGreaterThan(1);
-    expect(screen.getByText(/42% of the subscription's weekly usage used \(mocked\)/)).toBeTruthy();
+    expect(screen.getAllByText("Demo figures").length).toBeGreaterThan(1);
+    expect(screen.getByText(/The demo's made-up week: 42% used/)).toBeTruthy();
   });
 
   it("shows settings read only, with where to change them", async () => {

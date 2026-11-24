@@ -96,10 +96,10 @@ export function Welcome({
             {overview.line.standInStages.map(stageName).join(", ")}.
           </p>
         )}
-        {overview.usage.mocked && (
+        {overview.usage.source === "demo" && (
           <p>
-            Usage and cost figures are <Define term="mocked">mocked</Define>: made up until
-            usage-ledger exists. They are labelled Mocked wherever they appear.
+            Agents are scripted, so the cost figures are{" "}
+            <Define term="demoFigures">demo figures</Define>, labelled wherever they appear.
           </p>
         )}
       </section>

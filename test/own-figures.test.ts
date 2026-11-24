@@ -7,7 +7,7 @@ import { openDatabase } from "../src/storage/database.js";
 import { readOwnSessions, readWeeklyWindow } from "../src/storage/session-figures.js";
 import { createSoftware } from "../src/storage/softwares.js";
 import { Usage, ownFiguresOf } from "../src/usage/usage.js";
-import { MockUsageLedger } from "../src/usage-ledger/mock-usage-ledger.js";
+import { DemoUsageLedger } from "../src/usage-ledger/demo-usage-ledger.js";
 import { testApp, tempFolder, testConfig, uniquePortRange } from "./helpers.js";
 
 /**
@@ -60,6 +60,7 @@ describe("premise's own count of what sessions used", () => {
           usedPercent: 2,
           resetsAt: "2026-11-30T00:00:00.000Z",
           status: "allowed",
+          readAt: new Date().toISOString(),
         },
       ],
     });
@@ -145,17 +146,25 @@ describe("premise's own count of what sessions used", () => {
     expect(ageWords("2026-11-20T12:00:00Z", at)).toBe("3 days ago");
   });
 
-  it("shows them first, apart from the mocked ledger's figures, per software, stage and change", async () => {
+  it("shows them first, apart from the demo ledger's figures, per software, stage and change", async () => {
     const { db, queue, software, config } = setup({
       kind: "done",
       summary: "ok",
       figures: FIGURES,
-      windows: [{ window: "seven_day", usedPercent: 3, resetsAt: null, status: "allowed" }],
+      windows: [
+        {
+          window: "seven_day",
+          usedPercent: 3,
+          resetsAt: null,
+          status: "allowed",
+          readAt: new Date().toISOString(),
+        },
+      ],
     });
     const job = queue.enqueue({ softwareId: software.id, kind: "build", stage: "build" });
     queue.tick();
     await queue.idle();
-    const usage = new Usage({ db, config, ledger: new MockUsageLedger("mock-fixed", 1) });
+    const usage = new Usage({ db, config, ledger: new DemoUsageLedger("demo-fixed", 1) });
     const overview = await usage.overview();
     expect(job).toBeGreaterThan(0);
     // The reading as the stream last reported it, with when it was read.
@@ -165,14 +174,14 @@ describe("premise's own count of what sessions used", () => {
     expect(view.total.measured.figures).toMatchObject({ counted: 1, missing: 0, costUsd: 0.5 });
     expect(view.byStage[0]!.measured.figures).toMatchObject({ counted: 1, costUsd: 0.5 });
     expect(view.byPhase[0]!.measured.figures).toMatchObject({ counted: 1 });
-    // The mock stays marked; the real figure is not.
-    expect(view.total.cost.mocked).toBe(true);
-    expect(view.total.measured).not.toHaveProperty("mocked");
+    // The demo's figures say so; premise's own real figure carries no such mark.
+    expect(view.total.cost.source).toBe("demo");
+    expect(view.total.measured).not.toHaveProperty("source");
   });
 
   it("reports no window reading before any real session has reported one", async () => {
     const { db, config } = setup({ kind: "done", summary: "ok" }, "scripted");
-    const usage = new Usage({ db, config, ledger: new MockUsageLedger("mock-fixed", 1) });
+    const usage = new Usage({ db, config, ledger: new DemoUsageLedger("demo-fixed", 1) });
     expect((await usage.overview()).ownWindow).toBeNull();
   });
 
@@ -194,7 +203,54 @@ describe("premise's own count of what sessions used", () => {
     const report = (await call("GET", `/api/softwares/${sw.id}/report`)).body;
     expect(report.cost.own).toMatch(/^premise's own count: \$0\.50 at list prices/);
     expect(report.cost.lines[0].measured).toContain("premise's own count:");
-    expect(report.cost.mocked).toBe(true);
+    expect(report.cost.demo).toBe(true);
+  });
+
+  it("keeps the tokens of a leg cut off without a result, so a session carried on loses none", async () => {
+    // First leg: paused for the usage limit, so no result; its messages' tokens were kept.
+    const legs: AgentOutcome[] = [
+      {
+        kind: "usage-limit",
+        resetAt: null,
+        figures: {
+          fromStream: true,
+          turns: 3,
+          costUsd: null,
+          inputTokens: 56,
+          outputTokens: 15_136,
+          cacheReadTokens: 0,
+          cacheWriteTokens: 0,
+        },
+      },
+      { kind: "done", summary: "ok", figures: { ...FIGURES, inputTokens: 6, outputTokens: 210 } },
+    ];
+    const folder = tempFolder();
+    const config = testConfig(folder);
+    const { db } = openDatabase(folder);
+    const runner: AgentRunner = {
+      runtime: "claude",
+      start: () => ({
+        sessionId: "carried-on",
+        runtime: "claude",
+        outcome: Promise.resolve(legs.shift()!),
+        stop: () => {},
+      }),
+    };
+    const queue = new WorkQueue({ db, config, runner });
+    const software = createSoftware(db, { name: "sample" }, config.softwares);
+    queue.enqueue({ softwareId: software.id, kind: "build" });
+    queue.tick();
+    await queue.idle();
+    queue.resumeAll();
+    queue.tick();
+    await queue.idle();
+    const sessions = readOwnSessions(db, software.id);
+    expect(sessions).toHaveLength(2);
+    const both = ownFiguresOf(sessions);
+    expect(both).toMatchObject({ counted: 2, inputTokens: 62, outputTokens: 15_346 });
+    // The cut-off leg has no cost; it is said, not added as zero.
+    expect(both.unreported.cost).toBe(1);
+    expect(both.costUsd).toBe(0.5);
   });
 });
 

@@ -202,7 +202,6 @@ export function createSession(options: {
   line = new LineEngine({
     db,
     queue,
-    ledger,
     config,
     keeper: record,
     gate,

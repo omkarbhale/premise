@@ -206,7 +206,7 @@ describe("How premise is doing", () => {
     expect(await screen.findByText("not enough yet")).toBeTruthy();
     expect(screen.getByText(/0 of 2 things/)).toBeTruthy();
     expect(screen.getByText("15 minutes")).toBeTruthy();
-    expect(screen.getByText(/these figures are real, not mocked/)).toBeTruthy();
+    expect(screen.getByText(/these figures are real\./)).toBeTruthy();
     expect(screen.getByText(/operator: about 15 min, on 2 questions/)).toBeTruthy();
     expect(await screen.findByText(/Your taste, for every software/)).toBeTruthy();
   });

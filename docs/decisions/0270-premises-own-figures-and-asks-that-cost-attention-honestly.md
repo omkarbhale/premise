@@ -1,6 +1,6 @@
 # 0270. premise's own cost and attention figures, and asks that cost attention honestly
 
-- Status: Accepted; points 3, 4, 6 and 7 chosen for the owner, open to the owner's correction
+- Status: Accepted; points 3, 4, 6 and 7 chosen for the owner, open to the owner's correction. Partly superseded by [0330](0330-real-sessions-read-the-real-usage-ledger.md): premise's own count now sits beside usage-ledger's real figures, not mocked ones
 - Scope: Making premise
 - Date: 2026-11-23
 - Decided by: The builders. The owner's standing words that usage-ledger's output is mocked until it exists, and marked as mocked ([0133](0133-usage-ledger-is-mocked-until-it-exists.md)); the points marked chosen for the owner are the assistant's, open to correction.

@@ -115,7 +115,7 @@ describe("reading Claude Code's streamed events", () => {
       }),
     );
     expect(events).toEqual([
-      { kind: "turn", messageId: "msg_1" },
+      { kind: "turn", messageId: "msg_1", usage: null },
       { kind: "progress", text: "First I look around." },
       { kind: "progress", text: "Running: npm test" },
       { kind: "progress", text: "Writing src/add.js" },

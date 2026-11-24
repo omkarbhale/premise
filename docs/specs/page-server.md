@@ -45,7 +45,7 @@ All routes are on localhost. Every request except the static page itself and the
 |---|---|---|---|
 | `/` | GET | Serves the page; reads the token from the link and keeps it in the page's memory | – |
 | `/api/health` | GET | Whether premise is up; needs no token | – |
-| `/api/overview` | GET | Versions, modes (agents: mode, ready, unavailable, scripted demo; line: engine, stages still standing in; mocked usage), softwares, open asks, activity counts, setup check | All |
+| `/api/overview` | GET | Versions, modes (agents: mode, ready, unavailable, scripted demo; line: engine, stages still standing in), softwares, open asks, activity counts, setup check | All |
 | `/api/softwares` | GET, POST | Lists softwares; starts one from an idea and an optional name | Line engine |
 | `/api/softwares/:id` | GET | The software: its stage, the eleven stages with where it is, its state and status line, its usage | Line engine |
 | `/api/softwares/:id/record` | GET | The record view | Record keeper |
@@ -94,7 +94,7 @@ Installed once and checked at every start; premise names whatever is missing ([w
 - Claude Code, logged in with the owner's subscription: the existing login by default, or the folder the settings name ([0140](../decisions/0140-the-owners-existing-claude-code-login.md));
 - the GitHub CLI, logged in as the owner ([0077](../decisions/0077-github-through-existing-cli-login.md));
 - on Linux and WSL2, bubblewrap and socat, which Claude Code's sandbox needs ([0087](../decisions/0087-agents-run-confined.md)). Installing them needs the owner's administrator password, so premise names them and the owner installs them;
-- usage-ledger, once it exists; until then a mock stands in ([0133](../decisions/0133-usage-ledger-is-mocked-until-it-exists.md)).
+- usage-ledger, which real sessions read ([0330](../decisions/0330-real-sessions-read-the-real-usage-ledger.md)); scripted agents get labelled demo figures.
 
 Anything missing is printed, with exactly what to do. The same check runs on its own as `premise doctor`; it creates nothing, including the data folder, and says whether premise could create it ([0190](../decisions/0190-how-the-first-visit-is-made-clear.md)). `--help` anywhere prints help and does nothing else; an option premise does not know is an error and starts nothing. premise starts without usage-ledger; it does not run real agents without Claude Code, the GitHub CLI or confinement ([0142](../decisions/0142-setup-check-names-bubblewrap-and-socat.md)). premise still starts: agent work is held, the page says what is missing and offers a look around with scripted agents, labelled as not real ([0180](../decisions/0180-premise-uses-real-agents-by-default.md)). Scripted agents need none of them.
 

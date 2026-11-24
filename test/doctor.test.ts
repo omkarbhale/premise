@@ -8,7 +8,7 @@ function machine(present: string[]): CommandRunner {
   return (command) => Promise.resolve({ ok: present.includes(command), output: `${command} 1.0` });
 }
 
-const everything = ["git", "claude", "gh", "bwrap", "socat"];
+const everything = ["git", "claude", "gh", "bwrap", "socat", "usage-ledger"];
 
 describe("setup check", () => {
   it("passes on a machine with everything", async () => {
@@ -22,6 +22,47 @@ describe("setup check", () => {
     expect(report.checks.every((c) => c.status === "ok")).toBe(true);
     expect(report.canStart).toBe(true);
     expect(formatDoctorReport(report)).toContain("Everything premise needs to start is here.");
+  });
+
+  it("notes a missing usage-ledger, says how to point premise at it, and starts anyway", async () => {
+    const report = await runDoctor({
+      dataFolder: tempFolder(),
+      env: {},
+      nodeVersion: "v24.1.0",
+      platform: "linux",
+      run: machine(everything.filter((c) => c !== "usage-ledger")),
+    });
+    const ledger = report.checks.find((c) => c.name === "usage-ledger")!;
+    expect(ledger.status).toBe("warn");
+    expect(ledger.detail).toContain("work carries on");
+    expect(ledger.fix).toContain("usage_ledger.command");
+    expect(report.canStart).toBe(true);
+    expect(report.canRunRealAgents).toBe(true);
+
+    // A path to its cli.js is run with premise's own Node.js.
+    const seen: string[][] = [];
+    const withPath = await runDoctor({
+      dataFolder: tempFolder(),
+      env: { PREMISE_USAGE_LEDGER__COMMAND: "/opt/usage-ledger/dist/cli.js" },
+      nodeVersion: "v24.1.0",
+      platform: "linux",
+      run: (command, args) => {
+        seen.push([command, ...args]);
+        return Promise.resolve({ ok: true, output: "0.1.0" });
+      },
+    });
+    expect(seen).toContainEqual([process.execPath, "/opt/usage-ledger/dist/cli.js", "--version"]);
+    expect(withPath.checks.find((c) => c.name === "usage-ledger")!.status).toBe("ok");
+
+    // With scripted agents the figures are made up, so usage-ledger is not looked for.
+    const scripted = await runDoctor({
+      dataFolder: tempFolder(),
+      env: { PREMISE_AGENTS__MODE: "scripted" },
+      nodeVersion: "v24.1.0",
+      platform: "linux",
+      run: machine([]),
+    });
+    expect(scripted.checks.find((c) => c.name === "usage-ledger")).toBeUndefined();
   });
 
   it("does not create the data folder, and says whether it exists", async () => {

@@ -94,16 +94,26 @@ export interface AskFact {
 }
 
 export interface UsageFact {
-  mocked: boolean;
+  /** Made-up figures of a scripted demo. */
+  demo: boolean;
   /** premise's own count from the sessions' results: real, shown first. */
   own?: OwnFigures;
   sessions: number;
-  costUsd: number;
-  weeklyShare: number;
+  /** usage-ledger's figures; null when not known, with why. */
+  costUsd: number | null;
+  why: string | null;
+  weeklyShare: number | null;
+  weeklyWhy: string | null;
   /** Per stage, per change and per record item (src/usage): premise's counts beside the cost. */
   groups?: ReportCostLine[];
   /** The budget in words, and whether the software is paused for it. */
   budget?: { words: string; paused: boolean; overrunMessage: string | null };
+}
+
+/** usage-ledger's cost of a row in words, or why it is not known. */
+export function costWords(cost: { costUsd: number | null; why: string | null }): string {
+  if (cost.costUsd === null) return `cost not known (${cost.why ?? "no figures"})`;
+  return `about $${cost.costUsd.toFixed(2)} at list prices${cost.why ? `; ${cost.why}` : ""}`;
 }
 
 const minutesWords = (n: number): string =>
@@ -377,28 +387,31 @@ export async function gatherFacts(
   let usageProblem: string | null = null;
   try {
     const u = await ledger.softwareUsage(softwareId);
-    usage = {
-      mocked: u.mocked,
+    const fact: UsageFact = {
+      demo: u.source === "demo",
       sessions: u.sessions,
       costUsd: u.costUsd,
+      why: u.why,
       weeklyShare: u.weeklyShare,
+      weeklyWhy: u.weeklyWhy,
     };
+    usage = fact;
     if (sources.usage) {
       const view = await sources.usage.view(softwareId);
       const line = (group: ReportCostLine["group"], row: UsageRowView): ReportCostLine => ({
         group,
         label: row.label,
         measured: `${row.measured.sessions} agent session${row.measured.sessions === 1 ? "" : "s"}, ${minutesWords(row.measured.minutes)}; premise's own count: ${ownFiguresWords(row.measured.figures)}`,
-        cost: `about $${row.cost.costUsd.toFixed(2)} at list prices`,
-        mocked: row.cost.mocked,
+        cost: costWords(row.cost),
+        demo: row.cost.source === "demo",
       });
-      usage.own = view.total.measured.figures;
-      usage.groups = [
+      fact.own = view.total.measured.figures;
+      fact.groups = [
         ...view.byStage.map((r) => line("stage", r)),
         ...view.byChange.map((r) => line("change", r)),
         ...view.byItem.filter((r) => r.key !== "none").map((r) => line("item", r)),
       ];
-      usage.budget = {
+      fact.budget = {
         words: view.budget.words,
         paused: view.budget.overrun !== null,
         overrunMessage: view.budget.overrun?.message ?? null,

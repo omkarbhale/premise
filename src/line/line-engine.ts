@@ -101,7 +101,6 @@ import {
   setSoftwareStage,
   setSoftwareState,
 } from "../storage/softwares.js";
-import type { UsageLedger } from "../usage-ledger/usage-ledger.js";
 import { nameFromIdea, repositoryName } from "../demo/drafts.js";
 import {
   type Recovery,
@@ -397,7 +396,6 @@ interface StoredPlan {
 export interface LineEngineOptions {
   db: Database;
   queue: WorkQueue;
-  ledger: UsageLedger;
   config: PremiseConfig;
   keeper: RecordKeeper;
   gate: Gate;
@@ -1423,7 +1421,6 @@ export class LineEngine implements IntakeLine {
   async softwareDetail(id: string): Promise<SoftwareDetail> {
     const software = this.require(id);
     const stages = this.stageViews(id);
-    const usage = await this.options.ledger.softwareUsage(id);
     const state = this.state(id);
     const reached = this.reachedMilestones(id);
     const milestones: MilestoneView[] = this.milestones(id).map((m) => ({
@@ -1453,14 +1450,6 @@ export class LineEngine implements IntakeLine {
       ...this.summary(software, timeline),
       idea: software.idea,
       stages,
-      usage: {
-        mocked: usage.mocked,
-        sessions: usage.sessions,
-        inputTokens: usage.inputTokens,
-        outputTokens: usage.outputTokens,
-        costUsd: usage.costUsd,
-        weeklyShare: usage.weeklyShare,
-      },
       milestones,
       approvals,
       budget: budget ? { ...budget, usedMinutes: Math.round(used * 10) / 10 } : null,

@@ -10,7 +10,7 @@ The owner asked the assistant to choose an answer to every question that was ope
 | --- | --- | --- |
 | When building starts | Now, for the whole of premise (the owner's own word) | [0130](decisions/0130-the-build-starts-and-covers-all-of-premise.md) |
 | Which software goes through premise first | usage-ledger: the owner needs it and premise depends on it. It runs with real agents, since premise uses real agents by default; demos and tests while making premise use the scripted agent | [0137](decisions/0137-first-software-is-usage-ledger.md), [0180](decisions/0180-premise-uses-real-agents-by-default.md) |
-| Whether the builders' reading of effort and milestone waits is right | It stands, except that priority between softwares is a field on each software from milestone 1 (the work queue orders by it); usage shares stay with usage-ledger, mocked | [0138](decisions/0138-priority-is-a-field-from-milestone-1.md), [0129](decisions/0129-builders-reading-of-effort-and-milestone-waits.md) |
+| Whether the builders' reading of effort and milestone waits is right | It stands, except that priority between softwares is a field on each software from milestone 1 (the work queue orders by it); usage shares stay with usage-ledger | [0138](decisions/0138-priority-is-a-field-from-milestone-1.md), [0129](decisions/0129-builders-reading-of-effort-and-milestone-waits.md) |
 | Whether finding out if real people want the software is "out" or "later" | Out, as written | [0139](decisions/0139-finding-out-if-people-want-it-stays-out.md) |
 | premise's own Claude Code login folder, or the owner's existing login | The owner's existing login; the folder is a setting | [0140](decisions/0140-the-owners-existing-claude-code-login.md) |
 | Creating GitHub repositories (milestone 1 step 1, point 7) | Automated tests use local git remotes only; the real GitHub step stays behind the gate and runs only on the owner's word | [0141](decisions/0141-github-repositories-in-tests-and-behind-the-gate.md) |
@@ -120,7 +120,7 @@ The owner asked to settle everything that needs the owner first, so premise can 
 ## Settled since the first records
 
 - **Which kind of software the first proof is on:** none; premise works for any kind ([0049](decisions/0049-any-kind-of-software.md)).
-- **The spending limit and cost tracking:** from usage-ledger ([0064](decisions/0064-cost-and-spending-limit-from-usage-ledger.md)), mocked until it exists ([0133](decisions/0133-usage-ledger-is-mocked-until-it-exists.md)).
+- **The spending limit and cost tracking:** from usage-ledger ([0064](decisions/0064-cost-and-spending-limit-from-usage-ledger.md)), mocked until it existed ([0133](decisions/0133-usage-ledger-is-mocked-until-it-exists.md)), real now ([0330](decisions/0330-real-sessions-read-the-real-usage-ledger.md)).
 - **How changes to premise ship:** through the no-mistakes validation pipeline; the assistant merges ([0131](decisions/0131-changes-go-through-the-validation-pipeline.md)).
 - **Whether unattended use of the owner's subscription is within Anthropic's terms:** allowed, by the owner's ruling ([0124](decisions/0124-unattended-claude-code-on-the-subscription-is-allowed.md)).
 - **Visibility of each software's repository:** per software, or whatever GitHub says ([0059](decisions/0059-repository-visibility-per-software.md)).

@@ -2,7 +2,7 @@ import type { ReportLine, ReportView } from "../shared/api-types.js";
 import { ownFiguresWords } from "../shared/own-figures.js";
 import { stageName } from "../shared/stages.js";
 import { roleWords } from "../shared/roles.js";
-import type { Facts } from "./facts.js";
+import { type Facts, costWords } from "./facts.js";
 import { OVERRULE_LINE } from "../line/exists-outcomes.js";
 
 function plural(n: number, word: string): string {
@@ -338,11 +338,16 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
   let cost: ReportView["cost"];
   if (facts.usage) {
     const budget = facts.usage.budget;
+    const u = facts.usage;
+    const week =
+      u.weeklyShare === null
+        ? `share of this week ${u.weeklyWhy ?? "not known"}`
+        : `about ${Math.round(u.weeklyShare * 100)}% of this week's usage${u.demo ? "" : " (estimated)"}`;
     cost = {
-      mocked: facts.usage.mocked,
-      ...(facts.usage.own && { own: `premise's own count: ${ownFiguresWords(facts.usage.own)}` }),
+      demo: u.demo,
+      ...(u.own && { own: `premise's own count: ${ownFiguresWords(u.own)}` }),
       text:
-        `${facts.usage.sessions} agent sessions, about $${facts.usage.costUsd.toFixed(2)} at list prices, ${Math.round(facts.usage.weeklyShare * 100)}% of a week's usage.` +
+        `usage-ledger${u.demo ? " (made-up demo figures)" : ""}: ${u.sessions} agent session${u.sessions === 1 ? "" : "s"}, ${costWords(u)}; ${week}.` +
         (budget ? ` Budget: ${budget.words}.` : ""),
       ...(facts.usage.groups && facts.usage.groups.length > 0 && { lines: facts.usage.groups }),
     };
@@ -353,7 +358,7 @@ export function buildReport(facts: Facts, options: BuildOptions): ReportView {
       });
     }
   } else {
-    cost = { mocked: false, text: "Cost could not be read." };
+    cost = { demo: false, text: "Cost could not be read." };
     if (facts.usageProblem) limits.push(facts.usageProblem);
   }
   if (facts.verdicts.length === 0 && mustCheck.length > 0) {

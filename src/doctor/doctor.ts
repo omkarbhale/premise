@@ -3,6 +3,7 @@ import { accessSync, constants, existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { ConfigError, loadConfig } from "../config/load.js";
 import type { PremiseConfig } from "../config/settings.js";
+import { ledgerMode } from "../usage-ledger/create.js";
 
 /**
  * The setup check (`premise doctor`, and at every start): what premise needs on this machine,
@@ -218,7 +219,7 @@ export async function runDoctor(options: DoctorOptions): Promise<DoctorReport> {
       ? {
           name: "Settings",
           status: "ok",
-          detail: `valid; agents are ${config.agents.mode}, usage figures are ${config.usage_ledger.mode}`,
+          detail: `valid; agents are ${config.agents.mode}, usage figures ${ledgerMode(config) === "real" ? "come from usage-ledger" : "are made-up demo figures"}`,
         }
       : {
           name: "Settings",
@@ -227,6 +228,32 @@ export async function runDoctor(options: DoctorOptions): Promise<DoctorReport> {
           fix: "Fix the setting named above; every setting is in docs/reference/configuration.md.",
         },
   );
+
+  // usage-ledger gives the cost of real sessions (decision 0330). Without it work carries on, so it
+  // is a note, never a reason not to start.
+  if (config && ledgerMode(config) === "real") {
+    const command = config.usage_ledger.command;
+    const asJs = /\.(c|m)?js$/.test(command);
+    const ledger = await run(
+      asJs ? process.execPath : command,
+      [...(asJs ? [command] : []), "--version"],
+      timeoutMs,
+    );
+    checks.push(
+      ledger.ok
+        ? {
+            name: "usage-ledger",
+            status: "ok",
+            detail: `${firstLine(ledger.output)} ("${command}")`,
+          }
+        : {
+            name: "usage-ledger",
+            status: "warn",
+            detail: `"${command}" could not be run, so premise cannot show what real sessions cost; work carries on`,
+            fix: "Install usage-ledger, or set usage_ledger.command to where it is (such as the full path to its dist/cli.js), then restart premise.",
+          },
+    );
+  }
 
   const needsNow = new Set(["Node.js", "git", "Data folder", "Settings"]);
   const canStart = checks.every((c) => !(needsNow.has(c.name) && c.status === "missing"));

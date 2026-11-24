@@ -270,11 +270,11 @@ describe("the whole line, with the line engine and the scripted agent", () => {
 
     const detail = await call("GET", `/api/softwares/${sw.id}`);
     expect(detail.body.stage).toBe("intake");
-    expect(detail.body.usage.mocked).toBe(true);
+    expect(detail.body).not.toHaveProperty("usage");
 
     const report = await call("GET", `/api/softwares/${sw.id}/report`);
     expect(report.body.written).not.toBeNull();
-    expect(report.body.cost.mocked).toBe(true);
+    expect(report.body.cost.demo).toBe(true);
     // The scripted builder wrote a placeholder program that says it is a trial; it was checked
     // (honestly: could not check), landed and run as a command once.
     const run = await call("GET", `/api/softwares/${sw.id}/run`);

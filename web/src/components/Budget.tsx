@@ -7,9 +7,9 @@ import {
   type OverrunAnswerInput,
 } from "../api";
 import { useSession } from "../context";
-import { MockedBadge, Problem } from "./Badges";
+import { DemoBadge, Problem } from "./Badges";
 
-const money = (usd: number) => `$${usd.toFixed(2)}`;
+const money = (usd: number | null) => (usd === null ? "not known" : `$${usd.toFixed(2)}`);
 
 /** Read what the person typed for a budget; null when it is not a usable number. */
 function readBudget(kind: "share" | "amount", text: string): BudgetInput | null {
@@ -64,14 +64,14 @@ export function OverrunNotice({ softwareId, budget }: { softwareId: string; budg
 
   return (
     <section className="card overrun" aria-label="Budget used up" role="status">
-      <h2>Paused: budget used up {o.mocked && <MockedBadge />}</h2>
+      <h2>Paused: budget used up {o.madeUp && <DemoBadge />}</h2>
       <p>{o.message}</p>
       {o.spentByStage.length > 0 && (
         <p className="small muted">
           Spent on, by step:{" "}
           {o.spentByStage.map((l) => `${l.label} ${money(l.costUsd)} (${l.sessions})`).join(", ")}.
-          {o.mocked &&
-            " These dollar figures are mocked; the counts in brackets are premise's own."}
+          {o.madeUp &&
+            " These dollar figures were made up; the counts in brackets are premise's own."}
         </p>
       )}
       {o.spentByChange.length > 0 && (
@@ -188,9 +188,18 @@ export function BudgetEditor({ softwareId, budget }: { softwareId: string; budge
       <p>
         <strong>Budget:</strong> {budget.words}.{" "}
         <span className="muted small">
-          Used this week: {money(budget.spentUsd)} {budget.mocked && <MockedBadge />}
+          Used this week: {money(budget.spentUsd)} at list prices{" "}
+          {budget.source === "demo" ? <DemoBadge /> : "(from usage-ledger)"}
         </span>
       </p>
+      {budget.kind !== "none" && !budget.checked && budget.checkWhy && (
+        <p className="small note">Budget not checked: {budget.checkWhy}.</p>
+      )}
+      {budget.kind !== "none" && budget.checked && budget.incomplete && (
+        <p className="small note">
+          Budget incomplete: {budget.checkWhy ?? "some of this week's use could not be counted"}.
+        </p>
+      )}
       <fieldset>
         <legend className="sr-only">Change the budget</legend>
         <label>

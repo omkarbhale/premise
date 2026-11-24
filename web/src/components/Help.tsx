@@ -115,8 +115,10 @@ export function Help() {
           <dd>{TERMS.intake}</dd>
           <dt>Stand-in</dt>
           <dd>{TERMS.standIn}</dd>
-          <dt>Mocked</dt>
-          <dd>{TERMS.mocked}</dd>
+          <dt>usage-ledger</dt>
+          <dd>{TERMS.usageLedger}</dd>
+          <dt>Demo figures</dt>
+          <dd>{TERMS.demoFigures}</dd>
           <dt>Milestone</dt>
           <dd>{GLOSS.milestone[0]!.toUpperCase() + GLOSS.milestone.slice(1)}.</dd>
           <dt>Approval</dt>

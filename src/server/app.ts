@@ -248,11 +248,10 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
     if (deps.usage) registerUsageRoutes(api, deps.usage, deps.db);
 
     api.get("/api/overview", async (): Promise<Overview> => {
-      const [softwares, archived, activity, weekly] = await Promise.all([
+      const [softwares, archived, activity] = await Promise.all([
         services.softwares.list(),
         services.softwares.list({ archived: true }),
         services.activity.view(),
-        deps.ledger.weeklyUsage(),
       ]);
       return {
         version: VERSION,
@@ -268,7 +267,11 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
           notifications: deps.config.page.notifications,
           presenceSeconds: deps.config.measures.presence_seconds,
         },
-        usage: { mode: deps.ledger.mode, mocked: deps.ledger.mocked, weekly },
+        usage: {
+          mode: deps.ledger.mode,
+          source: deps.ledger.source,
+          problem: deps.ledger.problem(),
+        },
         softwares,
         defaults: {
           effort: deps.config.softwares.default_effort,
@@ -277,20 +280,6 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
         },
         roles: services.roles(),
         archivedSoftwares: archived.length,
-        softwareUsage: await Promise.all(
-          softwares.map(async (s) => {
-            const u = await deps.ledger.softwareUsage(s.id);
-            return {
-              softwareId: s.id,
-              mocked: u.mocked,
-              sessions: u.sessions,
-              inputTokens: u.inputTokens,
-              outputTokens: u.outputTokens,
-              costUsd: u.costUsd,
-              weeklyShare: u.weeklyShare,
-            };
-          }),
-        ),
         openAsks: softwares.reduce((n, s) => n + s.openAsks, 0),
         pause: await services.pausing?.view(),
         startup: pausing?.startupView() ?? null,

@@ -15,8 +15,10 @@ export const TERMS = {
     "Stand-in: a part of premise that does not exist yet, so what you see there is scripted or kept without doing the real work. It is marked wherever it appears.",
   effort:
     "Effort: how much premise puts into a software. Low builds only what you asked for. Medium adds what premise recommends, in a later milestone. High adds everything premise could add. It also sets how long the steps before building may take. Change it at any time.",
-  mocked:
-    "Mocked: usage-ledger, which will report real usage and cost, does not exist yet. Until it does, these figures are made up so you can see where they will appear.",
+  demoFigures:
+    "Demo figures: scripted agents call no AI and use nothing, so these cost figures are made up to show where real ones appear. Real agents' figures come from usage-ledger.",
+  usageLedger:
+    "usage-ledger: a separate program that reads Claude Code's own logs and says what each agent session used and what that comes to at list prices. premise asks it about every real session.",
   agentSession:
     "An agent session is one piece of work by an AI agent, such as drafting a list or building one part. It counts work, not money.",
 } as const;
@@ -37,7 +39,8 @@ export const GLOSS = {
   intake: "where what you say after it runs, such as a problem or a wish, is taken in",
   approval: "premise asks before it does anything outside this machine",
   standIn: "a part that is not built yet, so it is scripted and marked",
-  mocked: "made-up figures, until usage-ledger exists to measure the real ones",
+  demoFigures: "made-up figures, because scripted agents use nothing",
+  usageLedger: "the program that reads what each agent session used from Claude Code's logs",
   usage: "how much of your Claude plan the work used",
   sayBack: "premise lists what it understood and assumed so you can strike what is wrong",
 } as const;

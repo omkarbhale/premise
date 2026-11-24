@@ -33,16 +33,18 @@ import type {
   UsageFigures,
   UsageLedger,
 } from "../usage-ledger/usage-ledger.js";
+import { phaseOf } from "../usage-ledger/fold.js";
 import { readSessionTasks } from "./session-tasks.js";
 import { type OwnSession, readOwnSessions, readWeeklyWindow } from "../storage/session-figures.js";
 
 /**
- * Cost and the spending limit (decisions 0016, 0048, 0064, 0128, 0133, 0200). premise records which
- * task each agent session did and asks usage-ledger what it cost; it counts nothing itself. It sets
- * each software's budget in usage-ledger; when usage-ledger says one is overrun, this pauses that
- * software's queue and tells the operator, who answers: raise the budget, finish the change being
- * worked on, or leave it paused. Every figure from usage-ledger is marked as mocked while it is a
- * mock; premise's own counts of sessions and minutes sit beside them and are not.
+ * Cost and the spending limit (decisions 0016, 0048, 0064, 0128, 0200, 0330). premise records which
+ * task each agent session did and asks usage-ledger what it cost; it counts nothing itself beyond
+ * each session's own result (0270). It sets each software's budget in usage-ledger; when
+ * usage-ledger says one is overrun, this pauses that software's queue and tells the operator, who
+ * answers: raise the budget, finish the change being worked on, or leave it paused. A budget that
+ * nothing checks (usage-ledger cannot check one per software yet) never pauses work. A figure that
+ * is not known is shown as not known, with why; a scripted demo's made-up figures say so.
  */
 
 const NONE = "none";
@@ -61,17 +63,37 @@ interface OverrunRow {
 interface SpentLine {
   label: string;
   sessions: number;
-  costUsd: number;
+  costUsd: number | null;
 }
 
+/** What was spent on what when a software overran. Rows from before usage-ledger say mocked. */
 interface SpentRecord {
-  spentUsd: number;
-  mocked: boolean;
+  spentUsd: number | null;
+  source?: "ledger" | "demo";
+  mocked?: boolean;
   byStage: SpentLine[];
   byChange: SpentLine[];
 }
 
-const money = (usd: number): string => `$${usd.toFixed(2)}`;
+const money = (usd: number | null): string =>
+  usd === null ? "an amount not known" : `$${usd.toFixed(2)}`;
+
+/** A ledger group as the page shows it. */
+const cost = (g: UsageFigures): UsageCost => ({
+  source: g.source,
+  sessions: g.sessions,
+  priced: g.priced,
+  costUsd: g.costUsd,
+  inputTokens: g.inputTokens,
+  outputTokens: g.outputTokens,
+  cacheTokens: g.cacheTokens,
+  weeklyShare: g.weeklyShare,
+  why: g.why,
+  weeklyWhy: g.weeklyWhy,
+});
+
+/** The figures behind an overrun were made up: a scripted demo's, or the mock from before 0330. */
+const madeUp = (spent: SpentRecord): boolean => spent.mocked === true || spent.source === "demo";
 
 /** premise's own count over some sessions, with what is missing said plainly. */
 export function ownFiguresOf(sessions: OwnSession[]): OwnFigures {
@@ -176,6 +198,7 @@ export class Usage {
       }
     }
     await this.checkAll();
+    this.options.ledger.start();
     this.timer ??= setInterval(() => void this.recheckPaused(), RECHECK_MS);
     this.timer.unref?.();
   }
@@ -183,6 +206,7 @@ export class Usage {
   close(): void {
     if (this.timer) clearInterval(this.timer);
     this.timer = undefined;
+    this.options.ledger.close();
   }
 
   /** A weekly budget resets with the week: look at what is paused for one, in case it has. */
@@ -195,6 +219,7 @@ export class Usage {
   /** Wait for every check in flight. For tests and shutdown. */
   async idle(): Promise<void> {
     while (this.pending.size > 0) await Promise.all([...this.pending]);
+    await this.options.ledger.idle();
   }
 
   /** True while a software's budget is being looked at, so the queue starts nothing for it yet. */
@@ -222,6 +247,8 @@ export class Usage {
     if (job.kind === "run") return;
     // A job only just queued has used nothing yet; one that ran and came back has.
     if (job.status === "queued" && job.attempts === 0) return;
+    // A session started or ended: usage-ledger labels it, reads it, and takes the week's readings.
+    this.options.ledger.nudge();
     this.checkInBackground(job.softwareId);
   }
 
@@ -250,12 +277,16 @@ export class Usage {
   async check(softwareId: string): Promise<void> {
     const software = getSoftware(this.db, softwareId);
     if (!software || (software.state !== "active" && software.state !== "paused-budget")) return;
-    const status = await this.options.ledger.budgetStatus(softwareId);
+    const status = await this.options.ledger.budgetStatus(softwareId, { fresh: true });
     if (software.state === "paused-budget") {
-      if (!status.overrun) this.resumeAfterReset(softwareId);
+      // Resumed only on a checked answer that it is within, or when there is no budget at all;
+      // a budget that could not be checked keeps it paused.
+      if (status.checked ? !status.overrun : status.budget === null) {
+        this.resumeWithin(softwareId);
+      }
       return;
     }
-    if (!status.overrun) return;
+    if (!status.checked || !status.overrun) return;
     const spent = await this.spentRecord(softwareId);
     // Another check may have paused it while this one waited.
     if (getSoftware(this.db, softwareId)?.state !== "active") return;
@@ -267,20 +298,36 @@ export class Usage {
       softwareId,
       module: "usage",
       kind: "budget-overrun",
-      detail: { budget: status.budget, spentUsd: spent.spentUsd, mocked: spent.mocked },
+      detail: { budget: status.budget, spentUsd: spent.spentUsd, source: spent.source },
     });
   }
 
-  /** The week reset and the software is within budget again: resume it unless it was left paused on purpose. */
-  private resumeAfterReset(softwareId: string): void {
+  /**
+   * Within its budget again, because the week reset, or because the pause came from made-up
+   * figures and usage-ledger's real ones are within it (decision 0330): resume it and say why,
+   * unless it was left paused on purpose.
+   */
+  private resumeWithin(softwareId: string): void {
     const software = getSoftware(this.db, softwareId);
     if (software?.state !== "paused-budget") return;
-    if (this.latestOverrun(softwareId)?.answer === "left-paused") return;
-    setSoftwareState(this.db, softwareId, "active", "the week reset");
+    const row = this.latestOverrun(softwareId);
+    if (row?.answer === "left-paused") return;
+    const made =
+      this.options.ledger.source === "ledger" && row
+        ? madeUp(JSON.parse(row.spent) as SpentRecord)
+        : false;
+    setSoftwareState(
+      this.db,
+      softwareId,
+      "active",
+      made ? "its real figures are within budget" : "the week reset",
+    );
     addChatMessage(this.db, {
       softwareId,
       author: "premise",
-      text: `The week reset; ${software.name} is within its budget again and has resumed`,
+      text: made
+        ? `${software.name} was paused because made-up figures said its budget was used up. usage-ledger's real figures say it is within its budget, so ${software.name} has resumed.`
+        : `The week reset; ${software.name} is within its budget again and has resumed`,
     });
     recordEvent(this.db, { softwareId, module: "usage", kind: "budget-reset" });
     this.onSettled();
@@ -321,49 +368,24 @@ export class Usage {
       }, 0);
       return { sessions: some.length, minutes: Math.round(minutes * 10) / 10, figures };
     };
-    const cost = (f: UsageFigures): UsageCost => ({
-      mocked: f.mocked,
-      inputTokens: f.inputTokens,
-      outputTokens: f.outputTokens,
-      costUsd: f.costUsd,
-      weeklyShare: f.weeklyShare,
-    });
     const byStage: UsageRowView[] = breakdown.byStage.map((g) => ({
       key: g.key,
       label: g.key === NONE ? "Other work" : stageName(g.key),
       measured: measure((s) => (s.stage ?? NONE) === g.key),
       cost: cost(g),
     }));
-    const phases: { id: string; name: string; stages: readonly string[] }[] = PHASES.map((p) => ({
-      id: p.id,
-      name: p.name,
-      stages: p.stages,
-    }));
-    phases.push({ id: NONE, name: "Other work", stages: [] });
-    const byPhase: UsageRowView[] = [];
-    for (const phase of phases) {
-      const inPhase = (stage: string | null) =>
-        phase.id === NONE
-          ? !phases.some((p) => stage && p.stages.includes(stage))
-          : !!stage && phase.stages.includes(stage);
-      const groups = breakdown.byStage.filter((g) => inPhase(g.key === NONE ? null : g.key));
-      if (groups.length === 0) continue;
-      const total = groups.reduce(
-        (n, g) => ({
-          inputTokens: n.inputTokens + g.inputTokens,
-          outputTokens: n.outputTokens + g.outputTokens,
-          costUsd: n.costUsd + g.costUsd,
-          weeklyShare: n.weeklyShare + g.weeklyShare,
-        }),
-        { inputTokens: 0, outputTokens: 0, costUsd: 0, weeklyShare: 0 },
-      );
-      byPhase.push({
-        key: phase.id,
-        label: phase.name,
-        measured: measure((s) => inPhase(s.stage)),
-        cost: { mocked: breakdown.mocked, ...total },
+    const order = [...PHASES.map((p) => p.id as string), NONE];
+    const byPhase: UsageRowView[] = [...breakdown.byPhase]
+      .sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key))
+      .map((g) => {
+        const phase = PHASES.find((p) => p.id === g.key);
+        return {
+          key: g.key,
+          label: phase?.name ?? "Other work",
+          measured: measure((s) => phaseOf(s.stage) === g.key),
+          cost: cost(g),
+        };
       });
-    }
     return {
       byPhase,
       byStage,
@@ -394,7 +416,7 @@ export class Usage {
       }));
     return {
       spentUsd: breakdown.total.costUsd,
-      mocked: breakdown.mocked,
+      source: breakdown.source,
       byStage: lines(view.byStage),
       byChange: lines(view.byChange),
     };
@@ -412,8 +434,9 @@ export class Usage {
       row.answer === "finish-change" && row.finish_item !== null
         ? this.changeLabel(software, String(row.finish_item))
         : null;
-    const mocked = spent.mocked;
+    const made = madeUp(spent);
     const top = spent.byStage
+      .filter((l) => l.costUsd !== null)
       .slice(0, 3)
       .map((l) => `${l.label} ${money(l.costUsd)}`)
       .join(", ");
@@ -428,11 +451,11 @@ export class Usage {
       time: row.time,
       message:
         `${software.name} used up its budget${budget ? ` of ${budgetWords(budget)}` : ""}: ${money(spent.spentUsd)}` +
-        `${mocked ? " (mocked figure)" : ""} so far${top ? `, mostly on ${top}` : ""}. ${consequence}`,
+        `${made ? " (a made-up figure)" : ""} so far${top ? `, mostly on ${top}` : ""}. ${consequence}`,
       spentByStage: spent.byStage,
       spentByChange: spent.byChange,
       spentUsd: spent.spentUsd,
-      mocked,
+      madeUp: made,
       answer: row.answer,
       finishing,
       canFinish: this.inProgressItem(software.id) !== null,
@@ -473,9 +496,16 @@ export class Usage {
       usd: budget?.kind === "amount" ? budget.usd : null,
       words: budgetWords(budget),
       state: software.state,
-      spentUsd: status?.spentUsd ?? 0,
-      spentShare: status?.spentShare ?? 0,
-      mocked: this.options.ledger.mocked,
+      spentUsd: status?.spentUsd ?? null,
+      spentShare: status?.spentShare ?? null,
+      source: this.options.ledger.source,
+      checked: status?.checked ?? false,
+      incomplete: status?.incomplete ?? false,
+      checkWhy: status
+        ? status.why
+        : budget
+          ? "usage-ledger could not be read, so the budget was not checked; work carries on"
+          : null,
       overrun: this.overrunView(software),
     };
   }
@@ -499,17 +529,11 @@ export class Usage {
             minutes: Math.round(minutes * 10) / 10,
             figures: ownFiguresOf(readOwnSessions(this.db, softwareId)),
           },
-          cost: {
-            mocked: breakdown.mocked,
-            inputTokens: breakdown.total.inputTokens,
-            outputTokens: breakdown.total.outputTokens,
-            costUsd: breakdown.total.costUsd,
-            weeklyShare: breakdown.total.weeklyShare,
-          },
+          cost: cost(breakdown.total),
         },
         ...rows,
         budget,
-        problem: null,
+        problem: this.options.ledger.problem(),
       };
     } catch (error) {
       return {
@@ -524,11 +548,16 @@ export class Usage {
             figures: ownFiguresOf(readOwnSessions(this.db, softwareId)),
           },
           cost: {
-            mocked: this.options.ledger.mocked,
-            inputTokens: 0,
-            outputTokens: 0,
-            costUsd: 0,
-            weeklyShare: 0,
+            source: this.options.ledger.source,
+            sessions: sessions.length,
+            priced: 0,
+            costUsd: null,
+            inputTokens: null,
+            outputTokens: null,
+            cacheTokens: null,
+            weeklyShare: null,
+            why: "the cost figures could not be read",
+            weeklyWhy: null,
           },
         },
         byPhase: [],
@@ -536,25 +565,34 @@ export class Usage {
         byChange: [],
         byItem: [],
         budget,
-        problem: `The cost figures could not be read: ${(error as Error).message}. Agent work carries on under its turn and time limits.`,
+        problem: `The cost figures could not be read: ${(error as Error).message}. Agent work carries on under its turn and time limits.${this.options.ledger.source === "ledger" ? " Check usage_ledger.command in Settings." : ""}`,
       };
     }
   }
 
   async overview(): Promise<UsageOverview> {
-    const weekly = await this.options.ledger.weeklyUsage();
+    const weekly = await this.options.ledger.weeklyUsage().catch(() => null);
     const softwares = await Promise.all(listSoftwares(this.db).map((s) => this.view(s.id)));
     const window = readWeeklyWindow(this.db);
     return {
       mode: this.options.ledger.mode,
-      mocked: this.options.ledger.mocked,
+      source: this.options.ledger.source,
+      problem: this.options.ledger.problem(),
+      command: this.options.config.usage_ledger.command,
       ownWindow: window && {
         usedPercent: window.usedPercent,
         resetsAt: window.resetsAt,
         readAt: window.readAt,
         status: window.status,
       },
-      weekly,
+      demoWeekly:
+        weekly && weekly.source === "demo"
+          ? {
+              utilization: weekly.utilization,
+              windowStart: weekly.windowStart,
+              resetsAt: weekly.resetsAt,
+            }
+          : null,
       softwares,
     };
   }
@@ -596,8 +634,8 @@ export class Usage {
     const after = budgetOf(this.require(softwareId));
     await this.options.ledger.setBudget(softwareId, after);
     if (software.state === "paused-budget") {
-      const status = await this.options.ledger.budgetStatus(softwareId);
-      if (after === null || !status.overrun) {
+      const status = await this.options.ledger.budgetStatus(softwareId, { fresh: true });
+      if (after === null || !status.checked || !status.overrun) {
         const row = this.latestOverrun(softwareId);
         if (row) {
           this.db
@@ -626,7 +664,7 @@ export class Usage {
         await this.options.ledger.setBudget(softwareId, before);
         throw new ServiceError(
           "INVALID",
-          `That is not more than what ${software.name} has already used this week (${money(status.spentUsd)}${status.spentUsd > 0 && this.options.ledger.mocked ? ", a mocked figure" : ""}). Choose a bigger budget, or let it finish what it is on.`,
+          `That is not more than what ${software.name} has already used this week (${money(status.spentUsd)}${status.source === "demo" ? ", a made-up demo figure" : ""}). Choose a bigger budget, or let it finish what it is on.`,
         );
       }
     } else {

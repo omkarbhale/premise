@@ -29,7 +29,8 @@ describe("configuration", () => {
       max_minutes: 60,
     });
     expect(config.agents.tasks.triage.model).toBe("sonnet");
-    expect(config.usage_ledger.mode).toBe("mock-fixed");
+    expect(config.usage_ledger.mode).toBe("auto");
+    expect(config.usage_ledger.command).toBe("usage-ledger");
     expect(config.softwares.default_priority).toBe(3);
     expect(config.softwares.default_milestone_waits).toBe(false);
     expect(config.server.host).toBe("127.0.0.1");
@@ -115,11 +116,31 @@ describe("configuration", () => {
     );
   });
 
-  it("refuses the real usage-ledger, which is not built yet", () => {
-    const problems = problemsOf(() =>
-      loadConfig({ dataFolder: tempFolder(), env: { PREMISE_USAGE_LEDGER__MODE: "real" } }),
+  it("takes the real usage-ledger, and still reads the old names of the demo settings", () => {
+    const folder = tempFolder();
+    writeFileSync(
+      join(folder, "config.json"),
+      JSON.stringify({ usage_ledger: { mode: "mock-random", mock_cost_scale: 7 } }),
     );
-    expect(problems[0]!.message).toContain("cannot talk to a real usage-ledger yet");
+    const old = loadConfig({ dataFolder: folder });
+    expect(old.usage_ledger.mode).toBe("mock-random");
+    expect(old.usage_ledger.demo_cost_scale).toBe(7);
+    const real = loadConfig({
+      dataFolder: tempFolder(),
+      env: {
+        PREMISE_USAGE_LEDGER__MODE: "real",
+        PREMISE_USAGE_LEDGER__COMMAND: "/opt/usage-ledger/dist/cli.js",
+        PREMISE_USAGE_LEDGER__MOCK_WEEKLY_ALLOWANCE_USD: "50",
+      },
+    });
+    expect(real.usage_ledger.mode).toBe("real");
+    expect(real.usage_ledger.command).toBe("/opt/usage-ledger/dist/cli.js");
+    expect(real.usage_ledger.demo_weekly_allowance_usd).toBe(50);
+    expect(
+      problemsOf(() =>
+        loadConfig({ dataFolder: tempFolder(), env: { PREMISE_USAGE_LEDGER__MODE: "made-up" } }),
+      )[0]!.key,
+    ).toBe("usage_ledger.mode");
   });
 
   it("listens on this machine only", () => {
