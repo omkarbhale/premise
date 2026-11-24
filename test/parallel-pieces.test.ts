@@ -421,13 +421,14 @@ describe("several pieces of one software at once", () => {
           hold: { [A.marker]: () => released },
           fix: (copy, request, items) => {
             const evidence = String(request.context?.evidence ?? "");
+            const mine = [A, B].find((f) => request.brief.includes(f.marker)) ?? B;
             if (/Build this change again from the version that runs now/.test(evidence)) {
               // Built again on the new version: keep what is there, add its own line.
               const before = readFileSync(join(copy, "notes.txt"), "utf8");
-              writeFiles(copy, { "notes.txt": `${before}${B.line}\n` });
+              writeFiles(copy, { "notes.txt": `${before}${mine.line}\n` });
             } else {
               // A builder that does not manage the merge: it changes the line again.
-              writeFiles(copy, { "notes.txt": "Sound note, again.\n" });
+              writeFiles(copy, { "notes.txt": `${mine.line.replace(/\.$/, "")}, again.\n` });
             }
             commitAll(copy, "Try again", items);
           },
@@ -467,7 +468,16 @@ describe("several pieces of one software at once", () => {
       answer: { kind: "text", text: "Build it again on the new version" },
     });
     await answerAll(app, id, () => bothDone(app, id, [A, B]));
-    expect(mainFile(app, id, "notes.txt")).toBe(`${A.line}\n${B.line}\n`);
+    // Whichever landed first keeps its line first; the other was built again on top of it.
+    const landed = git(join(app.folder, "repos", id), [
+      "log",
+      "--reverse",
+      "--format=%s",
+      "--",
+      "notes.txt",
+    ]);
+    const [first, second] = landed.split("\n")[0]!.includes(A.marker) ? [A, B] : [B, A];
+    expect(mainFile(app, id, "notes.txt")).toBe(`${first.line}\n${second.line}\n`);
   }, 120_000);
 
   it("builds one piece after another when the software is set to one at a time", async () => {
