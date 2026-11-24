@@ -20,7 +20,12 @@ import {
   sessionEnvironment,
   sessionSettings,
 } from "./claude-settings.js";
-import { LineSplitter, parseStreamLine, type StreamEvent } from "./claude-stream.js";
+import {
+  LineSplitter,
+  type MessageUsage,
+  parseStreamLine,
+  type StreamEvent,
+} from "./claude-stream.js";
 import { assembleInstructions } from "./instructions.js";
 import { accessFor } from "./roles.js";
 import type { AgentToolServer } from "./tool-server.js";
@@ -110,8 +115,10 @@ class ClaudeSession implements AgentSession {
   private child: ChildProcess | null = null;
   private stopRequested = false;
   private limitHit: AgentOutcome | null = null;
-  /** The latest reading of each usage window the stream reported. */
-  private readonly windows = new Map<string, WindowReading>();
+  /** Every reading of each window as it came, so each can be given to usage-ledger with its time. */
+  private readonly readings: WindowReading[] = [];
+  /** The tokens each model message reported, by message id: the figures of a session cut off. */
+  private readonly streamed = new Map<string, MessageUsage>();
   private killTimer: NodeJS.Timeout | null = null;
   private resolveOutcome!: (outcome: AgentOutcome) => void;
   readonly outcome: Promise<AgentOutcome>;
@@ -345,6 +352,7 @@ class ClaudeSession implements AgentSession {
             }
             break;
           case "turn":
+            if (event.usage) this.streamed.set(event.messageId, event.usage);
             if (!turns.has(event.messageId)) {
               turns.add(event.messageId);
               if (turns.size > request.maxTurns && !this.limitHit) {
@@ -363,11 +371,12 @@ class ClaudeSession implements AgentSession {
             this.say(`Not allowed: ${event.message}`);
             break;
           case "window":
-            this.windows.set(event.window, {
+            this.readings.push({
               window: event.window,
               usedPercent: Math.round(event.usedFraction * 10_000) / 100,
               resetsAt: event.resetsAt,
               status: event.status,
+              readAt: new Date().toISOString(),
             });
             break;
           case "usage-warning":
@@ -420,8 +429,22 @@ class ClaudeSession implements AgentSession {
     const out: OutcomeFigures = {};
     if (result) {
       out.figures = { turns: result.turns, ...result.figures };
+    } else if (this.streamed.size > 0) {
+      // Cut off without a result (a pause or a stop): keep what its messages said they used, so a
+      // session carried on later does not lose this leg's tokens. The cost is not known.
+      const sum = (pick: (u: MessageUsage) => number) =>
+        [...this.streamed.values()].reduce((n, u) => n + pick(u), 0);
+      out.figures = {
+        fromStream: true,
+        turns: this.streamed.size,
+        costUsd: null,
+        inputTokens: sum((u) => u.inputTokens),
+        outputTokens: sum((u) => u.outputTokens),
+        cacheReadTokens: sum((u) => u.cacheReadTokens),
+        cacheWriteTokens: sum((u) => u.cacheWriteTokens),
+      };
     }
-    if (this.windows.size > 0) out.windows = [...this.windows.values()];
+    if (this.readings.length > 0) out.windows = [...this.readings];
     return out;
   }
 

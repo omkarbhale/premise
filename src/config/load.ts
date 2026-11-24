@@ -89,6 +89,12 @@ export interface LoadOptions {
  * Load the configuration: defaults, then config.json in the data folder, then PREMISE_* environment
  * variables. Throws ConfigError naming every wrong setting.
  */
+/** Settings that were renamed: the old name still works and means the new one. */
+const RENAMED: Record<string, string> = {
+  "usage_ledger.mock_weekly_allowance_usd": "usage_ledger.demo_weekly_allowance_usd",
+  "usage_ledger.mock_cost_scale": "usage_ledger.demo_cost_scale",
+};
+
 export function loadConfig(options: LoadOptions): PremiseConfig {
   const env = options.env ?? {};
   const file = join(options.dataFolder, CONFIG_FILE_NAME);
@@ -115,7 +121,8 @@ export function loadConfig(options: LoadOptions): PremiseConfig {
     }
     const flat = new Map<string, unknown>();
     flatten(parsed, "", flat);
-    for (const [key, value] of flat) {
+    for (const [given, value] of flat) {
+      const key = RENAMED[given] ?? given;
       if (!SETTINGS_BY_KEY.has(key)) {
         problems.push({ key, source: file, message: "is not a setting premise knows" });
         continue;
@@ -126,7 +133,8 @@ export function loadConfig(options: LoadOptions): PremiseConfig {
 
   for (const [name, raw] of Object.entries(env)) {
     if (!name.startsWith(ENV_PREFIX) || name === DATA_FOLDER_ENV || raw === undefined) continue;
-    const key = keyForEnvName(name);
+    const named = keyForEnvName(name);
+    const key = RENAMED[named] ?? named;
     if (!SETTINGS_BY_KEY.has(key)) {
       problems.push({
         key: name,

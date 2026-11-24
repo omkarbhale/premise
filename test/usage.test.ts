@@ -7,14 +7,14 @@ import { listChatMessages } from "../src/storage/chat.js";
 import { createSoftware, getSoftware } from "../src/storage/softwares.js";
 import { readSessionTasks } from "../src/usage/session-tasks.js";
 import { Usage } from "../src/usage/usage.js";
-import { MockUsageLedger } from "../src/usage-ledger/mock-usage-ledger.js";
+import { DemoUsageLedger } from "../src/usage-ledger/demo-usage-ledger.js";
 import { tempFolder, testConfig } from "./helpers.js";
 
 /** Queue, budgets and the mock ledger together, with scripted agents that finish at once. */
 function setup(folder = tempFolder(), env: NodeJS.ProcessEnv = {}, db?: Database) {
   const config = testConfig(folder, { PREMISE_QUEUE__MAX_AGENT_SESSIONS: "1", ...env });
   const database = db ?? openDatabase(folder).db;
-  const ledger = new MockUsageLedger("mock-fixed", 1);
+  const ledger = new DemoUsageLedger("demo-fixed", 1);
   const usage = new Usage({ db: database, config, ledger });
   const runner = new ScriptedAgentRunner(parseScript({ rules: [] }));
   const queue = new WorkQueue({
@@ -65,7 +65,7 @@ describe("what premise records for every session", () => {
 });
 
 describe("usage per software, phase, stage, change and item", () => {
-  it("shows premise's own counts beside figures that are each marked mocked", async () => {
+  it("shows premise's own counts beside figures that are each marked as demo figures", async () => {
     const { db, usage, software, build, settle } = setup();
     const sw = software("sample");
     const first = rootItem(db, sw.id).id;
@@ -74,10 +74,10 @@ describe("usage per software, phase, stage, change and item", () => {
     await settle();
     const view = await usage.view(sw.id);
     expect(view.total.measured.sessions).toBe(2);
-    expect(view.total.cost.mocked).toBe(true);
+    expect(view.total.cost.source).toBe("demo");
     for (const rows of [view.byPhase, view.byStage, view.byChange, view.byItem]) {
       expect(rows.length).toBeGreaterThan(0);
-      expect(rows.every((r) => r.cost.mocked)).toBe(true);
+      expect(rows.every((r) => r.cost.source === "demo")).toBe(true);
       expect(rows.every((r) => typeof r.measured.sessions === "number")).toBe(true);
     }
     expect(view.byStage.map((r) => r.label).sort()).toEqual(["Build", "Check"]);
@@ -87,8 +87,8 @@ describe("usage per software, phase, stage, change and item", () => {
     expect(view.byItem.map((r) => r.key).sort()).toEqual(["W-1", "W-2"]);
     // Sessions that worked on an item are counted in full; the cost is shared among its items.
     expect(view.byItem.find((r) => r.key === "W-1")!.measured.sessions).toBe(2);
-    const stageSum = view.byStage.reduce((n, r) => n + r.cost.costUsd, 0);
-    expect(stageSum).toBeCloseTo(view.total.cost.costUsd, 3);
+    const stageSum = view.byStage.reduce((n, r) => n + (r.cost.costUsd ?? 0), 0);
+    expect(stageSum).toBeCloseTo(view.total.cost.costUsd!, 3);
   });
 });
 
@@ -111,14 +111,14 @@ describe("a budget overrun", () => {
     expect(otherJobs.map((id) => statusOf(queue, id))).toEqual(["done", "done", "done"]);
 
     const view = await usage.budgetView(small.id);
-    expect(view.overrun).toMatchObject({ answer: null, mocked: true, canFinish: true });
+    expect(view.overrun).toMatchObject({ answer: null, madeUp: true, canFinish: true });
     expect(view.overrun!.message).toContain("used up its budget of $0.01 a week");
-    expect(view.overrun!.message).toContain("(mocked figure)");
+    expect(view.overrun!.message).toContain("(a made-up figure)");
     expect(view.overrun!.message).toContain("Other softwares carry on");
     expect(view.overrun!.spentByStage[0]).toMatchObject({ label: "Build", sessions: 1 });
     expect(view.overrun!.spentByChange).toHaveLength(1);
     expect((await usage.budgetView(other.id)).overrun).toBeNull();
-    expect(ledger.mocked).toBe(true);
+    expect(ledger.source).toBe("demo");
   });
 
   it("answer 1: raising the budget starts the paused work again", async () => {

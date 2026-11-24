@@ -10,7 +10,7 @@ Carved from section 2 of the plan. Part of the [architecture](overview.md). Spec
   - Claude Code, logged in with the owner's subscription; by default the owner's existing login, or the configuration folder named in the settings ([0140](../decisions/0140-the-owners-existing-claude-code-login.md));
   - the GitHub CLI, logged in as the owner ([0077](../decisions/0077-github-through-existing-cli-login.md));
   - on Linux and WSL2, bubblewrap and socat, which Claude Code's sandbox needs ([0087](../decisions/0087-agents-run-confined.md)). Installing them needs the owner's administrator password, so premise names them and the owner installs them;
-  - usage-ledger, once it exists; until then a mock stands in ([0064](../decisions/0064-cost-and-spending-limit-from-usage-ledger.md), [0133](../decisions/0133-usage-ledger-is-mocked-until-it-exists.md)).
+  - usage-ledger, the command that says what each session cost; without it premise works and says the figures could not be read ([0064](../decisions/0064-cost-and-spending-limit-from-usage-ledger.md), [0330](../decisions/0330-real-sessions-read-the-real-usage-ledger.md)).
 
 | Record | Choice | Why, in short |
 | --- | --- | --- |

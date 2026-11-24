@@ -18,7 +18,7 @@ import { createSession } from "../src/server/wiring.js";
 import { createApp } from "../src/server/app.js";
 import { openDatabase } from "../src/storage/database.js";
 import { createSoftware } from "../src/storage/softwares.js";
-import { MockUsageLedger } from "../src/usage-ledger/mock-usage-ledger.js";
+import { DemoUsageLedger } from "../src/usage-ledger/demo-usage-ledger.js";
 import { tempFolder, testApp, testConfig } from "./helpers.js";
 
 const FAKE_CLAUDE = join(import.meta.dirname, "fixtures", "fake-claude.mjs");
@@ -127,6 +127,7 @@ describe("real agent runner, against a fake claude", () => {
         usedPercent: 7,
         resetsAt: new Date(1795399200 * 1000).toISOString(),
         status: "allowed",
+        readAt: expect.any(String) as string,
       },
     ]);
     expect(progress).toEqual([
@@ -325,7 +326,7 @@ describe("real agent runner, against a fake claude", () => {
   it("serves a session premise's tools for its role, with its own token, until it ends", async () => {
     const port = await freePort();
     const { folder, config, db, schemaVersion, tools, runner } = setup({}, port);
-    const ledger = new MockUsageLedger("mock-fixed", 1);
+    const ledger = new DemoUsageLedger("demo-fixed", 1);
     const session = createSession({ db, config, ledger, runner });
     const app = await createApp({
       config,

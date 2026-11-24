@@ -68,7 +68,7 @@ describe("page server: the session check", () => {
 });
 
 describe("page server: overview and settings", () => {
-  it("gives the overview, with usage marked as mocked", async () => {
+  it("gives the overview, with where usage figures come from", async () => {
     const { call } = await testApp();
     await call("POST", "/api/softwares", { idea: "A tool that renames photos by date" });
     const { status, body } = await call("GET", "/api/overview");
@@ -79,7 +79,8 @@ describe("page server: overview and settings", () => {
       standInStages: [],
     });
     expect(body.activity.max).toBe(2);
-    expect(body.usage).toMatchObject({ mocked: true, weekly: { mocked: true } });
+    expect(body.usage).toEqual({ mode: "demo-fixed", source: "demo", problem: null });
+    expect(body).not.toHaveProperty("softwareUsage");
     expect(body.softwares[0]).toMatchObject({ name: "Tool that renames photos", stage: "why" });
     expect(body.openAsks).toBe(1);
   });

@@ -1,6 +1,6 @@
 # Reporter specification
 
-Status: specification. Built so far: the report view with its short default and more detail, reports written and kept with their triggers, milestone reports, release-note drafts, a mocked cost section ([0164](../decisions/0164-how-the-reporter-is-built.md)), and "How premise is doing", premise's own return from the [measures](measures.md) ([0193](../decisions/0193-how-the-measures-are-built.md)). Not built yet: the reporter agent's wording, `facts_read` and `report_submit`, notices, more detail on one item, release notes committed. Being built ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Related: [intake and reporting](../architecture/intake-and-reporting.md), [page](page.md), [agent tools](agent-tools.md), [storage](storage.md), [models and cost](../architecture/models-and-cost.md).
+Status: specification. Built so far: the report view with its short default and more detail, reports written and kept with their triggers, milestone reports, release-note drafts, a cost section ([0164](../decisions/0164-how-the-reporter-is-built.md)), and "How premise is doing", premise's own return from the [measures](measures.md) ([0193](../decisions/0193-how-the-measures-are-built.md)). Not built yet: the reporter agent's wording, `facts_read` and `report_submit`, notices, more detail on one item, release notes committed. Being built ([0130](../decisions/0130-the-build-starts-and-covers-all-of-premise.md)). Related: [intake and reporting](../architecture/intake-and-reporting.md), [page](page.md), [agent tools](agent-tools.md), [storage](storage.md), [models and cost](../architecture/models-and-cost.md).
 
 ## 1. Purpose
 
@@ -59,7 +59,7 @@ Always current, for each software ([0012](../decisions/0012-reporting-with-a-pro
 | Intake | How many intake items came in and where they went (in normally, asked, held, merged or closed), and from which source ([0243](../decisions/0243-duplicates-across-sources-and-counts-per-route.md)) |
 | Effort | premise's own measures ([0192](../decisions/0192-effort-in-proportion-to-what-was-asked.md)): the time from the idea to the first running version and the agent sessions it took, and the agent sessions in all. From premise's agent sessions and runs, not from usage-ledger |
 | Failed or not checked | First, when the latest start failed: "Built and checked, but it would not start" with its last lines of output. Every item not met or not checked, except what the operator left out; an item met only on made-up data, as "Checked on made-up data only: ... Try it on ... yourself"; an item the person chose for a later milestone, as "Not built yet (you chose later, for milestone M-n)", never as could not be checked ([0280](../decisions/0280-the-run-step-builds-first-and-the-headline-tells-the-truth.md)) |
-| Cost | From usage-ledger, mocked until it exists and labelled so: the total, the software's budget, and under a fold lines per step, change and record item, each with premise's own count of sessions and minutes beside the figure (not labelled mocked). A software paused for its budget has it as the first line under Needed ([usage](usage.md)). |
+| Cost | From usage-ledger ([0330](../decisions/0330-real-sessions-read-the-real-usage-ledger.md)): premise's own count first, then the total (or why it is not known), the share of this week (an estimate, or why it is not known), the software's budget, and under a fold lines per step, change and record item, each with premise's own count of sessions and minutes beside the figure. Demo figures (scripted agents) are labelled so. A software paused for its budget has it as the first line under Needed ([usage](usage.md)). |
 
 It opens with a plain verdict a newcomer can act on ("Works: ...", "Partly verified: ...", "Not verified: ...; try it yourself", "Does not work yet: ..."), then how to try it, then the counts, and says when the checks were made by scripted agents, which cannot judge software ([0220](../decisions/0220-approvals-and-verdicts-tell-the-truth.md)). It never says "Works" when the latest start failed ("Built and checked, but it would not start") or when an item was met only on made-up data: a verdict whose `judged_on` is `made-up` ("Not verified on real data", or counted apart under "Partly verified", with its `try_it_on`); only that field is read, never the evidence's words. A verdict recorded before the field existed still counts as met, and the counts say it was not stated whether real data was used. Items the person chose for a later milestone are left out of the count and named as not built yet ([0280](../decisions/0280-the-run-step-builds-first-and-the-headline-tells-the-truth.md)); and "Running" gives the folder a command is typed in ([0190](../decisions/0190-how-the-first-visit-is-made-clear.md)). It is in lists ([0029](../decisions/0029-lists-over-long-paragraphs.md)), and states the known limit that the checker shares the builder's model ([0091](../decisions/0091-checker-same-provider-strongest-tier.md)).
 
@@ -84,9 +84,9 @@ The owner gets one short report per finished milestone, and an immediate message
 
 ### 5.7 Cost
 
-- The report reads usage per software, stage, change and record item from usage-ledger, a mock until it exists ([0064](../decisions/0064-cost-and-spending-limit-from-usage-ledger.md)).
+- The report reads usage per software, stage, change and record item from usage-ledger ([0064](../decisions/0064-cost-and-spending-limit-from-usage-ledger.md)).
 - Because sessions carry their record items, rework shows up: an item that keeps failing its check shows its whole cost.
-- While usage-ledger is a mock, every cost figure in a report is labelled mocked ([0133](../decisions/0133-usage-ledger-is-mocked-until-it-exists.md)).
+- Every made-up cost figure in a report (scripted agents' demo figures) is labelled so; a cost that is not known says so and why, never zero ([0330](../decisions/0330-real-sessions-read-the-real-usage-ledger.md)).
 
 ### 5.7a How premise is doing
 
@@ -142,6 +142,6 @@ The report's default form stays with premise ([0012](../decisions/0012-reporting
 ## 11. Milestones
 
 - Milestone 1 step 2: a report each time a change reaches running; the report view; notices; more detail from the page's "more" control.
-- Milestone 2 (against usage-ledger's mock until it exists, [0133](../decisions/0133-usage-ledger-is-mocked-until-it-exists.md)): the Cost section, usage per stage and per item.
+- Milestone 2 (built against usage-ledger's mock, now real: [0330](../decisions/0330-real-sessions-read-the-real-usage-ledger.md)): the Cost section, usage per stage and per item.
 - Milestone 4: more detail asked in chat, through triage.
 - Milestone 7, built: a report per software and one summary across softwares (5.8a).

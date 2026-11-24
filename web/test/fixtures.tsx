@@ -26,20 +26,10 @@ export function overview(change: Partial<Overview> = {}): Overview {
     agents: { mode: "scripted", ready: true, unavailable: null, scriptedDemo: false },
     line: { mode: "engine", standInStages: [] },
     page: { notifications: "offer" },
-    usage: {
-      mode: "mock-fixed",
-      mocked: true,
-      weekly: {
-        mocked: true,
-        utilization: 0.42,
-        windowStart: "2026-11-16T00:00:00Z",
-        resetsAt: "2026-11-23T00:00:00Z",
-      },
-    },
+    usage: { mode: "demo-fixed", source: "demo", problem: null },
     softwares: [],
     defaults: { effort: "medium", priority: 3, milestoneWaits: false },
     roles: [],
-    softwareUsage: [],
     openAsks: 0,
     activity: { running: 0, queued: 0, waiting: 0, max: 2, paused: false },
     setup: [],
@@ -106,14 +96,6 @@ export function software(change: Partial<SoftwareDetail> = {}): SoftwareDetail {
       ...s,
       position: i < 3 ? "done" : i === 3 ? "current" : "ahead",
     })),
-    usage: {
-      mocked: true,
-      sessions: 12,
-      inputTokens: 480000,
-      outputTokens: 96000,
-      costUsd: 8.4,
-      weeklyShare: 0.15,
-    },
     milestones: [],
     approvals: [],
     claims: [],
@@ -239,11 +221,16 @@ export function usageRow(change: Partial<UsageRowView> = {}): UsageRowView {
     label: "Build",
     measured: { sessions: 3, minutes: 12, figures: ownFigures() },
     cost: {
-      mocked: true,
+      source: "demo",
+      sessions: 3,
+      priced: 3,
       inputTokens: 180000,
       outputTokens: 36000,
+      cacheTokens: 0,
       costUsd: 1.44,
       weeklyShare: 0.0144,
+      why: null,
+      weeklyWhy: null,
     },
     ...change,
   };
@@ -258,7 +245,10 @@ export function budgetView(change: Partial<BudgetView> = {}): BudgetView {
     state: "active",
     spentUsd: 0,
     spentShare: 0,
-    mocked: true,
+    source: "demo",
+    checked: true,
+    incomplete: false,
+    checkWhy: null,
     overrun: null,
     ...change,
   };
@@ -288,11 +278,12 @@ export function softwareUsage(change: Partial<SoftwareUsageView> = {}): Software
 
 export function usageOverview(change: Partial<UsageOverview> = {}): UsageOverview {
   return {
-    mode: "mock-fixed",
-    mocked: true,
+    mode: "demo-fixed",
+    source: "demo",
+    problem: null,
+    command: "usage-ledger",
     ownWindow: null,
-    weekly: {
-      mocked: true,
+    demoWeekly: {
       utilization: 0.42,
       windowStart: "2026-11-16T00:00:00Z",
       resetsAt: "2026-11-23T00:00:00Z",

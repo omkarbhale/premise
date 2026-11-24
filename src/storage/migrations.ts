@@ -551,6 +551,33 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+  {
+    version: 18,
+    name: "the real usage-ledger: what it said of each session, and each reading of the week with its time",
+    sql: `
+      CREATE TABLE ledger_sessions (
+        session_id TEXT PRIMARY KEY,
+        label TEXT,
+        labelled_at TEXT,
+        status TEXT,
+        figures TEXT,
+        why TEXT,
+        read_at TEXT
+      );
+      CREATE TABLE usage_readings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        window TEXT NOT NULL,
+        used_percent REAL NOT NULL,
+        resets_at TEXT,
+        read_at TEXT NOT NULL,
+        session_id TEXT,
+        job_id INTEGER,
+        kind TEXT NOT NULL,
+        fed_at TEXT
+      );
+      CREATE INDEX usage_readings_unfed ON usage_readings(fed_at, read_at);
+    `,
+  },
 ];
 
 export const CURRENT_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;

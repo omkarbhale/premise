@@ -70,7 +70,7 @@ describe("storage", () => {
     old.db.close();
 
     const now = openDatabase(folder);
-    expect(now.schemaVersion).toBe(17);
+    expect(now.schemaVersion).toBe(MIGRATIONS.at(-1)!.version);
     expect(now.db.prepare("SELECT id, kind, what FROM corrections").all()).toEqual([
       { id: 7, kind: "strike", what: "You struck it" },
     ]);

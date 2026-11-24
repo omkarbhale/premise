@@ -46,7 +46,7 @@ function report(change: Partial<ReportView> = {}): ReportView {
       },
     ],
     running: null,
-    cost: { mocked: true, text: "3 agent sessions, about $1.20." },
+    cost: { demo: true, text: "3 agent sessions, about $1.20." },
     limits: ["The check is done by the same kind of AI as the build."],
     ...change,
   };
@@ -68,7 +68,7 @@ describe("the report and run views", () => {
     expect(screen.getByText("record item W-3").closest("details")).toBeTruthy();
     expect(screen.getByText(/4 more lines are left out/)).toBeTruthy();
     expect(screen.getByText("The check is done by the same kind of AI as the build.")).toBeTruthy();
-    expect(screen.getByText("Mocked")).toBeTruthy();
+    expect(screen.getByText("Demo figures")).toBeTruthy();
   });
 
   it("asks for the full report when 'Show more detail' is pressed", async () => {

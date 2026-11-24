@@ -57,6 +57,11 @@ export interface AgentProgress {
  * showing a zero.
  */
 export interface SessionFigures {
+  /**
+   * True when the session ended without a result (cut off by a pause or a stop), so the figures
+   * were added up from its messages as they streamed: tokens and turns, but no cost.
+   */
+  fromStream?: boolean;
   turns: number | null;
   costUsd: number | null;
   inputTokens: number | null;
@@ -73,6 +78,8 @@ export interface WindowReading {
   usedPercent: number;
   resetsAt: string | null;
   status: string | null;
+  /** When premise read it from the stream. */
+  readAt: string;
 }
 
 /** What a session ended with, besides how: premise's own figures from it. */

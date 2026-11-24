@@ -19,7 +19,7 @@ import type {
 import { placeFor } from "../line/scope.js";
 import { listChatMessages } from "../storage/chat.js";
 import { openDatabase } from "../storage/database.js";
-import { MockUsageLedger } from "../usage-ledger/mock-usage-ledger.js";
+import { DemoUsageLedger } from "../usage-ledger/demo-usage-ledger.js";
 import { DEMOS, type DemoSoftware, type DraftLine } from "./demo-softwares.js";
 import { planChange } from "./stand-in-script.js";
 import {
@@ -221,7 +221,7 @@ export interface DemoResult {
   /** premise's words in the session, in order. */
   said: string[];
   answered: { title: string; answer: string }[];
-  /** What it used, by step, change and item (mocked), and its budget and any overrun. */
+  /** What it used, by step, change and item (made-up demo figures), and its budget and any overrun. */
   usage: SoftwareUsageView;
 }
 
@@ -250,7 +250,7 @@ export async function runDemo(
     operator?: (ask: AskView) => OperatorAnswer;
     env?: NodeJS.ProcessEnv;
     /**
-     * A deliberately small budget in dollars a week (mocked figures): the software overruns it, its
+     * A deliberately small budget in dollars a week (made-up demo figures): the software overruns it, its
      * queue pauses, and the result shows what the operator is told.
      */
     smallBudgetUsd?: number;
@@ -290,7 +290,7 @@ export async function runDemo(
     },
   });
   const { db } = openDatabase(config.data.folder);
-  const ledger = new MockUsageLedger("mock-fixed", 1);
+  const ledger = new DemoUsageLedger("demo-fixed", 1);
   const tools = new AgentToolServer({ db, config });
   const runner = new ScriptedAgentRunner(options.script ?? demoScript(demo));
   const record = new RecordKeeper({ db, config });

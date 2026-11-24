@@ -2,7 +2,7 @@ import type { ReportLine } from "../api";
 import { useSession } from "../context";
 import { useLoad } from "../hooks";
 import { when } from "../words";
-import { MockedBadge, Problem, StandInBadge } from "./Badges";
+import { DemoBadge, Problem, StandInBadge } from "./Badges";
 import { RunPanel } from "./RunPanel";
 import { useState } from "react";
 
@@ -104,20 +104,20 @@ export function ReportView({ softwareId }: { softwareId: string }) {
         </section>
       )}
       <section className="card" aria-label="Cost">
-        <h2>Cost {r.cost.mocked && <MockedBadge />}</h2>
+        <h2>Cost {r.cost.demo && <DemoBadge />}</h2>
         {r.cost.own && <p>{r.cost.own}</p>}
         <p>
           {r.cost.text}
-          {r.cost.mocked && " These figures are made up until usage-ledger exists."}
+          {r.cost.demo && " Scripted agents use nothing, so these figures are made up."}
         </p>
         {r.cost.lines && r.cost.lines.length > 0 && (
           <details>
             <summary>
-              What it went on, by step, change and item {r.cost.mocked && <MockedBadge />}
+              What it went on, by step, change and item {r.cost.demo && <DemoBadge />}
             </summary>
             <p className="small muted">
               The counts of sessions and minutes are premise's own. The dollar figures come from
-              usage-ledger{r.cost.mocked ? " and are mocked" : ""}.
+              usage-ledger{r.cost.demo ? " (made-up demo figures)" : ""}.
             </p>
             {(["stage", "change", "item"] as const).map((group) => {
               const lines = r.cost.lines!.filter((l) => l.group === group);
@@ -130,7 +130,7 @@ export function ReportView({ softwareId }: { softwareId: string }) {
                   <ul>
                     {lines.map((l) => (
                       <li key={l.label}>
-                        {l.label}: {l.measured}; {l.cost} {l.mocked && <MockedBadge />}
+                        {l.label}: {l.measured}; {l.cost} {l.demo && <DemoBadge />}
                       </li>
                     ))}
                   </ul>

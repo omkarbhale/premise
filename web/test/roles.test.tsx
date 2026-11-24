@@ -204,7 +204,7 @@ describe("polish from the page review", () => {
         },
       ],
       running: null,
-      cost: { mocked: true, text: "3 agent sessions." },
+      cost: { demo: true, text: "3 agent sessions." },
       limits: [],
     };
     inSession(

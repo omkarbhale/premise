@@ -110,13 +110,13 @@ describe("the budget demo", () => {
     expect(result.stage).not.toBe("intake");
     const overrun = result.usage.budget.overrun!;
     expect(overrun.message).toContain("used up its budget of $0.50 a week");
-    expect(overrun.mocked).toBe(true);
+    expect(overrun.madeUp).toBe(true);
     expect(overrun.spentByStage.length).toBeGreaterThan(0);
-    expect(result.usage.total.cost.mocked).toBe(true);
+    expect(result.usage.total.cost.source).toBe("demo");
     expect(result.usage.total.measured.sessions).toBeGreaterThan(0);
-    // The report puts it first under Needed, with every cost line marked mocked.
+    // The report puts it first under Needed, with every cost line marked as demo figures.
     const needed = result.report.sections.find((s) => s.title === "Needed")!;
     expect(needed.lines[0]!.text).toContain("used up its budget");
-    expect(result.report.cost.lines!.every((l) => l.mocked)).toBe(true);
+    expect(result.report.cost.lines!.every((l) => l.demo)).toBe(true);
   }, 60_000);
 });

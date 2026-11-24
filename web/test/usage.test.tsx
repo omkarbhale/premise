@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { OverrunNotice } from "../src/components/Budget";
 import { Usage } from "../src/components/Usage";
+import type { UsageRowView } from "../src/api";
 import {
   budgetView,
   fakeApi,
@@ -27,11 +28,11 @@ const overrun = (answer: "raised" | "finish-change" | "left-paused" | null = nul
       id: 1,
       time: "2026-11-21T10:00:00Z",
       message:
-        "Reading list used up its budget of $1.00 a week, at list prices: $1.44 (mocked figure) so far, mostly on Build $1.44. Nothing new starts for it until you choose what to do. Other softwares carry on.",
+        "Reading list used up its budget of $1.00 a week, at list prices: $1.44 (a made-up figure) so far, mostly on Build $1.44. Nothing new starts for it until you choose what to do. Other softwares carry on.",
       spentByStage: [{ label: "Build", sessions: 3, costUsd: 1.44 }],
       spentByChange: [{ label: "Reading list, from the idea", sessions: 3, costUsd: 1.44 }],
       spentUsd: 1.44,
-      mocked: true,
+      madeUp: true,
       answer,
       finishing: null,
       canFinish: true,
@@ -39,27 +40,106 @@ const overrun = (answer: "raised" | "finish-change" | "left-paused" | null = nul
   });
 
 describe("the Usage page", () => {
-  it("labels every ledger figure Mocked and shows premise's own counts without the label", async () => {
+  it("labels every demo figure and shows premise's own counts without the label", async () => {
     inSession(<Usage overview={overview({ softwares: [{ id: "s1" } as never] })} />);
     const all = await screen.findByText(/All of it/);
     expect(all.closest("p")!.textContent).toContain("3 agent sessions");
     expect(
-      within(screen.getByText(/usage-ledger:/).closest("p")!).getByText("Mocked"),
+      within(screen.getByText(/usage-ledger:/).closest("p")!).getByText("Demo figures"),
     ).toBeTruthy();
     // Each row: premise's own count comes first and is real; the dollar figure and the share carry
     // the label; sessions and time do not.
     const row = screen.getAllByRole("row", { name: /^Build/ })[0]!;
     const cells = within(row).getAllByRole("cell");
     expect(cells[0]!.textContent).toBe("3");
-    expect(within(cells[0]!).queryByText("Mocked")).toBeNull();
-    expect(within(cells[1]!).queryByText("Mocked")).toBeNull();
+    expect(within(cells[0]!).queryByText("Demo figures")).toBeNull();
+    expect(within(cells[1]!).queryByText("Demo figures")).toBeNull();
     expect(cells[2]!.textContent).toContain("$0.50 at list prices");
-    expect(within(cells[2]!).queryByText("Mocked")).toBeNull();
-    expect(within(cells[3]!).getByText("Mocked")).toBeTruthy();
-    expect(within(cells[4]!).getByText("Mocked")).toBeTruthy();
+    expect(within(cells[2]!).queryByText("Demo figures")).toBeNull();
+    expect(within(cells[3]!).getByText("Demo figures")).toBeTruthy();
+    expect(within(cells[4]!).getByText("Demo figures")).toBeTruthy();
   });
 
-  it("shows premise's own count before the mocked figure, and says where one is missing", async () => {
+  it("shows real figures without a label, says what is not known and why, and has no share per row", async () => {
+    const real = (change: Partial<UsageRowView["cost"]> = {}) => ({
+      source: "ledger" as const,
+      sessions: 3,
+      priced: 2,
+      costUsd: 1.2,
+      inputTokens: 100,
+      outputTokens: 2000,
+      cacheTokens: 50000,
+      weeklyShare: null,
+      why: "no cost for 1 session: scripted agent, uses nothing",
+      weeklyWhy:
+        "not known for one step, change or item: the week's figure moves in steps of 1%, too coarse to share out",
+      ...change,
+    });
+    inSession(
+      <Usage overview={overview({ softwares: [{ id: "s1" } as never] })} />,
+      fakeApi({
+        usage: () =>
+          Promise.resolve(
+            usageOverview({
+              mode: "real",
+              source: "ledger",
+              demoWeekly: null,
+              softwares: [
+                softwareUsage({
+                  total: usageRow({
+                    key: "total",
+                    cost: real({ weeklyShare: 0.03, weeklyWhy: "estimated by usage-ledger" }),
+                  }),
+                  byPhase: [usageRow({ cost: real() })],
+                  byStage: [
+                    usageRow({ cost: real({ costUsd: null, priced: 0, why: "still running" }) }),
+                  ],
+                  byChange: [],
+                  byItem: [],
+                  budget: budgetView({
+                    kind: "amount",
+                    usd: 5,
+                    source: "ledger",
+                    checked: false,
+                    checkWhy: "usage-ledger cannot yet keep a budget for one software",
+                  }),
+                }),
+              ],
+            }),
+          ),
+      }),
+    );
+    const ledger = (await screen.findByText(/usage-ledger:/)).closest("p")!;
+    expect(ledger.textContent).toContain("about $1.20 at list prices, 52.1k tokens");
+    expect(ledger.textContent).toContain("no cost for 1 session: scripted agent");
+    expect(screen.queryByText("Demo figures")).toBeNull();
+    expect(screen.getByText(/Share of this week/).closest("p")!.textContent).toContain("about 3%");
+    expect(screen.getByText(/Budget not checked/)).toBeTruthy();
+    // No column of "not known": the reason is said once above the table.
+    expect(screen.queryByRole("columnheader", { name: /Share of a week/ })).toBeNull();
+    expect(screen.getAllByText(/too coarse to share out/).length).toBeGreaterThan(0);
+    const row = screen.getAllByRole("row", { name: /^Build/ })[0]!;
+    expect(within(row).getAllByRole("cell")[3]!.textContent).toContain("$1.20 (2 of 3 sessions)");
+  });
+
+  it("says when usage-ledger cannot be read, and what to do", async () => {
+    inSession(
+      <Usage overview={overview({ softwares: [{ id: "s1" } as never] })} />,
+      fakeApi({
+        usage: () =>
+          Promise.resolve(
+            usageOverview({
+              source: "ledger",
+              problem:
+                'premise could not run usage-ledger: "usage-ledger" was not found. Set usage_ledger.command.',
+            }),
+          ),
+      }),
+    );
+    expect((await screen.findByRole("alert")).textContent).toContain("usage_ledger.command");
+  });
+
+  it("shows premise's own count before usage-ledger's figure, and says where one is missing", async () => {
     inSession(
       <Usage overview={overview({ softwares: [{ id: "s1" } as never] })} />,
       fakeApi({
@@ -87,16 +167,16 @@ describe("the Usage page", () => {
       }),
     );
     const own = await screen.findByText(/premise's own count:/);
-    const mocked = screen.getByText(/usage-ledger:/);
+    const ledger = screen.getByText(/usage-ledger:/);
     expect(own.closest("p")!.textContent).toContain(
       "no figures for 1 session: scripted agents report no figures",
     );
-    // The real figure is first in the page, the mocked one after it.
-    expect(own.compareDocumentPosition(mocked) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(within(own.closest("p")!).queryByText("Mocked")).toBeNull();
+    // premise's own figure is first in the page, usage-ledger's after it.
+    expect(own.compareDocumentPosition(ledger) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(own.closest("p")!).queryByText("Demo figures")).toBeNull();
   });
 
-  it("shows the weekly window as the agents last reported it, with its age, apart from the mock", async () => {
+  it("shows the weekly window as the agents last reported it, with its age, apart from the demo", async () => {
     inSession(
       <Usage overview={overview({ softwares: [{ id: "s1" } as never] })} />,
       fakeApi({
@@ -113,15 +193,18 @@ describe("the Usage page", () => {
           ),
       }),
     );
-    const card = (await screen.findByText(/as the agents last reported it/)).closest("section")!;
-    expect(card.textContent).toContain("2% of the subscription's weekly usage");
+    const card = (await screen.findByText(/when a real agent session last reported it/)).closest(
+      "section",
+    )!;
+    expect(card.textContent).toContain("2% of your plan's weekly usage");
     expect(card.textContent).toContain("30 minutes ago");
-    expect(within(card).queryByText("Mocked")).toBeNull();
+    // The real reading carries no label; only the demo's made-up week does.
+    expect(within(card.querySelector("p")!).queryByText("Demo figures")).toBeNull();
   });
 
-  it("says no real session has reported the window yet when there is no reading", async () => {
+  it("says there is no reading yet when no real session has reported the week", async () => {
     inSession(<Usage overview={overview({ softwares: [{ id: "s1" } as never] })} />);
-    expect(await screen.findByText(/No real agent session has reported this yet/)).toBeTruthy();
+    expect(await screen.findByText(/No reading yet/)).toBeTruthy();
   });
 
   it("saves a budget as a share of the week's usage, in plain words", async () => {
@@ -156,7 +239,7 @@ describe("the Usage page", () => {
     inSession(<Usage overview={overview({ softwares: [{ id: "s1" } as never] })} />, api);
     const notice = await screen.findByRole("status", { name: "Budget used up" });
     expect(notice.textContent).toContain("used up its budget");
-    expect(within(notice).getByText("Mocked")).toBeTruthy();
+    expect(within(notice).getByText("Demo figures")).toBeTruthy();
     expect(within(notice).getByRole("button", { name: "Raise and carry on" })).toBeTruthy();
     expect(
       within(notice).getByRole("button", { name: "Let it finish the current change" }),

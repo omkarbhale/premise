@@ -23,8 +23,7 @@ export function Doing() {
       <p className="muted">
         premise's own return: how much of your attention it took, how long things took, and how
         often something it said worked came back as a bug. Worked out from what premise recorded;
-        these figures are real, not mocked. With too few events to go on, a figure says "not enough
-        yet".
+        these figures are real. With too few events to go on, a figure says "not enough yet".
       </p>
       {measures.state === "loading" && <p className="muted">Loading the figures…</p>}
       {measures.state === "error" && <Problem>{measures.message}</Problem>}

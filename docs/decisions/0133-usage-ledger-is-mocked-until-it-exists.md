@@ -1,6 +1,6 @@
 # 0133. usage-ledger's output is mocked until it exists, and the page says so
 
-- Status: Accepted
+- Status: Partly superseded by [0330](0330-real-sessions-read-the-real-usage-ledger.md): usage-ledger exists, real sessions read it, and the mock stays only as demo figures for scripted agents
 - Partly supersedes: [0064](0064-cost-and-spending-limit-from-usage-ledger.md) (that usage-ledger being usable is a prerequisite of milestone 2)
 - Scope: The plan
 - Date: 2026-11-21

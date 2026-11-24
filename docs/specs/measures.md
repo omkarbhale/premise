@@ -51,4 +51,4 @@ premise's own return, worked out from what it recorded. No agent is asked and no
 ## 6. Not built yet
 
 - Attention outside the page (thinking about a question away from it) cannot be seen and is not counted.
-- Cost per change stays with usage-ledger, mocked until it exists ([0133](../decisions/0133-usage-ledger-is-mocked-until-it-exists.md)); figures per week, and next to cost, are [issue 121](https://github.com/omkarbhale/premise/issues/121). What real sessions reported about themselves (their cost at list prices, tokens and turns, and the weekly window as last read) is premise's own count and is on the Usage view ([usage](usage.md) 5.5), not here.
+- Cost per change stays with usage-ledger ([0330](../decisions/0330-real-sessions-read-the-real-usage-ledger.md)); figures per week, and next to cost, are [issue 121](https://github.com/omkarbhale/premise/issues/121). What real sessions reported about themselves (their cost at list prices, tokens and turns, and the weekly window as last read) is premise's own count and is on the Usage view ([usage](usage.md) 5.5), not here.

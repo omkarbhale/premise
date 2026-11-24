@@ -56,7 +56,9 @@ import type { IssueSource } from "../src/intake/issues.js";
 import type { GitHubCli } from "../src/git/github.js";
 import { createSession } from "../src/server/wiring.js";
 import { openDatabase } from "../src/storage/database.js";
-import { MockUsageLedger } from "../src/usage-ledger/mock-usage-ledger.js";
+import { DemoUsageLedger } from "../src/usage-ledger/demo-usage-ledger.js";
+import type { UsageLedger } from "../src/usage-ledger/usage-ledger.js";
+import type { Database } from "../src/storage/database.js";
 
 /** A page reader that never touches the network: every public page is the same short page. */
 export function testPages(config: PremiseConfig, body = "<h1>A page</h1><p>Its text.</p>") {
@@ -84,6 +86,8 @@ export async function testApp(
      * (test/fixtures/fake-claude.mjs). Its tools are served at /mcp once the app listens.
      */
     makeRunner?: (tools: AgentToolServer, config: PremiseConfig) => AgentRunner;
+    /** A usage ledger of the test's own, such as the real one on a fake usage-ledger command. */
+    makeLedger?: (db: Database, config: PremiseConfig) => UsageLedger;
   } = {},
 ) {
   const folder = options.folder ?? tempFolder();
@@ -101,7 +105,7 @@ export async function testApp(
     ...env,
   });
   const { db, schemaVersion } = openDatabase(folder);
-  const ledger = new MockUsageLedger("mock-fixed", 1);
+  const ledger = options.makeLedger?.(db, config) ?? new DemoUsageLedger("demo-fixed", 1);
   // Tests never touch the network: a page the researcher reads is a fixed one.
   const tools = new AgentToolServer({ db, config, pages: testPages(config) });
   // Tests that bring their own runner never read the scripted runner's calls.

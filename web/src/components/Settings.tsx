@@ -12,6 +12,7 @@ const COMMON = [
   "agents.mode",
   "queue.max_agent_sessions",
   "usage_ledger.mode",
+  "usage_ledger.command",
   "server.port",
   "softwares.default_priority",
   "softwares.default_milestone_waits",

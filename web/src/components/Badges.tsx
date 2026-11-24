@@ -3,10 +3,11 @@ import { useContext } from "react";
 import { SessionContext } from "../context";
 import { GLOSS, type GlossTerm, TERMS } from "../words";
 
-export function MockedBadge() {
+/** Marks made-up figures: a scripted demo's, which use nothing (decision 0330). */
+export function DemoBadge() {
   return (
-    <span className="badge badge-mocked" title={TERMS.mocked}>
-      Mocked
+    <span className="badge badge-mocked" title={TERMS.demoFigures}>
+      Demo figures
     </span>
   );
 }

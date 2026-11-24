@@ -17,7 +17,8 @@ import { standInScript } from "../demo/stand-in-script.js";
 import type { Job, WorkQueue } from "../queue/work-queue.js";
 import { RecordKeeper } from "../record/record-keeper.js";
 import { type Database, openDatabase, recordEvent } from "../storage/database.js";
-import { createUsageLedger } from "../usage-ledger/mock-usage-ledger.js";
+import { createUsageLedger } from "../usage-ledger/create.js";
+import { ledgerStore } from "../storage/ledger-sessions.js";
 import { createApp } from "./app.js";
 import { type PauseStatus } from "../queue/work-queue.js";
 import { SuspendWatch } from "../queue/suspend-watch.js";
@@ -181,8 +182,8 @@ export async function start(options: StartOptions): Promise<Running> {
     throw new Error(formatDoctorReport(setup));
   }
   const config = setup.config;
-  const ledger = createUsageLedger(config.usage_ledger);
   const { db, schemaVersion, backup } = openDatabase(config.data.folder);
+  const ledger = createUsageLedger(config, { store: ledgerStore(db), env: options.env });
   if (backup) print(`Updated premise's database; the copy from before is ${backup}.`);
 
   const made: { queue: WorkQueue | null } = { queue: null };
@@ -343,7 +344,7 @@ export async function start(options: StartOptions): Promise<Running> {
     `  Agents:        ${config.agents.mode === "scripted" ? "scripted (no AI is called)" : runner.ready() ? "real Claude Code sessions on your login, confined by its sandbox" : `NOT READY. ${runner.unavailable} The page says how to fix it.`}`,
   );
   print(
-    `  Usage figures: ${ledger.mocked ? `mocked (${ledger.mode}); not real usage` : ledger.mode}`,
+    `  Usage figures: ${ledger.source === "demo" ? "made-up demo figures (scripted agents use nothing)" : `from usage-ledger ("${config.usage_ledger.command}")`}`,
   );
   print(`  Data folder:   ${config.data.folder}`);
   if (warnings.length > 0) {

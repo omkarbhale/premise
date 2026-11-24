@@ -84,7 +84,7 @@ Anything that must survive a crash goes through the work queue's table ([archite
 
 ### 5.5 Pausing for a budget overrun
 
-- premise sets per-software budgets in usage-ledger, which is a mock until it exists ([0133](../decisions/0133-usage-ledger-is-mocked-until-it-exists.md)). When usage-ledger reports one overrun, premise pauses that software's queue and tells the operator ([0064](../decisions/0064-cost-and-spending-limit-from-usage-ledger.md), [usage and budgets](usage.md)).
+- premise sets per-software budgets in usage-ledger ([0330](../decisions/0330-real-sessions-read-the-real-usage-ledger.md)). When usage-ledger says one is used up (never when it is only incomplete, or could not be read), premise pauses that software's queue and tells the operator ([0064](../decisions/0064-cost-and-spending-limit-from-usage-ledger.md), [usage and budgets](usage.md)).
 - The software's state becomes `paused-budget`. Its asks stay answerable; no new agent job starts for it, and a session already running finishes. Other softwares keep running.
 - While a software's budget is being looked at after a job changed, the queue starts nothing for it (so no extra job slips in).
 - The operator answers: raise the budget (the software is active again), let it finish the current change (only jobs of that piece of work start), or leave it paused ([0200](../decisions/0200-how-cost-and-the-spending-limit-are-built.md)).
@@ -146,7 +146,7 @@ Decision [0290](../decisions/0290-pausing-and-resuming-the-whole-of-premise.md).
 - Milestone 1 step 1: the proof of the usage-limit pause (point 6 of step 1, [roadmap](../product/roadmap.md)): rate-limit events pause the work and it resumes after the reset; if the limit cannot be reached safely, the pause is shown with a simulated event.
 - Milestone 1 step 2: the work queue that survives a restart; two sessions; three-strike rule; usage-limit pause.
 - Milestone 1 step 2: a software stopped at a milestone wait is not startable.
-- Milestone 2 (against usage-ledger's mock until it exists, [0133](../decisions/0133-usage-ledger-is-mocked-until-it-exists.md)): per-software budget pause; effort as a share of weekly usage.
+- Milestone 2 (built against usage-ledger's mock, now real: [0330](../decisions/0330-real-sessions-read-the-real-usage-ledger.md)): per-software budget pause; effort as a share of weekly usage.
 - Milestone 4: `triage` and `reading` jobs.
 - Milestone 1 (foundation): the queue that survives a restart, the session limit, priority between softwares, the three-strike rule and the usage-limit pause, with the scripted agent.
 - Milestone 7, built: fair sharing between several softwares, the operator's pause and archive ([0197](../decisions/0197-how-several-softwares-at-once-is-built.md)).

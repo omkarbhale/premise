@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type Api, type AskView, createApi, sessionToken } from "./api";
 import { Activity } from "./components/Activity";
 import { AgentsBanner } from "./components/AgentsBanner";
-import { MockedBadge, Problem } from "./components/Badges";
+import { DemoBadge, Problem } from "./components/Badges";
 import { PauseBanner, PauseControl, SleepNotice, StartupNotice } from "./components/Pausing";
 import { Help } from "./components/Help";
 import { Needed } from "./components/Needed";
@@ -276,7 +276,7 @@ function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) 
       view: { name: "usage" },
       label: "Usage",
       more: true,
-      extra: o.usage.mocked ? <MockedBadge /> : null,
+      extra: o.usage.source === "demo" ? <DemoBadge /> : null,
     },
     { view: { name: "doing" }, label: "How premise is doing", more: true },
     { view: { name: "settings" }, label: "Settings", more: true },

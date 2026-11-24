@@ -212,7 +212,7 @@ async function trial(args: Parsed, env: NodeJS.ProcessEnv): Promise<number> {
     if (result.usage.budget.overrun) {
       console.log(`Budget: ${result.usage.budget.words}. ${result.usage.budget.overrun.message}`);
       console.log(
-        "(The dollar figures are mocked: usage-ledger does not exist yet. The software is paused; open Usage on the page to raise the budget, let it finish the change, or leave it paused.)",
+        "(The dollar figures are made-up demo figures: scripted agents use nothing. The software is paused; open Usage on the page to raise the budget, let it finish the change, or leave it paused.)",
       );
       return 0;
     }

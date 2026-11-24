@@ -8,7 +8,7 @@ One product that takes software from an idea to running software, and keeps taki
 
 The full statement is in [VISION.md](VISION.md).
 
-premise is built from idea to running software, with intake, existing software, roles, measures, several softwares at once and cost (on a mock of usage-ledger). One real run has been made, a tiny command-line tool with every agent on the fast tier at low effort; everything else was shown with scripted agents. The [status page](docs/status.md) says what is built, what has not been exercised with real agents or real GitHub, what is mocked and what waits.
+premise is built from idea to running software, with intake, existing software, roles, measures, several softwares at once and cost (read from usage-ledger). One real run has been made, a tiny command-line tool with every agent on the fast tier at low effort; everything else was shown with scripted agents. The [status page](docs/status.md) says what is built, what has not been exercised with real agents or real GitHub, and what waits.
 
 ## Quick start
 
@@ -45,7 +45,8 @@ More:
 
 - `npm run demo:cli` and `npm run demo:web` run a whole scripted build, check and run in the terminal, and stop ([0187](docs/decisions/0187-kept-demos-and-one-real-run.md)). `npm run demo:web` does not leave a link running; use `npm run demo` to click around.
 - `npm run real-run -- --confirm` takes a tiny tool through the whole line with real agents on your login (haiku, low effort, the software at low effort so only what was asked is built). Use it sparingly.
-- Usage figures are mocked until usage-ledger exists; the page labels them "Mocked". Each software can be given a budget (a share of the week's usage or dollars a week); when it is used up, only that software pauses and you choose what happens next. `premise demo budget` shows it.
+- What each software's work cost, in tokens and dollars at list prices, comes from [usage-ledger](docs/specs/usage-ledger.md), a separate command that reads Claude Code's own logs. Install it so `usage-ledger` is on your PATH, or set `usage_ledger.command` to the path of its `dist/cli.js`; `npm run doctor` says whether premise can run it. Without it premise works as usual and the Usage page says the figures could not be read. Scripted agents use nothing, so their figures are made up and labelled "Demo figures".
+- Each software can be given a budget (a share of the week's usage or dollars a week). usage-ledger keeps it and says when it is used up; then only that software pauses and you choose what happens next (`premise demo budget` shows it with demo figures). When usage-ledger cannot count all of the week's use yet, the budget is "incomplete": work carries on and the page says what could not be counted.
 - Change settings (how many agents run at once, the model and effort for each type of task, and more) in `config.json` in the data folder (`~/.premise` by default), or with environment variables: [configuration reference](docs/reference/configuration.md).
 - Another port or data folder: `npm start -- --port 4700`, `npm start -- --data <folder>`. `--help` anywhere prints help; a flag premise does not know is an error and starts nothing.
 
@@ -61,7 +62,7 @@ One TypeScript package ([0075](docs/decisions/0075-one-package.md)):
 | `src/storage/` | The SQLite database in the data folder, with numbered migrations | [storage](docs/specs/storage.md) |
 | `src/queue/` | The work queue: jobs that survive a restart, the parallel limit, priority, the same-failure rule, the usage-limit pause | [work queue](docs/specs/work-queue.md) |
 | `src/agents/` | The agent runner's interface; the scripted agent used by every test; real Claude Code sessions (confinement, limits, stop and resume); the tools agents reach premise through | [agent runner](docs/specs/agent-runner.md), [agent tools](docs/specs/agent-tools.md) |
-| `src/usage-ledger/` | usage-ledger's interface (the contract it has to meet), and its mock | [usage-ledger contract](docs/specs/usage-ledger.md) |
+| `src/usage-ledger/` | usage-ledger's interface (the contract it has to meet), and the demo figures for scripted agents | [usage-ledger contract](docs/specs/usage-ledger.md) |
 | `src/usage/` | Usage per software, step, change and item beside premise's own counts; budgets; pausing a software that overruns | [usage and budgets](docs/specs/usage.md) |
 | `src/record/` | The record keeper: the record's format, proposed changes, trace trailers, the reading API; `premise record check <folder>` | [record keeper](docs/specs/record-keeper.md) |
 | `src/git/` | The one small module for git, the GitHub CLI wrapper, and the repository hosts (GitHub, or a local bare repository) | [record keeper](docs/specs/record-keeper.md#54a-repositories) |

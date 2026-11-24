@@ -4,6 +4,7 @@ import type { Database } from "../storage/database.js";
 interface Row {
   id: number;
   runtime_session_id: string;
+  runtime: string;
   job_id: number;
   software_id: string;
   kind: string;
@@ -24,7 +25,7 @@ interface Row {
 export function readSessionTasks(db: Database, softwareId?: string): SessionTaskRecord[] {
   const rows = db
     .prepare(
-      `SELECT s.id, s.runtime_session_id, s.job_id, j.software_id, j.kind, j.stage, j.items,
+      `SELECT s.id, s.runtime_session_id, s.runtime, s.job_id, j.software_id, j.kind, j.stage, j.items,
               j.payload, s.model, s.effort, s.started, s.ended
        FROM agent_sessions s JOIN jobs j ON j.id = s.job_id
        ${softwareId ? "WHERE j.software_id = ?" : ""}
@@ -47,6 +48,7 @@ export function readSessionTasks(db: Database, softwareId?: string): SessionTask
     }
     return {
       sessionId: row.runtime_session_id || `local-${row.id}`,
+      runtime: row.runtime,
       softwareId: row.software_id,
       workItem: typeof payload.item === "number" ? payload.item : null,
       stage: row.stage,

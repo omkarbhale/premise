@@ -37,7 +37,7 @@ Every module specification uses the same sections: purpose; responsibilities and
 | [measures.md](measures.md) | Measures | premise's own return from recorded events: attention, time to answer, idea to running, problem to fix, things reported working that came back as bugs, sessions per change; "not enough yet". |
 | [learning.md](learning.md) | Learning | Learning from corrections, in two kinds kept apart: lessons for a software and the operator's taste, which agents follow; improvements for premise itself, which never change it. |
 | [usage-ledger.md](usage-ledger.md) | usage-ledger contract | What premise records for every agent session, and what usage-ledger must answer: usage by stage, change and record item; budgets; overruns; the mock. |
-| [usage.md](usage.md) | Usage and budgets | Usage shown per software, phase, step, change and item, mocked figures labelled beside premise's own counts; per-software budgets; pausing on an overrun and the operator's three answers. |
+| [usage.md](usage.md) | Usage and budgets | Usage shown per software, phase, step, change and item, usage-ledger's figures (or labelled demo figures) beside premise's own counts, "not known" said with why; per-software budgets; pausing on an overrun and the operator's three answers. |
 | [storage.md](storage.md) | Storage | What lives in the database, the data folder and each software's repository; every table. |
 
 ## Module map

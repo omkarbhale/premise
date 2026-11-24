@@ -7,8 +7,11 @@
 export type StreamEvent =
   /** The session started; its id is the runtime's own. */
   | { kind: "init"; sessionId: string; model: string | null; apiKeySource: string | null }
-  /** A new model turn began. */
-  | { kind: "turn"; messageId: string }
+  /**
+   * A model turn, with the tokens the message says it used when it says (a message can come on
+   * several lines, each with the same id and the same usage).
+   */
+  | { kind: "turn"; messageId: string; usage: MessageUsage | null }
   /** Something to show on the page as progress. */
   | { kind: "progress"; text: string }
   /** The subscription's usage limit was reached; work pauses until the reset. */
@@ -51,6 +54,14 @@ export interface ResultFigures {
   cacheWriteTokens: number | null;
 }
 
+/** The tokens one model message used, as the stream reports them (no cost: that is per result). */
+export interface MessageUsage {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+}
+
 type Json = Record<string, unknown>;
 
 function isObject(value: unknown): value is Json {
@@ -80,6 +91,19 @@ function resultFigures(event: Json): ResultFigures {
     outputTokens: count(usage.output_tokens),
     cacheReadTokens: count(usage.cache_read_input_tokens),
     cacheWriteTokens: count(usage.cache_creation_input_tokens),
+  };
+}
+
+function messageUsage(value: unknown): MessageUsage | null {
+  if (!isObject(value)) return null;
+  const input = count(value.input_tokens);
+  const output = count(value.output_tokens);
+  if (input === null && output === null) return null;
+  return {
+    inputTokens: input ?? 0,
+    outputTokens: output ?? 0,
+    cacheReadTokens: count(value.cache_read_input_tokens) ?? 0,
+    cacheWriteTokens: count(value.cache_creation_input_tokens) ?? 0,
   };
 }
 
@@ -167,7 +191,7 @@ export function parseStreamLine(line: string): StreamEvent[] {
     const message = event.message;
     const out: StreamEvent[] = [];
     const id = str(message.id);
-    if (id) out.push({ kind: "turn", messageId: id });
+    if (id) out.push({ kind: "turn", messageId: id, usage: messageUsage(message.usage) });
     const content = Array.isArray(message.content) ? message.content : [];
     for (const block of content) {
       if (!isObject(block)) continue;
