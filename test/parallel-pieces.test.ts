@@ -436,6 +436,18 @@ describe("several pieces of one software at once", () => {
     );
     const id = await builtSoftware(app);
     await send(app, id, A);
+    await waitFor(
+      app,
+      async () => {
+        try {
+          itemOf(app, id, A);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      "A's change reaches the line before B's is sent",
+    );
     await send(app, id, B);
     let asked: AskView | undefined;
     for (let i = 0; i < 40 && !asked; i++) {
