@@ -8,7 +8,7 @@ import { describeCheck } from "../config/checks.js";
 import { CONFIG_FILE_NAME, envNameFor } from "../config/load.js";
 import { type PremiseConfig, SETTINGS } from "../config/settings.js";
 import type { DoctorReport } from "../doctor/doctor.js";
-import type { AskAnswer, Overview, SettingsView } from "../shared/api-types.js";
+import type { AskAnswer, Overview, QueuePriority, SettingsView } from "../shared/api-types.js";
 import {
   SIZE_CLASSES,
   SOFTWARE_EFFORTS,
@@ -604,6 +604,84 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
       },
     );
 
+    api.post<{ Params: { id: string }; Body: { workItemIds: number[]; together: boolean } }>(
+      "/api/softwares/:id/groups",
+      {
+        schema: {
+          params: idParam,
+          body: {
+            type: "object",
+            properties: {
+              workItemIds: {
+                type: "array",
+                items: { type: "integer", minimum: 1 },
+                minItems: 2,
+                maxItems: 200,
+              },
+              together: { type: "boolean" },
+            },
+            required: ["workItemIds", "together"],
+          },
+        },
+      },
+      async (request) => {
+        await services.softwares.decideGroup(
+          request.params.id,
+          request.body.workItemIds,
+          request.body.together,
+        );
+        return services.softwares.get(request.params.id);
+      },
+    );
+
+    api.post<{
+      Params: { id: string };
+      Body: { milestoneItemId: number; workItemId: number; merge: boolean };
+    }>(
+      "/api/softwares/:id/overlaps",
+      {
+        schema: {
+          params: idParam,
+          body: {
+            type: "object",
+            properties: {
+              milestoneItemId: { type: "integer", minimum: 1 },
+              workItemId: { type: "integer", minimum: 1 },
+              merge: { type: "boolean" },
+            },
+            required: ["milestoneItemId", "workItemId", "merge"],
+          },
+        },
+      },
+      async (request) => {
+        await services.softwares.decideOverlap(
+          request.params.id,
+          request.body.milestoneItemId,
+          request.body.workItemId,
+          request.body.merge,
+        );
+        return services.softwares.get(request.params.id);
+      },
+    );
+
+    api.post<{ Params: { id: string }; Body: { answer: "hold" | "budget" | "agents" | "leave" } }>(
+      "/api/softwares/:id/queue-notice",
+      {
+        schema: {
+          params: idParam,
+          body: {
+            type: "object",
+            properties: { answer: { type: "string", enum: ["hold", "budget", "agents", "leave"] } },
+            required: ["answer"],
+          },
+        },
+      },
+      async (request) => {
+        await services.softwares.answerQueueNotice(request.params.id, request.body.answer);
+        return services.softwares.get(request.params.id);
+      },
+    );
+
     api.post<{ Params: { id: string }; Body: { effort: SoftwareEffort } }>(
       "/api/softwares/:id/effort",
       {
@@ -715,6 +793,68 @@ export async function createApp(deps: AppDeps): Promise<FastifyInstance> {
         workItem(request.params.id, () =>
           services.workItems.setSize(request.params.id, request.body.size),
         ),
+    );
+
+    // The queue of changes (decision 0321): move one, set its priority, split one made of several.
+    api.post<{ Params: { id: number }; Body: { direction: "up" | "down" } }>(
+      "/api/work-items/:id/move",
+      {
+        schema: {
+          params: numberIdParam,
+          body: {
+            type: "object",
+            properties: { direction: { type: "string", enum: ["up", "down"] } },
+            required: ["direction"],
+          },
+        },
+      },
+      async (request) =>
+        workItem(request.params.id, () =>
+          services.workItems.move(request.params.id, request.body.direction),
+        ),
+    );
+
+    api.post<{ Params: { id: number }; Body: { priority: QueuePriority } }>(
+      "/api/work-items/:id/queue-priority",
+      {
+        schema: {
+          params: numberIdParam,
+          body: {
+            type: "object",
+            properties: { priority: { type: "string", enum: ["first", "normal", "later"] } },
+            required: ["priority"],
+          },
+        },
+      },
+      async (request) =>
+        workItem(request.params.id, () =>
+          services.workItems.setPriority(request.params.id, request.body.priority),
+        ),
+    );
+
+    api.post<{ Params: { id: number }; Body: { before: boolean } }>(
+      "/api/work-items/:id/placement",
+      {
+        schema: {
+          params: numberIdParam,
+          body: {
+            type: "object",
+            properties: { before: { type: "boolean" } },
+            required: ["before"],
+          },
+        },
+      },
+      async (request) =>
+        workItem(request.params.id, () =>
+          services.workItems.setPlacement(request.params.id, request.body.before),
+        ),
+    );
+
+    api.post<{ Params: { id: number } }>(
+      "/api/work-items/:id/split-change",
+      { schema: { params: numberIdParam } },
+      async (request) =>
+        workItem(request.params.id, () => services.workItems.splitChange(request.params.id)),
     );
 
     api.post<{ Params: { id: number }; Body: { stages: StageId[] } }>(

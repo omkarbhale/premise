@@ -259,6 +259,10 @@ export function createSession(options: {
     queue,
     () => config.queue.max_agent_sessions,
     (softwareId, item) => engine.itemText(softwareId, item),
+    async () =>
+      (await softwareList())
+        .filter((s) => s.glance && (s.glance.now || s.glance.next))
+        .map((s) => ({ softwareId: s.id, name: s.name, ...s.glance! })),
   );
   const pausing = new Pausing({
     db,
@@ -304,12 +308,20 @@ export function createSession(options: {
       resume: async (id) => portfolio.resume(id),
       archive: (id) => portfolio.archive(id),
       restore: async (id) => portfolio.restore(id),
+      decideGroup: (id, ids, together) => engine.decideGroup(id, ids, together),
+      answerQueueNotice: (id, answer) => engine.answerQueueNotice(id, answer),
+      decideOverlap: (id, milestone, work, merge) =>
+        engine.decideOverlap(id, milestone, work, merge),
     },
     roles: () => engine.rolesInUse(),
     workItems: {
       setSize: (id, size) => engine.setItemSize(id, size),
       setStages: (id, stages) => engine.setItemStages(id, stages),
       undoSplit: (id) => engine.undoSplit(id),
+      move: (id, direction) => engine.moveQueued(id, direction),
+      setPriority: (id, priority) => engine.setQueuedPriority(id, priority),
+      splitChange: (id) => engine.splitQueued(id),
+      setPlacement: (id, before) => engine.setQueuedPlacement(id, before),
       softwareOf: (id) => engine.softwareOfItem(id),
     },
     conversation: {

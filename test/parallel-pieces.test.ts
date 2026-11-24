@@ -411,6 +411,21 @@ describe("several pieces of one software at once", () => {
     const B: Fix = { ...SOUND, file: "notes.txt", line: "Sound note." };
     let release: () => void = () => {};
     const released = new Promise<void>((resolve) => (release = resolve));
+    // The app and the software, once they exist; the builders' hold reads them.
+    const at: { app?: App; id: string } = { id: "" };
+    // A lands first, then B meets the conflict: B's builder commits only once A has landed, so the
+    // order does not depend on which check happens to finish first.
+    const aLanded = async () => {
+      for (let i = 0; i < 1200; i++) {
+        const row = at
+          .app!.db.prepare("SELECT state, line_state FROM work_items WHERE id = ?")
+          .get(itemOf(at.app!, at.id, A)) as { state: string; line_state: string };
+        const flight = (JSON.parse(row.line_state) as { flight?: { state?: string } }).flight;
+        if (row.state === "done" || flight?.state === "landed") return;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      throw new Error("A did not land");
+    };
     const app = await testApp(
       {},
       {
@@ -418,7 +433,7 @@ describe("several pieces of one software at once", () => {
           started: (marker) => {
             if (marker === B.marker) release();
           },
-          hold: { [A.marker]: () => released },
+          hold: { [A.marker]: () => released, [B.marker]: aLanded },
           fix: (copy, request, items) => {
             const evidence = String(request.context?.evidence ?? "");
             if (/Build this change again from the version that runs now/.test(evidence)) {
@@ -434,8 +449,22 @@ describe("several pieces of one software at once", () => {
         }),
       },
     );
+    at.app = app;
     const id = await builtSoftware(app);
+    at.id = id;
     await send(app, id, A);
+    await waitFor(
+      app,
+      async () => {
+        try {
+          itemOf(app, id, A);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      "A's change reaches the line before B's is sent",
+    );
     await send(app, id, B);
     let asked: AskView | undefined;
     for (let i = 0; i < 40 && !asked; i++) {
@@ -518,8 +547,13 @@ describe("several pieces of one software at once", () => {
     expect(before.inFlight.map((p) => p.state)).toEqual(["building", "building"]);
     expect(first.session.queue.list("running").map((j) => j.kind)).toEqual(["build", "build"]);
 
+    // A real restart has one premise running: the first stops (its builders cut off, their jobs
+    // back in the queue), so only the second drives the line afterwards.
+    await first.session.queue.close();
+    await first.session.line.idle();
     const second = await testApp({}, { script: rules, folder: first.folder });
-    expect(second.session.queue.recover().map((j) => j.kind)).toEqual(["build", "build"]);
+    expect(second.session.queue.recover()).toEqual([]);
+    expect(second.session.queue.list("queued").map((j) => j.kind)).toEqual(["build", "build"]);
     expect((await detail(second, id)).inFlight.map((p) => p.state)).toEqual([
       "building",
       "building",

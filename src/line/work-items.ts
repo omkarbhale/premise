@@ -287,9 +287,13 @@ export function setWorkItem(
     sized?: string;
     buildStarted?: string;
     finished?: string | null;
+    title?: string;
+    words?: string;
   },
 ): void {
   const columns: [string, unknown][] = [
+    ["title", change.title],
+    ["words", change.words],
     ["current_stage", change.currentStage],
     ["state", change.state],
     ["size_class", change.sizeClass],

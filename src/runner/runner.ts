@@ -619,7 +619,11 @@ export class Runner {
 
   private takeOutput(live: Live, text: string): void {
     if (PORT_IN_USE.test(text)) live.portCollision = true;
-    appendFileSync(live.logFile, text);
+    try {
+      appendFileSync(live.logFile, text);
+    } catch {
+      // The data folder is gone (premise shut down and cleaned up); the live output below still counts.
+    }
     const lines = text.split("\n");
     if (lines.at(-1) === "") lines.pop();
     live.lines.push(...lines);

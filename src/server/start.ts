@@ -3,7 +3,7 @@ import { ClaudeAgentRunner, PrerequisiteMissingError } from "../agents/claude-ag
 import { allowedHosts } from "../gate/gate.js";
 import { providedToolPaths } from "../runner/provided-tools.js";
 import { SwitchableRunner } from "../agents/switchable-runner.js";
-import { ScriptedAgentRunner, loadScriptFile } from "../agents/scripted-agent.js";
+import { type AgentScript, ScriptedAgentRunner, loadScriptFile } from "../agents/scripted-agent.js";
 import { AgentToolServer } from "../agents/tool-server.js";
 import { loadConfig } from "../config/load.js";
 import type { PremiseConfig } from "../config/settings.js";
@@ -40,10 +40,10 @@ export function toolsUrl(config: PremiseConfig): string {
 }
 
 /** The scripted agent: for tests and demos, and the look-around when real agents cannot start. */
-export function scriptedRunner(config: PremiseConfig): ScriptedAgentRunner {
+export function scriptedRunner(config: PremiseConfig, script?: AgentScript): ScriptedAgentRunner {
   const file = config.agents.scripted.script_file;
   const runner = new ScriptedAgentRunner(
-    file ? loadScriptFile(file) : standInScript(config.agents.scripted.step_seconds),
+    script ?? (file ? loadScriptFile(file) : standInScript(config.agents.scripted.step_seconds)),
   );
   runner.useWorkingCopies(config.data.folder, config.data.keep_finished_working_copies);
   return runner;
@@ -60,9 +60,10 @@ async function createRunner(
   setup: DoctorReport,
   extraHosts?: (softwareId: string) => string[],
   extraToolPaths?: (softwareId: string) => string[],
+  script?: AgentScript,
 ): Promise<SwitchableRunner> {
   if (config.agents.mode === "scripted") {
-    const scripted = scriptedRunner(config);
+    const scripted = scriptedRunner(config, script);
     scripted.useTools(tools);
     return new SwitchableRunner(scripted);
   }
@@ -129,6 +130,8 @@ export interface StartOptions {
   print?: (line: string) => void;
   /** For tests: how the setup check runs programs. */
   run?: CommandRunner;
+  /** For tests: a script written in code for the scripted agent (agents.mode "scripted"). */
+  script?: AgentScript;
 }
 
 /** Start premise: check the machine, open the database, resume the queue, serve the page. */
@@ -197,6 +200,7 @@ export async function start(options: StartOptions): Promise<Running> {
       setup,
       (id) => allowedHosts(db, id),
       (id) => providedToolPaths(db, config, id),
+      options.script,
     );
   } catch (error) {
     db.close();

@@ -624,6 +624,30 @@ export const SETTINGS: readonly Setting[] = [
     record: "0191",
   },
   {
+    key: "line.estimate_min_history",
+    default: 3,
+    check: summarised(wholeNumber(1, 100), "1 to 100"),
+    meaning:
+      'How many finished changes (or milestones) of a size premise needs before the timeline shows a rough estimate of the wait and the work for a queued one; with fewer it says "not enough history yet".',
+    record: "0321",
+  },
+  {
+    key: "line.queue_notice_items",
+    default: 5,
+    check: summarised(wholeNumber(1, 500), "1 to 500"),
+    meaning:
+      "When more changes than this are queued for one software, premise says so once, with the rough total, and offers to hold the lowest-value ones, raise the budget, or let more agents work at once.",
+    record: "0321",
+  },
+  {
+    key: "line.queue_notice_days",
+    default: 7,
+    check: summarised(wholeNumber(1, 365), "1 to 365"),
+    meaning:
+      "When the queued changes of one software add up to more than this many days of work by premise's rough estimate, premise says so once, as for line.queue_notice_items.",
+    record: "0321",
+  },
+  {
     key: "intake.reading_held_count",
     default: 10,
     check: summarised(wholeNumber(1, 500), "1 to 500"),
@@ -1072,6 +1096,9 @@ export interface PremiseConfig {
     pieces_in_flight: number;
     estimate_minutes_per_session: number;
     estimate_items_per_build: number;
+    estimate_min_history: number;
+    queue_notice_items: number;
+    queue_notice_days: number;
     budgets: Record<BudgetGroup, Record<"small" | "medium" | "large", StageBudget>>;
   };
   github: { command: string; timeout_minutes: number };

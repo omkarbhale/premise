@@ -1495,3 +1495,178 @@ select {
   background: var(--card);
   border-color: var(--border);
 }
+
+/* The timeline of the line (decisions 0320, 0321) */
+.timeline {
+  margin-top: 0.75rem;
+}
+.timeline-headline {
+  margin: 0.25rem 0 0.75rem;
+}
+.timeline-notice,
+.timeline-group {
+  border: 1px solid var(--needs);
+  background: var(--needs-soft);
+  border-radius: var(--radius);
+  padding: 0.6rem 0.8rem;
+  margin: 0.5rem 0;
+}
+.timeline-group {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.timeline-notice p,
+.timeline-group p {
+  margin: 0 0 0.5rem;
+}
+.timeline .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.timeline-done summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+.tl {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+}
+.tl-entry {
+  display: grid;
+  grid-template-columns: 1.5rem 1fr;
+  gap: 0.25rem;
+  padding: 0.5rem 0;
+  border-left: 2px solid var(--border);
+  margin-left: 0.6rem;
+  padding-left: 0.4rem;
+  position: relative;
+}
+.tl-sign {
+  font-weight: 700;
+  color: var(--muted);
+  text-align: center;
+}
+.tl-running .tl-sign,
+.tl-live .tl-sign {
+  color: var(--accent);
+}
+.tl-waiting-on-you .tl-sign {
+  color: var(--needs);
+}
+.tl-done .tl-sign {
+  color: var(--ok);
+}
+.tl-live {
+  border-left-color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+.tl-waiting-on-you.tl-live {
+  border-left-color: var(--needs);
+  background: var(--needs-soft);
+}
+.tl-body {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.tl-title strong {
+  font-weight: 600;
+}
+.tl-chip {
+  font-size: 0.75rem;
+}
+.tl-chip-waiting-on-you {
+  color: var(--needs);
+  border-color: var(--needs);
+}
+.tl-chip-running {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.tl-step-now {
+  margin: 0.2rem 0;
+  font-weight: 600;
+}
+.tl-who,
+.tl-steps {
+  list-style: none;
+  margin: 0.25rem 0;
+  padding: 0;
+}
+.tl-steps .tl-steps {
+  padding-left: 1.4rem;
+}
+.tl-step {
+  padding: 0.1rem 0;
+}
+.tl-mark {
+  display: inline-block;
+  width: 1.2rem;
+  text-align: center;
+  color: var(--muted);
+}
+.mark-done > .tl-mark {
+  color: var(--ok);
+}
+.mark-running > .tl-mark {
+  color: var(--accent);
+}
+.mark-running > span:nth-child(3) {
+  font-weight: 600;
+}
+.mark-waiting > .tl-mark,
+.mark-stopped > .tl-mark {
+  color: var(--needs);
+}
+.tl-why,
+.tl-starts,
+.tl-estimate {
+  margin: 0.15rem 0;
+}
+.tl-ask {
+  margin: 0.3rem 0;
+  padding: 0.3rem 0.5rem;
+  border-left: 3px solid var(--needs);
+  background: var(--needs-soft);
+}
+.tl-ask-notice {
+  border-left-color: var(--accent);
+  background: transparent;
+}
+.tl-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  margin-top: 0.3rem;
+}
+.tl-details summary {
+  cursor: pointer;
+}
+.pick-glance {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  margin-top: 0.2rem;
+}
+.activity-lines {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.activity-lines li {
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--border);
+}
+@media (max-width: 560px) {
+  .tl-entry {
+    margin-left: 0.2rem;
+    grid-template-columns: 1.1rem 1fr;
+  }
+  .tl-controls button,
+  .timeline .actions button {
+    flex: 1 1 auto;
+  }
+}

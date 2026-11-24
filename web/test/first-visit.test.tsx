@@ -9,7 +9,7 @@ import { Define } from "../src/components/Badges";
 import { RecordView } from "../src/components/RecordView";
 import { SoftwareView } from "../src/components/SoftwareView";
 import { StartForm } from "../src/components/StartForm";
-import { ask, fakeApi, inSession, overview, software } from "./fixtures";
+import { ask, fakeApi, inSession, overview, software, timeline } from "./fixtures";
 import { SessionContext, type Session } from "../src/context";
 
 afterEach(() => {
@@ -295,7 +295,16 @@ describe("one software", () => {
       fakeApi({
         software: vi.fn(() =>
           Promise.resolve(
-            software({ state: "ended", stage: "report", status: "Ended: nothing was built." }),
+            software({
+              state: "ended",
+              stage: "report",
+              status: "Ended: nothing was built.",
+              // As the server builds it for an ended software: nothing runs or waits.
+              timeline: timeline({
+                now: [],
+                headline: "Ended: nothing more is built unless you send it back.",
+              }),
+            }),
           ),
         ),
       }),

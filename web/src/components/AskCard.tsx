@@ -76,6 +76,7 @@ export function AskCard({ ask, showSoftware = false }: { ask: AskView; showSoftw
   const open = ask.status === "open";
   return (
     <article
+      id={`ask-${ask.id}`}
       className={`ask ask-${ask.kind} ${open ? "" : "ask-closed"}`}
       aria-labelledby={titleId}
     >

@@ -1,3 +1,4 @@
+import { splitWaitMarker } from "./milestone-wait.js";
 import type { Operation } from "../record/change.js";
 import {
   FROM_PATTERN,
@@ -359,6 +360,13 @@ export function addOperation(
     priority = p.priority ?? priority ?? "should";
     text = p.rest;
   }
+  // A milestone's wait is its flag, never words in its text (decision 0321).
+  let marked = false;
+  if (item.kind === "M") {
+    const split = splitWaitMarker(text);
+    text = split.text;
+    marked = split.marked;
+  }
   if (item.suggestion && !entry.edited && !/suggestion/i.test(text)) text = `Suggestion: ${text}`;
   if (item.kind === "D" && item.condition && !ASSUMED_DECISION.test(text)) {
     // The condition stays with the decision in the record, where the checker judges it (0300).
@@ -372,7 +380,7 @@ export function addOperation(
     from: entry.edited ? operatorRole : item.from,
     ...(item.kind === "W" && { priority }),
     ...(item.kind === "D" && item.foundation && { foundation: true }),
-    ...(item.kind === "M" && (entry.wait ?? item.wait) && { wait: true }),
+    ...(item.kind === "M" && (entry.wait ?? (item.wait || marked)) && { wait: true }),
   };
 }
 

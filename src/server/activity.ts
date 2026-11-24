@@ -15,6 +15,8 @@ export class QueueActivity implements ActivityService {
     private readonly maxAgentSessions: () => number,
     /** Record item words, so each job says what it serves (decision 0310). */
     private readonly itemText: ItemText = () => undefined,
+    /** One line per software with work: what runs now and what is next (decision 0320). */
+    private readonly lines?: () => Promise<NonNullable<ActivityView["lines"]>>,
   ) {}
 
   private names(): Map<string, string> {
@@ -87,6 +89,7 @@ export class QueueActivity implements ActivityService {
       waiting: toView([...this.queue.list("waiting"), ...this.queue.list("paused")]),
       queued: toView(this.queue.list("queued")),
       recent: toView(finished),
+      ...(this.lines && { lines: await this.lines() }),
     };
   }
 
