@@ -274,6 +274,7 @@ function workersOf(ids: Set<number>, facts: TimelineFacts): TimelineWorker[] {
   return facts.jobs
     .filter((j) => ids.has(Number(j.payload.item)))
     .map((j) => ({
+      jobId: j.id,
       role: facts.jobWords(j),
       status:
         j.status === "running"

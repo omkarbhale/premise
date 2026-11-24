@@ -366,6 +366,8 @@ export interface TimelineAsk {
 
 /** Who is working on a piece now. */
 export interface TimelineWorker {
+  /** The job, so the page's server can refresh its progress line cheaply. */
+  jobId?: number;
   /** In plain words: "builder", "checker, checking the parts work together". */
   role: string;
   /** running, or queued until an agent is free. */

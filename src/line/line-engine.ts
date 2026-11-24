@@ -1131,14 +1131,50 @@ export class LineEngine implements IntakeLine {
   timeline(softwareId: string, known: { build?: BuildView | null } = {}): TimelineView {
     // Built again only once something was recorded since: the page refreshes on events, and
     // reading the record and the build from disk on every status line would slow the line.
+    // Agent progress lines arrive many times a second and change only a worker's last line,
+    // so they do not rebuild it: a hit refreshes just those lines.
     const latest = (
-      this.db.prepare("SELECT MAX(id) AS id FROM events").get() as { id: number | null }
+      this.db
+        .prepare(
+          "SELECT MAX(id) AS id FROM events WHERE NOT (module = 'agent' AND kind = 'progress')",
+        )
+        .get() as { id: number | null }
     ).id;
     const cached = this.timelines.get(softwareId);
-    if (cached && cached.event === latest && latest !== null) return cached.view;
+    if (cached && cached.event === latest && latest !== null) {
+      return {
+        ...cached.view,
+        now: cached.view.now.map((e) =>
+          e.who.some((w) => w.jobId !== undefined)
+            ? {
+                ...e,
+                who: e.who.map((w) =>
+                  w.jobId !== undefined && w.status === "running"
+                    ? { ...w, progress: this.lastProgress(w.jobId) }
+                    : w,
+                ),
+              }
+            : e,
+        ),
+      };
+    }
     const view = this.buildTimelineView(softwareId, known);
     this.timelines.set(softwareId, { event: latest ?? 0, view });
     return view;
+  }
+
+  private lastProgress(jobId: number): string | null {
+    const row = this.db
+      .prepare(
+        "SELECT detail FROM events WHERE module = 'agent' AND kind = 'progress' AND reference = ? ORDER BY id DESC LIMIT 1",
+      )
+      .get(String(jobId)) as { detail: string | null } | undefined;
+    try {
+      const text = row?.detail ? (JSON.parse(row.detail) as { text?: unknown }).text : null;
+      return typeof text === "string" ? text : null;
+    } catch {
+      return null;
+    }
   }
 
   private buildTimelineView(softwareId: string, known: { build?: BuildView | null }): TimelineView {
@@ -1163,9 +1199,6 @@ export class LineEngine implements IntakeLine {
     };
     const active = this.active(softwareId);
     const queued = this.lineQueue.queued(softwareId);
-    const progress = this.db.prepare(
-      "SELECT detail FROM events WHERE module = 'agent' AND kind = 'progress' AND reference = ? ORDER BY id DESC LIMIT 1",
-    );
     return buildTimeline({
       software,
       items: listWorkItems(this.db, softwareId),
@@ -1186,15 +1219,7 @@ export class LineEngine implements IntakeLine {
             j.softwareId === softwareId &&
             ["queued", "running", "waiting", "paused"].includes(j.status),
         ),
-      progress: (jobId) => {
-        const row = progress.get(String(jobId)) as { detail: string | null } | undefined;
-        try {
-          const text = row?.detail ? (JSON.parse(row.detail) as { text?: unknown }).text : null;
-          return typeof text === "string" ? text : null;
-        } catch {
-          return null;
-        }
-      },
+      progress: (jobId) => this.lastProgress(jobId),
       jobWords: (job) => jobWords(job),
       asks: listAsks(this.db, { softwareId, status: "open" }),
       intake: listIntakeItems(this.db, { softwareId }),
