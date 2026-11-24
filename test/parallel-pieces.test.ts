@@ -411,6 +411,21 @@ describe("several pieces of one software at once", () => {
     const B: Fix = { ...SOUND, file: "notes.txt", line: "Sound note." };
     let release: () => void = () => {};
     const released = new Promise<void>((resolve) => (release = resolve));
+    // The app and the software, once they exist; the builders' hold reads them.
+    const at: { app?: App; id: string } = { id: "" };
+    // A lands first, then B meets the conflict: B's builder commits only once A has landed, so the
+    // order does not depend on which check happens to finish first.
+    const aLanded = async () => {
+      for (let i = 0; i < 1200; i++) {
+        const row = at
+          .app!.db.prepare("SELECT state, line_state FROM work_items WHERE id = ?")
+          .get(itemOf(at.app!, at.id, A)) as { state: string; line_state: string };
+        const flight = (JSON.parse(row.line_state) as { flight?: { state?: string } }).flight;
+        if (row.state === "done" || flight?.state === "landed") return;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      throw new Error("A did not land");
+    };
     const app = await testApp(
       {},
       {
@@ -418,24 +433,25 @@ describe("several pieces of one software at once", () => {
           started: (marker) => {
             if (marker === B.marker) release();
           },
-          hold: { [A.marker]: () => released },
+          hold: { [A.marker]: () => released, [B.marker]: aLanded },
           fix: (copy, request, items) => {
             const evidence = String(request.context?.evidence ?? "");
-            const mine = [A, B].find((f) => request.brief.includes(f.marker)) ?? B;
             if (/Build this change again from the version that runs now/.test(evidence)) {
               // Built again on the new version: keep what is there, add its own line.
               const before = readFileSync(join(copy, "notes.txt"), "utf8");
-              writeFiles(copy, { "notes.txt": `${before}${mine.line}\n` });
+              writeFiles(copy, { "notes.txt": `${before}${B.line}\n` });
             } else {
               // A builder that does not manage the merge: it changes the line again.
-              writeFiles(copy, { "notes.txt": `${mine.line.replace(/\.$/, "")}, again.\n` });
+              writeFiles(copy, { "notes.txt": "Sound note, again.\n" });
             }
             commitAll(copy, "Try again", items);
           },
         }),
       },
     );
+    at.app = app;
     const id = await builtSoftware(app);
+    at.id = id;
     await send(app, id, A);
     await waitFor(
       app,
@@ -468,16 +484,7 @@ describe("several pieces of one software at once", () => {
       answer: { kind: "text", text: "Build it again on the new version" },
     });
     await answerAll(app, id, () => bothDone(app, id, [A, B]));
-    // Whichever landed first keeps its line first; the other was built again on top of it.
-    const landed = git(join(app.folder, "repos", id), [
-      "log",
-      "--reverse",
-      "--format=%s",
-      "--",
-      "notes.txt",
-    ]);
-    const [first, second] = landed.split("\n")[0]!.includes(A.marker) ? [A, B] : [B, A];
-    expect(mainFile(app, id, "notes.txt")).toBe(`${first.line}\n${second.line}\n`);
+    expect(mainFile(app, id, "notes.txt")).toBe(`${A.line}\n${B.line}\n`);
   }, 120_000);
 
   it("builds one piece after another when the software is set to one at a time", async () => {
