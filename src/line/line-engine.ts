@@ -1105,7 +1105,8 @@ export class LineEngine implements IntakeLine {
     const openAsks = listAsks(this.db, { softwareId: software.id, status: "open" }).filter(
       (a) => a.extra.meta?.notice !== true,
     ).length;
-    const jobs = this.queue.list().filter((j) => j.softwareId === software.id);
+    // Only live jobs say anything here; reading every job ever run made the list slow.
+    const jobs = this.queue.listFor(software.id, ["running", "queued"]);
     return {
       id: software.id,
       name: software.name,
@@ -1131,13 +1132,14 @@ export class LineEngine implements IntakeLine {
     // reading the record and the build from disk on every status line would slow the line.
     // Agent progress lines arrive many times a second and change only a worker's last line,
     // so they do not rebuild it: a hit refreshes just those lines.
-    const latest = (
-      this.db
-        .prepare(
-          "SELECT MAX(id) AS id FROM events WHERE NOT (module = 'agent' AND kind = 'progress')",
-        )
-        .get() as { id: number | null }
-    ).id;
+    const latest =
+      (
+        this.db
+          .prepare(
+            "SELECT id FROM events WHERE NOT (module = 'agent' AND kind = 'progress') ORDER BY id DESC LIMIT 1",
+          )
+          .get() as { id: number } | undefined
+      )?.id ?? null;
     const cached = this.timelines.get(softwareId);
     if (cached && cached.event === latest && latest !== null) {
       return {

@@ -129,6 +129,7 @@ The record format is not configurable per software; it stays with premise ([0106
 ## 7. Limits
 
 - A record file is parsed whole on every change. A record large enough to make this slow is not expected in any milestone; if it happens, the parse is cached per commit.
+- The record's files at the latest commit are kept in memory and read through git again only when the repository's latest commit moves, told from git's own files without running git; the page asks for record words on every reload ([0340](../decisions/0340-the-page-stays-fast-on-real-data.md)).
 - The reviewer's check costs one agent session per change. Changes from one stage draft are reviewed together as one change.
 
 ## 8. Failure modes and recovery

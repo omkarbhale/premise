@@ -174,15 +174,48 @@ function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) 
   const [explained] = useState(() => new Set<string>());
   const pending = useRef<number | null>(null);
 
-  // Many events arrive together; reload once for each burst.
-  const refresh = useCallback(() => {
-    if (pending.current !== null) return;
+  const due = useRef(0);
+  const lastReload = useRef(0);
+  const liveEvery = useRef(1000);
+  const missedWhileHidden = useRef(false);
+  // Reload what the page shows once, `wait` ms from now, unless a reload is already due sooner.
+  const reloadIn = useCallback((wait: number) => {
+    const at = Date.now() + wait;
+    if (pending.current !== null) {
+      if (due.current <= at) return;
+      window.clearTimeout(pending.current);
+    }
+    due.current = at;
     pending.current = window.setTimeout(() => {
       pending.current = null;
+      lastReload.current = Date.now();
       setVersion((v) => v + 1);
-    }, 60);
+    }, wait);
   }, []);
-  const connection = useEventStream(api.eventsUrl(), refresh);
+  // After something you did: reload at once (many changes land together, so a moment's wait).
+  const refresh = useCallback(() => reloadIn(60), [reloadIn]);
+  // Live events: agents send progress many times a second, so reload at most once every
+  // page.live_update_ms, and not at all while the tab is hidden; it catches up when shown.
+  const onLiveEvent = useCallback(() => {
+    if (document.hidden) {
+      missedWhileHidden.current = true;
+      return;
+    }
+    reloadIn(Math.max(60, lastReload.current + liveEvery.current - Date.now()));
+  }, [reloadIn]);
+  useEffect(() => {
+    const shown = () => {
+      if (document.hidden || !missedWhileHidden.current) return;
+      missedWhileHidden.current = false;
+      reloadIn(60);
+    };
+    document.addEventListener("visibilitychange", shown);
+    return () => {
+      document.removeEventListener("visibilitychange", shown);
+      if (pending.current !== null) window.clearTimeout(pending.current);
+    };
+  }, [reloadIn]);
+  const connection = useEventStream(api.eventsUrl(), onLiveEvent);
 
   const openSoftware = useCallback(
     (id: string, to?: SoftwareTab) => {
@@ -193,6 +226,10 @@ function Session({ api, onNotCurrent }: { api: Api; onNotCurrent: () => void }) 
   );
   const overview = useLoad(() => api.overview(), [], version, onNotCurrent);
   const known = overview.state === "ready" ? overview.data : null;
+  const liveUpdateMs = known?.page.liveUpdateMs ?? 1000;
+  useEffect(() => {
+    liveEvery.current = liveUpdateMs;
+  }, [liveUpdateMs]);
   const session: Session = useMemo(
     () => ({
       api,

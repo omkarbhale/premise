@@ -825,6 +825,14 @@ export const SETTINGS: readonly Setting[] = [
     record: "0157",
   },
   {
+    key: "page.live_update_ms",
+    default: 1000,
+    check: summarised(wholeNumber(100, 10_000), "100 to 10000"),
+    meaning:
+      "While work goes on, the page reloads what it shows at most this often, in milliseconds. What you do yourself shows at once. Lower feels livelier and costs more; agents send progress many times a second, so very low values can make the page feel slow.",
+    record: "0340",
+  },
+  {
     key: "record.folder",
     default: "premise",
     check: summarised(
@@ -1133,7 +1141,7 @@ export interface PremiseConfig {
     default_weekly_share_percent: number | null;
     default_weekly_budget_usd: number | null;
   };
-  page: { notifications: PageNotifications };
+  page: { notifications: PageNotifications; live_update_ms: number };
   line: {
     say_back_max_items: number;
     why_items_min: number;

@@ -98,6 +98,7 @@ Every ask shows its kind and is written in its role's terms ([0009](../decisions
 | Key | Default | Meaning |
 |---|---|---|
 | `page.notifications` | `"offer"` | `"offer"`: a button on "Waiting on you" offers browser notifications, and the browser asks only when it is pressed. `"off"`: never offered ([0157](../decisions/0157-browser-notifications-are-offered-not-asked.md)) |
+| `page.live_update_ms` | `1000` | While work goes on, the page reloads what it shows at most this often, and not while its tab is hidden; what the person does shows at once ([0340](../decisions/0340-the-page-stays-fast-on-real-data.md)) |
 
 ## 7. Limits
 

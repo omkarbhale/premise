@@ -1,7 +1,7 @@
 import { execFile, execFileSync, spawnSync } from "node:child_process";
 import { devNull } from "node:os";
-import { existsSync, mkdirSync } from "node:fs";
-import { dirname } from "node:path";
+import { existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
+import { dirname, join } from "node:path";
 
 /**
  * Everything premise does with git goes through this one small module (record keeper spec 3).
@@ -19,6 +19,44 @@ export class GitError extends Error {
   ) {
     super(message);
     this.name = "GitError";
+  }
+}
+
+/**
+ * A cheap token that changes whenever a repository's HEAD moves, read from git's own files
+ * without running git, so callers can keep what they read from HEAD until it changes. Undefined
+ * when it cannot be told this way (a linked working copy, or files git has not written yet);
+ * then the caller reads afresh.
+ */
+export function headToken(cwd: string): string | undefined {
+  try {
+    const gitFolder = join(cwd, ".git");
+    if (!statSync(gitFolder).isDirectory()) return undefined;
+    const head = readFileSync(join(gitFolder, "HEAD"), "utf8").trim();
+    let ref = "";
+    if (head.startsWith("ref: ")) {
+      const loose = join(gitFolder, head.slice(5));
+      if (existsSync(loose)) ref = readFileSync(loose, "utf8").trim();
+    }
+    const packedFile = join(gitFolder, "packed-refs");
+    const packed = existsSync(packedFile) ? statSync(packedFile) : undefined;
+    return `${head}|${ref}|${packed ? `${packed.mtimeMs}:${packed.size}` : ""}`;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The commit HEAD is on, read from a plain repository's loose files; undefined when not found so. */
+function headCommitFromFiles(cwd: string): string | undefined {
+  try {
+    const gitFolder = join(cwd, ".git");
+    const head = readFileSync(join(gitFolder, "HEAD"), "utf8").trim();
+    const sha = head.startsWith("ref: ")
+      ? readFileSync(join(gitFolder, head.slice(5)), "utf8").trim()
+      : head;
+    return /^[0-9a-f]{40,64}$/.test(sha) ? sha : undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -166,6 +204,14 @@ export class Git {
 
   headCommit(cwd: string): string | undefined {
     return this.tryRun(cwd, ["rev-parse", "--verify", "--quiet", "HEAD"])?.trim();
+  }
+
+  /**
+   * Whether HEAD is on a commit. Read from git's own files when it can be, without running git:
+   * the page asks this for every software on every reload.
+   */
+  hasCommit(cwd: string): boolean {
+    return headCommitFromFiles(cwd) !== undefined || this.headCommit(cwd) !== undefined;
   }
 
   /** Start a branch at the current commit and switch to it. */
