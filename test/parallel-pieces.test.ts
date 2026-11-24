@@ -540,8 +540,13 @@ describe("several pieces of one software at once", () => {
     expect(before.inFlight.map((p) => p.state)).toEqual(["building", "building"]);
     expect(first.session.queue.list("running").map((j) => j.kind)).toEqual(["build", "build"]);
 
+    // A real restart has one premise running: the first stops (its builders cut off, their jobs
+    // back in the queue), so only the second drives the line afterwards.
+    await first.session.queue.close();
+    await first.session.line.idle();
     const second = await testApp({}, { script: rules, folder: first.folder });
-    expect(second.session.queue.recover().map((j) => j.kind)).toEqual(["build", "build"]);
+    expect(second.session.queue.recover()).toEqual([]);
+    expect(second.session.queue.list("queued").map((j) => j.kind)).toEqual(["build", "build"]);
     expect((await detail(second, id)).inFlight.map((p) => p.state)).toEqual([
       "building",
       "building",
